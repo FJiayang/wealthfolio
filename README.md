@@ -456,18 +456,15 @@ You can either pull the official Docker image or build it yourself locally.
 
 ### Using the Pre-built Image
 
-The latest server build is published to Docker Hub.
+Release builds are published only to GitHub Container Registry (GHCR). Replace
+`your-github-owner` with the repository owner's lowercase name.
 
 ```bash
-docker pull wealthfolio/wealthfolio:latest
+docker pull ghcr.io/your-github-owner/wealthfolio:latest
 ```
 
-After pulling, use `wealthfolio/wealthfolio:latest` in the run commands below.
-If you build the image locally, swap the image name back to `wealthfolio`.
-
-> **Legacy image:** the same build is also mirrored to `afadil/wealthfolio` so
-> existing `compose.yml` files keep working. New deployments should prefer
-> `wealthfolio/wealthfolio`.
+After pulling, use `ghcr.io/your-github-owner/wealthfolio:latest` in the run
+commands below. If you build the image locally, use `wealthfolio`.
 
 ### Building the Image
 

@@ -15,19 +15,16 @@ own repositories.
 
 Multi-arch (`linux/amd64`, `linux/arm64`), published on every `v*.*.*` tag:
 
-| Registry   | Image                                         |
-| ---------- | --------------------------------------------- |
-| Docker Hub | `wealthfolio/wealthfolio:latest` _(primary)_  |
-| Docker Hub | `afadil/wealthfolio:latest` _(legacy mirror)_ |
-| GHCR       | `ghcr.io/wealthfolio/wealthfolio:latest`      |
+Images are published only to GitHub Container Registry (GHCR), at
+`ghcr.io/<github-owner>/wealthfolio`. Replace `your-github-owner` below with the
+repository owner's lowercase name:
 
 ```bash
-docker pull wealthfolio/wealthfolio:latest
+docker pull ghcr.io/your-github-owner/wealthfolio:latest
 ```
 
-Existing deployments that pin `afadil/wealthfolio:latest` keep working — both
-Docker Hub repos receive the same multi-arch build from CI. New deployments
-should prefer `wealthfolio/wealthfolio`.
+Docker Hub images no longer receive releases from this workflow. Update existing
+deployments to use the GHCR image to receive future releases.
 
 ## Reverse proxies and profile startup
 
