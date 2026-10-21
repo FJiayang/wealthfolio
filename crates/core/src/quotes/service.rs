@@ -17,8 +17,10 @@ use tokio::sync::RwLock;
 
 use crate::utils::time_utils;
 
-use super::client::{MarketDataClient, ProviderConfig};
-use super::constants::{DATA_SOURCE_CUSTOM_SCRAPER, DATA_SOURCE_MANUAL, MAX_SYNC_ERRORS};
+use super::client::{MarketDataClient, MarketDataClientError, ProviderConfig};
+use super::constants::{
+    DATA_SOURCE_CUSTOM_SCRAPER, DATA_SOURCE_HTTP_API, DATA_SOURCE_MANUAL, MAX_SYNC_ERRORS,
+};
 use super::import::{
     ImportValidationStatus, QuoteConverter, QuoteImport, QuoteImportOutcome, QuoteImportPreview,
     QuoteImportRow, QuoteValidator,
@@ -59,6 +61,7 @@ pub struct ProviderInfo {
     pub priority: i32,
     pub logo_filename: Option<String>,
     pub capabilities: Option<super::provider_settings::ProviderCapabilities>,
+    pub base_url: Option<String>,
     pub requires_api_key: bool,
     pub has_api_key: bool,
     /// Number of assets synced by this provider
@@ -163,12 +166,19 @@ fn instrument_key_from_search_result(result: &SymbolSearchResult) -> Option<Stri
     .instrument_key()
 }
 
-fn local_search_identity(query: &str) -> Option<(String, Option<&'static str>)> {
+fn local_search_identity(query: &str) -> Option<(String, Option<&str>)> {
     let query = query.trim();
     if query.is_empty() {
         return None;
     }
 
+    if let Some((market, code)) =
+        wealthfolio_market_data::provider::http_api::qualified_symbol(query)
+    {
+        if wealthfolio_market_data::is_known_mic(market) {
+            return Some((code.to_string(), Some(market)));
+        }
+    }
     let (base_symbol, suffix_mic) = parse_symbol_with_exchange_suffix(query);
     let canonical_symbol = yahoo_equity_provider_symbol_to_canonical(base_symbol);
     let canonical_symbol = canonical_symbol.trim();
@@ -644,6 +654,7 @@ pub trait QuoteServiceTrait: Send + Sync {
         provider_id: &str,
         priority: i32,
         enabled: bool,
+        base_url: Option<&str>,
     ) -> Result<()>;
 
     // =========================================================================
@@ -764,11 +775,14 @@ where
         let enabled: Vec<ProviderConfig> = providers
             .iter()
             .filter(|p| p.enabled)
-            .map(|p| ProviderConfig {
-                id: p.id.clone(),
-                priority: p.priority,
+            .map(|p| {
+                Ok(ProviderConfig {
+                    id: p.id.clone(),
+                    priority: p.priority,
+                    base_url: p.http_api_base_url()?,
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         // Build extra providers (CustomScraperProvider if repo is available and enabled)
         let custom_scraper_enabled = providers
@@ -835,11 +849,14 @@ where
         let enabled: Vec<ProviderConfig> = providers
             .iter()
             .filter(|p| p.enabled)
-            .map(|p| ProviderConfig {
-                id: p.id.clone(),
-                priority: p.priority,
+            .map(|p| {
+                Ok(ProviderConfig {
+                    id: p.id.clone(),
+                    priority: p.priority,
+                    base_url: p.http_api_base_url()?,
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         let custom_scraper_enabled = providers
             .iter()
@@ -923,15 +940,35 @@ where
             .clone()
             .or_else(|| asset.instrument_symbol.clone())
             .unwrap_or_default();
-        let display = asset_search_display_symbol(asset);
         let provider_id = asset_resolution_provider_id(asset);
+        let provider_symbol = if provider_id.as_deref() == Some(DATA_SOURCE_HTTP_API) {
+            asset
+                .provider_overrides()
+                .and_then(|json| ProviderOverrides::from_json(json).ok())
+                .and_then(|overrides| {
+                    overrides
+                        .get(DATA_SOURCE_HTTP_API)
+                        .map(ProviderInstrument::to_symbol_string)
+                })
+                .or_else(|| {
+                    asset.instrument_symbol.clone().filter(|symbol| {
+                        wealthfolio_market_data::provider::http_api::qualified_symbol(symbol)
+                            .is_some()
+                    })
+                })
+        } else {
+            None
+        };
+        let display = provider_symbol
+            .clone()
+            .unwrap_or_else(|| asset_search_display_symbol(asset));
 
         SymbolSearchResult {
             symbol: display.clone(),
             canonical_symbol: asset.instrument_symbol.clone(),
             canonical_exchange_mic: asset.instrument_exchange_mic.clone(),
             provider_id: provider_id.clone(),
-            provider_symbol: None,
+            provider_symbol,
             short_name: asset.name.clone().unwrap_or_else(|| stored_display.clone()),
             long_name: asset.name.clone().unwrap_or(stored_display),
             exchange: exchange_name.clone().unwrap_or_default(),
@@ -1472,9 +1509,10 @@ where
         query: &str,
         account_currency: Option<&str>,
     ) -> Result<Vec<SymbolSearchResult>> {
+        let normalized_query = query.trim().to_uppercase();
         // 1. Search existing assets in user's database
         let mut existing_assets = self.asset_repo.search_by_symbol(query).unwrap_or_default();
-        if let Some((canonical_symbol, exchange_mic)) = local_search_identity(query) {
+        if let Some((canonical_symbol, exchange_mic)) = local_search_identity(&normalized_query) {
             let query_trimmed = query.trim();
             if !canonical_symbol.eq_ignore_ascii_case(query_trimmed) || exchange_mic.is_some() {
                 let mut seen_asset_ids: HashSet<String> = existing_assets
@@ -1519,14 +1557,28 @@ where
             }
         }
 
-        // 2. Search provider for external results
-        let provider_results = self
-            .client
-            .read()
-            .await
-            .search(query)
-            .await
-            .unwrap_or_default();
+        // Explicit identities already on disk do not need a network lookup.
+        let qualified =
+            wealthfolio_market_data::provider::http_api::qualified_symbol(&normalized_query)
+                .is_some();
+        let has_exact_local = qualified
+            && existing_assets.iter().any(|asset| {
+                asset_provider_alias_symbols(asset)
+                    .iter()
+                    .any(|alias| alias.eq_ignore_ascii_case(&normalized_query))
+                    || local_search_identity(&normalized_query).is_some_and(|(symbol, mic)| {
+                        asset_matches_local_search_identity(asset, &symbol, mic)
+                    })
+            });
+        let provider_results = if has_exact_local {
+            Vec::new()
+        } else {
+            match self.client.read().await.search(query).await {
+                Ok(results) => results,
+                Err(error) if qualified && existing_assets.is_empty() => return Err(error),
+                Err(_) => Vec::new(),
+            }
+        };
 
         // 3. Convert existing assets to SymbolSearchResult with is_existing flag
         let mut existing_summaries: Vec<SymbolSearchResult> = existing_assets
@@ -2235,7 +2287,8 @@ where
                     | DATA_SOURCE_FINNHUB
             );
             // Check if API key is set (skip for disabled providers to avoid keychain prompts)
-            let has_key = if requires_key && setting.enabled {
+            let has_key = if (requires_key || setting.id == DATA_SOURCE_HTTP_API) && setting.enabled
+            {
                 self.secret_store
                     .get_secret(&setting.id)
                     .ok()
@@ -2243,7 +2296,7 @@ where
                     .map(|k| !k.is_empty())
                     .unwrap_or(false)
             } else {
-                !requires_key
+                !requires_key && setting.id != DATA_SOURCE_HTTP_API
             };
 
             // Get sync stats for this provider
@@ -2269,6 +2322,7 @@ where
                 priority: setting.priority,
                 logo_filename: setting.logo_filename.clone(),
                 capabilities: setting.capabilities.clone(),
+                base_url: setting.http_api_base_url()?,
                 requires_api_key: requires_key,
                 has_api_key: has_key,
                 asset_count,
@@ -2289,12 +2343,35 @@ where
         provider_id: &str,
         priority: i32,
         enabled: bool,
+        base_url: Option<&str>,
     ) -> Result<()> {
         use super::provider_settings::UpdateMarketDataProviderSetting;
 
+        if let Some(base_url) = base_url {
+            if provider_id != DATA_SOURCE_HTTP_API {
+                return Err(Error::Validation(
+                    crate::errors::ValidationError::InvalidInput(
+                        "Only HTTP API providers accept a base URL".into(),
+                    ),
+                ));
+            }
+            wealthfolio_market_data::provider::http_api::validate_base_url(base_url)
+                .map_err(MarketDataClientError::from)?;
+        }
+        if provider_id == DATA_SOURCE_HTTP_API && enabled && base_url.is_none() {
+            let setting = self.provider_settings_store.get_provider(provider_id)?;
+            let saved_url = setting.http_api_base_url()?.ok_or_else(|| {
+                Error::Validation(crate::errors::ValidationError::InvalidInput(
+                    "HTTP API base URL is required".into(),
+                ))
+            })?;
+            wealthfolio_market_data::provider::http_api::validate_base_url(&saved_url)
+                .map_err(MarketDataClientError::from)?;
+        }
         self.provider_settings_store.update_provider(
             provider_id,
             UpdateMarketDataProviderSetting {
+                base_url: base_url.map(str::to_owned),
                 priority: Some(priority),
                 enabled: Some(enabled),
             },
@@ -2836,6 +2913,96 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
 
+    #[tokio::test]
+    async fn http_api_existing_identity_and_fuzzy_search_work_without_the_service() {
+        let asset = Asset {
+            id: "fund".into(),
+            name: Some("易方达蓝筹精选混合".into()),
+            display_code: Some("FUND:005827".into()),
+            instrument_symbol: Some("FUND:005827".into()),
+            instrument_type: Some(InstrumentType::Equity),
+            quote_ccy: "CNY".into(),
+            quote_mode: QuoteMode::Market,
+            provider_config: Some(serde_json::json!({ "preferred_provider": "HTTP_API" })),
+            ..Default::default()
+        };
+        let stock = Asset {
+            id: "stock".into(),
+            display_code: Some("600519".into()),
+            instrument_symbol: Some("600519".into()),
+            instrument_exchange_mic: Some("XSHG".into()),
+            instrument_type: Some(InstrumentType::Equity),
+            quote_ccy: "CNY".into(),
+            quote_mode: QuoteMode::Market,
+            provider_config: Some(serde_json::json!({ "preferred_provider": "YAHOO" })),
+            ..Default::default()
+        };
+        let http_stock = Asset {
+            id: "etf".into(),
+            display_code: Some("510300".into()),
+            instrument_symbol: Some("510300".into()),
+            instrument_exchange_mic: Some("XSHG".into()),
+            instrument_type: Some(InstrumentType::Equity),
+            quote_ccy: "CNY".into(),
+            quote_mode: QuoteMode::Market,
+            provider_config: Some(
+                serde_json::json!({ "preferred_provider": "HTTP_API", "overrides": { "HTTP_API": { "type": "equity_symbol", "symbol": "XSHG:510300" } } }),
+            ),
+            ..Default::default()
+        };
+        let service = QuoteService::new(
+            Arc::new(NoopQuoteStore),
+            Arc::new(MockSyncStateStore {
+                provider_sync_stats: vec![],
+                with_errors: vec![],
+                states: Arc::new(Mutex::new(HashMap::new())),
+            }),
+            Arc::new(MockProviderSettingsStore {
+                providers: vec![MarketDataProviderSetting {
+                    id: DATA_SOURCE_HTTP_API.into(),
+                    name: "HTTP API".into(),
+                    description: String::new(),
+                    url: None,
+                    priority: 10,
+                    enabled: true,
+                    logo_filename: None,
+                    last_synced_at: None,
+                    last_sync_status: None,
+                    last_sync_error: None,
+                    capabilities: None,
+                    provider_type: None,
+                    config: Some(r#"{"baseUrl":"http://127.0.0.1:1"}"#.into()),
+                }],
+            }),
+            Arc::new(
+                crate::test_support::in_memory::InMemoryAssetRepository::new(vec![
+                    asset, stock, http_stock,
+                ]),
+            ),
+            Arc::new(NoopActivityRepository),
+            Arc::new(MockSecretStore),
+        )
+        .await
+        .unwrap();
+        for (query, id) in [
+            ("FUND:005827", "fund"),
+            ("fund:005827", "fund"),
+            ("0058", "fund"),
+            ("xshg:600519", "stock"),
+            ("XSHG:510300", "etf"),
+        ] {
+            let results = service.search_symbol(query).await.unwrap();
+            assert_eq!(results.len(), 1);
+            assert_eq!(results[0].existing_asset_id.as_deref(), Some(id));
+            if id == "fund" {
+                assert_eq!(results[0].provider_symbol.as_deref(), Some("FUND:005827"));
+            }
+            if id == "etf" {
+                assert_eq!(results[0].provider_symbol.as_deref(), Some("XSHG:510300"));
+            }
+        }
+    }
+
     #[test]
     fn test_instrument_key_from_bf_search_result_uses_isin_and_mic() {
         let result = SymbolSearchResult {
@@ -2870,6 +3037,14 @@ mod tests {
 
     #[test]
     fn test_local_search_identity_canonicalizes_provider_symbols() {
+        assert_eq!(
+            local_search_identity("XSHG:600519"),
+            Some(("600519".into(), Some("XSHG")))
+        );
+        assert_eq!(
+            local_search_identity("FUND:005827"),
+            Some(("FUND:005827".into(), None))
+        );
         assert_eq!(
             local_search_identity("SHOP.TO"),
             Some(("SHOP".to_string(), Some("XTSE")))
@@ -3986,6 +4161,7 @@ mod tests {
                     last_sync_error: None,
                     capabilities: None,
                     provider_type: None,
+                    config: None,
                 },
                 MarketDataProviderSetting {
                     id: "FINNHUB".to_string(),
@@ -4000,6 +4176,7 @@ mod tests {
                     last_sync_error: None,
                     capabilities: None,
                     provider_type: None,
+                    config: None,
                 },
             ],
         });

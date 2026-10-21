@@ -100,6 +100,7 @@ pub struct MarketDataProviderSettingDB {
 pub struct UpdateMarketDataProviderSettingDB {
     pub priority: Option<i32>,
     pub enabled: Option<bool>,
+    pub config: Option<String>,
 }
 
 /// Database model for quote sync state
@@ -230,6 +231,7 @@ impl From<MarketDataProviderSettingDB> for MarketDataProviderSetting {
             last_sync_error: db.last_sync_error,
             capabilities,
             provider_type: Some(db.provider_type),
+            config: db.config,
         }
     }
 }
@@ -250,7 +252,7 @@ impl From<MarketDataProviderSetting> for MarketDataProviderSettingDB {
             provider_type: domain
                 .provider_type
                 .unwrap_or_else(|| "builtin".to_string()),
-            config: None,
+            config: domain.config,
         }
     }
 }

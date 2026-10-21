@@ -625,6 +625,9 @@
   "tax_reset": "Zurücksetzen",
   "tax_delete_confirm_desc": "Möchten Sie „{{name}}“ wirklich löschen? Dadurch werden alle Vermögenszuordnungen zu dieser Kategorie entfernt. Diese Aktion kann nicht rückgängig gemacht werden.",
   "market_data_page": {
+    "http_api_name": "Standard-HTTP-API",
+    "http_api_base_url": "Basis-URL des Dienstes",
+    "http_api_help": "Geben Sie eine vollständige Kennung wie XSHG:600519 oder FUND:005827 ein, um eine Anlage anzulegen. Der API-Schlüssel ist optional.",
     "heading": "Marktdaten",
     "subtitle": "Konfigurieren Sie Ihre Marktdatenanbieter.",
     "rebuild_history": "Gesamten Verlauf aktualisieren",

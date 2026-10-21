@@ -735,6 +735,9 @@
   "tax_reset": "重設",
   "tax_delete_confirm_desc": "確定要刪除「{{name}}」嗎？這會移除所有歸入此類別的資產。此操作無法復原。",
   "market_data_page": {
+    "http_api_name": "標準 HTTP API",
+    "http_api_base_url": "服務位址",
+    "http_api_help": "輸入 XSHG:600519 或 FUND:005827 等完整識別碼即可建檔。API Key 為選填項目。",
     "heading": "市場資料",
     "subtitle": "設定市場資料來源。",
     "rebuild_history": "重新整理全部歷史",

@@ -8,6 +8,10 @@ pub struct SearchResult {
     /// Symbol/ticker (e.g., "AAPL", "SHOP.TO")
     pub symbol: String,
 
+    /// Canonical symbol when the provider identifier includes a namespace.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canonical_symbol: Option<String>,
+
     /// Short display name (e.g., "Apple Inc")
     pub name: String,
 
@@ -50,6 +54,7 @@ impl SearchResult {
     ) -> Self {
         Self {
             symbol: symbol.into(),
+            canonical_symbol: None,
             name: name.into(),
             exchange: exchange.into(),
             exchange_mic: None,

@@ -137,6 +137,36 @@ describe("MarketDataSettingsPage", () => {
     hookMocks.useDeleteApiKey.mockReturnValue({ mutate });
   });
 
+  it("saves the HTTP base URL and exposes an optional API key", async () => {
+    hookMocks.useMarketDataProviderSettings.mockReturnValue({
+      data: [
+        marketDataProvider({
+          id: "HTTP_API",
+          name: "Standard HTTP API",
+          requiresApiKey: false,
+          baseUrl: "http://localhost:8000",
+        }),
+      ],
+      isLoading: false,
+      error: null,
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole("button", { name: "Standard HTTP API settings" }));
+    const url = await screen.findByLabelText("Service base URL");
+    expect(url).toHaveValue("http://localhost:8000");
+    expect(screen.getByLabelText("API Key")).toBeVisible();
+    await user.clear(url);
+    await user.type(url, "http://finance-data-api:8000");
+    await user.click(within(url.parentElement!).getByRole("button", { name: "Save" }));
+    expect(mutate).toHaveBeenCalledWith({
+      providerId: "HTTP_API",
+      priority: 3,
+      enabled: false,
+      baseUrl: "http://finance-data-api:8000",
+    });
+  });
+
   it("keeps a new market data API key visible while typing or pasting", async () => {
     const user = userEvent.setup();
     const input = await openProviderSettings();

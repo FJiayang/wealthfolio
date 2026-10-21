@@ -86,6 +86,7 @@ pub struct ProviderConfig {
     pub id: String,
     /// User-configured priority (lower = higher priority)
     pub priority: i32,
+    pub base_url: Option<String>,
 }
 
 /// Market data client - facade for fetching quotes via the market-data crate.
@@ -136,7 +137,7 @@ impl MarketDataClient {
             if extra_providers.iter().any(|ep| ep.id() == config.id) {
                 continue;
             }
-            match Self::create_provider(&config.id, &secret_store).await {
+            match Self::create_provider(config, &secret_store).await {
                 Ok(Some(provider)) => {
                     info!("Initialized market data provider: {}", config.id);
                     custom_priorities.insert(config.id.clone(), config.priority);
@@ -229,6 +230,10 @@ impl MarketDataClient {
 
         match provider_id {
             DATA_SOURCE_YAHOO => Ok(Some(Arc::new(FixtureProvider::new(fixture_dir)))),
+            DATA_SOURCE_HTTP_API => Ok(Some(Arc::new(FixtureProvider::new_for_provider(
+                fixture_dir,
+                DATA_SOURCE_HTTP_API,
+            )))),
             DATA_SOURCE_BOERSE_FRANKFURT => Ok(Some(Arc::new(FixtureProvider::new_for_provider(
                 fixture_dir,
                 DATA_SOURCE_BOERSE_FRANKFURT,
@@ -259,14 +264,26 @@ impl MarketDataClient {
 
     /// Create a provider by ID with its API key.
     async fn create_provider(
-        provider_id: &str,
+        config: &ProviderConfig,
         secret_store: &Arc<dyn SecretStore>,
     ) -> Result<Option<Arc<dyn wealthfolio_market_data::MarketDataProvider>>> {
+        let provider_id = config.id.as_str();
         if Self::is_e2e_mode() {
             return Self::create_e2e_provider(provider_id);
         }
 
         match provider_id {
+            DATA_SOURCE_HTTP_API => {
+                let base_url = config.base_url.as_deref().ok_or_else(|| {
+                    MarketDataClientError::InvalidData("HTTP API base URL is required".into())
+                })?;
+                let key = secret_store.get_secret(DATA_SOURCE_HTTP_API).map_err(|_| {
+                    MarketDataClientError::InvalidData("Cannot read HTTP API key".into())
+                })?;
+                let provider = wealthfolio_market_data::HttpApiProvider::new(base_url, key)
+                    .map_err(MarketDataClientError::from)?;
+                Ok(Some(Arc::new(provider)))
+            }
             DATA_SOURCE_YAHOO => {
                 // Yahoo doesn't need an API key
                 let provider = YahooProvider::new()
@@ -768,7 +785,10 @@ impl MarketDataClient {
         {
             yahoo_equity_provider_symbol_to_canonical(&result.symbol)
         } else {
-            result.symbol.clone()
+            result
+                .canonical_symbol
+                .clone()
+                .unwrap_or_else(|| result.symbol.clone())
         };
         let canonical_identity = canonicalize_market_identity(
             instrument_type.clone(),
@@ -925,6 +945,31 @@ mod tests {
     // =========================================================================
     // Quote Conversion Tests
     // =========================================================================
+
+    #[test]
+    fn http_api_search_keeps_canonical_and_provider_identities_separate() {
+        for (provider_symbol, canonical, mic) in [
+            ("XSHG:600519", "600519", Some("XSHG")),
+            ("FUND:005827", "FUND:005827", None),
+        ] {
+            let mut result = MarketSearchResult::new(
+                provider_symbol,
+                "测试",
+                mic.unwrap_or("FUND"),
+                "MUTUALFUND",
+            )
+            .with_data_source(DATA_SOURCE_HTTP_API)
+            .with_currency("CNY");
+            result.canonical_symbol = Some(canonical.into());
+            result.exchange_mic = mic.map(str::to_owned);
+            let result = MarketDataClient::convert_search_result(result);
+            assert_eq!(result.canonical_symbol.as_deref(), Some(canonical));
+            assert_eq!(result.provider_symbol.as_deref(), Some(provider_symbol));
+            assert_eq!(result.provider_id.as_deref(), Some(DATA_SOURCE_HTTP_API));
+            assert_eq!(result.canonical_exchange_mic.as_deref(), mic);
+            assert_eq!(result.quote_mode.as_deref(), Some("MARKET"));
+        }
+    }
 
     #[test]
     fn test_convert_quote_full_ohlcv() {
@@ -1310,6 +1355,7 @@ mod tests {
             vec![ProviderConfig {
                 id: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
                 priority: 50,
+                base_url: None,
             }],
             vec![
                 Arc::new(FailingProvider {

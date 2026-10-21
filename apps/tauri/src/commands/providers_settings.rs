@@ -17,11 +17,12 @@ pub async fn update_market_data_provider_settings(
     provider_id: String,
     priority: i32,
     enabled: bool,
+    base_url: Option<String>,
 ) -> CommandResult<()> {
     let context = context.context()?;
     context
         .quote_service
-        .update_provider_settings(&provider_id, priority, enabled)
+        .update_provider_settings(&provider_id, priority, enabled, base_url.as_deref())
         .await?;
     Ok(())
 }

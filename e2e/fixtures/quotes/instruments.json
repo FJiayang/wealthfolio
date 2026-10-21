@@ -2,6 +2,64 @@
   "defaultAsOf": "2026-05-12",
   "instruments": [
     {
+      "symbol": "FUND:161725",
+      "name": "招商中证白酒场外份额",
+      "provider": "HTTP_API",
+      "assetType": "MUTUALFUND",
+      "currency": "CNY",
+      "exchange": "FUND",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 505
+    },
+    {
+      "symbol": "XSHG:600519",
+      "name": "贵州茅台",
+      "provider": "HTTP_API",
+      "assetType": "EQUITY",
+      "currency": "CNY",
+      "exchange": "XSHG",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 501,
+      "exchangeMic": "XSHG"
+    },
+    {
+      "symbol": "XSHG:510300",
+      "name": "沪深300ETF",
+      "provider": "HTTP_API",
+      "assetType": "ETF",
+      "currency": "CNY",
+      "exchange": "XSHG",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 502,
+      "exchangeMic": "XSHG"
+    },
+    {
+      "symbol": "XSHE:161725",
+      "name": "招商中证白酒LOF",
+      "provider": "HTTP_API",
+      "assetType": "ETF",
+      "currency": "CNY",
+      "exchange": "XSHE",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 503,
+      "exchangeMic": "XSHE"
+    },
+    {
+      "symbol": "FUND:005827",
+      "name": "易方达蓝筹精选混合",
+      "provider": "HTTP_API",
+      "assetType": "MUTUALFUND",
+      "currency": "CNY",
+      "exchange": "FUND",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 504
+    },
+    {
       "symbol": "US037833EZ91",
       "aliases": ["037833EZ9"],
       "name": "Synthetic Corporate Bond 2031",

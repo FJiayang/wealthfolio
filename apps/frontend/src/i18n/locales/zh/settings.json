@@ -735,6 +735,9 @@
   "tax_reset": "重置",
   "tax_delete_confirm_desc": "确定要删除“{{name}}”吗？这将移除所有分配到此类别的资产。此操作无法撤销。",
   "market_data_page": {
+    "http_api_name": "标准 HTTP API",
+    "http_api_base_url": "服务地址",
+    "http_api_help": "输入 XSHG:600519 或 FUND:005827 等完整标识即可建档。API Key 为可选项。",
     "heading": "市场数据",
     "subtitle": "配置您的市场数据提供商。",
     "rebuild_history": "刷新全部历史",

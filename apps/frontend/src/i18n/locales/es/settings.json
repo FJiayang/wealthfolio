@@ -740,6 +740,9 @@
   "tax_reset": "Restablecer",
   "tax_delete_confirm_desc": "¿Seguro que quieres eliminar «{{name}}»? Esto eliminará todas las asignaciones de activos a esta categoría. Esta acción no se puede deshacer.",
   "market_data_page": {
+    "http_api_name": "API HTTP estándar",
+    "http_api_base_url": "URL base del servicio",
+    "http_api_help": "Introduce un identificador completo como XSHG:600519 o FUND:005827 para crear un activo. La clave API es opcional.",
     "heading": "Datos de mercado",
     "subtitle": "Configura tus proveedores de datos de mercado.",
     "rebuild_history": "Actualizar historial completo",

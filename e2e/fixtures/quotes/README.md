@@ -22,6 +22,10 @@ the same instrument metadata, so currencies and symbols stay consistent.
 
 ## Provider Contract
 
+`HTTP_API` uses synthetic Chinese stock/fund entries to test exact lookup,
+canonical identity, creation and local search without calling a real HTTP
+service. Its HTTP protocol is tested separately against a local fake server.
+
 The e2e runner sets `WEALTHFOLIO_E2E=1` and `WEALTHFOLIO_FIXTURE_DIR` before
 starting `dev:web`. In that mode:
 

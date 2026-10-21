@@ -735,6 +735,9 @@
   "tax_reset": "リセット",
   "tax_delete_confirm_desc": "「{{name}}」を削除してもよろしいですか?このカテゴリへの資産の割り当てもすべて解除されます。この操作は取り消せません。",
   "market_data_page": {
+    "http_api_name": "標準 HTTP API",
+    "http_api_base_url": "サービスのベース URL",
+    "http_api_help": "XSHG:600519 または FUND:005827 のような完全な識別子を入力して資産を登録します。API キーは任意です。",
     "heading": "市場データ",
     "subtitle": "市場データプロバイダーを設定します。",
     "rebuild_history": "全履歴を更新",

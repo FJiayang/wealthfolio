@@ -86,6 +86,8 @@ struct ProviderUpdateBody {
     provider_id: String,
     priority: i32,
     enabled: bool,
+    #[serde(rename = "baseUrl")]
+    base_url: Option<String>,
 }
 
 async fn update_market_data_provider_settings(
@@ -94,7 +96,12 @@ async fn update_market_data_provider_settings(
 ) -> ApiResult<StatusCode> {
     state
         .quote_service
-        .update_provider_settings(&body.provider_id, body.priority, body.enabled)
+        .update_provider_settings(
+            &body.provider_id,
+            body.priority,
+            body.enabled,
+            body.base_url.as_deref(),
+        )
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }

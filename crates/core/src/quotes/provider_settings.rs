@@ -33,6 +33,9 @@ pub struct MarketDataProviderSetting {
     pub capabilities: Option<ProviderCapabilities>,
     /// 'builtin' or 'custom'
     pub provider_type: Option<String>,
+    /// Non-secret provider configuration, persisted in the existing config column.
+    #[serde(skip)]
+    pub config: Option<String>,
 }
 
 /// Provider capabilities - what a provider supports.
@@ -118,6 +121,16 @@ impl ProviderCapabilities {
                     "No API key".to_string(),
                 ],
             }),
+            "HTTP_API" => Some(Self {
+                instruments: "Stocks • ETFs • Funds".into(),
+                coverage: "Service-defined".into(),
+                features: vec![
+                    "Latest".into(),
+                    "Historical".into(),
+                    "Search".into(),
+                    "Profiles".into(),
+                ],
+            }),
             "CUSTOM_SCRAPER" => Some(Self {
                 instruments: "Any".to_string(),
                 coverage: "User-defined".to_string(),
@@ -133,4 +146,31 @@ impl ProviderCapabilities {
 pub struct UpdateMarketDataProviderSetting {
     pub priority: Option<i32>,
     pub enabled: Option<bool>,
+    pub base_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HttpApiConfig {
+    pub base_url: String,
+}
+
+impl MarketDataProviderSetting {
+    pub fn http_api_base_url(&self) -> crate::Result<Option<String>> {
+        if self.id != super::constants::DATA_SOURCE_HTTP_API {
+            return Ok(None);
+        }
+        self.config
+            .as_deref()
+            .map(|config| {
+                serde_json::from_str::<HttpApiConfig>(config)
+                    .map(|config| config.base_url)
+                    .map_err(|_| {
+                        crate::Error::Validation(crate::errors::ValidationError::InvalidInput(
+                            "Invalid HTTP API provider configuration".into(),
+                        ))
+                    })
+            })
+            .transpose()
+    }
 }

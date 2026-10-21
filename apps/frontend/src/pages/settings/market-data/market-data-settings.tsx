@@ -1,3 +1,4 @@
+import { HTTP_API_PROVIDER_ID } from "@/lib/constants";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
@@ -75,7 +76,7 @@ import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/
 interface ProviderSettingsProps {
   provider: MarketDataProviderSetting;
   priorityValue: number;
-  onUpdate: (settings: { priority?: number; enabled?: boolean }) => void;
+  onUpdate: (settings: { priority?: number; enabled?: boolean; baseUrl?: string }) => void;
   onPriorityChange: (value: string) => void;
   onPrioritySave: () => void;
   isLast?: boolean;
@@ -93,6 +94,7 @@ function ProviderSettings({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
+  const [baseUrl, setBaseUrl] = useState(provider.baseUrl ?? "");
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyValue, setApiKeyValue] = useState("");
   const [isLoadingKey, setIsLoadingKey] = useState(false);
@@ -146,7 +148,7 @@ function ProviderSettings({
   // Feature icons and display names mapping
   const getFeatureDisplay = (feature: string) => {
     const normalized = feature.toLowerCase();
-    if (normalized.includes("real-time")) {
+    if (normalized.includes("real-time") || normalized === "latest") {
       return {
         icon: <Icons.Activity2 className="h-3 w-3" />,
         label: t("settings:market_data_page.feature_quote"),
@@ -196,7 +198,11 @@ function ProviderSettings({
           {/* Name, description and capabilities */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="font-medium">{provider.name}</span>
+              <span className="font-medium">
+                {provider.id === HTTP_API_PROVIDER_ID
+                  ? t("settings:market_data_page.http_api_name")
+                  : provider.name}
+              </span>
               {provider.capabilities?.coverage && (
                 <Badge variant="secondary" className="text-2xs h-5 px-1.5 font-normal">
                   {provider.capabilities.coverage}
@@ -391,7 +397,31 @@ function ProviderSettings({
                   {t("settings:market_data_page.settings")}
                 </h4>
                 <div className="space-y-4">
-                  {provider.requiresApiKey && (
+                  {provider.id === HTTP_API_PROVIDER_ID && (
+                    <div className="space-y-2">
+                      <Label htmlFor={`baseurl-${provider.id}`} className="text-xs font-medium">
+                        {t("settings:market_data_page.http_api_base_url")}
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id={`baseurl-${provider.id}`}
+                          type="url"
+                          dir="ltr"
+                          value={baseUrl}
+                          onChange={(event) => setBaseUrl(event.target.value)}
+                          placeholder="http://finance-data-api:8000"
+                          className="grow font-mono text-xs"
+                        />
+                        <Button size="sm" onClick={() => onUpdate({ baseUrl: baseUrl.trim() })}>
+                          {t("settings:common_save")}
+                        </Button>
+                      </div>
+                      <p className="text-muted-foreground text-xs">
+                        {t("settings:market_data_page.http_api_help")}
+                      </p>
+                    </div>
+                  )}
+                  {(provider.requiresApiKey || provider.id === HTTP_API_PROVIDER_ID) && (
                     <div className="space-y-2">
                       <Label htmlFor={`apikey-${provider.id}`} className="text-xs font-medium">
                         {t("settings:market_data_page.api_key")}
@@ -805,7 +835,7 @@ export default function MarketDataSettingsPage() {
 
   const handleUpdateSetting = (
     providerId: string,
-    settingsToUpdate: { priority?: number; enabled?: boolean },
+    settingsToUpdate: { priority?: number; enabled?: boolean; baseUrl?: string },
   ) => {
     const provider = providers?.find((p) => p.id === providerId);
     if (!provider) return;
@@ -814,6 +844,7 @@ export default function MarketDataSettingsPage() {
       providerId,
       priority: settingsToUpdate.priority ?? provider.priority,
       enabled: settingsToUpdate.enabled ?? provider.enabled,
+      ...(settingsToUpdate.baseUrl !== undefined && { baseUrl: settingsToUpdate.baseUrl }),
     });
   };
 

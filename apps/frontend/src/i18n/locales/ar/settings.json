@@ -927,6 +927,9 @@
   "market_data_loading": "جارٍ تحميل إعدادات المزوّد...",
   "market_data_no_providers": "لم يتم إعداد أي مزوّدين لبيانات السوق. قد تكون هذه مشكلة في التهيئة.",
   "market_data_page": {
+    "http_api_name": "واجهة HTTP API قياسية",
+    "http_api_base_url": "عنوان الخدمة الأساسي",
+    "http_api_help": "أدخل معرّفًا كاملاً مثل XSHG:600519 أو FUND:005827 لإنشاء أصل. مفتاح API اختياري.",
     "add_custom_provider": "إضافة مزوّد مخصص",
     "add_provider": "إضافة مزوّد",
     "api_key": "مفتاح API",

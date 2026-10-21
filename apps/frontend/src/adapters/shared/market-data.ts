@@ -160,9 +160,10 @@ export const updateMarketDataProviderSettings = async (payload: {
   providerId: string;
   priority: number;
   enabled: boolean;
-}): Promise<MarketDataProviderSetting> => {
+  baseUrl?: string;
+}): Promise<void> => {
   try {
-    return await invoke<MarketDataProviderSetting>("update_market_data_provider_settings", payload);
+    return await invoke<void>("update_market_data_provider_settings", payload);
   } catch (error) {
     logger.error("Error updating market data provider settings.");
     throw error;

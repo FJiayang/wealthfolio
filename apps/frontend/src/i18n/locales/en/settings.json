@@ -692,6 +692,9 @@
   "tax_reset": "Reset",
   "tax_delete_confirm_desc": "Are you sure you want to delete “{{name}}”? This will remove all asset assignments to this category. This action cannot be undone.",
   "market_data_page": {
+    "http_api_name": "Standard HTTP API",
+    "http_api_base_url": "Service base URL",
+    "http_api_help": "Enter a full identifier such as XSHG:600519 or FUND:005827 to create an asset. The API key is optional.",
     "heading": "Market Data",
     "subtitle": "Configure your market data providers.",
     "rebuild_history": "Refresh full history",

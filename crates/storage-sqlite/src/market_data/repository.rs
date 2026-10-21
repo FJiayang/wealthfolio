@@ -1372,6 +1372,9 @@ impl ProviderSettingsStore for MarketDataRepository {
         let changes_db = UpdateMarketDataProviderSettingDB {
             priority: changes.priority,
             enabled: changes.enabled,
+            config: changes
+                .base_url
+                .map(|base_url| serde_json::json!({ "baseUrl": base_url }).to_string()),
         };
 
         diesel::update(market_data_providers_dsl::market_data_providers.find(id))
@@ -1397,6 +1400,47 @@ mod tests {
     use rust_decimal::Decimal;
     use tempfile::tempdir;
     use wealthfolio_core::quotes::Quote;
+
+    #[tokio::test]
+    async fn http_api_settings_persist_without_changing_other_provider_config() {
+        let (repo, _directory) = create_test_repository().await;
+        let initial = repo.get_provider("HTTP_API").unwrap();
+        assert!(!initial.enabled);
+        assert_eq!(initial.http_api_base_url().unwrap(), None);
+        repo.update_provider(
+            "HTTP_API",
+            UpdateMarketDataProviderSetting {
+                enabled: Some(true),
+                priority: Some(7),
+                base_url: Some("http://finance-data-api:8000".into()),
+            },
+        )
+        .unwrap();
+        let saved = repo.get_provider("HTTP_API").unwrap();
+        assert!(saved.enabled);
+        assert_eq!(
+            saved.http_api_base_url().unwrap().as_deref(),
+            Some("http://finance-data-api:8000")
+        );
+        repo.update_provider(
+            "HTTP_API",
+            UpdateMarketDataProviderSetting {
+                enabled: Some(false),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let reloaded = repo
+            .get_all_providers()
+            .unwrap()
+            .into_iter()
+            .find(|provider| provider.id == "HTTP_API")
+            .unwrap();
+        assert_eq!(reloaded.config, saved.config);
+        assert_eq!(reloaded.priority, 7);
+        assert!(!reloaded.enabled);
+        assert_eq!(repo.get_provider("YAHOO").unwrap().config, None);
+    }
 
     async fn create_test_repository() -> (MarketDataRepository, tempfile::TempDir) {
         std::env::set_var("CONNECT_API_URL", "http://test.local");

@@ -1560,6 +1560,7 @@ impl QuoteServiceTrait for InMemoryQuoteService {
         _provider_id: &str,
         _priority: i32,
         _enabled: bool,
+        _base_url: Option<&str>,
     ) -> Result<()> {
         not_needed!("QuoteServiceTrait::update_provider_settings")
     }

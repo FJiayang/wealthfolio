@@ -1432,6 +1432,8 @@ impl AssetService {
             existing_asset.instrument_exchange_mic.as_deref(),
             Some(provider_profile.currency.as_str()),
         );
+        let http_api = existing_asset.preferred_provider().as_deref()
+            == Some(crate::quotes::constants::DATA_SOURCE_HTTP_API);
         let resolved_quote_ccy = canonical
             .quote_ccy
             .unwrap_or_else(|| existing_asset.quote_ccy.clone());
@@ -1439,11 +1441,19 @@ impl AssetService {
         // Build profile update from provider data
         let mut update = UpdateAssetProfile {
             display_code: existing_asset.display_code.clone(),
-            name: provider_profile.name.or(existing_asset.name.clone()),
+            name: if http_api {
+                existing_asset.name.clone().or(provider_profile.name)
+            } else {
+                provider_profile.name.or(existing_asset.name.clone())
+            },
             notes: existing_asset.notes.clone().unwrap_or_default(),
             kind: None,
             quote_mode: Some(existing_asset.quote_mode),
-            quote_ccy: Some(resolved_quote_ccy),
+            quote_ccy: Some(if http_api {
+                existing_asset.quote_ccy.clone()
+            } else {
+                resolved_quote_ccy
+            }),
             instrument_type: updated_instrument_type,
             instrument_symbol: None,
             instrument_exchange_mic: None,
@@ -3093,6 +3103,56 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     #[tokio::test]
+    async fn http_api_creation_is_idempotent_and_enrichment_preserves_user_fields() {
+        use crate::activities::activities_service_tests::tests::MockActivityRepository;
+        let repo = Arc::new(TestAssetRepository::with_assets(vec![]));
+        let quotes = Arc::new(TestQuoteService::default());
+        let service = AssetService::new(repo.clone(), quotes.clone()).unwrap();
+        let mut spec = AssetSpec::market_instrument(
+            "FUND:005827".into(),
+            "FUND:005827".into(),
+            None,
+            InstrumentType::Equity,
+            "CNY".into(),
+        );
+        spec.provider_id = Some(crate::quotes::constants::DATA_SOURCE_HTTP_API.into());
+        spec.provider_symbol = Some("FUND:005827".into());
+        spec.name = Some("用户名称".into());
+        let first = service
+            .ensure_assets(vec![spec.clone()], &MockActivityRepository::default())
+            .await
+            .unwrap();
+        assert_eq!(first.created_ids.len(), 1);
+        let id = &first.created_ids[0];
+        let asset = repo.get_by_id(id).unwrap();
+        assert_eq!(asset.quote_mode, QuoteMode::Market);
+        assert_eq!(asset.quote_ccy, "CNY");
+        assert_eq!(
+            asset.preferred_provider().as_deref(),
+            Some(crate::quotes::constants::DATA_SOURCE_HTTP_API)
+        );
+        let second = service
+            .ensure_assets(vec![spec], &MockActivityRepository::default())
+            .await
+            .unwrap();
+        assert!(second.created_ids.is_empty());
+        quotes.profiles.lock().unwrap().insert(
+            "FUND:005827".into(),
+            ProviderProfile {
+                name: Some("提供方名称".into()),
+                currency: "USD".into(),
+                asset_type: Some("MUTUALFUND".into()),
+                ..Default::default()
+            },
+        );
+        let enriched = service.enrich_asset_profile(id).await.unwrap();
+        assert_eq!(enriched.name.as_deref(), Some("用户名称"));
+        assert_eq!(enriched.quote_ccy, "CNY");
+        assert_eq!(enriched.provider_config, asset.provider_config);
+        assert_eq!(enriched.instrument_symbol, asset.instrument_symbol);
+    }
+
+    #[tokio::test]
     async fn bond_import_reuses_legacy_metadata_without_changing_currency() {
         let mut stored = treasury_test_asset();
         stored.instrument_symbol = Some("BROKER-ID".into());
@@ -3961,6 +4021,7 @@ mod tests {
             _provider_id: &str,
             _priority: i32,
             _enabled: bool,
+            _base_url: Option<&str>,
         ) -> Result<()> {
             Ok(())
         }

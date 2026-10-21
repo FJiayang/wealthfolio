@@ -735,6 +735,9 @@
   "tax_reset": "초기화",
   "tax_delete_confirm_desc": "\"{{name}}\"을(를) 삭제하시겠습니까? 이 카테고리에 대한 모든 자산 배정이 제거됩니다. 이 작업은 되돌릴 수 없습니다.",
   "market_data_page": {
+    "http_api_name": "표준 HTTP API",
+    "http_api_base_url": "서비스 기본 URL",
+    "http_api_help": "XSHG:600519 또는 FUND:005827 같은 전체 식별자를 입력하여 자산을 등록하세요. API 키는 선택 사항입니다.",
     "heading": "시세 데이터",
     "subtitle": "시세 데이터 제공자를 구성하세요.",
     "rebuild_history": "전체 기록 새로고침",

@@ -306,6 +306,16 @@ impl FixtureInstrument {
         if let Some(exchange_mic) = &self.exchange_mic {
             result = result.with_exchange_mic(exchange_mic.clone());
         }
+        if self.provider == crate::provider::http_api::DATA_SOURCE_HTTP_API {
+            if let Some((market, code)) = crate::provider::http_api::qualified_symbol(&self.symbol)
+            {
+                result.canonical_symbol = Some(if crate::is_known_mic(market) {
+                    code.into()
+                } else {
+                    self.symbol.clone()
+                });
+            }
+        }
         if let Some(exchange_name) = &self.exchange_name {
             result = result.with_exchange_name(exchange_name.clone());
         }
