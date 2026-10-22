@@ -1040,7 +1040,54 @@
     "imported_count_other": "{{count}}건 가져옴",
     "failed_count_other": "{{count}}건 실패",
     "priority_decrease": "우선순위 숫자 낮추기",
-    "priority_increase": "우선순위 숫자 높이기"
+    "priority_increase": "우선순위 숫자 높이기",
+    "imported_count_one": "{{count}}건 가져옴",
+    "failed_count_one": "{{count}}건 실패",
+    "feature_dividends": "배당금",
+    "table_click_column_to_map_field_one": "{{count}} 행 · {{field}}에 매핑할 열 헤더를 클릭하세요.",
+    "table_click_column_to_map_one": "{{count}}개 행 · 매핑할 열 헤더를 클릭하세요.",
+    "csv_rows_detected_field_one": "{{count}} 행이 감지되었습니다. 열 헤더를 클릭하여 {{field}}에 매핑합니다.",
+    "csv_rows_detected_one": "{{count}} 행이 감지되었습니다. 열 헤더를 클릭하여 매핑합니다.",
+    "elements_detected_field_one": "{{count}} 요소가 감지되었습니다. 선택기를 {{field}}에 할당하려면 클릭하세요.",
+    "elements_detected_one": "{{count}} 요소가 감지되었습니다. 선택기를 할당하려면 클릭하세요.",
+    "show_more_elements_one": "{{count}}개 추가 요소 표시",
+    "preview_data_rows_one": "데이터 미리보기({{count}}행)",
+    "review_first_rows_one": "CSV 데이터의 첫 번째 행을 검토하세요.",
+    "import_quotes_count_one": "{{count}} 견적 가져오기",
+    "providerDescriptions": {
+      "YAHOO": "Yahoo Finance는 많은 시장에서 선도적인 금융 데이터 제공업체입니다. 과거 및 실시간 주식 데이터를 제공합니다.",
+      "MARKETDATA_APP": "MarketData.app은 미국 주식, 옵션, ETF, 뮤추얼 펀드 등에 대한 실시간 및 과거 데이터를 제공합니다.",
+      "ALPHA_VANTAGE": "Alpha Vantage는 주식, 외환 및 암호화폐에 대한 실시간 및 과거 데이터를 위한 무료 API를 제공합니다.",
+      "US_TREASURY_CALC": "미국 재무부가 발표한 수익률 곡선 데이터를 바탕으로 미국 국채 가격을 계산합니다.",
+      "BOERSE_FRANKFURT": "Börse 프랑크푸르트는 유럽 시장에 대한 채권 및 증권 가격 데이터를 제공합니다.",
+      "OPENFIGI": "OpenFIGI는 금융상품 식별자(FIGI, ISIN, CUSIP, 티커)에 대한 매핑 서비스를 제공합니다.",
+      "METAL_PRICE_API": "귀금속(금, 은, 백금, 팔라듐)에 대한 실시간 및 과거 현물 가격을 제공합니다.",
+      "CUSTOM_SCRAPER": "사용자 정의 사용자 정의 소스를 위한 런타임 디스패치 공급자",
+      "HTTP_API": "자체 호스팅 HTTP 서비스를 통한 정확한 장비 조회, 프로필 및 가격",
+      "FINNHUB": "Finnhub는 전 세계 주식, 외환 및 암호화폐 실시간 데이터를 제공합니다. 무료 요금제는 분당 API 호출 60회를 지원합니다."
+    },
+    "coverageLabels": {
+      "Global": "글로벌",
+      "US only": "미국만 해당",
+      "USD only": "USD만 가능",
+      "US Treasury": "미국 재무부",
+      "Service-defined": "서비스 정의",
+      "User-defined": "사용자 정의"
+    },
+    "feature_no_api_key": "API 키 없음",
+    "us_treasury_name": "미국 재무부(계산)",
+    "templateDescriptions": {
+      "workplace_fund_prices_fund_code": "직장 펀드 가격(펀드 코드)",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "무료 암호화폐(코인 ID 사용: 비트코인, 이더리움...)",
+      "free_currency_rates": "자유 환율",
+      "lse_etfs_equities": "LSE ETF 및 주식",
+      "eu_funds_equities_isin_mic": "EU 펀드 및 주식(ISIN-MIC)",
+      "stocks_crypto_fx_set_api_key_in_headers": "주식, 암호화폐, FX(헤더에 API 키 설정)",
+      "italian_bonds_stocks": "이탈리아 채권 및 주식",
+      "workplace_fund_price_history_fund_code": "직장 펀드 가격 내역(펀드 코드)",
+      "lse_etfs_equities_html_table": "LSE ETF 및 주식(HTML 테이블)",
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "일일 암호화폐 기록(코인 ID 사용: 비트코인, 이더리움...)"
+    }
   },
   "addon_permission_none_detected": "감지된 데이터 접근 권한이 없습니다. 이 애드온은 시스템 접근 권한이 최소한인 것으로 보입니다.",
   "addon_permission_list_title": "권한",
@@ -1094,7 +1141,8 @@
       "stat_active": "활성",
       "no_rules_prompt": "아직 분류 규칙이 없습니다 — 이름 패턴으로 거래를 자동 태그하세요.",
       "setup_rules": "규칙 설정",
-      "stat_accounts_unit_other": "현금 계좌 {{count}}개 중"
+      "stat_accounts_unit_other": "현금 계좌 {{count}}개 중",
+      "stat_accounts_unit_one": "{{count}} 현금 계좌 중"
     },
     "accounts": {
       "title": "지출 계좌",
@@ -1175,7 +1223,8 @@
       "error_title": "불러올 수 없습니다",
       "error_description": "관리 페이지에서 다시 시도하세요.",
       "more": "+{{count}}개 더",
-      "more_other": "+{{count}}개 더"
+      "more_other": "+{{count}}개 더",
+      "more_one": "+{{count}} 더보기"
     },
     "setup": {
       "title": "기본 월간 예산 계획",
@@ -1199,7 +1248,10 @@
       "create_error": "카테고리를 생성하지 못했습니다.",
       "tab_expense_other": "지출 ({{count}})",
       "tab_income_other": "수입 ({{count}})",
-      "tab_savings_other": "저축 ({{count}})"
+      "tab_savings_other": "저축 ({{count}})",
+      "tab_expense_one": "지출 ({{count}})",
+      "tab_income_one": "수입 ({{count}})",
+      "tab_savings_one": "저축 ({{count}})"
     },
     "events": {
       "heading": "지출 이벤트",
@@ -1479,7 +1531,8 @@
     },
     "copied_generic": "{{label}}이(가) 클립보드에 복사되었습니다.",
     "hero_aria": "AI 에이전트 접근 상태",
-    "pat_scope_custom_other": "사용자 지정 · 범위 {{count}}개"
+    "pat_scope_custom_other": "사용자 지정 · 범위 {{count}}개",
+    "pat_scope_custom_one": "사용자 정의 · {{count}} 범위"
   },
   "tax_add_category": "카테고리 추가",
   "tax_export": "내보내기",
@@ -1686,5 +1739,11 @@
   "cloud_backup_hint_running": "암호화된 클라우드 백업을 저장하는 동안에도 Wealthfolio를 계속 사용할 수 있어요.",
   "cloud_backup_hint_failed": "백업을 완료하지 못했어요. 자동으로 다시 시도하거나 지금 다시 시도할 수 있어요.",
   "cloud_backup_retry_label": "다음 재시도",
-  "cloud_backup_retry_now": "백업 다시 시도"
+  "cloud_backup_retry_now": "백업 다시 시도",
+  "tax_categories_count_one": "카테고리 {{count}}개",
+  "addon_store_filter_all_one": "전체 ({{count}})",
+  "addon_store_filter_uninstalled_one": "설치 안 됨 ({{count}})",
+  "addon_store_showing_one": "전체 {{total}}개 중 {{count}}개 애드온 표시",
+  "tax_migration_body_one": "{{count}} 자산에는 더 나은 구성 및 분석을 위해 새로운 분류 시스템으로 마이그레이션할 수 있는 기존 부문/국가 데이터가 있습니다.",
+  "addon_rating_characters_one": "{{count}}/500자"
 }

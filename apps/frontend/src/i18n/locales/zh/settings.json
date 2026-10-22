@@ -1040,7 +1040,54 @@
     "imported_count_other": "已导入 {{count}} 条",
     "failed_count_other": "失败 {{count}} 条",
     "priority_decrease": "减小优先级数值",
-    "priority_increase": "增大优先级数值"
+    "priority_increase": "增大优先级数值",
+    "imported_count_one": "已导入 {{count}} 条",
+    "failed_count_one": "失败 {{count}} 条",
+    "feature_dividends": "股息",
+    "coverageLabels": {
+      "Service-defined": "由服务定义",
+      "User-defined": "用户自定义",
+      "Global": "全球",
+      "US only": "仅限美国",
+      "USD only": "仅限美元",
+      "US Treasury": "美国国债"
+    },
+    "feature_no_api_key": "无需 API 密钥",
+    "us_treasury_name": "美国财政部（计算）",
+    "table_click_column_to_map_field_one": "{{count}} 行 · 单击列标题以映射到 {{field}}",
+    "table_click_column_to_map_one": "{{count}} 行 · 单击列标题进行映射",
+    "csv_rows_detected_field_one": "检测到 {{count}} 行。单击列标题将其映射到 {{field}}。",
+    "csv_rows_detected_one": "检测到 {{count}} 行。单击列标题以对其进行映射。",
+    "elements_detected_field_one": "检测到 {{count}} 元素。单击它将其选择器分配给 {{field}}。",
+    "elements_detected_one": "检测到 {{count}} 元素。单击它以分配其选择器。",
+    "show_more_elements_one": "显示另外 {{count}} 个元素",
+    "preview_data_rows_one": "预览数据（{{count}} 行）",
+    "review_first_rows_one": "查看 CSV 数据的第一行",
+    "import_quotes_count_one": "导入 {{count}} 报价",
+    "providerDescriptions": {
+      "YAHOO": "Yahoo Finance 提供多个市场的历史及实时股票数据。",
+      "MARKETDATA_APP": "MarketData.app 提供美国股票、期权、ETF、共同基金等的实时和历史数据。",
+      "ALPHA_VANTAGE": "Alpha Vantage 为股票、外汇和加密货币的实时和历史数据提供免费的 API。",
+      "US_TREASURY_CALC": "根据美国财政部公布的收益率曲线计算美国国债价格。",
+      "BOERSE_FRANKFURT": "法兰克福交易所提供欧洲市场的债券和证券定价数据。",
+      "OPENFIGI": "OpenFIGI 提供金融工具标识符（FIGI、ISIN、CUSIP、股票代码）的映射服务。",
+      "METAL_PRICE_API": "提供贵金属（黄金、白银、铂金、钯金）的实时和历史现货价格。",
+      "CUSTOM_SCRAPER": "为用户自定义数据源提供运行时调度。",
+      "HTTP_API": "通过自托管 HTTP 服务精确查询证券、基本资料及价格。",
+      "FINNHUB": "Finnhub 提供覆盖全球的实时股票、外汇及加密货币数据。免费方案每分钟支持 60 次 API 调用。"
+    },
+    "templateDescriptions": {
+      "workplace_fund_prices_fund_code": "雇主退休计划基金价格（基金代码）",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "免费加密货币报价（使用币种 ID：bitcoin、ethereum 等）",
+      "free_currency_rates": "免费货币汇率",
+      "lse_etfs_equities": "伦敦证券交易所 ETF 和股票",
+      "eu_funds_equities_isin_mic": "欧盟基金和股票 (ISIN-MIC)",
+      "stocks_crypto_fx_set_api_key_in_headers": "股票、加密货币、外汇（在标头中设置 API 密钥）",
+      "italian_bonds_stocks": "意大利债券和股票",
+      "workplace_fund_price_history_fund_code": "雇主退休计划基金历史价格（基金代码）",
+      "lse_etfs_equities_html_table": "LSE ETF 和股票（HTML 表格）",
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "加密货币每日历史价格（使用币种 ID：bitcoin、ethereum 等）"
+    }
   },
   "addon_permission_none_detected": "未检测到数据访问权限。此插件似乎对系统的访问权限极少。",
   "addon_permission_list_title": "权限",
@@ -1094,7 +1141,8 @@
       "stat_active": "活跃",
       "no_rules_prompt": "尚无分类规则——按名称模式自动标记交易。",
       "setup_rules": "设置规则",
-      "stat_accounts_unit_other": "共 {{count}} 个现金账户"
+      "stat_accounts_unit_other": "共 {{count}} 个现金账户",
+      "stat_accounts_unit_one": "{{count}} 个现金帐户"
     },
     "accounts": {
       "title": "支出账户",
@@ -1175,7 +1223,8 @@
       "error_title": "无法加载",
       "error_description": "请从管理页面重试。",
       "more": "+{{count}} 更多",
-      "more_other": "+{{count}} 更多"
+      "more_other": "+{{count}} 更多",
+      "more_one": "+{{count}} 项"
     },
     "setup": {
       "title": "默认月度预算计划",
@@ -1199,7 +1248,10 @@
       "create_error": "创建类别失败。",
       "tab_expense_other": "支出（{{count}}）",
       "tab_income_other": "收入（{{count}}）",
-      "tab_savings_other": "储蓄（{{count}}）"
+      "tab_savings_other": "储蓄（{{count}}）",
+      "tab_expense_one": "支出（{{count}}）",
+      "tab_income_one": "收入（{{count}}）",
+      "tab_savings_one": "储蓄（{{count}}）"
     },
     "events": {
       "heading": "支出事件",
@@ -1479,7 +1531,8 @@
     },
     "copied_generic": "{{label}} 已复制到剪贴板。",
     "hero_aria": "AI 代理访问状态",
-    "pat_scope_custom_other": "自定义 · {{count}} 个作用域"
+    "pat_scope_custom_other": "自定义 · {{count}} 个作用域",
+    "pat_scope_custom_one": "自定义 · {{count}} 范围"
   },
   "tax_add_category": "添加类别",
   "tax_export": "导出",
@@ -1686,5 +1739,11 @@
   "cloud_backup_hint_running": "保存加密云备份期间，你可以继续使用 Wealthfolio。",
   "cloud_backup_hint_failed": "未能完成备份。我们会自动重试，你也可以立即重试。",
   "cloud_backup_retry_label": "下次重试",
-  "cloud_backup_retry_now": "重新尝试备份"
+  "cloud_backup_retry_now": "重新尝试备份",
+  "tax_categories_count_one": "{{count}} 个类别",
+  "addon_store_filter_all_one": "全部（{{count}}）",
+  "addon_store_filter_uninstalled_one": "未安装（{{count}}）",
+  "addon_store_showing_one": "显示 {{total}} 个插件中的 {{count}} 个",
+  "tax_migration_body_one": "{{count}} 资产具有旧的部门/国家/地区数据，可以将其迁移到新的分类系统，以实现更好的组织和分析。",
+  "addon_rating_characters_one": "{{count}}/500 个字符"
 }

@@ -1,3 +1,4 @@
+import { getCategoryLabel, getBudgetGroupLabel } from "@/lib/taxonomy-labels";
 import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -130,7 +131,7 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
         .map((c) => ({
           category: c,
           fromGroupId: g.group.id,
-          fromGroupName: g.group.name,
+          fromGroupName: getBudgetGroupLabel(t, g.group.id, g.group.name),
         })),
     ),
     ...budget.computed.ungroupedRows
@@ -424,6 +425,7 @@ function GroupSummaryCell({
   denominator: number;
 }) {
   const numberFormatting = useNumberFormatting();
+  const { t } = useTranslation();
   const accent = row.group.color ?? FOREST_THEME.deep;
   const pct = safePercent(row.plannedTotal, denominator);
   return (
@@ -433,7 +435,9 @@ function GroupSummaryCell({
         style={{ backgroundColor: accent }}
         aria-hidden
       />
-      <span className="text-foreground min-w-0 flex-1 truncate text-xs">{row.group.name}</span>
+      <span className="text-foreground min-w-0 flex-1 truncate text-xs">
+        {getBudgetGroupLabel(t, row.group.id, row.group.name)}
+      </span>
       <span className="text-muted-foreground text-2xs w-8 shrink-0 text-end tabular-nums">
         {numberFormatting.formatPercent(pct, { digits: 0 })}
       </span>
@@ -532,8 +536,10 @@ function GroupBudgetSection({
           style={{ backgroundColor: `${accent}1f`, color: accent }}
           aria-label={
             mode === "setup"
-              ? t("spending:budgetEditor.editGroupName", { name: row.group.name })
-              : row.group.name
+              ? t("spending:budgetEditor.editGroupName", {
+                  name: getBudgetGroupLabel(t, row.group.id, row.group.name),
+                })
+              : getBudgetGroupLabel(t, row.group.id, row.group.name)
           }
         >
           <CategoryIcon icon={row.group.icon ?? null} className="h-3.5 w-3.5" />
@@ -557,7 +563,9 @@ function GroupBudgetSection({
           onClick={() => setOpen((v) => !v)}
           className="min-w-0 flex-1 text-start"
         >
-          <div className="text-foreground truncate text-sm font-semibold">{row.group.name}</div>
+          <div className="text-foreground truncate text-sm font-semibold">
+            {getBudgetGroupLabel(t, row.group.id, row.group.name)}
+          </div>
           <div className="mt-0.5 flex items-center gap-1.5">
             <div className="bg-muted/40 h-1 w-16 shrink-0 overflow-hidden rounded-full sm:w-20">
               <div
@@ -652,7 +660,9 @@ function GroupBudgetSection({
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>
-                {t("spending:budgetEditor.deleteGroupTitle", { name: row.group.name })}
+                {t("spending:budgetEditor.deleteGroupTitle", {
+                  name: getBudgetGroupLabel(t, row.group.id, row.group.name),
+                })}
               </AlertDialogTitle>
               <AlertDialogDescription>
                 {row.categories.length > 0
@@ -715,7 +725,7 @@ function GroupBudgetSection({
           {mode === "setup" && (
             <AddCategoryRow
               groupId={row.group.id}
-              groupName={row.group.name}
+              groupName={getBudgetGroupLabel(t, row.group.id, row.group.name)}
               pool={categoryPool.filter((entry) => entry.fromGroupId !== row.group.id)}
               onMoveCategory={onMoveCategory}
             />
@@ -752,7 +762,12 @@ function AddCategoryRow({
       // loses the category, which can shift its allocation surface area.
       setPendingMove({
         categoryId: entry.category.categoryId,
-        categoryName: entry.category.name,
+        categoryName: getCategoryLabel(
+          t,
+          entry.category.taxonomyId,
+          entry.category.categoryId,
+          entry.category.name,
+        ),
         fromGroupName: entry.fromGroupName,
       });
       setOpen(false);
@@ -817,7 +832,12 @@ function AddCategoryRow({
             </span>
             <div className="min-w-0 flex-1">
               <div className={cn("text-foreground truncate", isMobile ? "text-base" : "text-sm")}>
-                {entry.category.name}
+                {getCategoryLabel(
+                  t,
+                  entry.category.taxonomyId,
+                  entry.category.categoryId,
+                  entry.category.name,
+                )}
               </div>
               {entry.fromGroupName && (
                 <div className="text-muted-foreground truncate text-xs">
@@ -1139,7 +1159,9 @@ function BudgetCategoryLine({
       >
         <CategoryIcon icon={row.icon ?? null} className="h-3 w-3" />
       </span>
-      <span className="text-foreground min-w-0 flex-1 truncate">{row.name}</span>
+      <span className="text-foreground min-w-0 flex-1 truncate">
+        {getCategoryLabel(t, row.taxonomyId, row.categoryId, row.name)}
+      </span>
 
       <div className="relative w-20 shrink-0">
         <AmountInput value={row.target} onCommit={(value) => onSaveTarget(row, value)} />
@@ -1222,7 +1244,7 @@ function BudgetCategoryLine({
                         className="h-2 w-2 rounded-full"
                         style={{ backgroundColor: group.color ?? FOREST_THEME.deep }}
                       />
-                      {group.name}
+                      {getBudgetGroupLabel(t, group.id, group.name)}
                     </span>
                   </DropdownMenuRadioItem>
                 ))}
@@ -1389,7 +1411,9 @@ function IncomeSourcesPanel({
             return (
               <div key={row.categoryId} className="flex items-center gap-3 py-0.5">
                 <div className="min-w-0 flex-1">
-                  <div className="text-foreground truncate text-xs">{row.name}</div>
+                  <div className="text-foreground truncate text-xs">
+                    {getCategoryLabel(t, row.taxonomyId, row.categoryId, row.name)}
+                  </div>
                   {hasOverride && (
                     <button
                       type="button"
@@ -1510,7 +1534,7 @@ function OverridesSummary({
         return [
           {
             target,
-            name: row.name,
+            name: getCategoryLabel(tr, row.taxonomyId, row.categoryId, row.name),
             color: row.color,
             monthAmount,
             defaultAmount,
@@ -1531,7 +1555,9 @@ function OverridesSummary({
         return [
           {
             target,
-            name: tr("spending:budgetEditor.groupBufferName", { name: group.name }),
+            name: tr("spending:budgetEditor.groupBufferName", {
+              name: getBudgetGroupLabel(tr, group.id, group.name),
+            }),
             color: group.color,
             monthAmount,
             defaultAmount,

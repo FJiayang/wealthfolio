@@ -1040,7 +1040,54 @@
     "imported_count_other": "{{count}}件インポート",
     "failed_count_other": "{{count}}件失敗",
     "priority_decrease": "優先度の数値を下げる",
-    "priority_increase": "優先度の数値を上げる"
+    "priority_increase": "優先度の数値を上げる",
+    "imported_count_one": "{{count}}件インポート",
+    "failed_count_one": "{{count}}件失敗",
+    "feature_dividends": "配当",
+    "table_click_column_to_map_field_one": "{{count}} 行 · {{field}} にマップする列ヘッダーをクリックします",
+    "table_click_column_to_map_one": "{{count}} 行 · マップするには列ヘッダーをクリックします",
+    "csv_rows_detected_field_one": "{{count}} 行が検出されました。列ヘッダーをクリックして {{field}} にマッピングします。",
+    "csv_rows_detected_one": "{{count}} 行が検出されました。列ヘッダーをクリックしてマップします。",
+    "elements_detected_field_one": "{{count}} 要素が検出されました。それをクリックしてセレクターを {{field}} に割り当てます。",
+    "elements_detected_one": "{{count}} 要素が検出されました。それをクリックしてセレクターを割り当てます。",
+    "show_more_elements_one": "さらに {{count}} 個の要素を表示",
+    "preview_data_rows_one": "データのプレビュー ({{count}} 行)",
+    "review_first_rows_one": "CSV データの最初の行を確認します。",
+    "import_quotes_count_one": "{{count}} 見積をインポート",
+    "providerDescriptions": {
+      "YAHOO": "Yahoo Finance は、多くの市場を対象とする大手金融データ プロバイダーです。過去およびリアルタイムの株式データを提供します。",
+      "MARKETDATA_APP": "MarketData.app は、米国株、オプション、ETF、投資信託などのリアルタイム データと履歴データを提供します。",
+      "ALPHA_VANTAGE": "Alpha Vantage は、株式、外国為替、暗号通貨に関するリアルタイムおよび履歴データ用の無料 API を提供します。",
+      "US_TREASURY_CALC": "米国財務省が公表するイールドカーブデータから米国国債価格を計算します。",
+      "BOERSE_FRANKFURT": "Börse Frankfurt は、欧州市場向けの債券および証券の価格データを提供しています。",
+      "OPENFIGI": "OpenFIGI は、金融商品識別子 (FIGI、ISIN、CUSIP、ティッカー) のマッピング サービスを提供します。",
+      "METAL_PRICE_API": "貴金属 (金、銀、プラチナ、パラジウム) のリアルタイムおよび過去のスポット価格を提供します。",
+      "CUSTOM_SCRAPER": "ユーザー定義のカスタム ソースのランタイム ディスパッチ プロバイダー",
+      "HTTP_API": "自己ホスト型 HTTP サービスからの正確な機器検索、プロファイル、価格",
+      "FINNHUB": "Finnhub は世界の株式、外国為替、暗号資産のリアルタイムデータを提供します。無料プランでは毎分 60 回の API 呼び出しが可能です。"
+    },
+    "coverageLabels": {
+      "Global": "グローバル",
+      "US only": "米国のみ",
+      "USD only": "米ドルのみ",
+      "US Treasury": "米国財務省",
+      "Service-defined": "サービス定義",
+      "User-defined": "ユーザー定義"
+    },
+    "feature_no_api_key": "APIキーがありません",
+    "us_treasury_name": "米国財務省 (計算値)",
+    "templateDescriptions": {
+      "workplace_fund_prices_fund_code": "職場基金の価格（基金コード）",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "無料の暗号通貨 (コイン ID を使用: ビットコイン、イーサリアムなど)",
+      "free_currency_rates": "無料通貨レート",
+      "lse_etfs_equities": "LSE ETF と株式",
+      "eu_funds_equities_isin_mic": "EU のファンドと株式 (ISIN-MIC)",
+      "stocks_crypto_fx_set_api_key_in_headers": "株、仮想通貨、FX（ヘッダーにAPIキーを設定）",
+      "italian_bonds_stocks": "イタリアの債券と株式",
+      "workplace_fund_price_history_fund_code": "職場基金の価格履歴 (基金コード)",
+      "lse_etfs_equities_html_table": "LSE ETF と株式 (HTML テーブル)",
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "毎日の暗号通貨履歴 (コイン ID を使用: ビットコイン、イーサリアムなど)"
+    }
   },
   "addon_permission_none_detected": "データへのアクセス権限は検出されませんでした。このアドオンのシステムアクセスは最小限のようです。",
   "addon_permission_list_title": "権限",
@@ -1094,7 +1141,8 @@
       "stat_active": "有効",
       "no_rules_prompt": "分類ルールがまだありません — 取引名のパターンで自動的にタグを付けられます。",
       "setup_rules": "ルールを設定",
-      "stat_accounts_unit_other": "現金口座{{count}}件中"
+      "stat_accounts_unit_other": "現金口座{{count}}件中",
+      "stat_accounts_unit_one": "{{count}} 個の現金口座"
     },
     "accounts": {
       "title": "支出管理の口座",
@@ -1175,7 +1223,8 @@
       "error_title": "読み込めませんでした",
       "error_description": "管理ページから再度お試しください。",
       "more": "他{{count}}件",
-      "more_other": "他{{count}}件"
+      "more_other": "他{{count}}件",
+      "more_one": "他{{count}}件"
     },
     "setup": {
       "title": "毎月の基本予算プラン",
@@ -1199,7 +1248,10 @@
       "create_error": "カテゴリの作成に失敗しました。",
       "tab_expense_other": "支出 ({{count}})",
       "tab_income_other": "収入 ({{count}})",
-      "tab_savings_other": "貯蓄 ({{count}})"
+      "tab_savings_other": "貯蓄 ({{count}})",
+      "tab_expense_one": "支出 ({{count}})",
+      "tab_income_one": "収入 ({{count}})",
+      "tab_savings_one": "貯蓄 ({{count}})"
     },
     "events": {
       "heading": "支出イベント",
@@ -1479,7 +1531,8 @@
     },
     "copied_generic": "{{label}}をクリップボードにコピーしました。",
     "hero_aria": "AIエージェントアクセスの状態",
-    "pat_scope_custom_other": "カスタム · {{count}}個のスコープ"
+    "pat_scope_custom_other": "カスタム · {{count}}個のスコープ",
+    "pat_scope_custom_one": "カスタム · {{count}} スコープ"
   },
   "tax_add_category": "カテゴリを追加",
   "tax_export": "エクスポート",
@@ -1686,5 +1739,11 @@
   "cloud_backup_hint_running": "暗号化されたクラウドバックアップを保存している間も、Wealthfolioを引き続き使用できます。",
   "cloud_backup_hint_failed": "バックアップを完了できませんでした。自動的に再試行します。今すぐ再試行することもできます。",
   "cloud_backup_retry_label": "次の再試行",
-  "cloud_backup_retry_now": "バックアップを再試行"
+  "cloud_backup_retry_now": "バックアップを再試行",
+  "tax_categories_count_one": "{{count}}カテゴリ",
+  "addon_store_filter_all_one": "すべて ({{count}})",
+  "addon_store_filter_uninstalled_one": "未インストール ({{count}})",
+  "addon_store_showing_one": "全{{total}}件中{{count}}件のアドオンを表示",
+  "tax_migration_body_one": "{{count}} アセットには従来のセクター/国データが含まれており、組織化と分析を向上させるために新しい分類システムに移行できます。",
+  "addon_rating_characters_one": "{{count}}/500 文字"
 }
