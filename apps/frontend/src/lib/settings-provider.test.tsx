@@ -38,7 +38,7 @@ vi.mock("@/i18n/i18n", () => ({
   default: { language: "en", isInitialized: true, changeLanguage: vi.fn(), dir: () => "ltr" },
 }));
 
-const settings = {
+let settings = {
   theme: "system",
   font: "font-mono",
   language: "en",
@@ -52,7 +52,7 @@ const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 0)))
 
 beforeEach(() => {
   vi.clearAllMocks();
-  settings.theme = "system";
+  settings = { ...settings, theme: "system", gainLossColorScheme: undefined };
   document.documentElement.className = "";
   // The OS prefers dark; native window themes report light, as tao does on mobile.
   vi.mocked(window.matchMedia).mockImplementation(
@@ -105,4 +105,14 @@ it("sets the window theme for explicit modes on desktop", async () => {
   render(<SettingsProvider>content</SettingsProvider>);
 
   await waitFor(() => expect(mocks.setTheme).toHaveBeenCalledWith("dark"));
+});
+
+it("applies gain/loss colors and clears them when another profile uses the default", async () => {
+  mocks.platform.mockResolvedValue({ os: "linux", is_desktop: true });
+  settings = { ...settings, gainLossColorScheme: "red-up-green-down" };
+  const { rerender } = render(<SettingsProvider>content</SettingsProvider>);
+  await waitFor(() => expect(document.documentElement).toHaveClass("red-up-green-down"));
+  settings = { ...settings, gainLossColorScheme: undefined };
+  rerender(<SettingsProvider>content</SettingsProvider>);
+  await waitFor(() => expect(document.documentElement).not.toHaveClass("red-up-green-down"));
 });

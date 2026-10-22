@@ -1,4 +1,8 @@
 {
+  "appearance_gain_loss_color_title": "Gewinn- und Verlustfarben",
+  "appearance_gain_loss_color_description": "Wählen Sie die Farben für Anlagegewinne und -verluste.",
+  "appearance_gain_loss_green_up": "Gewinne grün, Verluste rot",
+  "appearance_gain_loss_red_up": "Gewinne rot, Verluste grün",
   "title": "Einstellungen",
   "general": "Allgemein",
   "appearance": "Erscheinungsbild",

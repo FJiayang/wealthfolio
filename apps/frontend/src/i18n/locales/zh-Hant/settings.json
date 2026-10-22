@@ -1,4 +1,8 @@
 {
+  "appearance_gain_loss_color_title": "漲跌配色",
+  "appearance_gain_loss_color_description": "選擇投資上漲和下跌的顯示顏色。",
+  "appearance_gain_loss_green_up": "綠漲紅跌",
+  "appearance_gain_loss_red_up": "紅漲綠跌",
   "title": "設定",
   "general": "一般",
   "appearance": "外觀",

@@ -157,3 +157,27 @@ describe("useSettingsMutation", () => {
     expect(invalidated).not.toContain(QueryKeys.ALTERNATIVE_HOLDINGS);
   });
 });
+
+it("only invalidates settings when gain/loss colors change", async () => {
+  vi.mocked(updateSettings).mockResolvedValue({
+    language: "en",
+    onboardingCompleted: true,
+    gainLossColorScheme: "red-up-green-down",
+  } as Settings);
+  const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+  const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+  const apply = vi.fn();
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  const { result } = renderHook(() => useSettingsMutation(vi.fn(), apply), { wrapper });
+  await act(async () => {
+    await result.current.mutateAsync({ gainLossColorScheme: "red-up-green-down" });
+  });
+  expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual([
+    [QueryKeys.SETTINGS],
+  ]);
+  expect(apply).toHaveBeenCalledWith(
+    expect.objectContaining({ gainLossColorScheme: "red-up-green-down" }),
+  );
+});

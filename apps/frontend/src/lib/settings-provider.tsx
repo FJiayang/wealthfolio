@@ -22,6 +22,7 @@ interface ExtendedSettingsContextType extends SettingsContextType {
         Settings,
         | "theme"
         | "font"
+        | "gainLossColorScheme"
         | "language"
         | "formattingRegion"
         | "currencyFormattingRegions"
@@ -65,6 +66,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         Settings,
         | "theme"
         | "font"
+        | "gainLossColorScheme"
         | "language"
         | "formattingRegion"
         | "currencyFormattingRegions"
@@ -263,6 +265,11 @@ const applySettingsToDocument = async (newSettings: Settings) => {
   if (application !== appearanceGeneration) return;
   document.documentElement.setAttribute("lang", language);
   setLanguageDirection(language);
+
+  document.documentElement.classList.toggle(
+    "red-up-green-down",
+    newSettings.gainLossColorScheme === "red-up-green-down",
+  );
 
   // Font classes
   document.body.classList.remove("font-mono", "font-sans", "font-serif");

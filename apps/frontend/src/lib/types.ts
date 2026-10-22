@@ -933,11 +933,14 @@ export interface QuoteUpdate {
   dataSource: string;
 }
 
+export type GainLossColorScheme = "green-up-red-down" | "red-up-green-down";
+
 export interface Settings {
   insightsOverviewLayout?: Record<string, unknown> | null;
   /** Read-only restore state, absent on older backends. */
   restoreReconnectRequired?: boolean;
   theme: string;
+  gainLossColorScheme?: GainLossColorScheme;
   font: string;
   language: string;
   formattingRegion: string;

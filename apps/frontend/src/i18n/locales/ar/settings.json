@@ -1,4 +1,8 @@
 {
+  "appearance_gain_loss_color_title": "ألوان الأرباح والخسائر",
+  "appearance_gain_loss_color_description": "اختر ألوان ارتفاع الاستثمارات وانخفاضها.",
+  "appearance_gain_loss_green_up": "الارتفاع بالأخضر والانخفاض بالأحمر",
+  "appearance_gain_loss_red_up": "الارتفاع بالأحمر والانخفاض بالأخضر",
   "accounts": {
     "mode_switch_keep_holdings": "الإبقاء على الحيازات",
     "mode_switch_title": "التبديل إلى وضع المعاملات",

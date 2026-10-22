@@ -1,4 +1,8 @@
 {
+  "appearance_gain_loss_color_title": "Gain/loss colors",
+  "appearance_gain_loss_color_description": "Choose the colors used for investment gains and losses.",
+  "appearance_gain_loss_green_up": "Green up, red down",
+  "appearance_gain_loss_red_up": "Red up, green down",
   "title": "Settings",
   "general": "General",
   "appearance": "Appearance",

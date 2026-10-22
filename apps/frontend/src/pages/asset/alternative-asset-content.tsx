@@ -235,9 +235,7 @@ export const AlternativeAssetContent: React.FC<AlternativeAssetContentProps> = (
                       />
                     </p>
                     {gainAmount !== null && gainPercent !== null && (
-                      <p
-                        className={`text-sm ${gainAmount >= 0 ? "text-success" : "text-destructive"}`}
-                      >
+                      <p className={`text-sm ${gainAmount >= 0 ? "text-gain" : "text-loss"}`}>
                         <AmountDisplay
                           value={gainAmount}
                           currency={holding.currency}

@@ -149,6 +149,16 @@ fn validate_market_data_sync_interval(hours: u32) -> Result<()> {
     }
 }
 
+fn validate_gain_loss_color_scheme(scheme: &str) -> Result<()> {
+    if matches!(scheme, "green-up-red-down" | "red-up-green-down") {
+        Ok(())
+    } else {
+        Err(Error::InvalidConfigValue(format!(
+            "Unsupported gain/loss color scheme: {scheme}"
+        )))
+    }
+}
+
 // Define the trait for SettingsService
 #[async_trait]
 pub trait SettingsServiceTrait: Send + Sync {
@@ -188,6 +198,7 @@ impl SettingsServiceTrait for SettingsService {
     fn get_settings(&self) -> Result<Settings> {
         let mut settings = self.settings_repository.get_settings()?;
         validate_market_data_sync_interval(settings.market_data_sync_interval_hours)?;
+        validate_gain_loss_color_scheme(&settings.gain_loss_color_scheme)?;
         settings.formatting_region =
             normalize_formatting_region(&settings.language, &settings.formatting_region);
         normalize_currency_formatting_regions(&mut settings.currency_formatting_regions);
@@ -201,6 +212,10 @@ impl SettingsServiceTrait for SettingsService {
 
         if let Some(ref timezone_raw) = normalized_settings.timezone {
             normalized_settings.timezone = Some(canonicalize_timezone(timezone_raw)?);
+        }
+
+        if let Some(ref scheme) = normalized_settings.gain_loss_color_scheme {
+            validate_gain_loss_color_scheme(scheme)?;
         }
 
         if let Some(ref region) = normalized_settings.formatting_region {

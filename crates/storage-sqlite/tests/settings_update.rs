@@ -193,3 +193,68 @@ async fn invalid_persisted_market_data_sync_interval_is_reported() {
         assert!(fixture.settings.get_settings().is_err());
     }
 }
+
+#[tokio::test]
+async fn gain_loss_color_scheme_is_local_and_rejects_invalid_updates_atomically() {
+    use wealthfolio_storage_sqlite::schema::sync_outbox;
+    let fixture = fixture().await;
+    assert_eq!(
+        fixture
+            .settings
+            .get_settings()
+            .unwrap()
+            .gain_loss_color_scheme,
+        "green-up-red-down"
+    );
+    let outbox_count = || {
+        sync_outbox::table
+            .count()
+            .get_result::<i64>(&mut db::get_connection(&fixture.pool).unwrap())
+            .unwrap()
+    };
+    let before = outbox_count();
+    let pairs_before = fx_pairs(&fixture.pool);
+    for scheme in ["red-up-green-down", "green-up-red-down"] {
+        fixture
+            .settings
+            .update_settings(&update(json!({"gainLossColorScheme": scheme})))
+            .await
+            .unwrap();
+        fixture
+            .settings
+            .update_settings(&update(json!({"theme": "dark"})))
+            .await
+            .unwrap();
+        assert_eq!(
+            fixture
+                .settings
+                .get_settings()
+                .unwrap()
+                .gain_loss_color_scheme,
+            scheme
+        );
+    }
+    assert!(fixture
+        .settings
+        .update_settings(&update(json!({
+            "gainLossColorScheme": "invalid", "baseCurrency": "EUR"
+        })))
+        .await
+        .is_err());
+    assert_unchanged(&fixture);
+    assert_eq!(fx_pairs(&fixture.pool), pairs_before);
+    assert!(fixture.events.events().is_empty());
+    assert_eq!(outbox_count(), before);
+}
+
+#[test]
+fn old_settings_payload_uses_default_gain_loss_colors() {
+    use wealthfolio_core::settings::Settings;
+    let mut payload = serde_json::to_value(Settings::default()).unwrap();
+    payload
+        .as_object_mut()
+        .unwrap()
+        .remove("gainLossColorScheme");
+    let loaded: Settings = serde_json::from_value(payload).unwrap();
+    assert_eq!(loaded.gain_loss_color_scheme, "green-up-red-down");
+}

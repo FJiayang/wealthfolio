@@ -97,11 +97,11 @@ describe("localized financial components", () => {
       );
       const gain = container.firstElementChild?.firstElementChild;
       expect(gain?.textContent?.replace(/[\u00a0\u202f]/g, " ")).toBe(expected);
-      expect(gain).toHaveClass(value > 0 ? "text-success" : "text-destructive");
+      expect(gain).toHaveClass(value > 0 ? "text-gain" : "text-loss");
 
       await screen.findByTestId("animated-financial-value");
       expect(gain?.textContent?.replace(/[\u00a0\u202f]/g, " ")).toBe(expected);
-      expect(gain).toHaveClass(value > 0 ? "text-success" : "text-destructive");
+      expect(gain).toHaveClass(value > 0 ? "text-gain" : "text-loss");
     },
   );
 
@@ -152,4 +152,19 @@ describe("localized financial components", () => {
     );
     expect(container.textContent).toMatch(/^\+12,50[\u00a0\u202f ]%$/);
   });
+});
+
+it("keeps inverted gains and badge surfaces on the financial color tokens", () => {
+  const { container } = render(
+    <FormattingProvider locale="US">
+      <GainPercent value={0.1} variant="badge" />
+      <GainPercent value={-0.1} variant="badge" />
+      <GainPercent value={0.1} invertColor />
+      <GainAmount value={-10} currency="USD" invertColor />
+    </FormattingProvider>,
+  );
+  expect(container.children[0]).toHaveClass("bg-gain-subtle", "text-gain-subtle-foreground");
+  expect(container.children[1]).toHaveClass("bg-loss-subtle", "text-loss-subtle-foreground");
+  expect(container.children[2]).toHaveClass("text-loss");
+  expect(container.children[3].firstElementChild).toHaveClass("text-gain");
 });

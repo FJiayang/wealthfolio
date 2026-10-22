@@ -27,6 +27,12 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-success: var(--success);
+  --color-gain: var(--gain);
+  --color-loss: var(--loss);
+  --color-gain-subtle: var(--gain-subtle);
+  --color-gain-subtle-foreground: var(--gain-subtle-foreground);
+  --color-loss-subtle: var(--loss-subtle);
+  --color-loss-subtle-foreground: var(--loss-subtle-foreground);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);

@@ -11,7 +11,7 @@ use wealthfolio_core::assets::AssetKind;
 use wealthfolio_core::errors::{Error, Result};
 use wealthfolio_core::settings::{
     Settings, SettingsRepositoryTrait, SettingsUpdate, CURRENCY_FORMATTING_REGIONS_KEY,
-    INSIGHTS_OVERVIEW_LAYOUT_KEY, MARKET_DATA_SYNC_INTERVAL_HOURS_KEY,
+    GAIN_LOSS_COLOR_SCHEME_KEY, INSIGHTS_OVERVIEW_LAYOUT_KEY, MARKET_DATA_SYNC_INTERVAL_HOURS_KEY,
 };
 
 pub struct SettingsRepository {
@@ -41,6 +41,7 @@ impl SettingsRepositoryTrait for SettingsRepository {
             match key.as_str() {
                 "theme" => settings.theme = value,
                 "font" => settings.font = value,
+                GAIN_LOSS_COLOR_SCHEME_KEY => settings.gain_loss_color_scheme = value,
                 "language" => settings.language = value,
                 "formatting_region" => settings.formatting_region = value,
                 CURRENCY_FORMATTING_REGIONS_KEY => {
@@ -89,6 +90,16 @@ impl SettingsRepositoryTrait for SettingsRepository {
                         .values(&AppSettingDB {
                             setting_key: "theme".to_string(),
                             setting_value: theme.clone(),
+                        })
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                }
+
+                if let Some(ref scheme) = settings.gain_loss_color_scheme {
+                    diesel::replace_into(app_settings)
+                        .values(&AppSettingDB {
+                            setting_key: GAIN_LOSS_COLOR_SCHEME_KEY.to_string(),
+                            setting_value: scheme.clone(),
                         })
                         .execute(tx.conn())
                         .map_err(StorageError::from)?;

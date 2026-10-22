@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -15,6 +16,14 @@ import {
   FormLabel,
   FormMessage,
 } from "@wealthfolio/ui/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@wealthfolio/ui/components/ui/select";
+import type { GainLossColorScheme } from "@/lib/types";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
 import { Item, ItemActions, ItemContent, ItemTitle } from "@wealthfolio/ui/components/ui/item";
 import { usePlatform } from "@/hooks/use-platform";
@@ -25,10 +34,12 @@ interface AppearanceFormValues {
   theme: "light" | "dark" | "system";
   font: "font-mono" | "font-sans" | "font-serif";
   menuBarVisible: boolean;
+  gainLossColorScheme: GainLossColorScheme;
 }
 
 export function AppearanceForm() {
   const { t } = useTranslation();
+  const [savingColorScheme, setSavingColorScheme] = useState(false);
   const { settings, updateSettings } = useSettingsContext();
   const { isMobile, isMacOS, isTauri } = usePlatform();
   const { mode: navigationMode, setMode: setNavigationMode } = useNavigationMode();
@@ -41,11 +52,13 @@ export function AppearanceForm() {
       required_error: t("settings:appearance_font_required"),
     }),
     menuBarVisible: z.boolean(),
+    gainLossColorScheme: z.enum(["green-up-red-down", "red-up-green-down"]),
   });
   const defaultValues: Partial<AppearanceFormValues> = {
     theme: settings?.theme as AppearanceFormValues["theme"],
     font: settings?.font as AppearanceFormValues["font"],
     menuBarVisible: settings?.menuBarVisible ?? true,
+    gainLossColorScheme: settings?.gainLossColorScheme ?? "green-up-red-down",
   };
   const form = useForm<AppearanceFormValues>({
     resolver: zodResolver(appearanceFormSchema),
@@ -109,6 +122,58 @@ export function AppearanceForm() {
                   className="pt-2"
                 />
               </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="gainLossColorScheme"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("settings:appearance_gain_loss_color_title")}</FormLabel>
+              <FormDescription>
+                {t("settings:appearance_gain_loss_color_description")}
+              </FormDescription>
+              <Select
+                value={field.value}
+                items={[
+                  {
+                    value: "green-up-red-down",
+                    label: t("settings:appearance_gain_loss_green_up"),
+                  },
+                  { value: "red-up-green-down", label: t("settings:appearance_gain_loss_red_up") },
+                ]}
+                disabled={savingColorScheme}
+                onValueChange={async (value) => {
+                  if (value === null) return;
+                  const previous = settings?.gainLossColorScheme ?? "green-up-red-down";
+                  field.onChange(value);
+                  setSavingColorScheme(true);
+                  try {
+                    await updateSettings({ gainLossColorScheme: value });
+                  } catch {
+                    field.onChange(previous);
+                  } finally {
+                    setSavingColorScheme(false);
+                  }
+                }}
+              >
+                <FormControl>
+                  <SelectTrigger data-testid="gain-loss-color-select" className="w-full sm:w-72">
+                    <SelectValue />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="green-up-red-down">
+                    {t("settings:appearance_gain_loss_green_up")}
+                  </SelectItem>
+                  <SelectItem value="red-up-green-down">
+                    {t("settings:appearance_gain_loss_red_up")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
             </FormItem>
           )}
         />

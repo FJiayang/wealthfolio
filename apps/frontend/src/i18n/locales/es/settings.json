@@ -1,4 +1,8 @@
 {
+  "appearance_gain_loss_color_title": "Colores de ganancias y pérdidas",
+  "appearance_gain_loss_color_description": "Elige los colores de las ganancias y pérdidas de inversión.",
+  "appearance_gain_loss_green_up": "Subidas en verde, bajadas en rojo",
+  "appearance_gain_loss_red_up": "Subidas en rojo, bajadas en verde",
   "title": "Ajustes",
   "general": "General",
   "appearance": "Apariencia",

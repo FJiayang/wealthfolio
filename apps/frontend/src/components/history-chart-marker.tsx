@@ -48,7 +48,7 @@ export function HistoryChartMarkerShape({
   if (variant === "snapshot") {
     return (
       <g
-        className={value >= 0 ? "text-success" : "text-destructive"}
+        className={value >= 0 ? "text-gain" : "text-loss"}
         transform={`translate(${cx ?? 0}, ${cy ?? 0})`}
         style={{ pointerEvents: "none" }}
       >

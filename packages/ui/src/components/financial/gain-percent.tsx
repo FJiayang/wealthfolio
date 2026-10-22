@@ -66,16 +66,16 @@ export function GainPercent({
   const { locale } = useLocalizationSettings();
   const { formatPercent } = useNumberFormatting();
   const displayValue = normalizeDisplayPercent(value);
-  const successColor = invertColor ? "text-destructive" : "text-success";
-  const destructiveColor = invertColor ? "text-success" : "text-destructive";
+  const successColor = invertColor ? "text-loss" : "text-gain";
+  const destructiveColor = invertColor ? "text-gain" : "text-loss";
   // The badge sits on the status's subtle surface with its text colour; status text on
   // a 10% tint of itself stays under 4.5:1.
   const successBadge = invertColor
-    ? "bg-destructive-subtle text-destructive-subtle-foreground"
-    : "bg-success-subtle text-success-subtle-foreground";
+    ? "bg-loss-subtle text-loss-subtle-foreground"
+    : "bg-gain-subtle text-gain-subtle-foreground";
   const destructiveBadge = invertColor
-    ? "bg-success-subtle text-success-subtle-foreground"
-    : "bg-destructive-subtle text-destructive-subtle-foreground";
+    ? "bg-gain-subtle text-gain-subtle-foreground"
+    : "bg-loss-subtle text-loss-subtle-foreground";
   return (
     <div
       className={cn(

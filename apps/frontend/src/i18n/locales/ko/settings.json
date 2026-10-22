@@ -1,4 +1,8 @@
 {
+  "appearance_gain_loss_color_title": "등락 색상",
+  "appearance_gain_loss_color_description": "투자 상승과 하락을 표시할 색상을 선택하세요.",
+  "appearance_gain_loss_green_up": "상승 초록, 하락 빨강",
+  "appearance_gain_loss_red_up": "상승 빨강, 하락 초록",
   "title": "설정",
   "general": "일반",
   "appearance": "테마",

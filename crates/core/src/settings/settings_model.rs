@@ -3,6 +3,13 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+pub const GAIN_LOSS_COLOR_SCHEME_KEY: &str = "gain_loss_color_scheme";
+pub const DEFAULT_GAIN_LOSS_COLOR_SCHEME: &str = "green-up-red-down";
+
+fn default_gain_loss_color_scheme() -> String {
+    DEFAULT_GAIN_LOSS_COLOR_SCHEME.to_string()
+}
+
 pub const INSIGHTS_OVERVIEW_LAYOUT_KEY: &str = "insights_overview_layout";
 pub const MARKET_DATA_SYNC_INTERVAL_HOURS_KEY: &str = "market_data_sync_interval_hours";
 pub const DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS: u32 = 6;
@@ -18,6 +25,8 @@ pub const CURRENCY_FORMATTING_REGIONS_KEY: &str = "currency_formatting_regions";
 pub struct Settings {
     pub theme: String,
     pub font: String,
+    #[serde(default = "default_gain_loss_color_scheme")]
+    pub gain_loss_color_scheme: String,
     pub language: String,
     pub formatting_region: String,
     /// Formatting regions for amounts in specific currencies, keyed by currency
@@ -46,6 +55,7 @@ impl Default for Settings {
         Self {
             theme: "light".to_string(),
             font: "font-mono".to_string(),
+            gain_loss_color_scheme: default_gain_loss_color_scheme(),
             language: "en".to_string(),
             formatting_region: "system".to_string(),
             currency_formatting_regions: BTreeMap::new(),
@@ -68,6 +78,7 @@ impl Default for Settings {
 pub struct SettingsUpdate {
     pub theme: Option<String>,
     pub font: Option<String>,
+    pub gain_loss_color_scheme: Option<String>,
     pub language: Option<String>,
     pub formatting_region: Option<String>,
     /// Replaces the whole map; an empty map removes every override.

@@ -116,9 +116,9 @@ interface TreemapTile {
 // instead of collapsing into a single shade. `k` is the return magnitude that
 // maps to the mid-tone (losses ramp ~2× faster, matching the design). Values
 // are fractions: 0.5 = +50%, 0.025 = +2.5% for the smaller daily returns.
-function getTreemapColor(gain: number, returnType: ReturnType): TreemapTile {
+export function getTreemapColor(gain: number, returnType: ReturnType, redUp = false): TreemapTile {
   const isGain = isNaN(gain) || gain >= 0;
-  const [lo, hi] = isGain ? [POS_LO, POS_HI] : [NEG_LO, NEG_HI];
+  const [lo, hi] = isGain !== redUp ? [POS_LO, POS_HI] : [NEG_LO, NEG_HI];
   const k = isGain
     ? returnType === "daily"
       ? 0.025
@@ -163,6 +163,7 @@ interface CustomizedContentProps {
   displayMode?: DisplayMode;
   returnType?: ReturnType;
   isDark?: boolean;
+  redUp?: boolean;
 }
 
 const CustomizedContent: FC<CustomizedContentProps> = ({
@@ -178,11 +179,12 @@ const CustomizedContent: FC<CustomizedContentProps> = ({
   displayMode = "symbol",
   returnType = "daily",
   isDark = false,
+  redUp = false,
 }) => {
   const formatting = useNumberFormatting();
   const fontSize = Math.min(width, height) < 80 ? Math.min(width, height) * 0.16 : 13;
   const fontSize2 = Math.min(width, height) < 80 ? Math.min(width, height) * 0.14 : 12;
-  const { fill: fillColor, isLightTile } = getTreemapColor(gain, returnType);
+  const { fill: fillColor, isLightTile } = getTreemapColor(gain, returnType, redUp);
   const textColor = isDark || !isLightTile ? TILE_TEXT_LIGHT : TILE_TEXT_DARK;
 
   // Determine what text to display based on mode
@@ -317,7 +319,7 @@ const CompositionTooltip = ({ active, payload, settings }: TooltipProps) => {
               <span
                 className={cn(
                   "flex items-center gap-1 text-sm font-semibold",
-                  isPositive ? "text-success" : "text-destructive",
+                  isPositive ? "text-gain" : "text-loss",
                 )}
               >
                 {isPositive ? "+" : ""}
@@ -461,6 +463,7 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
                 displayMode={displayMode}
                 returnType={returnType}
                 isDark={isDark}
+                redUp={settings?.gainLossColorScheme === "red-up-green-down"}
               />
             )}
           >

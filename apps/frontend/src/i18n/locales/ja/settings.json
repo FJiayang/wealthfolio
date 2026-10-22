@@ -1,4 +1,8 @@
 {
+  "appearance_gain_loss_color_title": "騰落の配色",
+  "appearance_gain_loss_color_description": "投資の上昇と下落の表示色を選択します。",
+  "appearance_gain_loss_green_up": "上昇は緑、下落は赤",
+  "appearance_gain_loss_red_up": "上昇は赤、下落は緑",
   "title": "設定",
   "general": "一般",
   "appearance": "外観",
