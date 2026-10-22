@@ -625,6 +625,10 @@
   "tax_reset": "Zurücksetzen",
   "tax_delete_confirm_desc": "Möchten Sie „{{name}}“ wirklich löschen? Dadurch werden alle Vermögenszuordnungen zu dieser Kategorie entfernt. Diese Aktion kann nicht rückgängig gemacht werden.",
   "market_data_page": {
+    "sync_interval_label": "Automatisches Synchronisierungsintervall",
+    "sync_interval_description": "Gilt für geplante Synchronisierungen, während die Desktop-App oder der Webserver läuft. Änderungen werden innerhalb einer Minute wirksam; Start- und manuelle Synchronisierungen bleiben unverändert.",
+    "sync_interval_hours_one": "Alle {{count}} Stunde",
+    "sync_interval_hours_other": "Alle {{count}} Stunden",
     "http_api_name": "Standard-HTTP-API",
     "http_api_base_url": "Basis-URL des Dienstes",
     "http_api_help": "Geben Sie eine vollständige Kennung wie XSHG:600519 oder FUND:005827 ein, um eine Anlage anzulegen. Der API-Schlüssel ist optional.",

@@ -3023,3 +3023,6 @@ quotes:
         assert_eq!(value, expected, "{kind:?}");
     }
 }
+
+#[path = "periodic_tests.rs"]
+mod periodic_tests;

@@ -692,6 +692,10 @@
   "tax_reset": "Reset",
   "tax_delete_confirm_desc": "Are you sure you want to delete “{{name}}”? This will remove all asset assignments to this category. This action cannot be undone.",
   "market_data_page": {
+    "sync_interval_label": "Automatic sync interval",
+    "sync_interval_description": "Applies to scheduled syncs while the desktop app or web server is running. Changes take effect within one minute; startup and manual syncs are unaffected.",
+    "sync_interval_hours_one": "Every {{count}} hour",
+    "sync_interval_hours_other": "Every {{count}} hours",
     "http_api_name": "Standard HTTP API",
     "http_api_base_url": "Service base URL",
     "http_api_help": "Enter a full identifier such as XSHG:600519 or FUND:005827 to create an asset. The API key is optional.",

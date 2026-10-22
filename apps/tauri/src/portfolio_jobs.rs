@@ -121,7 +121,7 @@ pub async fn run_portfolio_request(
     }
 }
 
-/// The app's periodic market sync plus portfolio update (6h, after a 2min delay).
+/// The app's periodic market sync plus portfolio update (configured interval, after a 2min delay).
 pub fn spawn_periodic_update(
     app_handle: AppHandle,
     context: Arc<ServiceContext>,
@@ -131,7 +131,7 @@ pub fn spawn_periodic_update(
     tauri::async_runtime::spawn(run_periodic_update(
         context.portfolio_coordinator(),
         observer,
+        context.settings_service(),
         Duration::from_secs(120),
-        Duration::from_secs(6 * 3600),
     ))
 }

@@ -735,6 +735,9 @@
   "tax_reset": "リセット",
   "tax_delete_confirm_desc": "「{{name}}」を削除してもよろしいですか?このカテゴリへの資産の割り当てもすべて解除されます。この操作は取り消せません。",
   "market_data_page": {
+    "sync_interval_label": "自動同期の間隔",
+    "sync_interval_description": "デスクトップアプリまたは Web サーバーの実行中の定期同期に適用されます。変更は1分以内に反映され、起動時や手動の同期には影響しません。",
+    "sync_interval_hours_other": "{{count}} 時間ごと",
     "http_api_name": "標準 HTTP API",
     "http_api_base_url": "サービスのベース URL",
     "http_api_help": "XSHG:600519 または FUND:005827 のような完全な識別子を入力して資産を登録します。API キーは任意です。",

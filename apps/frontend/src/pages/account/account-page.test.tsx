@@ -666,6 +666,7 @@ function createSettings(): Settings {
     autoUpdateCheckEnabled: true,
     menuBarVisible: true,
     syncEnabled: false,
+    marketDataSyncIntervalHours: 6,
   };
 }
 

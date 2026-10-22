@@ -742,6 +742,11 @@
   "tax_reset": "Réinitialiser",
   "tax_delete_confirm_desc": "Voulez-vous vraiment supprimer « {{name}} » ? Cela supprimera toutes les affectations d’actifs à cette catégorie. Cette action est irréversible.",
   "market_data_page": {
+    "sync_interval_label": "Intervalle de synchronisation automatique",
+    "sync_interval_description": "Concerne les synchronisations planifiées pendant le fonctionnement de l’application de bureau ou du serveur web. Les modifications prennent effet sous une minute, sans modifier les synchronisations au démarrage ou manuelles.",
+    "sync_interval_hours_one": "Toutes les {{count}} heure",
+    "sync_interval_hours_many": "Toutes les {{count}} heures",
+    "sync_interval_hours_other": "Toutes les {{count}} heures",
     "http_api_name": "API HTTP standard",
     "http_api_base_url": "URL de base du service",
     "http_api_help": "Saisissez un identifiant complet comme XSHG:600519 ou FUND:005827 pour créer un actif. La clé API est facultative.",

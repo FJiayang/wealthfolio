@@ -253,7 +253,7 @@ pub fn spawn_portfolio_update(state: Arc<AppState>) {
     });
 }
 
-/// The app's periodic market sync plus portfolio update (6h, after a 2min
+/// The app's periodic market sync plus portfolio update (configured interval, after a 2min
 /// delay). The handle joins the profile's workers so the loop stops with its
 /// profile.
 pub fn spawn_periodic_update(state: Arc<AppState>) -> tokio::task::JoinHandle<()> {
@@ -261,7 +261,7 @@ pub fn spawn_periodic_update(state: Arc<AppState>) -> tokio::task::JoinHandle<()
     tokio::spawn(run_periodic_update(
         state.portfolio_coordinator.clone(),
         observer,
+        state.settings_service.clone(),
         std::time::Duration::from_secs(120),
-        std::time::Duration::from_secs(6 * 3600),
     ))
 }

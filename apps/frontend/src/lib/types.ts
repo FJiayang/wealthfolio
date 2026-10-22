@@ -950,6 +950,7 @@ export interface Settings {
   autoUpdateCheckEnabled: boolean;
   menuBarVisible: boolean;
   syncEnabled: boolean;
+  marketDataSyncIntervalHours: number;
 }
 
 export interface SettingsContextType {

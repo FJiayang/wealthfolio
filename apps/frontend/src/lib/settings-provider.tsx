@@ -31,6 +31,7 @@ interface ExtendedSettingsContextType extends SettingsContextType {
         | "onboardingCompleted"
         | "menuBarVisible"
         | "syncEnabled"
+        | "marketDataSyncIntervalHours"
         | "insightsOverviewLayout"
       >
     >,
@@ -73,6 +74,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         | "onboardingCompleted"
         | "menuBarVisible"
         | "syncEnabled"
+        | "marketDataSyncIntervalHours"
         | "insightsOverviewLayout"
       >
     >,

@@ -4,6 +4,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub const INSIGHTS_OVERVIEW_LAYOUT_KEY: &str = "insights_overview_layout";
+pub const MARKET_DATA_SYNC_INTERVAL_HOURS_KEY: &str = "market_data_sync_interval_hours";
+pub const DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS: u32 = 6;
+
+fn default_market_data_sync_interval_hours() -> u32 {
+    DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS
+}
+
 pub const CURRENCY_FORMATTING_REGIONS_KEY: &str = "currency_formatting_regions";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -23,6 +30,8 @@ pub struct Settings {
     pub auto_update_check_enabled: bool,
     pub menu_bar_visible: bool,
     pub sync_enabled: bool,
+    #[serde(default = "default_market_data_sync_interval_hours")]
+    pub market_data_sync_interval_hours: u32,
     /// Read-only restore state; clearing UI feedback must not authorize sync.
     #[serde(default)]
     pub restore_reconnect_required: bool,
@@ -46,6 +55,7 @@ impl Default for Settings {
             auto_update_check_enabled: true,
             menu_bar_visible: true,
             sync_enabled: true,
+            market_data_sync_interval_hours: DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS,
             restore_reconnect_required: false,
             default_return_metric: "twr".to_string(),
             insights_overview_layout: None,
@@ -68,6 +78,7 @@ pub struct SettingsUpdate {
     pub auto_update_check_enabled: Option<bool>,
     pub menu_bar_visible: Option<bool>,
     pub sync_enabled: Option<bool>,
+    pub market_data_sync_interval_hours: Option<u32>,
     pub default_return_metric: Option<String>,
     pub insights_overview_layout: Option<serde_json::Map<String, serde_json::Value>>,
 }

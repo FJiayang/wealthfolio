@@ -735,6 +735,9 @@
   "tax_reset": "重置",
   "tax_delete_confirm_desc": "确定要删除“{{name}}”吗？这将移除所有分配到此类别的资产。此操作无法撤销。",
   "market_data_page": {
+    "sync_interval_label": "自动同步间隔",
+    "sync_interval_description": "控制桌面应用或 Web 服务运行期间的定时同步。修改后一分钟内生效，不影响启动时和手动同步。",
+    "sync_interval_hours_other": "每 {{count}} 小时",
     "http_api_name": "标准 HTTP API",
     "http_api_base_url": "服务地址",
     "http_api_help": "输入 XSHG:600519 或 FUND:005827 等完整标识即可建档。API Key 为可选项。",

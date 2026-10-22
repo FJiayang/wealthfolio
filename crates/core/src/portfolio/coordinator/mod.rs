@@ -32,6 +32,7 @@ use crate::portfolio::snapshot::{
     reconcile_quote_sync_from_latest_account_snapshots, SnapshotServiceTrait,
 };
 use crate::quotes::{MarketSyncMode, SyncResult};
+use crate::settings::SettingsServiceTrait;
 use crate::utils::time_utils::{parse_user_timezone_or_default, user_today};
 
 pub(crate) use facts::raw_activity;
@@ -609,33 +610,50 @@ impl PortfolioCoordinator {
     }
 }
 
-/// The app's periodic market sync, shared by both hosts: after
-/// `initial_delay`, every `interval` the quotes are synced incrementally and
-/// the portfolio is updated (new quotes, a new day). Never panics.
+/// The app's periodic market sync, shared by both hosts. Settings are checked
+/// every minute so changing the interval does not require restarting the host.
 pub async fn run_periodic_update(
     coordinator: Arc<PortfolioCoordinator>,
     observer: Arc<dyn JobObserver>,
+    settings: Arc<dyn SettingsServiceTrait>,
     initial_delay: std::time::Duration,
-    interval: std::time::Duration,
 ) {
     tokio::time::sleep(initial_delay).await;
-    info!(
-        "Periodic portfolio update started (interval: {}h)",
-        interval.as_secs() / 3600
-    );
+    let mut last_completed = None;
     loop {
+        wait_for_periodic_update(settings.as_ref(), last_completed).await;
         let report = coordinator
             .update_all(
                 MarketSyncMode::Incremental { asset_ids: None },
                 observer.as_ref(),
             )
             .await;
+        last_completed = Some(tokio::time::Instant::now());
         info!(
             "Periodic portfolio update: {} account(s) rebuilt, {} failure(s)",
             report.account_ids.len(),
             report.failures.len()
         );
-        tokio::time::sleep(interval).await;
+    }
+}
+
+async fn wait_for_periodic_update(
+    settings: &dyn SettingsServiceTrait,
+    last_completed: Option<tokio::time::Instant>,
+) {
+    loop {
+        match settings.get_settings() {
+            Ok(settings) => {
+                let interval = std::time::Duration::from_secs(
+                    u64::from(settings.market_data_sync_interval_hours) * 3600,
+                );
+                if last_completed.is_none_or(|last| last.elapsed() >= interval) {
+                    return;
+                }
+            }
+            Err(error) => warn!("Cannot read periodic market sync settings: {error}"),
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
     }
 }
 

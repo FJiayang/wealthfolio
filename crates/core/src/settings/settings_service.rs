@@ -139,6 +139,16 @@ fn validate_currency_formatting_regions(regions: &BTreeMap<String, String>) -> R
     Ok(())
 }
 
+fn validate_market_data_sync_interval(hours: u32) -> Result<()> {
+    if matches!(hours, 1 | 6 | 12 | 24) {
+        Ok(())
+    } else {
+        Err(Error::InvalidConfigValue(format!(
+            "Unsupported market data sync interval: {hours}"
+        )))
+    }
+}
+
 // Define the trait for SettingsService
 #[async_trait]
 pub trait SettingsServiceTrait: Send + Sync {
@@ -177,6 +187,7 @@ pub struct SettingsService {
 impl SettingsServiceTrait for SettingsService {
     fn get_settings(&self) -> Result<Settings> {
         let mut settings = self.settings_repository.get_settings()?;
+        validate_market_data_sync_interval(settings.market_data_sync_interval_hours)?;
         settings.formatting_region =
             normalize_formatting_region(&settings.language, &settings.formatting_region);
         normalize_currency_formatting_regions(&mut settings.currency_formatting_regions);
@@ -200,6 +211,10 @@ impl SettingsServiceTrait for SettingsService {
         }
         if let Some(ref language) = normalized_settings.language {
             normalized_settings.language = Some(validate_ui_language(language)?);
+        }
+
+        if let Some(hours) = normalized_settings.market_data_sync_interval_hours {
+            validate_market_data_sync_interval(hours)?;
         }
 
         // Validate the whole update first: a rejected update must not change the

@@ -37,6 +37,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ResetProviderHistoryDialog } from "@/pages/asset/reset-provider-history-dialog";
 
 import { SettingsHeader } from "../settings-header";
+import { MarketDataSyncSettings } from "./market-data-sync-settings";
 
 import { getAssets, getSecret, type MarketDataProviderSetting } from "@/adapters";
 import {
@@ -1066,6 +1067,8 @@ export default function MarketDataSettingsPage() {
           </Button>
         </div>
       )}
+
+      <MarketDataSyncSettings />
 
       <Tabs value={providersTab} onValueChange={setProvidersTab} className="w-full">
         {/* Narrow screens wrap the button below the tabs so their labels keep full width. */}

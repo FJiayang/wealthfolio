@@ -45,6 +45,8 @@ vi.mock("@/hooks/use-custom-providers", () => ({
   useUpdateCustomProvider: hookMocks.useUpdateCustomProvider,
 }));
 
+vi.mock("./market-data-sync-settings", () => ({ MarketDataSyncSettings: () => null }));
+
 vi.mock("./custom-provider-form", () => ({
   CustomProviderForm: () => null,
 }));

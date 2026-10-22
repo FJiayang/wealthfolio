@@ -117,3 +117,79 @@ async fn failed_save_keeps_the_base_currency() {
 
     assert_unchanged(&fixture);
 }
+
+#[tokio::test]
+async fn market_data_sync_interval_defaults_round_trips_and_survives_other_updates() {
+    let fixture = fixture().await;
+    assert_eq!(
+        fixture
+            .settings
+            .get_settings()
+            .unwrap()
+            .market_data_sync_interval_hours,
+        6
+    );
+    for hours in [1, 6, 12, 24] {
+        fixture
+            .settings
+            .update_settings(&update(json!({"marketDataSyncIntervalHours": hours})))
+            .await
+            .unwrap();
+        assert_eq!(
+            fixture
+                .settings
+                .get_settings()
+                .unwrap()
+                .market_data_sync_interval_hours,
+            hours
+        );
+    }
+    fixture
+        .settings
+        .update_settings(&update(json!({"theme": "dark"})))
+        .await
+        .unwrap();
+    assert_eq!(
+        fixture
+            .settings
+            .get_settings()
+            .unwrap()
+            .market_data_sync_interval_hours,
+        24
+    );
+    assert!(fixture.events.events().is_empty());
+}
+
+#[tokio::test]
+async fn invalid_market_data_sync_interval_rejects_the_whole_update() {
+    let fixture = fixture().await;
+    for hours in [0, 2, 5, 25] {
+        let rejected = update(json!({"marketDataSyncIntervalHours": hours, "baseCurrency": "EUR"}));
+        assert!(fixture.settings.update_settings(&rejected).await.is_err());
+        assert_unchanged(&fixture);
+        assert_eq!(
+            fixture
+                .settings
+                .get_settings()
+                .unwrap()
+                .market_data_sync_interval_hours,
+            6
+        );
+        assert_eq!(fx_pairs(&fixture.pool), [Some("FX:CAD/USD".to_string())]);
+    }
+    assert!(fixture.events.events().is_empty());
+}
+
+#[tokio::test]
+async fn invalid_persisted_market_data_sync_interval_is_reported() {
+    use wealthfolio_core::settings::MARKET_DATA_SYNC_INTERVAL_HOURS_KEY;
+    let fixture = fixture().await;
+    for value in ["garbage", "0", "2", "4294967296"] {
+        fixture
+            .settings
+            .set_setting_value(MARKET_DATA_SYNC_INTERVAL_HOURS_KEY, value)
+            .await
+            .unwrap();
+        assert!(fixture.settings.get_settings().is_err());
+    }
+}

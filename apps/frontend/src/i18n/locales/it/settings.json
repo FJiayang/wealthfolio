@@ -740,6 +740,11 @@
   "tax_reset": "Reimposta",
   "tax_delete_confirm_desc": "Sei sicuro di voler eliminare \"{{name}}\"? Questo rimuoverà tutte le assegnazioni di asset a questa categoria. Questa azione non può essere annullata.",
   "market_data_page": {
+    "sync_interval_label": "Intervallo di sincronizzazione automatica",
+    "sync_interval_description": "Si applica alle sincronizzazioni pianificate mentre l’app desktop o il server web sono in esecuzione. Le modifiche hanno effetto entro un minuto; le sincronizzazioni all’avvio e manuali restano invariate.",
+    "sync_interval_hours_one": "Ogni {{count}} ora",
+    "sync_interval_hours_many": "Ogni {{count}} ore",
+    "sync_interval_hours_other": "Ogni {{count}} ore",
     "http_api_name": "API HTTP standard",
     "http_api_base_url": "URL di base del servizio",
     "http_api_help": "Inserisci un identificatore completo come XSHG:600519 o FUND:005827 per creare un asset. La chiave API è facoltativa.",

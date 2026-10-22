@@ -740,6 +740,11 @@
   "tax_reset": "Restablecer",
   "tax_delete_confirm_desc": "¿Seguro que quieres eliminar «{{name}}»? Esto eliminará todas las asignaciones de activos a esta categoría. Esta acción no se puede deshacer.",
   "market_data_page": {
+    "sync_interval_label": "Intervalo de sincronización automática",
+    "sync_interval_description": "Se aplica a las sincronizaciones programadas mientras la aplicación de escritorio o el servidor web están en ejecución. Los cambios se aplican en un minuto; no afectan a las sincronizaciones al iniciar ni a las manuales.",
+    "sync_interval_hours_one": "Cada {{count}} hora",
+    "sync_interval_hours_many": "Cada {{count}} horas",
+    "sync_interval_hours_other": "Cada {{count}} horas",
     "http_api_name": "API HTTP estándar",
     "http_api_base_url": "URL base del servicio",
     "http_api_help": "Introduce un identificador completo como XSHG:600519 o FUND:005827 para crear un activo. La clave API es opcional.",
