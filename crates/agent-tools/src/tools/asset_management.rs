@@ -14,10 +14,10 @@ struct CreateAssetArgs {
 }
 
 business_tool!(CreateAsset, CreateAssetArgs, "create_asset",
-    "Register an investment security or a manually priced custom investment. Existing asset events handle enrichment. Arbitrary provider configuration and alternative assets are not accepted.",
-    json!({"type":"object","properties":{"input":{"type":"object","properties":{"kind":{"type":"string","enum":["INVESTMENT"]},"name":{"type":"string"},"displayCode":{"type":"string"},"isActive":{"type":"boolean"},"quoteMode":{"type":"string","enum":["MARKET","MANUAL"]},"quoteCcy":{"type":"string"},"instrumentType":{"type":"string"},"instrumentSymbol":{"type":"string"},"instrumentExchangeMic":{"type":"string"},"providerId":{"type":"string"},"providerSymbol":{"type":"string"},"notes":{"type":"string"},"metadata":{"type":"object"}},"required":["kind","quoteMode","quoteCcy"]}},"required":["input"]}), [AgentScope::AssetsWrite], Write, |env, args| {
-        if args.input.provider_config.is_some() || args.input.kind != wealthfolio_core::assets::AssetKind::Investment {
-            return Err(AgentToolError::InvalidInput("Only investment assets without providerConfig can be registered here".into()));
+    "Register an investment security or a manually priced custom investment, including its asset-owned providerConfig (preferred provider and symbol overrides). Existing asset events handle enrichment. Alternative assets are not accepted.",
+    json!({"type":"object","properties":{"input":{"type":"object","properties":{"kind":{"type":"string","enum":["INVESTMENT"]},"name":{"type":"string"},"displayCode":{"type":"string"},"isActive":{"type":"boolean"},"quoteMode":{"type":"string","enum":["MARKET","MANUAL"]},"quoteCcy":{"type":"string"},"instrumentType":{"type":"string"},"instrumentSymbol":{"type":"string"},"instrumentExchangeMic":{"type":"string"},"providerId":{"type":"string"},"providerSymbol":{"type":"string"},"notes":{"type":"string"},"metadata":{"type":"object"},"providerConfig":{"type":["object","null"],"description":"Asset-owned provider routing configuration, including preferred_provider and overrides. Supply the complete configuration, as returned by get_asset_profile."}},"required":["kind","quoteMode","quoteCcy"]}},"required":["input"]}), [AgentScope::AssetsWrite], Write, |env, args| {
+        if args.input.kind != wealthfolio_core::assets::AssetKind::Investment {
+            return Err(AgentToolError::InvalidInput("Only investment assets can be registered here".into()));
         }
         output(env.asset_service().create_asset(args.input).await?)
     });
@@ -30,15 +30,18 @@ struct UpdateAssetProfileArgs {
 }
 
 business_tool!(UpdateAssetProfile, UpdateAssetProfileArgs, "update_asset_profile",
-    "Update an investment asset profile. Use update_quote_mode for quote mode changes. Provider configuration and asset kind changes are excluded.",
-    json!({"type":"object","properties":{"assetId":{"type":"string"},"input":{"type":"object","properties":{"name":{"type":"string"},"displayCode":{"type":"string"},"quoteCcy":{"type":"string"},"instrumentType":{"type":"string"},"instrumentSymbol":{"type":"string"},"instrumentExchangeMic":{"type":"string"},"notes":{"type":"string"},"metadata":{"type":"object"}},"required":["notes"]}},"required":["assetId","input"]}), [AgentScope::AssetsWrite], Write, |env, args| {
-        if args.input.provider_config.is_some() || args.input.kind.is_some() || args.input.quote_mode.is_some() {
-            return Err(AgentToolError::InvalidInput("providerConfig, kind and quoteMode are not accepted in profile updates".into()));
+    "Update an investment asset profile, including its asset-owned providerConfig. This is not a partial patch: before every update, call get_asset_profile and pass the existing name and complete providerConfig unchanged unless intentionally editing them. Omitting name or providerConfig (or passing null) clears the stored value and can lose the configured market data source. Also pass the current notes and displayCode to retain them. Quote mode is preserved; use update_quote_mode to change it. Asset kind changes are excluded.",
+    json!({"type":"object","properties":{"assetId":{"type":"string"},"input":{"type":"object","properties":{"name":{"type":["string","null"],"description":"On every update, copy the existing name unchanged unless renaming. Omitting it or passing null clears the name."},"displayCode":{"type":"string"},"quoteCcy":{"type":"string"},"instrumentType":{"type":"string"},"instrumentSymbol":{"type":"string"},"instrumentExchangeMic":{"type":"string"},"notes":{"type":"string"},"metadata":{"type":"object"},"providerConfig":{"type":["object","null"],"description":"Asset-owned provider routing configuration, including preferred_provider and overrides. Supply the complete configuration, as returned by get_asset_profile. On every update, copy the existing value unchanged unless changing routing. Omitting it or passing null clears the configured market data source."}},"required":["notes"]}},"required":["assetId","input"]}), [AgentScope::AssetsWrite], Write, |env, args| {
+        if args.input.kind.is_some() || args.input.quote_mode.is_some() {
+            return Err(AgentToolError::InvalidInput("kind and quoteMode are not accepted in profile updates".into()));
         }
-        if env.asset_service().get_asset_profile(&args.asset_id)?.asset.kind != wealthfolio_core::assets::AssetKind::Investment {
+        let existing = env.asset_service().get_asset_profile(&args.asset_id)?.asset;
+        if existing.kind != wealthfolio_core::assets::AssetKind::Investment {
             return Err(AgentToolError::InvalidInput("Alternative asset writes are excluded".into()));
         }
-        output(env.asset_service().update_asset_profile(&args.asset_id, args.input).await?)
+        let mut input = args.input;
+        input.quote_mode = Some(existing.quote_mode);
+        output(env.asset_service().update_asset_profile(&args.asset_id, input).await?)
     });
 
 #[derive(Deserialize)]
@@ -119,4 +122,33 @@ pub fn tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(GetAssetProfile),
         Arc::new(UpdateQuoteMode),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn asset_tools_advertise_provider_configuration_and_replacement_semantics() {
+        for tool in [
+            Box::new(CreateAsset) as Box<dyn AgentTool>,
+            Box::new(UpdateAssetProfile),
+        ] {
+            let schema = tool.input_schema();
+            assert_eq!(
+                schema["properties"]["input"]["properties"]["providerConfig"]["type"],
+                json!(["object", "null"])
+            );
+            assert_eq!(tool.required_scopes(), &[AgentScope::AssetsWrite]);
+        }
+        let schema = UpdateAssetProfile.input_schema();
+        for field in ["name", "providerConfig"] {
+            assert!(
+                schema["properties"]["input"]["properties"][field]["description"]
+                    .as_str()
+                    .unwrap()
+                    .contains("every update")
+            );
+        }
+    }
 }

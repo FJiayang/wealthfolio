@@ -2,7 +2,7 @@
 
 Architecture impact: MCP extends the existing AgentToolCatalog and
 AgentEnvironment. Both hosts reuse their existing services, database writer and
-domain-event consumers. No provider settings, new background workers,
+domain-event consumers. No global provider settings, new background workers,
 migrations, retries or transport lifecycle are added. New business tools belong
 only to the MCP catalog; assistant tools keep their existing names and schemas.
 
@@ -31,7 +31,7 @@ tools remain supported.
 ## Exclusions
 
 No standalone delete/clear/reset tools, arbitrary SQL/file/network access,
-credentials, exports, provider refresh/configuration, health management,
+credentials, exports, provider refresh/global configuration, health management,
 application settings, backups, device/broker connection management, addons, AI
 threads or history rebuilds. The existing read-only get_health_status remains
 compatible. Alternative asset valuation writes, loan balance actions and
@@ -42,6 +42,22 @@ Collection replacement is an update: omitted old entries may be removed. Tools
 must state this behavior. Business writes retain existing automatic enrichment,
 market sync and recalculation events; excluding standalone refresh tools does
 not disable them.
+
+## Asset profile maintenance
+
+`create_asset` and `update_asset_profile` accept the existing asset-owned
+`providerConfig` JSON, including the preferred provider and symbol overrides,
+under `assets:write`. Global provider settings and credentials remain excluded.
+
+Profile updates follow the existing replacement semantics: before every update,
+read `get_asset_profile` and pass the current `name` and complete
+`providerConfig` unchanged unless intentionally editing those fields. Omitting
+either field or passing `null` clears its stored value. Also retain `notes` and
+`displayCode` when changing other fields. `providerConfig` replaces the whole
+object; it is not merged. The MCP adapter preserves the asset's current quote
+mode; explicit mode changes still use `update_quote_mode` and its existing
+permission. Saves retain the existing sync-state reset and domain events. No new
+network execution, provider setup or persistence mechanism is introduced.
 
 ## Token permission editing
 

@@ -3063,6 +3063,100 @@ async fn mcp_permission_edits_apply_in_the_existing_session() {
 }
 
 #[tokio::test]
+async fn mcp_asset_provider_config_can_be_created_and_updated() {
+    let server = spawn_server(true, true).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (_, created) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({"name":"asset maintenance","scopes":["holdings:read","assets:write"]}),
+    )
+    .await;
+    let pat = created["token"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let original_config = serde_json::json!({
+        "preferred_provider":"YAHOO",
+        "overrides":{"YAHOO":{"type":"equity_symbol","symbol":"MCP-CONFIG"}}
+    });
+    let asset = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "create_asset",
+        serde_json::json!({"input":{
+            "kind":"INVESTMENT","name":"Configured fund","displayCode":"MCP-CONFIG",
+            "quoteMode":"MANUAL","quoteCcy":"EUR","instrumentSymbol":"MCP-CONFIG",
+            "instrumentType":"EQUITY","notes":"Keep these notes","providerConfig":original_config
+        }}),
+    )
+    .await;
+    assert_eq!(asset["providerConfig"], original_config);
+    let id = asset["id"].as_str().unwrap();
+    let profile = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_asset_profile",
+        serde_json::json!({"assetId":id}),
+    )
+    .await;
+    let mut input = serde_json::json!({
+        "name":profile["name"],"displayCode":profile["displayCode"],
+        "notes":profile["notes"],"providerConfig":profile["providerConfig"]
+    });
+    input["name"] = serde_json::json!("Renamed fund");
+    let renamed = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "update_asset_profile",
+        serde_json::json!({"assetId":id,"input":input}),
+    )
+    .await;
+    assert_eq!(renamed["name"], "Renamed fund");
+    assert_eq!(renamed["providerConfig"], original_config);
+    assert_eq!(
+        renamed["quoteMode"], "MANUAL",
+        "profile edits must not switch pricing modes"
+    );
+
+    let replacement = serde_json::json!({
+        "preferred_provider":"BOERSE_FRANKFURT",
+        "overrides":{"BOERSE_FRANKFURT":{"type":"equity_symbol","symbol":"DE000TEST"}}
+    });
+    input["name"] = renamed["name"].clone();
+    input["providerConfig"] = replacement.clone();
+    let updated = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "update_asset_profile",
+        serde_json::json!({"assetId":id,"input":input}),
+    )
+    .await;
+    assert_eq!(updated["providerConfig"], replacement);
+    assert_eq!(updated["name"], renamed["name"]);
+    assert_eq!(updated["quoteMode"], "MANUAL");
+
+    let persisted =
+        category_api_get(&server, &cookie, &format!("assets/profile?assetId={id}")).await;
+    assert_eq!(persisted["providerConfig"], replacement);
+    input["providerConfig"] = serde_json::Value::Null;
+    let cleared = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "update_asset_profile",
+        serde_json::json!({"assetId":id,"input":input}),
+    )
+    .await;
+    assert!(cleared["providerConfig"].is_null());
+    assert_eq!(cleared["name"], renamed["name"]);
+    assert_eq!(cleared["quoteMode"], "MANUAL");
+}
+
+#[tokio::test]
 async fn mcp_investment_configuration_and_snapshot_workflow() {
     let server = spawn_server(true, true).await;
     let cookie = login(&server).await;
