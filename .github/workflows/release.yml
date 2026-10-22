@@ -8,6 +8,8 @@ on:
 
 jobs:
   release:
+    # Fork tags publish Docker images; signed native releases need upstream credentials.
+    if: github.repository == 'wealthfolio/wealthfolio' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
       # Windows Authenticode signing authenticates to Azure Artifact Signing with OIDC.
@@ -220,6 +222,7 @@ jobs:
           retention-days: 7
 
   prebuild-server-linux:
+    if: github.repository == 'wealthfolio/wealthfolio' || github.event_name == 'workflow_dispatch'
     # Standalone server tarball for self-hosters (Proxmox LXC, bare metal, systemd).
     # Tracks: https://github.com/wealthfolio/wealthfolio/issues/563
     # Built on ubuntu-22.04 (glibc 2.35) for forward compatibility with Debian 12+/Ubuntu 22.04+.
