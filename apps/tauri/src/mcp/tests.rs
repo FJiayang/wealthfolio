@@ -46,6 +46,67 @@ async fn mint_pat(repo: &PatRepository, scopes: &[&str]) -> String {
 struct StubEnv;
 
 impl AgentEnvironment for StubEnv {
+    fn allocation_target_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationTargetServiceTrait>
+    {
+        unimplemented!("unused test service")
+    }
+
+    fn drift_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::DriftServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn rebalance_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn fx_service(&self) -> Arc<dyn wealthfolio_core::fx::FxServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn snapshot_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn alternative_asset_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn asset_logo_service(&self) -> Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn budget_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
+        unimplemented!("unused test service")
+    }
+
+    fn events_service(&self) -> Arc<wealthfolio_spending::events::EventsService> {
+        unimplemented!("unused test service")
+    }
+
+    fn spending_settings_service(
+        &self,
+    ) -> Arc<wealthfolio_spending::settings::SpendingSettingsService> {
+        unimplemented!("unused test service")
+    }
+
+    fn spending_analytics_service(&self) -> Arc<wealthfolio_spending::analytics::AnalyticsService> {
+        unimplemented!("unused test service")
+    }
+
+    fn spending_insight_service(&self) -> Arc<wealthfolio_spending::insight::InsightService> {
+        unimplemented!("unused test service")
+    }
+
     fn base_currency(&self) -> String {
         "USD".to_string()
     }
@@ -349,4 +410,70 @@ async fn mcp_with_null_origin_passes() {
     let body = response.text().await.unwrap();
     let parsed = parse_sse_data(&body);
     assert_eq!(parsed["result"]["serverInfo"]["name"], "wealthfolio");
+}
+
+#[tokio::test]
+async fn permission_edits_apply_without_recreating_desktop_session() {
+    let (repo, dir) = pat_repo();
+    let token = mint_pat(&repo, &["accounts:read"]).await;
+    let row = repo.list().unwrap().remove(0);
+    let base = spawn_server_with_repo(repo.clone(), dir).await;
+    let client = reqwest::Client::new();
+    let init = mcp_post(&client, &base)
+        .bearer_auth(&token)
+        .send()
+        .await
+        .unwrap();
+    let session = init
+        .headers()
+        .get("mcp-session-id")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    for granted in [false, true, false] {
+        let scopes = if granted {
+            vec!["accounts:read".into(), "market-data:read".into()]
+        } else {
+            vec!["accounts:read".into()]
+        };
+        let updated = repo.update_scopes(&row.id, scopes).await.unwrap().unwrap();
+        assert_eq!(updated.token_hash, row.token_hash);
+        assert_eq!(updated.token_prefix, row.token_prefix);
+        assert_eq!(updated.expires_at, row.expires_at);
+        let request = |body| {
+            client
+                .post(format!("{base}/mcp"))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json, text/event-stream")
+                .bearer_auth(&token)
+                .header("mcp-session-id", &session)
+                .json(&body)
+        };
+        let response = request(serde_json::json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+        let list = parse_sse_data(&response.text().await.unwrap());
+        assert_eq!(
+            list["result"]["tools"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|t| t["name"] == "get_exchanges"),
+            granted
+        );
+        let response = request(serde_json::json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_exchanges","arguments":{}}})).send().await.unwrap();
+        let called = parse_sse_data(&response.text().await.unwrap());
+        if granted {
+            assert_ne!(called["result"]["isError"], true);
+        } else {
+            assert_eq!(called["result"]["isError"], true);
+            assert!(called["result"]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("Scope denied"));
+        }
+    }
 }

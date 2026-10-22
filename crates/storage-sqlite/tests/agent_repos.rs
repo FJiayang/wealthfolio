@@ -176,3 +176,31 @@ async fn audit_rejects_invalid_outcome() {
     let result = repo.insert(audit_entry("get_accounts", "weird")).await;
     assert!(result.is_err(), "outcome CHECK constraint must hold");
 }
+
+#[tokio::test]
+async fn permission_edit_preserves_credentials_expiration_and_usage() {
+    let (_dir, pool, writer) = setup();
+    let repo = PatRepository::new(pool, writer);
+    let mut input = new_token("editable", "edit-prefix", "edit-hash");
+    input.expires_at = Some("2000-01-01T00:00:00Z".into());
+    let created = repo.create(input).await.unwrap();
+    repo.touch_last_used(&created.id).await.unwrap();
+    let before = repo.list().unwrap().remove(0);
+    let after = repo
+        .update_scopes(&created.id, vec!["market-data:read".into()])
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(after.token_hash, before.token_hash);
+    assert_eq!(after.token_prefix, before.token_prefix);
+    assert_eq!(after.expires_at, before.expires_at);
+    assert_eq!(after.created_at, before.created_at);
+    assert_eq!(after.last_used_at, before.last_used_at);
+    assert_eq!(after.name, before.name);
+    assert_eq!(after.scopes_json, r#"["market-data:read"]"#);
+    assert!(repo
+        .update_scopes("missing", vec!["accounts:read".into()])
+        .await
+        .unwrap()
+        .is_none());
+}

@@ -1331,6 +1331,7 @@ impl QuoteServiceTrait for MockQuoteService {
         _provider_id: &str,
         _priority: i32,
         _enabled: bool,
+        _base_url: Option<&str>,
     ) -> CoreResult<()> {
         Ok(())
     }
@@ -1596,6 +1597,54 @@ pub struct MockCashActivityService {
 
 #[async_trait]
 impl CashActivityServiceTrait for MockCashActivityService {
+    async fn list(
+        &self,
+        _filter: wealthfolio_spending::cash_activities::CashActivityFilter,
+    ) -> anyhow::Result<Vec<wealthfolio_spending::cash_activities::CashActivity>> {
+        unimplemented!("unused mock operation")
+    }
+
+    async fn list_assignments(
+        &self,
+        _activity_id: &str,
+    ) -> anyhow::Result<Vec<wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignment>>
+    {
+        unimplemented!("unused mock operation")
+    }
+
+    async fn assign_category(
+        &self,
+        _activity_id: &str,
+        _taxonomy_id: &str,
+        _category_id: &str,
+    ) -> anyhow::Result<wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignment>
+    {
+        unimplemented!("unused mock operation")
+    }
+
+    async fn list_splits(
+        &self,
+        _activity_id: &str,
+    ) -> anyhow::Result<Vec<wealthfolio_spending::activity_splits::ActivitySplit>> {
+        unimplemented!("unused mock operation")
+    }
+
+    async fn replace_splits(
+        &self,
+        _activity_id: &str,
+        _splits: Vec<wealthfolio_spending::activity_splits::NewActivitySplit>,
+    ) -> anyhow::Result<Vec<wealthfolio_spending::activity_splits::ActivitySplit>> {
+        unimplemented!("unused mock operation")
+    }
+
+    async fn set_event(
+        &self,
+        _activity_id: &str,
+        _event_id: Option<String>,
+    ) -> anyhow::Result<wealthfolio_core::activities::Activity> {
+        unimplemented!("unused mock operation")
+    }
+
     async fn bulk_assign_categories(
         &self,
         _: &[wealthfolio_spending::activity_assignments::BulkCategoryAssignment],
@@ -1641,6 +1690,43 @@ pub struct MockCategorizationRulesService {
 
 #[async_trait]
 impl CategorizationRulesServiceTrait for MockCategorizationRulesService {
+    async fn update(
+        &self,
+        _id: &str,
+        _patch: wealthfolio_spending::categorization_rules::UpdateCategorizationRule,
+    ) -> anyhow::Result<wealthfolio_spending::categorization_rules::CategorizationRule> {
+        unimplemented!("unused mock operation")
+    }
+
+    async fn upsert(
+        &self,
+        _rule: wealthfolio_spending::categorization_rules::NewCategorizationRule,
+    ) -> anyhow::Result<wealthfolio_spending::categorization_rules::CategorizationRule> {
+        unimplemented!("unused mock operation")
+    }
+
+    async fn rerun_all(
+        &self,
+        _account_ids: &[String],
+        _only_uncategorized: bool,
+    ) -> anyhow::Result<usize> {
+        unimplemented!("unused mock operation")
+    }
+
+    async fn list_presets(
+        &self,
+    ) -> anyhow::Result<Vec<wealthfolio_spending::categorization_rules::RulePresetSummary>> {
+        unimplemented!("unused mock operation")
+    }
+
+    async fn import_preset(
+        &self,
+        _preset_id: &str,
+        _category_resolver: &std::collections::HashMap<String, (String, String)>,
+    ) -> anyhow::Result<wealthfolio_spending::categorization_rules::ImportPresetResult> {
+        unimplemented!("unused mock operation")
+    }
+
     async fn list(
         &self,
     ) -> anyhow::Result<Vec<wealthfolio_spending::categorization_rules::CategorizationRule>> {
@@ -1692,6 +1778,67 @@ impl MockEnvironment {
 }
 
 impl AgentEnvironment for MockEnvironment {
+    fn allocation_target_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationTargetServiceTrait>
+    {
+        unimplemented!("unused test service")
+    }
+
+    fn drift_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::DriftServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn rebalance_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn fx_service(&self) -> Arc<dyn wealthfolio_core::fx::FxServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn snapshot_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn alternative_asset_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn asset_logo_service(&self) -> Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn budget_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
+        unimplemented!("unused test service")
+    }
+
+    fn events_service(&self) -> Arc<wealthfolio_spending::events::EventsService> {
+        unimplemented!("unused test service")
+    }
+
+    fn spending_settings_service(
+        &self,
+    ) -> Arc<wealthfolio_spending::settings::SpendingSettingsService> {
+        unimplemented!("unused test service")
+    }
+
+    fn spending_analytics_service(&self) -> Arc<wealthfolio_spending::analytics::AnalyticsService> {
+        unimplemented!("unused test service")
+    }
+
+    fn spending_insight_service(&self) -> Arc<wealthfolio_spending::insight::InsightService> {
+        unimplemented!("unused test service")
+    }
+
     fn base_currency(&self) -> String {
         self.base_currency.clone()
     }

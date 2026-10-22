@@ -1,5 +1,24 @@
 # Wealthfolio CLI and MCP Agent Access Design
 
+## Current business tool coverage
+
+The MCP-only business catalog now covers accounts and portfolios, investment
+assets, holdings snapshots, activities and CSV configuration, goals, allocation
+and rebalancing, planning calculations, local market data, classifications,
+spending and budgets. See the [capability matrix](mcp-capability-coverage.md)
+for exact tool names, permissions, exclusions and validation paths. Existing
+tools and the in-app assistant catalog remain compatible.
+
+Existing API Key permissions can be edited from AI Agent Access. The original
+implementation lacked the repository update, management endpoints and UI;
+permissions were never immutable in the authentication design. Each request
+already resolves the token from SQLite, so updating only `scopes_json` through
+the existing writer makes the next request use the new permissions, including
+within an existing session. No cache, tool catalog or session rebuild is needed.
+The credential and expiration stay unchanged; editing an expired key does not
+reactivate it. Calls already authorized continue. Clients caching tool lists may
+need to refresh or reconnect. This operation is not exposed as an MCP tool.
+
 ## Overview
 
 This document defines how external AI agents and command line workflows interact
@@ -905,7 +924,7 @@ calls unchanged; no direct SQLite access introduced by MCP.
 - Desktop default port: **8639**, random fallback on conflict; `mcp_server_port`
   setting overrides. Settings keys: `mcp_server_enabled`,
   `mcp_server_auto_start`, `mcp_audit_enabled` (and `mcp_server_port`).
-- SDK: **rmcp 1.7** (manual `ServerHandler`, runtime tool registration,
+- SDK: **rmcp 2.1** (manual `ServerHandler`, runtime tool registration,
   `StreamableHttpService` mounted in axum on both hosts; host auth context flows
   via forwarded `http::request::Parts` extensions — covered by a regression
   test).

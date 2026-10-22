@@ -1561,6 +1561,34 @@
       "market_data_write": {
         "label": "Données de marché — écrire",
         "description": "Enregistrer des cours révisés pour des actifs existants. Nécessite la portée positions (lecture)."
+      },
+      "accounts_write": {
+        "label": "Créer et modifier comptes et portefeuilles",
+        "description": "Créer et modifier comptes et portefeuilles"
+      },
+      "assets_write": {
+        "label": "Créer et modifier actifs et logos",
+        "description": "Créer et modifier actifs et logos"
+      },
+      "holdings_write": {
+        "label": "Enregistrer et importer les positions",
+        "description": "Enregistrer et importer les positions"
+      },
+      "financial_planning_write": {
+        "label": "Enregistrer objectifs, plans et allocations",
+        "description": "Enregistrer objectifs, plans et allocations"
+      },
+      "market_data_read": {
+        "label": "Consulter cours et taux de change",
+        "description": "Consulter cours et taux de change"
+      },
+      "spending_read": {
+        "label": "Consulter dépenses et budgets",
+        "description": "Consulter dépenses et budgets"
+      },
+      "spending_write": {
+        "label": "Modifier événements et budgets",
+        "description": "Modifier événements et budgets"
       }
     },
     "preset": {
@@ -1573,7 +1601,12 @@
     "hero_aria": "État de l'accès des agents IA",
     "pat_scope_custom_one": "Personnalisé · {{count}} portée",
     "pat_scope_custom_other": "Personnalisé · {{count}} portées",
-    "pat_scope_custom_many": "Personnalisé · {{count}} portées"
+    "pat_scope_custom_many": "Personnalisé · {{count}} portées",
+    "edit_permissions": "Modifier les droits",
+    "edit_title": "Droits de {{name}}",
+    "edit_description": "La clé reste identique. Les droits s’appliquent aux requêtes suivantes. Actualisez les outils ou reconnectez le client pour découvrir les nouveaux outils autorisés.",
+    "edit_success": "Droits mis à jour",
+    "edit_failed": "Échec de la mise à jour des droits"
   },
   "tax_add_category": "Ajouter une catégorie",
   "tax_export": "Exporter",

@@ -242,7 +242,7 @@ impl ServerHandler for WealthfolioMcpHandler {
                     name,
                     args_summary,
                     AuditOutcome::Error,
-                    Some(message.clone()),
+                    Some(tool.sanitize_error_for_audit(&err)),
                 ))
                 .await;
                 Ok(CallToolResult::error(vec![ContentBlock::text(message)]))

@@ -48,6 +48,20 @@ pub struct ServerAiEnvironment {
     cash_activity_service: Arc<CashActivityService>,
     activity_taxonomy_assignment_service: Arc<ActivityTaxonomyAssignmentService>,
     categorization_rules_service: Arc<CategorizationRulesService>,
+    allocation_target_service:
+        Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationTargetServiceTrait>,
+    drift_service: Arc<dyn wealthfolio_core::portfolio::allocation_targets::DriftServiceTrait>,
+    rebalance_service:
+        Arc<dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait>,
+    fx_service: Arc<dyn wealthfolio_core::fx::FxServiceTrait>,
+    snapshot_service: Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait>,
+    alternative_asset_service: Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait>,
+    asset_logo_service: Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait>,
+    budget_service: Arc<wealthfolio_spending::budget::BudgetService>,
+    events_service: Arc<wealthfolio_spending::events::EventsService>,
+    spending_settings_service: Arc<wealthfolio_spending::settings::SpendingSettingsService>,
+    spending_analytics_service: Arc<wealthfolio_spending::analytics::AnalyticsService>,
+    spending_insight_service: Arc<wealthfolio_spending::insight::InsightService>,
 }
 
 impl ServerAiEnvironment {
@@ -76,8 +90,36 @@ impl ServerAiEnvironment {
         cash_activity_service: Arc<CashActivityService>,
         activity_taxonomy_assignment_service: Arc<ActivityTaxonomyAssignmentService>,
         categorization_rules_service: Arc<CategorizationRulesService>,
+        allocation_target_service: Arc<
+            dyn wealthfolio_core::portfolio::allocation_targets::AllocationTargetServiceTrait,
+        >,
+        drift_service: Arc<dyn wealthfolio_core::portfolio::allocation_targets::DriftServiceTrait>,
+        rebalance_service: Arc<
+            dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait,
+        >,
+        fx_service: Arc<dyn wealthfolio_core::fx::FxServiceTrait>,
+        snapshot_service: Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait>,
+        alternative_asset_service: Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait>,
+        asset_logo_service: Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait>,
+        budget_service: Arc<wealthfolio_spending::budget::BudgetService>,
+        events_service: Arc<wealthfolio_spending::events::EventsService>,
+        spending_settings_service: Arc<wealthfolio_spending::settings::SpendingSettingsService>,
+        spending_analytics_service: Arc<wealthfolio_spending::analytics::AnalyticsService>,
+        spending_insight_service: Arc<wealthfolio_spending::insight::InsightService>,
     ) -> Self {
         Self {
+            allocation_target_service,
+            drift_service,
+            rebalance_service,
+            fx_service,
+            snapshot_service,
+            alternative_asset_service,
+            asset_logo_service,
+            budget_service,
+            events_service,
+            spending_settings_service,
+            spending_analytics_service,
+            spending_insight_service,
             base_currency,
             account_service,
             activity_service,
@@ -182,6 +224,66 @@ impl AgentEnvironment for ServerAiEnvironment {
 
     fn categorization_rules_service(&self) -> Arc<dyn CategorizationRulesServiceTrait> {
         self.categorization_rules_service.clone()
+    }
+    fn allocation_target_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationTargetServiceTrait>
+    {
+        self.allocation_target_service.clone()
+    }
+
+    fn drift_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::DriftServiceTrait> {
+        self.drift_service.clone()
+    }
+
+    fn rebalance_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait> {
+        self.rebalance_service.clone()
+    }
+
+    fn fx_service(&self) -> Arc<dyn wealthfolio_core::fx::FxServiceTrait> {
+        self.fx_service.clone()
+    }
+
+    fn snapshot_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait> {
+        self.snapshot_service.clone()
+    }
+
+    fn alternative_asset_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait> {
+        self.alternative_asset_service.clone()
+    }
+
+    fn asset_logo_service(&self) -> Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait> {
+        self.asset_logo_service.clone()
+    }
+
+    fn budget_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
+        self.budget_service.clone()
+    }
+
+    fn events_service(&self) -> Arc<wealthfolio_spending::events::EventsService> {
+        self.events_service.clone()
+    }
+
+    fn spending_settings_service(
+        &self,
+    ) -> Arc<wealthfolio_spending::settings::SpendingSettingsService> {
+        self.spending_settings_service.clone()
+    }
+
+    fn spending_analytics_service(&self) -> Arc<wealthfolio_spending::analytics::AnalyticsService> {
+        self.spending_analytics_service.clone()
+    }
+
+    fn spending_insight_service(&self) -> Arc<wealthfolio_spending::insight::InsightService> {
+        self.spending_insight_service.clone()
     }
 }
 

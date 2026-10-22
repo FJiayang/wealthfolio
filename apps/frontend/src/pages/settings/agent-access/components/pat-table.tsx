@@ -34,6 +34,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAccessTokens } from "../hooks/use-access-tokens";
 import { matchPreset, presetLabel, scopeLabel } from "../scopes";
+import { PatEditDialog } from "./pat-edit-dialog";
 import { PatCreateDialog } from "./pat-create-dialog";
 
 type TokenStatus = "active" | "expired" | "revoked";
@@ -114,7 +115,8 @@ export function PatTable({ serverUrl }: { serverUrl?: string } = {}) {
   const { uiLocale } = useLocalizationSettings();
   const dateFnsLocale = dateFnsLocaleFor(uiLocale);
   const { t } = useTranslation();
-  const { tokens, isLoading, createMutation, deleteMutation } = useAccessTokens();
+  const { tokens, isLoading, createMutation, updateMutation, deleteMutation } = useAccessTokens();
+  const [editing, setEditing] = useState<AgentAccessToken | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [removing, setRemoving] = useState<AgentAccessToken | null>(null);
 
@@ -184,6 +186,9 @@ export function PatTable({ serverUrl }: { serverUrl?: string } = {}) {
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <ScopeBadge scopes={token.scopes} />
+                    <Button variant="outline" size="sm" onClick={() => setEditing(token)}>
+                      {t("settings:agentAccess.edit_permissions")}
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -199,6 +204,16 @@ export function PatTable({ serverUrl }: { serverUrl?: string } = {}) {
           </div>
         )}
       </CardContent>
+
+      {editing && (
+        <PatEditDialog
+          key={editing.id}
+          token={editing}
+          onClose={() => setEditing(null)}
+          onSave={(scopes) => updateMutation.mutateAsync({ id: editing.id, scopes })}
+          isSaving={updateMutation.isPending}
+        />
+      )}
 
       <PatCreateDialog
         open={createOpen}

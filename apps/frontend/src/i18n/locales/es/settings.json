@@ -1561,6 +1561,34 @@
       "market_data_write": {
         "label": "Datos de mercado: escribir",
         "description": "Guardar precios (cotizaciones) revisados de activos existentes. Requiere el ámbito de posiciones (lectura)."
+      },
+      "accounts_write": {
+        "label": "Crear y modificar cuentas y carteras",
+        "description": "Crear y modificar cuentas y carteras"
+      },
+      "assets_write": {
+        "label": "Registrar y modificar activos y logotipos",
+        "description": "Registrar y modificar activos y logotipos"
+      },
+      "holdings_write": {
+        "label": "Guardar e importar posiciones",
+        "description": "Guardar e importar posiciones"
+      },
+      "financial_planning_write": {
+        "label": "Guardar objetivos, planes y asignaciones",
+        "description": "Guardar objetivos, planes y asignaciones"
+      },
+      "market_data_read": {
+        "label": "Consultar cotizaciones y tipos de cambio",
+        "description": "Consultar cotizaciones y tipos de cambio"
+      },
+      "spending_read": {
+        "label": "Consultar gastos y presupuestos",
+        "description": "Consultar gastos y presupuestos"
+      },
+      "spending_write": {
+        "label": "Modificar eventos y presupuestos",
+        "description": "Modificar eventos y presupuestos"
       }
     },
     "preset": {
@@ -1573,7 +1601,12 @@
     "hero_aria": "Estado del acceso de agentes de IA",
     "pat_scope_custom_one": "Personalizado · {{count}} ámbito",
     "pat_scope_custom_other": "Personalizado · {{count}} ámbitos",
-    "pat_scope_custom_many": "Personalizado · {{count}} ámbitos"
+    "pat_scope_custom_many": "Personalizado · {{count}} ámbitos",
+    "edit_permissions": "Editar permisos",
+    "edit_title": "Permisos de {{name}}",
+    "edit_description": "La clave no cambia. Los permisos se aplican a las siguientes solicitudes. Actualiza las herramientas o reconecta el cliente para descubrir las nuevas herramientas autorizadas.",
+    "edit_success": "Permisos actualizados",
+    "edit_failed": "No se pudieron actualizar los permisos"
   },
   "tax_add_category": "Añadir categoría",
   "tax_export": "Exportar",

@@ -308,11 +308,10 @@ async fn mcp_pat_lifecycle() {
     assert_eq!(response.status(), 200);
     let list = parse_sse_data(&response.text().await.unwrap());
     let tools = list["result"]["tools"].as_array().unwrap();
-    assert_eq!(
-        tools.len(),
-        18,
-        "read-only catalog must expose 18 tools (incl. get_import_mapping): {tools:?}"
-    );
+    assert!(tools.iter().any(|t| t["name"] == "get_import_mapping"));
+    assert!(tools
+        .iter()
+        .all(|t| t["annotations"]["readOnlyHint"] == true));
 
     // (h) tools/call succeeds and writes an audit row (awaited before the
     // response returns; the poll just tolerates sink latency).
@@ -499,10 +498,13 @@ async fn mcp_write_scoped_token_sees_write_tools() {
     let list = parse_sse_data(&response.text().await.unwrap());
     let tools = list["result"]["tools"].as_array().unwrap();
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
-    assert_eq!(
-        tools.len(),
-        36,
-        "full-scope token must see all 36 tools: {names:?}"
+    assert!(
+        names.len() > 36,
+        "Existing scopes gain new business tools: {names:?}"
+    );
+    assert!(
+        !names.contains(&"create_asset"),
+        "New scope categories require explicit grants"
     );
     for name in [
         "find_transfer_matches",
@@ -2923,4 +2925,545 @@ async fn mcp_category_save_denies_insufficient_scopes_and_redacts_audit_errors()
         );
         assert!(!text.contains(&first), "{row}");
     }
+}
+
+#[tokio::test]
+async fn mcp_permission_edits_apply_in_the_existing_session() {
+    let server = spawn_server(true, true).await;
+    let cookie = login(&server).await;
+    let (_, created) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({"name":"editable", "scopes":["accounts:read"]}),
+    )
+    .await;
+    let pat = created["token"].as_str().unwrap();
+    let id = created["id"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let denied = mcp_call_tool_error(
+        &server,
+        pat,
+        &session,
+        "get_exchanges",
+        serde_json::json!({}),
+    )
+    .await;
+    assert!(denied.contains("Scope denied"));
+    let url = format!("{}/api/v1/agent-access/tokens/{id}", server.base);
+    let patch = |scopes: serde_json::Value| {
+        server
+            .client
+            .patch(&url)
+            .header(header::COOKIE, format!("wf_session={cookie}"))
+            .json(&serde_json::json!({"scopes":scopes}))
+    };
+    for scopes in [
+        serde_json::json!([]),
+        serde_json::json!(["unknown:scope"]),
+        serde_json::json!(["activities:write"]),
+    ] {
+        assert_eq!(patch(scopes).send().await.unwrap().status(), 400);
+    }
+    // A PAT cannot call the management API to grant itself permissions.
+    assert_eq!(
+        server
+            .client
+            .patch(&url)
+            .bearer_auth(pat)
+            .json(&serde_json::json!({"scopes":["market-data:read"]}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    for scopes in [
+        serde_json::json!(["accounts:read", "market-data:read"]),
+        serde_json::json!(["accounts:read"]),
+    ] {
+        let response = patch(scopes.clone()).send().await.unwrap();
+        assert_eq!(response.status(), 200);
+        let edited: serde_json::Value = response.json().await.unwrap();
+        for field in ["id", "name", "tokenPrefix", "createdAt", "expiresAt"] {
+            assert_eq!(edited[field], created[field]);
+        }
+        assert!(edited.get("token").is_none() && edited.get("tokenHash").is_none());
+        let response = mcp_post(
+            &server,
+            Some(pat),
+            Some(&session),
+            serde_json::json!({"jsonrpc":"2.0","id":"list","method":"tools/list"}),
+        )
+        .await;
+        let list = parse_sse_data(&response.text().await.unwrap());
+        let visible = list["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["name"] == "get_exchanges");
+        if scopes.as_array().unwrap().len() == 2 {
+            assert!(visible);
+            assert!(mcp_call_tool(
+                &server,
+                pat,
+                &session,
+                "get_exchanges",
+                serde_json::json!({})
+            )
+            .await
+            .is_array());
+        } else {
+            assert!(!visible);
+            assert!(mcp_call_tool_error(
+                &server,
+                pat,
+                &session,
+                "get_exchanges",
+                serde_json::json!({})
+            )
+            .await
+            .contains("Scope denied"));
+        }
+    }
+    assert_eq!(
+        server
+            .client
+            .patch(format!(
+                "{}/api/v1/agent-access/tokens/missing",
+                server.base
+            ))
+            .header(header::COOKIE, format!("wf_session={cookie}"))
+            .json(&serde_json::json!({"scopes":["accounts:read"]}))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        404
+    );
+    let (_, expired) = create_pat(&server, &cookie, serde_json::json!({"name":"expired-edit", "scopes":["accounts:read"], "expiresAt":"2000-01-01T00:00:00Z"})).await;
+    let response = server
+        .client
+        .patch(format!(
+            "{}/api/v1/agent-access/tokens/{}",
+            server.base,
+            expired["id"].as_str().unwrap()
+        ))
+        .header(header::COOKIE, format!("wf_session={cookie}"))
+        .json(&serde_json::json!({"scopes":["market-data:read"]}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        mcp_post(&server, expired["token"].as_str(), None, init_body())
+            .await
+            .status(),
+        401
+    );
+}
+
+#[tokio::test]
+async fn mcp_investment_configuration_and_snapshot_workflow() {
+    let server = spawn_server(true, true).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    api_put(
+        &server,
+        &cookie,
+        "settings",
+        serde_json::json!({"baseCurrency":"EUR","timezone":"UTC"}),
+    )
+    .await;
+    let scopes: Vec<_> = wealthfolio_agent_tools::AgentScope::ALL
+        .iter()
+        .map(|s| s.as_str())
+        .collect();
+    let (_, created) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({"name":"business", "scopes":scopes}),
+    )
+    .await;
+    let pat = created["token"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let account = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "create_account",
+        serde_json::json!({"input":{
+            "name":"Snapshot investment", "accountType":"SECURITIES","currency":"EUR",
+            "isDefault":false,"isActive":true,"trackingMode":"HOLDINGS"
+        }}),
+    )
+    .await;
+    let asset = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "create_asset",
+        serde_json::json!({"input":{
+            "kind":"INVESTMENT","name":"Manual fund","displayCode":"MCP-FUND","quoteMode":"MANUAL",
+            "quoteCcy":"EUR","instrumentSymbol":"MCP-FUND","instrumentType":"EQUITY"
+        }}),
+    )
+    .await;
+    let account_id = account["id"].as_str().unwrap();
+    let asset_id = asset["id"].as_str().unwrap();
+    let snapshot = serde_json::json!({"input":{"accountId":account_id,"snapshots":[{
+        "date":"2026-01-15","positions":[{"assetId":asset_id,"symbol":"MCP-FUND","quantity":"10","currency":"EUR","avgCost":"10","quoteMode":"MANUAL"}],"cashBalances":{"EUR":"100"}
+    }]}});
+    let preview = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "prepare_manual_holdings",
+        snapshot.clone(),
+    )
+    .await;
+    assert!(preview["existingDates"].as_array().unwrap().is_empty());
+    let before = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_snapshots",
+        serde_json::json!({"accountId":account_id}),
+    )
+    .await;
+    assert!(
+        before.as_array().unwrap().is_empty(),
+        "preview wrote snapshots"
+    );
+    let committed = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "commit_manual_holdings",
+        snapshot.clone(),
+    )
+    .await;
+    assert_eq!(committed["snapshots"][0]["saved"], true, "{committed}");
+    let preview = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "prepare_manual_holdings",
+        snapshot.clone(),
+    )
+    .await;
+    assert!(preview["existingDates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|d| d == "2026-01-15"));
+    assert_eq!(preview["existingSnapshots"].as_array().unwrap().len(), 1);
+    assert!(preview["existingSnapshots"][0]["positions"]
+        .get(asset_id)
+        .is_some());
+    let quote = serde_json::json!({"quotes":[{"assetId":asset_id,"date":"2026-01-15","price":10,"currency":"EUR"}]});
+    mcp_call_tool(&server, pat, &session, "commit_quote_import", quote).await;
+    let goal = mcp_call_tool(&server,pat,&session,"create_goal",serde_json::json!({"input":{"goalType":"save_up","title":"Investment goal","targetAmount":1000,"currency":"USD"}})).await;
+    assert_eq!(goal["currency"], "EUR");
+    let goal_id = goal["id"].as_str().unwrap();
+    mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "save_goal_funding",
+        serde_json::json!({"goalId":goal_id,"rules":[{"accountId":account_id,"sharePercent":100}]}),
+    )
+    .await;
+    mcp_call_tool(&server,pat,&session,"save_goal_plan",serde_json::json!({"input":{"goalId":goal_id,"planKind":"save_up","settingsJson":"{\"monthlyContribution\":100,\"expectedAnnualReturn\":0.03}"}})).await;
+    let refreshed = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_goal",
+        serde_json::json!({"goalId":goal_id}),
+    )
+    .await;
+    assert!(refreshed["summaryCurrentValue"].is_number(), "{refreshed}");
+    let taxonomies = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_taxonomies",
+        serde_json::json!({}),
+    )
+    .await;
+    let taxonomy = taxonomies
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["taxonomy"]["id"] == "asset_classes")
+        .unwrap();
+    let category_id = taxonomy["categories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["parentId"].is_null())
+        .expect("asset taxonomy has a top-level category")["id"]
+        .as_str()
+        .unwrap();
+    mcp_call_tool(&server,pat,&session,"assign_asset_to_category",serde_json::json!({"input":{"assetId":asset_id,"taxonomyId":"asset_classes","categoryId":category_id,"weight":10000,"source":"manual"}})).await;
+    let configuration = serde_json::json!({"input":{"name":"Allocation","scopeType":"account","scopeId":account_id,"taxonomyId":"asset_classes","triggerType":"threshold","driftBandBps":500},"weights":[{"categoryId":category_id,"targetBps":10000,"isLocked":false,"isRequired":true}]});
+    let saved = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "save_allocation_target_with_weights",
+        configuration.clone(),
+    )
+    .await;
+    let target_id = saved["target"]["id"].as_str().unwrap();
+    let drift = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_allocation_target_drift",
+        serde_json::json!({"targetId":target_id,"includeHoldings":true}),
+    )
+    .await;
+    assert_eq!(drift["targetId"], target_id);
+    let plan = mcp_call_tool(&server,pat,&session,"calculate_rebalance_plan",serde_json::json!({"targetId":target_id,"availableCash":"0","filter":{"type":"account","accountId":account_id},"scenarioMode":"cash_flow_only","eligibleAssetIds":[asset_id]})).await;
+    assert!(plan.is_object());
+    assert!(
+        stored_activities(&server, &cookie, &account)
+            .await
+            .is_empty(),
+        "rebalance wrote trades"
+    );
+    let mut invalid = configuration;
+    invalid["id"] = serde_json::json!(target_id);
+    invalid["weights"][0]["targetBps"] = serde_json::json!(9000);
+    assert!(mcp_call_tool_error(
+        &server,
+        pat,
+        &session,
+        "save_allocation_target_with_weights",
+        invalid
+    )
+    .await
+    .contains("10000"));
+    let weights = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "list_allocation_target_weights",
+        serde_json::json!({"targetId":target_id}),
+    )
+    .await;
+    assert_eq!(weights[0]["targetBps"], 10000);
+    // Explicit replacement removes the old position but preserves the dated snapshot.
+    let mut replacement = snapshot;
+    replacement["input"]["snapshots"][0]["positions"] = serde_json::json!([]);
+    let saved = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "commit_manual_holdings",
+        replacement,
+    )
+    .await;
+    assert_eq!(saved["snapshots"][0]["saved"], true);
+}
+
+#[tokio::test]
+async fn mcp_business_configuration_and_calculation_contracts() {
+    let server = spawn_server(true, true).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let scopes: Vec<_> = wealthfolio_agent_tools::AgentScope::ALL
+        .iter()
+        .map(|s| s.as_str())
+        .collect();
+    let (_, created) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({"name":"business contracts","scopes":scopes}),
+    )
+    .await;
+    let pat = created["token"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let account = mcp_call_tool(&server, pat, &session, "create_account", serde_json::json!({"input":{"name":"Spending","accountType":"CASH","currency":"EUR","isDefault":false,"isActive":true}})).await;
+    let account_id = &account["id"];
+    let portfolio = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "create_portfolio",
+        serde_json::json!({"input":{"name":"Contract portfolio","accountIds":[account_id]}}),
+    )
+    .await;
+    assert!(portfolio["accountIds"]
+        .as_array()
+        .unwrap()
+        .contains(account_id));
+    let template = serde_json::json!({"id":"mcp-csv-contract","name":"CSV contract","scope":"USER","kind":"CSV_ACTIVITY","fieldMappings":{"symbol":["Ticker","Symbol"],"date":"Date"},"parseConfig":{"delimiter":";","hasHeaderRow":true}});
+    let saved = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "save_import_template",
+        serde_json::json!({"input":template}),
+    )
+    .await;
+    assert_eq!(
+        saved["fieldMappings"]["symbol"],
+        serde_json::json!(["Ticker", "Symbol"])
+    );
+    mcp_call_tool(&server, pat, &session, "link_account_template", serde_json::json!({"accountId":account_id,"templateId":template["id"],"contextKind":"CSV_ACTIVITY"})).await;
+    let mapping = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_account_import_mapping",
+        serde_json::json!({"accountId":account_id,"contextKind":"CSV_ACTIVITY"}),
+    )
+    .await;
+    assert_eq!(mapping["templateId"], template["id"]);
+    assert!(mcp_call_tool_error(
+        &server,
+        pat,
+        &session,
+        "save_account_import_mapping",
+        serde_json::json!({"input":{"accountId":account_id,"contextKind":"BROKER_ACTIVITY"}})
+    )
+    .await
+    .contains("CSV"));
+
+    mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "update_spending_settings",
+        serde_json::json!({"input":{"enabled":true,"accountIds":[account_id]}}),
+    )
+    .await;
+    let activity = api_post(&server,&cookie,"activities",serde_json::json!({"accountId":account_id,"activityType":"WITHDRAWAL","activityDate":"2026-07-01T12:00:00Z","currency":"EUR","amount":"100","notes":"MCP contract payee"})).await;
+    let activity_id = &activity["id"];
+    let search = mcp_call_tool(&server,pat,&session,"search_cash_activities",serde_json::json!({"request":{"limit":1,"offset":0,"sortBy":"amount","sortDir":"asc","search":"MCP contract payee"}})).await;
+    assert!(
+        search.to_string().contains(activity_id.as_str().unwrap()),
+        "{search}"
+    );
+    let taxonomy = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_taxonomy",
+        serde_json::json!({"id":"spending_categories"}),
+    )
+    .await;
+    let category = taxonomy["categories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| !c["parentId"].is_null())
+        .unwrap();
+    mcp_call_tool(&server,pat,&session,"assign_activity_category",serde_json::json!({"activityId":activity_id,"taxonomyId":"spending_categories","categoryId":category["id"]})).await;
+    mcp_call_tool(&server,pat,&session,"replace_activity_splits",serde_json::json!({"activityId":activity_id,"splits":[{"taxonomyId":"spending_categories","categoryId":category["id"],"amount":"100"}]})).await;
+    let splits = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_activity_splits",
+        serde_json::json!({"activityId":activity_id}),
+    )
+    .await;
+    assert_eq!(splits.as_array().unwrap().len(), 1);
+    let event_type = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "create_event_type",
+        serde_json::json!({"input":{"name":"Contract event"}}),
+    )
+    .await;
+    let event = mcp_call_tool(&server,pat,&session,"create_event",serde_json::json!({"input":{"name":"Trip","eventTypeId":event_type["id"],"startDate":"2026-07-01T00:00:00Z","endDate":"2026-07-03T23:59:59Z"}})).await;
+    mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "set_activity_event",
+        serde_json::json!({"activityId":activity_id,"eventId":event["id"]}),
+    )
+    .await;
+    let budget = mcp_call_tool(&server,pat,&session,"create_budget_group",serde_json::json!({"input":{"name":"MCP budget","key":"mcp-contract"},"periodKey":"2026-07"})).await;
+    let group_id = &budget["computed"]["groupRows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["group"]["name"] == "MCP budget")
+        .unwrap()["group"]["id"];
+    mcp_call_tool(&server,pat,&session,"upsert_budget_target",serde_json::json!({"input":{"periodKey":"2026-07","targetType":"group_buffer","groupId":group_id,"amount":"500"},"periodKey":"2026-07"})).await;
+    mcp_call_tool(&server,pat,&session,"upsert_budget_rollover_setting",serde_json::json!({"input":{"targetType":"group","groupId":group_id,"enabled":true,"startMonth":"2026-07","startingBalance":"10"},"periodKey":"2026-07"})).await;
+    mcp_call_tool(&server,pat,&session,"copy_budget_targets",serde_json::json!({"sourcePeriodKey":"2026-07","targetPeriodKey":"2026-08","overwrite":false})).await;
+    let copied = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "get_budget",
+        serde_json::json!({"periodKey":"2026-08"}),
+    )
+    .await;
+    assert!(
+        copied["computed"]["groupRows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|g| g["group"]["id"] == *group_id && g["buffer"] == 500.0),
+        "{copied}"
+    );
+    for tool in ["get_spending_report", "get_spending_insight"] {
+        mcp_call_tool(&server,pat,&session,tool,serde_json::json!({"request":{"startDate":"2026-07-01T00:00:00Z","endDate":"2026-07-31T23:59:59Z"}})).await;
+    }
+    mcp_call_tool(&server,pat,&session,"add_exchange_rate",serde_json::json!({"input":{"fromCurrency":"EUR","toCurrency":"GBP","rate":"0.85","source":"MANUAL"}})).await;
+    mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "update_exchange_rate",
+        serde_json::json!({"fromCurrency":"EUR","toCurrency":"GBP","rate":"0.86"}),
+    )
+    .await;
+    let rates = mcp_call_tool(&server,pat,&session,"get_exchange_rates_for_dates",serde_json::json!({"pairs":[{"fromCurrency":"EUR","toCurrency":"GBP","date":chrono::Utc::now().date_naive().to_string()}]})).await;
+    assert!(rates.to_string().contains("0.86"), "{rates}");
+    let plan = serde_json::json!({"personal":{"currentAge":40,"targetRetirementAge":60,"planningHorizonAge":90},"expenses":{"items":[{"monthlyAmount":1000}]},"incomeStreams":[],"investment":{"inflationRate":0.02,"monthlyContribution":500,"contributionGrowthRate":0.01},"currency":"EUR"});
+    let retirement_goal = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "create_goal",
+        serde_json::json!({"input":{"goalType":"retirement","title":"Retirement contract"}}),
+    )
+    .await;
+    let saved_plan = mcp_call_tool(&server, pat, &session, "save_goal_plan", serde_json::json!({"input":{"goalId":retirement_goal["id"],"planKind":"retirement","plannerMode":"traditional","settingsJson":plan.to_string()}})).await;
+    let normalized: serde_json::Value =
+        serde_json::from_str(saved_plan["settingsJson"].as_str().unwrap()).unwrap();
+    assert_eq!(normalized["currency"], retirement_goal["currency"]);
+    let before = stored_activities(&server, &cookie, &account).await.len();
+    for tool in [
+        "calculate_retirement_projection",
+        "run_retirement_monte_carlo",
+        "run_retirement_stress_tests",
+        "run_retirement_scenario_analysis",
+        "run_retirement_decision_sensitivity_map",
+    ] {
+        let mut input = serde_json::json!({"plan":plan,"currentPortfolio":100000});
+        if tool == "run_retirement_monte_carlo" {
+            input["nSims"] = serde_json::json!(10);
+            input["seed"] = serde_json::json!(42);
+        }
+        if tool == "run_retirement_decision_sensitivity_map" {
+            input["map"] = serde_json::json!("contribution-return");
+        }
+        mcp_call_tool(&server, pat, &session, tool, input).await;
+    }
+    mcp_call_tool(&server,pat,&session,"preview_loan_terms",serde_json::json!({"setup":{"originalAmount":1200,"originationDate":"2026-01-01","interestRate":0,"schedule":{"frequency":"monthly","amortizationMonths":12}}})).await;
+    assert_eq!(
+        stored_activities(&server, &cookie, &account).await.len(),
+        before,
+        "calculations wrote activities"
+    );
 }

@@ -24,6 +24,13 @@ pub enum AgentScope {
     ClassificationSuggest,
     ClassificationWrite,
     MarketDataWrite,
+    AccountsWrite,
+    AssetsWrite,
+    HoldingsWrite,
+    FinancialPlanningWrite,
+    MarketDataRead,
+    SpendingRead,
+    SpendingWrite,
 }
 
 impl AgentScope {
@@ -42,6 +49,13 @@ impl AgentScope {
         AgentScope::ClassificationSuggest,
         AgentScope::ClassificationWrite,
         AgentScope::MarketDataWrite,
+        AgentScope::AccountsWrite,
+        AgentScope::AssetsWrite,
+        AgentScope::HoldingsWrite,
+        AgentScope::FinancialPlanningWrite,
+        AgentScope::MarketDataRead,
+        AgentScope::SpendingRead,
+        AgentScope::SpendingWrite,
     ];
 
     /// The read-only scopes — what the `read-only` preset grants. Kept
@@ -55,6 +69,8 @@ impl AgentScope {
         AgentScope::FinancialPlanningRead,
         AgentScope::HealthRead,
         AgentScope::ClassificationRead,
+        AgentScope::MarketDataRead,
+        AgentScope::SpendingRead,
     ];
 
     /// Canonical wire format, e.g. `"accounts:read"`.
@@ -72,6 +88,13 @@ impl AgentScope {
             AgentScope::ClassificationSuggest => "classification:suggest",
             AgentScope::ClassificationWrite => "classification:write",
             AgentScope::MarketDataWrite => "market-data:write",
+            AgentScope::AccountsWrite => "accounts:write",
+            AgentScope::AssetsWrite => "assets:write",
+            AgentScope::HoldingsWrite => "holdings:write",
+            AgentScope::FinancialPlanningWrite => "financial-planning:write",
+            AgentScope::MarketDataRead => "market-data:read",
+            AgentScope::SpendingRead => "spending:read",
+            AgentScope::SpendingWrite => "spending:write",
         }
     }
 
@@ -81,6 +104,21 @@ impl AgentScope {
     pub fn parse(s: &str) -> Option<Self> {
         Self::ALL.iter().copied().find(|scope| scope.as_str() == s)
     }
+}
+
+/// Shared validation for token creation and permission editing on both hosts.
+pub fn validate_requested_scopes(requested: &[String]) -> Result<Vec<String>, String> {
+    if requested.is_empty() {
+        return Err("At least one scope is required".into());
+    }
+    let mut set = AgentScopeSet::new();
+    for scope in requested {
+        set.insert(AgentScope::parse(scope).ok_or_else(|| format!("Unknown scope: {scope}"))?);
+    }
+    if let Some(error) = set.dependency_error() {
+        return Err(error);
+    }
+    Ok(set.iter().map(|scope| scope.as_str().to_string()).collect())
 }
 
 impl std::fmt::Display for AgentScope {
@@ -215,7 +253,7 @@ mod tests {
 
     #[test]
     fn parse_rejects_unknown() {
-        assert_eq!(AgentScope::parse("accounts:write"), None);
+        assert_eq!(AgentScope::parse("accounts:delete"), None);
         assert_eq!(AgentScope::parse(""), None);
     }
 
@@ -287,5 +325,22 @@ mod tests {
 
         set.insert(AgentScope::HoldingsRead);
         assert!(set.dependency_error().is_none());
+    }
+}
+
+#[cfg(test)]
+mod request_validation_tests {
+    use super::*;
+    #[test]
+    fn token_permission_edits_validate_the_complete_replacement() {
+        assert!(validate_requested_scopes(&[]).is_err());
+        assert!(validate_requested_scopes(&["unknown:scope".into()]).is_err());
+        assert!(validate_requested_scopes(&["activities:write".into()]).is_err());
+        assert!(validate_requested_scopes(&["classification:write".into()]).is_err());
+        assert!(validate_requested_scopes(&["market-data:write".into()]).is_err());
+        assert_eq!(
+            validate_requested_scopes(&["assets:write".into(), "assets:write".into()]).unwrap(),
+            vec!["assets:write"]
+        );
     }
 }

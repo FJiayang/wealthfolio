@@ -85,10 +85,26 @@ pub trait AgentTool: Send + Sync {
         args.clone()
     }
 
+    /// Errors can include user-supplied patterns or values; redact them for audit storage.
+    fn sanitize_error_for_audit(&self, error: &AgentToolError) -> String {
+        error.to_string()
+    }
+
     /// Execute the tool against the environment.
     async fn call(
         &self,
         env: Arc<dyn AgentEnvironment>,
         args: serde_json::Value,
     ) -> Result<AgentToolResult, AgentToolError>;
+}
+
+impl From<wealthfolio_core::Error> for AgentToolError {
+    fn from(error: wealthfolio_core::Error) -> Self {
+        Self::ExecutionFailed(error.to_string())
+    }
+}
+impl From<anyhow::Error> for AgentToolError {
+    fn from(error: anyhow::Error) -> Self {
+        Self::ExecutionFailed(error.to_string())
+    }
 }

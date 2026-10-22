@@ -8999,6 +8999,7 @@ dependencies = [
  "tokio",
  "uuid",
  "wealthfolio-core",
+ "wealthfolio-market-data",
  "wealthfolio-spending",
 ]
 

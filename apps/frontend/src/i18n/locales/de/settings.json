@@ -1521,6 +1521,34 @@
       "market_data_write": {
         "label": "Marktdaten — schreiben",
         "description": "Geprüfte Kurse für vorhandene Vermögenswerte speichern. Erfordert die Berechtigung Bestände & Wert (Lesen)."
+      },
+      "accounts_write": {
+        "label": "Konten und Portfolios erstellen und bearbeiten",
+        "description": "Konten und Portfolios erstellen und bearbeiten"
+      },
+      "assets_write": {
+        "label": "Anlagen und Logos anlegen und bearbeiten",
+        "description": "Anlagen und Logos anlegen und bearbeiten"
+      },
+      "holdings_write": {
+        "label": "Bestände speichern und importieren",
+        "description": "Bestände speichern und importieren"
+      },
+      "financial_planning_write": {
+        "label": "Ziele, Pläne und Allokationen speichern",
+        "description": "Ziele, Pläne und Allokationen speichern"
+      },
+      "market_data_read": {
+        "label": "Kurse und Wechselkurse lesen",
+        "description": "Kurse und Wechselkurse lesen"
+      },
+      "spending_read": {
+        "label": "Ausgaben und Budgets lesen",
+        "description": "Ausgaben und Budgets lesen"
+      },
+      "spending_write": {
+        "label": "Ausgabenereignisse und Budgets bearbeiten",
+        "description": "Ausgabenereignisse und Budgets bearbeiten"
       }
     },
     "preset": {
@@ -1532,7 +1560,12 @@
     "copied_generic": "{{label}} in die Zwischenablage kopiert.",
     "hero_aria": "Status des KI-Agenten-Zugriffs",
     "pat_scope_custom_one": "Benutzerdefiniert · {{count}} Berechtigung",
-    "pat_scope_custom_other": "Benutzerdefiniert · {{count}} Berechtigungen"
+    "pat_scope_custom_other": "Benutzerdefiniert · {{count}} Berechtigungen",
+    "edit_permissions": "Berechtigungen bearbeiten",
+    "edit_title": "Berechtigungen für {{name}}",
+    "edit_description": "Der Schlüssel bleibt unverändert. Berechtigungen gelten für folgende Anfragen. Aktualisieren Sie die Werkzeuge oder verbinden Sie den Client neu, um neue Werkzeuge zu sehen.",
+    "edit_success": "Berechtigungen aktualisiert",
+    "edit_failed": "Berechtigungen konnten nicht aktualisiert werden"
   },
   "tax_add_category": "Kategorie hinzufügen",
   "tax_export": "Exportieren",

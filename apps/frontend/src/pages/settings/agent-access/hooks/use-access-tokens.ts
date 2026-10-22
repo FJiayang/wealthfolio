@@ -1,6 +1,7 @@
 import i18n from "i18next";
 import {
   createAgentAccessToken,
+  updateAgentAccessTokenScopes,
   type CreateAgentAccessTokenInput,
   deleteAgentAccessToken,
   listAgentAccessTokens,
@@ -33,6 +34,22 @@ export function useAccessTokens() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, scopes }: { id: string; scopes: string[] }) =>
+      updateAgentAccessTokenScopes(id, { scopes }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKeys.AGENT_ACCESS_TOKENS] });
+      toast({ title: i18n.t("settings:agentAccess.edit_success"), variant: "success" });
+    },
+    onError: (error) => {
+      toast({
+        title: i18n.t("settings:agentAccess.edit_failed"),
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteAgentAccessToken(id),
     onSuccess: () => {
@@ -53,6 +70,7 @@ export function useAccessTokens() {
     tokens: tokensQuery.data ?? [],
     isLoading: tokensQuery.isLoading,
     createMutation,
+    updateMutation,
     deleteMutation,
   };
 }

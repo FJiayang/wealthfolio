@@ -1521,6 +1521,34 @@
       "market_data_write": {
         "label": "시장 데이터 — 쓰기",
         "description": "기존 자산의 검토된 가격(시세)을 저장합니다. 보유 종목 및 가치 (읽기) 범위가 필요합니다."
+      },
+      "accounts_write": {
+        "label": "계좌와 포트폴리오 생성 및 수정",
+        "description": "계좌와 포트폴리오 생성 및 수정"
+      },
+      "assets_write": {
+        "label": "투자 자산과 로고 등록 및 수정",
+        "description": "투자 자산과 로고 등록 및 수정"
+      },
+      "holdings_write": {
+        "label": "보유 내역 저장 및 가져오기",
+        "description": "보유 내역 저장 및 가져오기"
+      },
+      "financial_planning_write": {
+        "label": "목표, 계획 및 자산 배분 저장",
+        "description": "목표, 계획 및 자산 배분 저장"
+      },
+      "market_data_read": {
+        "label": "시세와 환율 조회",
+        "description": "시세와 환율 조회"
+      },
+      "spending_read": {
+        "label": "지출 및 예산 조회",
+        "description": "지출 및 예산 조회"
+      },
+      "spending_write": {
+        "label": "지출 이벤트 및 예산 수정",
+        "description": "지출 이벤트 및 예산 수정"
       }
     },
     "preset": {
@@ -1532,7 +1560,12 @@
     "copied_generic": "{{label}}이(가) 클립보드에 복사되었습니다.",
     "hero_aria": "AI 에이전트 접근 상태",
     "pat_scope_custom_other": "사용자 지정 · 범위 {{count}}개",
-    "pat_scope_custom_one": "사용자 정의 · {{count}} 범위"
+    "pat_scope_custom_one": "사용자 정의 · {{count}} 범위",
+    "edit_permissions": "권한 편집",
+    "edit_title": "{{name}}의 권한",
+    "edit_description": "키는 변경되지 않습니다. 권한은 이후 요청부터 적용됩니다. 새 도구를 보려면 도구 목록을 새로 고치거나 클라이언트를 다시 연결하세요.",
+    "edit_success": "권한이 업데이트되었습니다",
+    "edit_failed": "권한을 업데이트하지 못했습니다"
   },
   "tax_add_category": "카테고리 추가",
   "tax_export": "내보내기",

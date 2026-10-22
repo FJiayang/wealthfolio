@@ -1478,6 +1478,34 @@
       "market_data_write": {
         "label": "Market data — write",
         "description": "Save reviewed prices (quotes) for existing assets. Requires the holdings read scope."
+      },
+      "accounts_write": {
+        "label": "Create and update accounts and portfolios",
+        "description": "Create and update accounts and portfolios"
+      },
+      "assets_write": {
+        "label": "Register and update investment assets and logos",
+        "description": "Register and update investment assets and logos"
+      },
+      "holdings_write": {
+        "label": "Save and import holdings snapshots",
+        "description": "Save and import holdings snapshots"
+      },
+      "financial_planning_write": {
+        "label": "Save goals, plans and allocation targets",
+        "description": "Save goals, plans and allocation targets"
+      },
+      "market_data_read": {
+        "label": "Read market data and exchange rates",
+        "description": "Read market data and exchange rates"
+      },
+      "spending_read": {
+        "label": "Read spending and budgets",
+        "description": "Read spending and budgets"
+      },
+      "spending_write": {
+        "label": "Update spending events and budgets",
+        "description": "Update spending events and budgets"
       }
     },
     "preset": {
@@ -1489,7 +1517,12 @@
     "copied_generic": "{{label}} copied to clipboard.",
     "hero_aria": "AI Agent Access status",
     "pat_scope_custom_one": "Custom · {{count}} scope",
-    "pat_scope_custom_other": "Custom · {{count}} scopes"
+    "pat_scope_custom_other": "Custom · {{count}} scopes",
+    "edit_permissions": "Edit permissions",
+    "edit_title": "Permissions for {{name}}",
+    "edit_description": "The key remains unchanged. Permissions apply to subsequent requests. Refresh tools or reconnect your client to discover newly granted tools.",
+    "edit_success": "Permissions updated",
+    "edit_failed": "Failed to update permissions"
   },
   "tax_add_category": "Add Category",
   "tax_export": "Export",

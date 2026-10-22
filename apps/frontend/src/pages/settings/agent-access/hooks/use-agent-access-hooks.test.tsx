@@ -17,6 +17,7 @@ const adapterMocks = vi.hoisted(() => ({
   setMcpAuditEnabled: vi.fn(),
   listAgentAccessTokens: vi.fn(),
   createAgentAccessToken: vi.fn(),
+  updateAgentAccessTokenScopes: vi.fn(),
   deleteAgentAccessToken: vi.fn(),
   listAgentAuditLog: vi.fn(),
   purgeAgentAuditLog: vi.fn(),
@@ -84,6 +85,27 @@ describe("useMcpServer", () => {
 });
 
 describe("useAccessTokens", () => {
+  it("edits scopes and refreshes the token list without replacing the key", async () => {
+    adapterMocks.listAgentAccessTokens.mockResolvedValue([{ id: "t1", scopes: ["accounts:read"] }]);
+    adapterMocks.updateAgentAccessTokenScopes.mockResolvedValue({
+      id: "t1",
+      scopes: ["market-data:read"],
+    });
+    const { result } = renderHook(() => useAccessTokens(), { wrapper: createWrapper() });
+    await waitFor(() => expect(result.current.tokens).toHaveLength(1));
+    adapterMocks.listAgentAccessTokens.mockResolvedValue([
+      { id: "t1", scopes: ["market-data:read"] },
+    ]);
+    await act(async () => {
+      await result.current.updateMutation.mutateAsync({ id: "t1", scopes: ["market-data:read"] });
+    });
+    expect(adapterMocks.updateAgentAccessTokenScopes).toHaveBeenCalledWith("t1", {
+      scopes: ["market-data:read"],
+    });
+    await waitFor(() => expect(result.current.tokens[0].scopes).toEqual(["market-data:read"]));
+    expect(adapterMocks.createAgentAccessToken).not.toHaveBeenCalled();
+  });
+
   it("creates and removes tokens through the adapter", async () => {
     adapterMocks.listAgentAccessTokens.mockResolvedValue([]);
     adapterMocks.createAgentAccessToken.mockResolvedValue({ token: "wfp_secret", id: "t1" });

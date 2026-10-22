@@ -10,6 +10,20 @@ use super::service::CategorizationRulesService;
 pub trait CategorizationRulesServiceTrait: Send + Sync {
     async fn list(&self) -> Result<Vec<CategorizationRule>>;
     async fn create(&self, new_rule: NewCategorizationRule) -> Result<CategorizationRule>;
+    async fn update(&self, id: &str, patch: UpdateCategorizationRule)
+        -> Result<CategorizationRule>;
+
+    async fn upsert(&self, rule: NewCategorizationRule) -> Result<CategorizationRule>;
+
+    async fn rerun_all(&self, account_ids: &[String], only_uncategorized: bool) -> Result<usize>;
+
+    async fn list_presets(&self) -> Result<Vec<super::presets::RulePresetSummary>>;
+
+    async fn import_preset(
+        &self,
+        preset_id: &str,
+        category_resolver: &std::collections::HashMap<String, (String, String)>,
+    ) -> Result<super::presets::ImportPresetResult>;
 }
 
 #[async_trait]
@@ -20,6 +34,33 @@ impl CategorizationRulesServiceTrait for CategorizationRulesService {
 
     async fn create(&self, new_rule: NewCategorizationRule) -> Result<CategorizationRule> {
         CategorizationRulesService::create(self, new_rule).await
+    }
+    async fn update(
+        &self,
+        id: &str,
+        patch: UpdateCategorizationRule,
+    ) -> Result<CategorizationRule> {
+        CategorizationRulesService::update(self, id, patch).await
+    }
+
+    async fn upsert(&self, rule: NewCategorizationRule) -> Result<CategorizationRule> {
+        CategorizationRulesService::upsert(self, rule).await
+    }
+
+    async fn rerun_all(&self, account_ids: &[String], only_uncategorized: bool) -> Result<usize> {
+        CategorizationRulesService::rerun_all(self, account_ids, only_uncategorized).await
+    }
+
+    async fn list_presets(&self) -> Result<Vec<super::presets::RulePresetSummary>> {
+        CategorizationRulesService::list_presets(self).await
+    }
+
+    async fn import_preset(
+        &self,
+        preset_id: &str,
+        category_resolver: &std::collections::HashMap<String, (String, String)>,
+    ) -> Result<super::presets::ImportPresetResult> {
+        CategorizationRulesService::import_preset(self, preset_id, category_resolver).await
     }
 }
 

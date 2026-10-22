@@ -1561,6 +1561,34 @@
       "market_data_write": {
         "label": "Dati di mercato — scrittura",
         "description": "Salva prezzi (quotazioni) revisionati per asset esistenti. Richiede l'ambito posizioni (lettura)."
+      },
+      "accounts_write": {
+        "label": "Creare e modificare conti e portafogli",
+        "description": "Creare e modificare conti e portafogli"
+      },
+      "assets_write": {
+        "label": "Registrare e modificare attività e loghi",
+        "description": "Registrare e modificare attività e loghi"
+      },
+      "holdings_write": {
+        "label": "Salvare e importare posizioni",
+        "description": "Salvare e importare posizioni"
+      },
+      "financial_planning_write": {
+        "label": "Salvare obiettivi, piani e allocazioni",
+        "description": "Salvare obiettivi, piani e allocazioni"
+      },
+      "market_data_read": {
+        "label": "Consultare quotazioni e tassi di cambio",
+        "description": "Consultare quotazioni e tassi di cambio"
+      },
+      "spending_read": {
+        "label": "Consultare spese e budget",
+        "description": "Consultare spese e budget"
+      },
+      "spending_write": {
+        "label": "Modificare eventi e budget",
+        "description": "Modificare eventi e budget"
       }
     },
     "preset": {
@@ -1573,7 +1601,12 @@
     "hero_aria": "Stato dell'accesso agenti IA",
     "pat_scope_custom_one": "Personalizzato · {{count}} ambito",
     "pat_scope_custom_many": "Personalizzato · {{count}} ambiti",
-    "pat_scope_custom_other": "Personalizzato · {{count}} ambiti"
+    "pat_scope_custom_other": "Personalizzato · {{count}} ambiti",
+    "edit_permissions": "Modifica autorizzazioni",
+    "edit_title": "Autorizzazioni per {{name}}",
+    "edit_description": "La chiave resta invariata. Le autorizzazioni si applicano alle richieste successive. Aggiorna gli strumenti o riconnetti il client per vedere i nuovi strumenti autorizzati.",
+    "edit_success": "Autorizzazioni aggiornate",
+    "edit_failed": "Impossibile aggiornare le autorizzazioni"
   },
   "tax_add_category": "Aggiungi categoria",
   "tax_export": "Esporta",

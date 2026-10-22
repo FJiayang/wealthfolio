@@ -1521,6 +1521,34 @@
       "market_data_write": {
         "label": "市场数据——写入",
         "description": "为现有资产保存已审核的价格（报价）。需要持仓与价值（读取）作用域。"
+      },
+      "accounts_write": {
+        "label": "创建和修改账户与投资组合",
+        "description": "创建和修改账户与投资组合"
+      },
+      "assets_write": {
+        "label": "录入和修改投资标的及图标",
+        "description": "录入和修改投资标的及图标"
+      },
+      "holdings_write": {
+        "label": "保存和导入持仓快照",
+        "description": "保存和导入持仓快照"
+      },
+      "financial_planning_write": {
+        "label": "保存目标、计划和配置比例",
+        "description": "保存目标、计划和配置比例"
+      },
+      "market_data_read": {
+        "label": "查询行情和汇率",
+        "description": "查询行情和汇率"
+      },
+      "spending_read": {
+        "label": "查询收支与预算",
+        "description": "查询收支与预算"
+      },
+      "spending_write": {
+        "label": "修改收支事件与预算",
+        "description": "修改收支事件与预算"
       }
     },
     "preset": {
@@ -1532,7 +1560,12 @@
     "copied_generic": "{{label}} 已复制到剪贴板。",
     "hero_aria": "AI 代理访问状态",
     "pat_scope_custom_other": "自定义 · {{count}} 个作用域",
-    "pat_scope_custom_one": "自定义 · {{count}} 范围"
+    "pat_scope_custom_one": "自定义 · {{count}} 范围",
+    "edit_permissions": "编辑权限",
+    "edit_title": "{{name}} 的权限",
+    "edit_description": "Key 保持不变，新权限对后续请求生效。新增工具可能需要刷新工具列表或重新连接客户端。",
+    "edit_success": "权限已更新",
+    "edit_failed": "权限更新失败"
   },
   "tax_add_category": "添加类别",
   "tax_export": "导出",

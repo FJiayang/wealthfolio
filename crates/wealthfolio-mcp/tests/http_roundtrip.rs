@@ -30,6 +30,67 @@ use wealthfolio_mcp::{
 struct StubEnv;
 
 impl AgentEnvironment for StubEnv {
+    fn allocation_target_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationTargetServiceTrait>
+    {
+        unimplemented!("unused test service")
+    }
+
+    fn drift_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::DriftServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn rebalance_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn fx_service(&self) -> Arc<dyn wealthfolio_core::fx::FxServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn snapshot_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn alternative_asset_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn asset_logo_service(&self) -> Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait> {
+        unimplemented!("unused test service")
+    }
+
+    fn budget_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
+        unimplemented!("unused test service")
+    }
+
+    fn events_service(&self) -> Arc<wealthfolio_spending::events::EventsService> {
+        unimplemented!("unused test service")
+    }
+
+    fn spending_settings_service(
+        &self,
+    ) -> Arc<wealthfolio_spending::settings::SpendingSettingsService> {
+        unimplemented!("unused test service")
+    }
+
+    fn spending_analytics_service(&self) -> Arc<wealthfolio_spending::analytics::AnalyticsService> {
+        unimplemented!("unused test service")
+    }
+
+    fn spending_insight_service(&self) -> Arc<wealthfolio_spending::insight::InsightService> {
+        unimplemented!("unused test service")
+    }
+
     fn base_currency(&self) -> String {
         "USD".to_string()
     }

@@ -10,6 +10,8 @@ repository = "https://github.com/wealthfolio/wealthfolio"
 test-utils = []
 
 [dependencies]
+tokio = { workspace = true, features = ["rt"] }
+anyhow = { workspace = true }
 async-trait = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -19,11 +21,11 @@ log = { workspace = true }
 rust_decimal = { workspace = true }
 uuid = { workspace = true }
 
+wealthfolio-market-data = { path = "../market-data" }
 wealthfolio-core = { path = "../core" }
 wealthfolio-spending = { path = "../spending" }
 
 [dev-dependencies]
-anyhow = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]

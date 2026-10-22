@@ -1521,6 +1521,34 @@
       "market_data_write": {
         "label": "市場資料 — 寫入",
         "description": "為現有資產儲存已審核的價格（報價）。需要持有部位與價值（讀取）範圍。"
+      },
+      "accounts_write": {
+        "label": "建立和修改帳戶與投資組合",
+        "description": "建立和修改帳戶與投資組合"
+      },
+      "assets_write": {
+        "label": "新增和修改投資標的及圖示",
+        "description": "新增和修改投資標的及圖示"
+      },
+      "holdings_write": {
+        "label": "儲存和匯入持倉快照",
+        "description": "儲存和匯入持倉快照"
+      },
+      "financial_planning_write": {
+        "label": "儲存目標、計畫和配置比例",
+        "description": "儲存目標、計畫和配置比例"
+      },
+      "market_data_read": {
+        "label": "查詢行情和匯率",
+        "description": "查詢行情和匯率"
+      },
+      "spending_read": {
+        "label": "查詢收支與預算",
+        "description": "查詢收支與預算"
+      },
+      "spending_write": {
+        "label": "修改收支事件與預算",
+        "description": "修改收支事件與預算"
       }
     },
     "preset": {
@@ -1532,7 +1560,12 @@
     "copied_generic": "{{label}} 已複製到剪貼簿。",
     "hero_aria": "AI 代理存取狀態",
     "pat_scope_custom_other": "自訂 · {{count}} 個範圍",
-    "pat_scope_custom_one": "自訂 · {{count}} 個範圍"
+    "pat_scope_custom_one": "自訂 · {{count}} 個範圍",
+    "edit_permissions": "編輯權限",
+    "edit_title": "{{name}} 的權限",
+    "edit_description": "Key 維持不變，新權限對後續請求生效。新增工具可能需要重新整理工具清單或重新連線用戶端。",
+    "edit_success": "權限已更新",
+    "edit_failed": "權限更新失敗"
   },
   "tax_add_category": "新增類別",
   "tax_export": "匯出",

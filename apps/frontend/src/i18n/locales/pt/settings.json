@@ -1561,6 +1561,34 @@
       "market_data_write": {
         "label": "Dados de mercado: gravar",
         "description": "Salvar preços (cotações) revisados de ativos existentes. Requer o escopo de posições (leitura)."
+      },
+      "accounts_write": {
+        "label": "Criar e editar contas e carteiras",
+        "description": "Criar e editar contas e carteiras"
+      },
+      "assets_write": {
+        "label": "Cadastrar e editar ativos e logotipos",
+        "description": "Cadastrar e editar ativos e logotipos"
+      },
+      "holdings_write": {
+        "label": "Salvar e importar posições",
+        "description": "Salvar e importar posições"
+      },
+      "financial_planning_write": {
+        "label": "Salvar metas, planos e alocações",
+        "description": "Salvar metas, planos e alocações"
+      },
+      "market_data_read": {
+        "label": "Consultar cotações e taxas de câmbio",
+        "description": "Consultar cotações e taxas de câmbio"
+      },
+      "spending_read": {
+        "label": "Consultar despesas e orçamentos",
+        "description": "Consultar despesas e orçamentos"
+      },
+      "spending_write": {
+        "label": "Editar eventos e orçamentos",
+        "description": "Editar eventos e orçamentos"
       }
     },
     "preset": {
@@ -1573,7 +1601,12 @@
     "hero_aria": "Status do acesso de agentes de IA",
     "pat_scope_custom_one": "Personalizado · {{count}} escopo",
     "pat_scope_custom_other": "Personalizado · {{count}} escopos",
-    "pat_scope_custom_many": "Personalizado · {{count}} escopos"
+    "pat_scope_custom_many": "Personalizado · {{count}} escopos",
+    "edit_permissions": "Editar permissões",
+    "edit_title": "Permissões de {{name}}",
+    "edit_description": "A chave permanece igual. As permissões valem para as próximas solicitações. Atualize as ferramentas ou reconecte o cliente para descobrir as novas ferramentas autorizadas.",
+    "edit_success": "Permissões atualizadas",
+    "edit_failed": "Falha ao atualizar permissões"
   },
   "tax_add_category": "Adicionar categoria",
   "tax_export": "Exportar",

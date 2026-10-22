@@ -86,4 +86,28 @@ pub trait AgentEnvironment: Send + Sync {
 
     /// Get the categorization-rules service for the rules-first pass in category proposals.
     fn categorization_rules_service(&self) -> Arc<dyn CategorizationRulesServiceTrait>;
+    fn allocation_target_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationTargetServiceTrait>;
+    fn drift_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::DriftServiceTrait>;
+    fn rebalance_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait>;
+    fn fx_service(&self) -> Arc<dyn wealthfolio_core::fx::FxServiceTrait>;
+    fn snapshot_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait>;
+    fn alternative_asset_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait>;
+    fn asset_logo_service(&self) -> Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait>;
+    fn budget_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService>;
+    fn events_service(&self) -> Arc<wealthfolio_spending::events::EventsService>;
+    fn spending_settings_service(
+        &self,
+    ) -> Arc<wealthfolio_spending::settings::SpendingSettingsService>;
+    fn spending_analytics_service(&self) -> Arc<wealthfolio_spending::analytics::AnalyticsService>;
+    fn spending_insight_service(&self) -> Arc<wealthfolio_spending::insight::InsightService>;
 }

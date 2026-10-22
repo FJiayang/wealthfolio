@@ -46,6 +46,17 @@ impl AgentToolCatalog {
         tools.extend(crate::tools::transfer_link_tools());
         tools.extend(crate::tools::quote_import_tools());
         tools.extend(crate::tools::activity_update_tools());
+        tools.extend(crate::tools::activity_management::tools());
+        tools.extend(crate::tools::planning_calculations::tools());
+        tools.extend(crate::tools::holdings_management::tools());
+        tools.extend(crate::tools::spending_management::tools());
+        tools.extend(crate::tools::market_queries::tools());
+        tools.extend(crate::tools::classification_management::tools());
+        tools.extend(crate::tools::account_management::tools());
+        tools.extend(crate::tools::asset_management::tools());
+        tools.extend(crate::tools::goal_management::tools());
+        tools.extend(crate::tools::target_management::tools());
+
         Self::new(tools)
     }
 
@@ -116,6 +127,47 @@ mod tests {
     impl wealthfolio_spending::categorization_rules::CategorizationRulesServiceTrait
         for TestRuleService
     {
+        async fn update(
+            &self,
+            _id: &str,
+            _patch: wealthfolio_spending::categorization_rules::UpdateCategorizationRule,
+        ) -> anyhow::Result<wealthfolio_spending::categorization_rules::CategorizationRule>
+        {
+            unimplemented!("unused mock operation")
+        }
+
+        async fn upsert(
+            &self,
+            _rule: wealthfolio_spending::categorization_rules::NewCategorizationRule,
+        ) -> anyhow::Result<wealthfolio_spending::categorization_rules::CategorizationRule>
+        {
+            unimplemented!("unused mock operation")
+        }
+
+        async fn rerun_all(
+            &self,
+            _account_ids: &[String],
+            _only_uncategorized: bool,
+        ) -> anyhow::Result<usize> {
+            unimplemented!("unused mock operation")
+        }
+
+        async fn list_presets(
+            &self,
+        ) -> anyhow::Result<Vec<wealthfolio_spending::categorization_rules::RulePresetSummary>>
+        {
+            unimplemented!("unused mock operation")
+        }
+
+        async fn import_preset(
+            &self,
+            _preset_id: &str,
+            _category_resolver: &std::collections::HashMap<String, (String, String)>,
+        ) -> anyhow::Result<wealthfolio_spending::categorization_rules::ImportPresetResult>
+        {
+            unimplemented!("unused mock operation")
+        }
+
         async fn list(&self) -> anyhow::Result<Vec<CategorizationRule>> {
             unreachable!("not used by the commit test")
         }
@@ -149,6 +201,70 @@ mod tests {
     }
 
     impl AgentEnvironment for PanicEnv {
+        fn allocation_target_service(
+            &self,
+        ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationTargetServiceTrait>
+        {
+            unimplemented!("unused test service")
+        }
+
+        fn drift_service(
+            &self,
+        ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::DriftServiceTrait> {
+            unimplemented!("unused test service")
+        }
+
+        fn rebalance_service(
+            &self,
+        ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait>
+        {
+            unimplemented!("unused test service")
+        }
+
+        fn fx_service(&self) -> Arc<dyn wealthfolio_core::fx::FxServiceTrait> {
+            unimplemented!("unused test service")
+        }
+
+        fn snapshot_service(
+            &self,
+        ) -> Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait> {
+            unimplemented!("unused test service")
+        }
+
+        fn alternative_asset_service(
+            &self,
+        ) -> Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait> {
+            unimplemented!("unused test service")
+        }
+
+        fn asset_logo_service(&self) -> Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait> {
+            unimplemented!("unused test service")
+        }
+
+        fn budget_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
+            unimplemented!("unused test service")
+        }
+
+        fn events_service(&self) -> Arc<wealthfolio_spending::events::EventsService> {
+            unimplemented!("unused test service")
+        }
+
+        fn spending_settings_service(
+            &self,
+        ) -> Arc<wealthfolio_spending::settings::SpendingSettingsService> {
+            unimplemented!("unused test service")
+        }
+
+        fn spending_analytics_service(
+            &self,
+        ) -> Arc<wealthfolio_spending::analytics::AnalyticsService> {
+            unimplemented!("unused test service")
+        }
+
+        fn spending_insight_service(&self) -> Arc<wealthfolio_spending::insight::InsightService> {
+            unimplemented!("unused test service")
+        }
+
         fn base_currency(&self) -> String {
             "USD".to_string()
         }
@@ -226,6 +342,27 @@ mod tests {
         ) -> Arc<dyn wealthfolio_spending::categorization_rules::CategorizationRulesServiceTrait>
         {
             self.rules.clone().expect("PanicEnv")
+        }
+    }
+
+    #[tokio::test]
+    async fn every_mcp_tool_denies_before_service_access_without_scopes() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        for tool in catalog.iter() {
+            let error = catalog
+                .execute(
+                    Arc::new(PanicEnv::default()),
+                    &AgentScopeSet::new(),
+                    tool.name(),
+                    serde_json::json!({}),
+                )
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(error, AgentToolError::ScopeDenied { .. }),
+                "{}: {error}",
+                tool.name()
+            );
         }
     }
 
@@ -635,5 +772,129 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, AgentToolError::NotFound(_)));
+    }
+}
+
+#[cfg(test)]
+mod business_catalog_tests {
+    use super::*;
+
+    #[test]
+    fn business_tools_are_mcp_only_and_exclude_system_controls() {
+        let mcp = AgentToolCatalog::mcp_catalog();
+        let assistant = AgentToolCatalog::assistant_catalog();
+        let mut names = std::collections::HashSet::new();
+        for tool in mcp.iter() {
+            assert!(names.insert(tool.name()), "duplicate tool {}", tool.name());
+            assert!(
+                !tool.required_scopes().is_empty(),
+                "unprotected tool {}",
+                tool.name()
+            );
+            assert_eq!(tool.input_schema()["type"], "object", "{}", tool.name());
+        }
+        for required in [
+            "create_asset",
+            "create_goal",
+            "save_goal_plan",
+            "save_allocation_target_with_weights",
+            "get_allocation_target_drift",
+            "calculate_rebalance_plan",
+            "prepare_holdings_import",
+            "commit_holdings_import",
+            "get_spending_report",
+            "copy_budget_targets",
+        ] {
+            assert!(mcp.get(required).is_some(), "missing {required}");
+            assert!(
+                assistant.get(required).is_none(),
+                "assistant gained {required}"
+            );
+        }
+        for forbidden in [
+            "delete_account",
+            "delete_asset",
+            "delete_activity",
+            "delete_goal",
+            "delete_snapshot",
+            "sync_market_data",
+            "synch_quotes",
+            "update_settings",
+            "execute_health_fix",
+            "recalculate_portfolio",
+            "update_portfolio",
+            "reset_budget_groups",
+            "export_data",
+            "mcp_update_token_scopes",
+        ] {
+            assert!(mcp.get(forbidden).is_none(), "forbidden tool {forbidden}");
+        }
+    }
+    #[test]
+    fn business_audit_omits_financial_inputs_and_error_details() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let business_tools = [
+            crate::tools::account_management::tools(),
+            crate::tools::asset_management::tools(),
+            crate::tools::holdings_management::tools(),
+            crate::tools::activity_management::tools(),
+            crate::tools::goal_management::tools(),
+            crate::tools::target_management::tools(),
+            crate::tools::planning_calculations::tools(),
+            crate::tools::market_queries::tools(),
+            crate::tools::classification_management::tools(),
+            crate::tools::spending_management::tools(),
+        ];
+        for tool in business_tools.into_iter().flatten() {
+            let tool = catalog.get(tool.name()).unwrap();
+            let private = "private financial input";
+            assert_eq!(
+                tool.sanitize_args_for_audit(&serde_json::json!({"input":private})),
+                serde_json::Value::Null
+            );
+            assert!(!tool
+                .sanitize_error_for_audit(&AgentToolError::ExecutionFailed(private.into()))
+                .contains(private));
+        }
+    }
+
+    #[test]
+    fn business_schemas_match_domain_enums_and_search_pagination() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let rule = catalog
+            .get("upsert_categorization_rule")
+            .unwrap()
+            .input_schema();
+        let actual =
+            serde_json::to_value(wealthfolio_spending::categorization_rules::RuleMatchType::Exact)
+                .unwrap();
+        assert!(
+            rule["properties"]["input"]["properties"]["matchType"]["enum"]
+                .as_array()
+                .unwrap()
+                .contains(&actual)
+        );
+        let budget = catalog.get("upsert_budget_target").unwrap().input_schema();
+        let actual =
+            serde_json::to_value(wealthfolio_spending::budget::BudgetTargetType::GroupBuffer)
+                .unwrap();
+        assert!(
+            budget["properties"]["input"]["properties"]["targetType"]["enum"]
+                .as_array()
+                .unwrap()
+                .contains(&actual)
+        );
+        let search = catalog
+            .get("search_cash_activities")
+            .unwrap()
+            .input_schema();
+        for field in ["offset", "limit", "sortDir", "includeCashBalances"] {
+            assert!(
+                search["properties"]["request"]["properties"]
+                    .get(field)
+                    .is_some(),
+                "missing {field}"
+            );
+        }
     }
 }

@@ -17,7 +17,14 @@ export type ScopeKey =
   | "activities:write"
   | "classification:suggest"
   | "classification:write"
-  | "market-data:write";
+  | "market-data:write"
+  | "accounts:write"
+  | "assets:write"
+  | "holdings:write"
+  | "financial-planning:write"
+  | "market-data:read"
+  | "spending:read"
+  | "spending:write";
 
 export type ScopeGroup = "read" | "write";
 
@@ -28,8 +35,16 @@ export interface ScopeMeta {
   group: ScopeGroup;
 }
 
-/** Ordered list of all 12 scopes, grouped reads first then write/suggest. */
+/** Available scopes; only read scopes are selected by default. */
 export const SCOPES: ScopeMeta[] = [
+  { key: "accounts:write", i18n: "accounts_write", group: "write" },
+  { key: "assets:write", i18n: "assets_write", group: "write" },
+  { key: "holdings:write", i18n: "holdings_write", group: "write" },
+  { key: "financial-planning:write", i18n: "financial_planning_write", group: "write" },
+  { key: "market-data:read", i18n: "market_data_read", group: "read" },
+  { key: "spending:read", i18n: "spending_read", group: "read" },
+  { key: "spending:write", i18n: "spending_write", group: "write" },
+
   { key: "accounts:read", i18n: "accounts_read", group: "read" },
   { key: "holdings:read", i18n: "holdings_read", group: "read" },
   { key: "performance:read", i18n: "performance_read", group: "read" },
@@ -44,7 +59,7 @@ export const SCOPES: ScopeMeta[] = [
   { key: "market-data:write", i18n: "market_data_write", group: "write" },
 ];
 
-/** The 7 read scopes, in canonical order. */
+/** Read-only preset for newly created tokens. */
 export const READ_SCOPES: ScopeKey[] = SCOPES.filter((scope) => scope.group === "read").map(
   (scope) => scope.key,
 );

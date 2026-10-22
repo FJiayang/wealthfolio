@@ -1521,6 +1521,34 @@
       "market_data_write": {
         "label": "市場データ — 書き込み",
         "description": "既存の資産について確認済みの価格(相場)を保存します。保有銘柄と評価額(読み取り)のスコープが必要です。"
+      },
+      "accounts_write": {
+        "label": "口座とポートフォリオの作成・変更",
+        "description": "口座とポートフォリオの作成・変更"
+      },
+      "assets_write": {
+        "label": "投資資産とロゴの登録・変更",
+        "description": "投資資産とロゴの登録・変更"
+      },
+      "holdings_write": {
+        "label": "保有残高の保存・インポート",
+        "description": "保有残高の保存・インポート"
+      },
+      "financial_planning_write": {
+        "label": "目標・計画・資産配分の保存",
+        "description": "目標・計画・資産配分の保存"
+      },
+      "market_data_read": {
+        "label": "相場と為替レートの参照",
+        "description": "相場と為替レートの参照"
+      },
+      "spending_read": {
+        "label": "収支と予算の参照",
+        "description": "収支と予算の参照"
+      },
+      "spending_write": {
+        "label": "収支イベントと予算の変更",
+        "description": "収支イベントと予算の変更"
       }
     },
     "preset": {
@@ -1532,7 +1560,12 @@
     "copied_generic": "{{label}}をクリップボードにコピーしました。",
     "hero_aria": "AIエージェントアクセスの状態",
     "pat_scope_custom_other": "カスタム · {{count}}個のスコープ",
-    "pat_scope_custom_one": "カスタム · {{count}} スコープ"
+    "pat_scope_custom_one": "カスタム · {{count}} スコープ",
+    "edit_permissions": "権限を編集",
+    "edit_title": "{{name}} の権限",
+    "edit_description": "キーは変更されません。権限は以降のリクエストに適用されます。新しいツールを表示するには、ツール一覧を更新するかクライアントを再接続してください。",
+    "edit_success": "権限を更新しました",
+    "edit_failed": "権限の更新に失敗しました"
   },
   "tax_add_category": "カテゴリを追加",
   "tax_export": "エクスポート",
