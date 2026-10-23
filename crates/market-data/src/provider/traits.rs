@@ -73,6 +73,34 @@ pub trait MarketDataProvider: Send + Sync {
     /// is available, and whether search is supported.
     fn capabilities(&self) -> ProviderCapabilities;
 
+    /// Refine coverage for namespaces that a provider can actually resolve.
+    fn supports_instrument(&self, instrument: &crate::InstrumentId) -> bool {
+        if self.id() != crate::provider::DATA_SOURCE_CUSTOM_SCRAPER
+            && matches!(instrument, crate::InstrumentId::Equity { ticker, .. } if ticker.starts_with("FUND:"))
+        {
+            return false;
+        }
+        self.capabilities().supports_instrument(instrument)
+    }
+
+    async fn get_news(&self, _symbol: &str) -> Result<Vec<crate::NewsItem>, MarketDataError> {
+        Err(MarketDataError::NotSupported {
+            operation: "news".into(),
+            provider: self.id().into(),
+        })
+    }
+
+    async fn get_financial_reports(
+        &self,
+        _symbol: &str,
+        _statement: crate::FinancialStatement,
+    ) -> Result<Vec<crate::FinancialReport>, MarketDataError> {
+        Err(MarketDataError::NotSupported {
+            operation: "financial reports".into(),
+            provider: self.id().into(),
+        })
+    }
+
     /// Rate limiting configuration.
     ///
     /// Returns the rate limits that should be applied when

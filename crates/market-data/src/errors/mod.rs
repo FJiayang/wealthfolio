@@ -17,7 +17,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum MarketDataError {
     /// The requested symbol was not found by the provider.
-    /// This is a terminal error - retrying won't help.
+    /// Another eligible provider may cover the same instrument.
     #[error("Symbol not found: {0}")]
     SymbolNotFound(String),
 
@@ -126,14 +126,12 @@ impl MarketDataError {
     /// assert_eq!(error.retry_class(), RetryClass::NextProvider);
     ///
     /// let error = MarketDataError::SymbolNotFound("INVALID".to_string());
-    /// assert_eq!(error.retry_class(), RetryClass::Never);
+    /// assert_eq!(error.retry_class(), RetryClass::NextProvider);
     /// ```
     pub fn retry_class(&self) -> RetryClass {
         match self {
             // Terminal errors - never retry
-            Self::SymbolNotFound(_)
-            | Self::UnsupportedAssetType(_)
-            | Self::ValidationFailed { .. } => RetryClass::Never,
+            Self::UnsupportedAssetType(_) | Self::ValidationFailed { .. } => RetryClass::Never,
 
             // Timeout - failover with circuit breaker penalty
             Self::Timeout { .. } => RetryClass::FailoverWithPenalty,
@@ -151,6 +149,7 @@ impl MarketDataError {
             | Self::ResolutionFailed { .. }
             | Self::NotSupported { .. }
             | Self::NoDataForRange
+            | Self::SymbolNotFound(_)
             | Self::Network(_) => RetryClass::NextProvider,
 
             // Circuit breaker open
@@ -167,9 +166,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_symbol_not_found_never_retries() {
+    fn test_symbol_not_found_tries_next_provider() {
         let error = MarketDataError::SymbolNotFound("INVALID".to_string());
-        assert_eq!(error.retry_class(), RetryClass::Never);
+        assert_eq!(error.retry_class(), RetryClass::NextProvider);
     }
 
     #[test]

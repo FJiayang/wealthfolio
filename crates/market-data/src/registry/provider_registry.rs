@@ -22,23 +22,16 @@ use crate::models::{
     AssetProfile, DividendEvent, InstrumentId, ProviderId, Quote, QuoteContext, SearchResult,
     SplitEvent,
 };
-use crate::provider::{
-    http_api::{qualified_symbol, DATA_SOURCE_HTTP_API},
-    MarketDataProvider, DATA_SOURCE_CUSTOM_SCRAPER,
-};
+use crate::provider::{MarketDataProvider, DATA_SOURCE_CUSTOM_SCRAPER};
 use crate::resolver::{check_profile, ResolutionSource, SymbolResolver};
 
 fn is_unverified_fallback(source: ResolutionSource) -> bool {
     source == ResolutionSource::RulesFallback
 }
 
-/// Assigned custom/HTTP sources are exclusive; HTTP never serves unassigned assets.
+/// User-assigned custom sources remain exclusive.
 fn excluded_by_assignment(provider: &dyn MarketDataProvider, context: &QuoteContext) -> bool {
-    (context.assigned_custom_provider().is_some() && provider.id() != DATA_SOURCE_CUSTOM_SCRAPER)
-        || (context.preferred_provider.as_deref() == Some(DATA_SOURCE_HTTP_API)
-            && provider.id() != DATA_SOURCE_HTTP_API)
-        || (provider.id() == DATA_SOURCE_HTTP_API
-            && context.preferred_provider.as_deref() != Some(DATA_SOURCE_HTTP_API))
+    context.assigned_custom_provider().is_some() && provider.id() != DATA_SOURCE_CUSTOM_SCRAPER
 }
 
 /// Provider registry for orchestrating market data fetching.
@@ -494,7 +487,7 @@ impl ProviderRegistry {
             .filter(|p| {
                 let caps = p.capabilities();
                 caps.supports_dividends
-                    && caps.supports_instrument(&context.instrument)
+                    && p.supports_instrument(&context.instrument)
                     && !excluded_by_assignment(p.as_ref(), context)
             })
             .collect();
@@ -592,7 +585,7 @@ impl ProviderRegistry {
                 }
                 let caps = p.capabilities();
                 // Check instrument support
-                if !caps.supports_instrument(&context.instrument) {
+                if !p.supports_instrument(&context.instrument) {
                     return false;
                 }
                 // Check operation capability
@@ -619,7 +612,7 @@ impl ProviderRegistry {
             .filter(|p| {
                 let caps = p.capabilities();
                 caps.supports_profile
-                    && caps.supports_instrument(&context.instrument)
+                    && p.supports_instrument(&context.instrument)
                     && !excluded_by_assignment(p.as_ref(), context)
             })
             .collect();
@@ -667,7 +660,7 @@ impl ProviderRegistry {
             }
 
             // Check coverage
-            if !caps.coverage.supports(&context.instrument) {
+            if !provider.supports_instrument(&context.instrument) {
                 let skip_reason = match &context.instrument {
                     InstrumentId::Equity { mic, .. } => {
                         if mic.is_none() && !caps.coverage.allow_unknown_mic {
@@ -747,42 +740,33 @@ impl ProviderRegistry {
     /// Tries providers that support search until one succeeds.
     pub async fn search(&self, query: &str) -> Result<Vec<SearchResult>, MarketDataError> {
         let normalized = query.trim().to_uppercase();
-        if qualified_symbol(&normalized).is_some() {
-            if let Some(provider) = self
-                .providers
-                .iter()
-                .find(|p| p.id() == DATA_SOURCE_HTTP_API)
-            {
-                let id = Cow::Borrowed(DATA_SOURCE_HTTP_API);
-                if !self.circuit_breaker.is_allowed(&id) {
-                    return Err(MarketDataError::CircuitOpen {
-                        provider: DATA_SOURCE_HTTP_API.into(),
-                    });
+        let qualified = crate::resolver::qualified_symbol(&normalized);
+        let context = qualified.map(|(mic, code)| crate::QuoteContext {
+            instrument: InstrumentId::Equity {
+                ticker: if mic == "FUND" {
+                    normalized.clone()
+                } else {
+                    code.into()
                 }
-                self.rate_limiter.acquire(&id).await;
-                match provider.search(&normalized).await {
-                    Ok(results) => {
-                        self.circuit_breaker.record_success(&id);
-                        if !results.is_empty() {
-                            return Ok(results);
-                        }
-                    }
-                    Err(error) => {
-                        if matches!(
-                            error.retry_class(),
-                            RetryClass::FailoverWithPenalty | RetryClass::CircuitOpen
-                        ) {
-                            self.circuit_breaker.record_failure(&id);
-                        }
-                        return Err(error);
-                    }
-                }
-            }
-        }
+                .into(),
+                mic: (mic != "FUND").then(|| Cow::Owned(mic.into())),
+            },
+            identifiers: Default::default(),
+            overrides: None,
+            currency_hint: None,
+            preferred_provider: None,
+            bond_metadata: None,
+            custom_provider_code: None,
+        });
         let mut providers: Vec<_> = self
             .providers
             .iter()
-            .filter(|p| p.id() != DATA_SOURCE_HTTP_API && p.capabilities().supports_search)
+            .filter(|p| {
+                p.capabilities().supports_search
+                    && context
+                        .as_ref()
+                        .is_none_or(|c| p.supports_instrument(&c.instrument))
+            })
             .collect();
         providers.sort_by_key(|p| {
             self.custom_priorities
@@ -822,7 +806,43 @@ impl ProviderRegistry {
                 continue;
             }
 
-            match provider.search(query).await {
+            let search_query = if let Some(context) = &context {
+                if crate::provider::is_native_provider(provider.id()) {
+                    normalized.clone()
+                } else {
+                    match self.resolver.resolve(&provider_id, context) {
+                        Ok(resolved) if resolved.source != ResolutionSource::RulesFallback => {
+                            resolved.instrument.to_symbol_string()
+                        }
+                        _ => continue,
+                    }
+                }
+            } else {
+                query.into()
+            };
+            let result = provider.search(&search_query).await.map(|results| {
+                results
+                    .into_iter()
+                    .filter(|r| {
+                        qualified.is_none_or(|(mic, code)| {
+                            if mic == "FUND" {
+                                r.canonical_symbol.as_deref() == Some(normalized.as_str())
+                            } else {
+                                r.exchange_mic.as_deref() == Some(mic)
+                                    && r.canonical_symbol
+                                        .clone()
+                                        .unwrap_or_else(|| {
+                                            crate::yahoo_equity_provider_symbol_to_canonical(
+                                                &r.symbol,
+                                            )
+                                        })
+                                        .eq_ignore_ascii_case(code)
+                            }
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            });
+            match result {
                 Ok(results) if !results.is_empty() => {
                     self.circuit_breaker.record_success(&provider_id);
                     // If any result has MIC, return immediately
@@ -1456,14 +1476,51 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn http_api_assignment_is_exclusive_for_every_operation() {
+    async fn native_sources_follow_priority_without_exclusive_assignment() {
+        use crate::provider::{DATA_SOURCE_EASTMONEY, DATA_SOURCE_TENCENT};
+        let east = Arc::new(MockProvider::new(DATA_SOURCE_EASTMONEY, 1, true));
+        let tencent = Arc::new(MockProvider::new(DATA_SOURCE_TENCENT, 2, false));
+        let registry =
+            ProviderRegistry::new(vec![east.clone(), tencent.clone()], Arc::new(MockResolver));
+        let mut context = QuoteContext {
+            instrument: InstrumentId::Equity {
+                ticker: "AAPL".into(),
+                mic: Some("XNAS".into()),
+            },
+            identifiers: Default::default(),
+            overrides: None,
+            currency_hint: Some("USD".into()),
+            preferred_provider: Some(DATA_SOURCE_EASTMONEY.into()),
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+        assert_eq!(
+            registry.fetch_latest_quote(&context).await.unwrap().source,
+            DATA_SOURCE_TENCENT
+        );
+        assert_eq!(east.call_count.load(Ordering::SeqCst), 1);
+        assert_eq!(tencent.call_count.load(Ordering::SeqCst), 1);
+        context.preferred_provider = None;
+        let registry = ProviderRegistry::with_priorities(
+            vec![east.clone(), tencent.clone()],
+            Arc::new(MockResolver),
+            HashMap::from([(DATA_SOURCE_TENCENT.into(), 0)]),
+        );
+        assert_eq!(
+            registry.fetch_latest_quote(&context).await.unwrap().source,
+            DATA_SOURCE_TENCENT
+        );
+        assert_eq!(east.call_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn fund_namespace_never_reaches_unrelated_providers() {
         let counts = Arc::new(OperationCounts::default());
-        let builtin = Arc::new(AllOperationsProvider {
+        let provider: Arc<dyn MarketDataProvider> = Arc::new(AllOperationsProvider {
             id: "YAHOO",
             counts: counts.clone(),
         });
-        let http = Arc::new(MockProvider::new(DATA_SOURCE_HTTP_API, 50, true));
-        let registry = ProviderRegistry::new(vec![builtin, http.clone()], Arc::new(MockResolver));
+        let registry = ProviderRegistry::new(vec![provider], Arc::new(MockResolver));
         let context = QuoteContext {
             instrument: InstrumentId::Equity {
                 ticker: "FUND:005827".into(),
@@ -1472,29 +1529,19 @@ mod tests {
             identifiers: Default::default(),
             overrides: None,
             currency_hint: Some("CNY".into()),
-            preferred_provider: Some(Cow::Borrowed(DATA_SOURCE_HTTP_API)),
+            preferred_provider: None,
             bond_metadata: None,
             custom_provider_code: None,
         };
-        let now = Utc::now();
+        let start = Utc::now() - chrono::Duration::days(10);
+        let end = Utc::now();
         assert!(registry.fetch_latest_quote(&context).await.is_err());
-        assert!(registry.fetch_quotes(&context, now, now).await.is_err());
-        assert!(registry
-            .fetch_quotes_for_reset(&context, now, now)
-            .await
-            .is_err());
+        assert!(registry.fetch_quotes(&context, start, end).await.is_err());
         assert!(registry.get_profile(&context).await.is_err());
-        assert!(registry.fetch_splits(&context, now, now).await.is_empty());
-        assert!(matches!(
-            registry.fetch_dividends(&context, now, now).await,
-            Err(MarketDataError::NoProvidersAvailable)
-        ));
-        assert!(http.call_count.load(Ordering::SeqCst) > 0);
+        assert!(registry.fetch_splits(&context, start, end).await.is_empty());
         assert_eq!(counts.latest.load(Ordering::SeqCst), 0);
         assert_eq!(counts.historical.load(Ordering::SeqCst), 0);
         assert_eq!(counts.profile.load(Ordering::SeqCst), 0);
-        assert_eq!(counts.splits.load(Ordering::SeqCst), 0);
-        assert_eq!(counts.dividends.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]

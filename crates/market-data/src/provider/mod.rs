@@ -24,12 +24,15 @@ mod traits;
 // Provider implementations
 pub mod alpha_vantage;
 pub mod boerse_frankfurt;
+pub mod eastmoney;
 pub mod finnhub;
 pub mod fixture;
-pub mod http_api;
 pub mod marketdata_app;
 pub mod metal_price_api;
+pub(crate) mod native;
 pub mod openfigi;
+pub mod sina;
+pub mod tencent;
 pub mod us_treasury_calc;
 pub mod yahoo;
 
@@ -39,3 +42,13 @@ pub use traits::MarketDataProvider;
 
 /// Identifier shared with the custom scraper adapter in core.
 pub const DATA_SOURCE_CUSTOM_SCRAPER: &str = "CUSTOM_SCRAPER";
+
+pub const DATA_SOURCE_EASTMONEY: &str = "EASTMONEY";
+pub const DATA_SOURCE_TENCENT: &str = "TENCENT";
+pub const DATA_SOURCE_SINA: &str = "SINA";
+pub fn is_native_provider(id: &str) -> bool {
+    matches!(
+        id,
+        DATA_SOURCE_EASTMONEY | DATA_SOURCE_TENCENT | DATA_SOURCE_SINA
+    )
+}

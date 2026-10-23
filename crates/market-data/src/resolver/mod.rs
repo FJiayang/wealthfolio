@@ -105,3 +105,6 @@ pub use exchange_suffixes::{
 pub use profile_check::{check_profile, ProfileMismatch};
 pub use rules_resolver::RulesResolver;
 pub use traits::{ResolutionSource, ResolvedInstrument, Resolver, SymbolResolver};
+
+mod qualified;
+pub use qualified::qualified_symbol;

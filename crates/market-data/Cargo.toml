@@ -5,6 +5,9 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1"
+encoding_rs = "0.8"
+scraper = "0.22"
+chrono-tz = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
 log = "0.4"
 num-traits = "0.2"

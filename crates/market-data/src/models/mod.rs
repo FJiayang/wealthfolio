@@ -44,3 +44,6 @@ pub struct SplitEvent {
     pub date: NaiveDate,
     pub ratio: Decimal,
 }
+
+mod research;
+pub use research::{FinancialReport, FinancialStatement, NewsItem};

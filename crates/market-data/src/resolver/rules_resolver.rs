@@ -89,6 +89,24 @@ impl RulesResolver {
         // before reaching these generic rules.
         let has_unverified_dotted_suffix = mic.is_none() && has_unrecognized_dotted_suffix(ticker);
 
+        if crate::provider::is_native_provider(provider) {
+            return crate::provider::native::resolve(provider, ticker, mic.as_deref()).map(
+                |symbol| {
+                    (
+                        ProviderInstrument::EquitySymbol {
+                            symbol: Arc::from(symbol),
+                        },
+                        ResolutionSource::Rules,
+                    )
+                },
+            );
+        }
+        if ticker.starts_with("FUND:")
+            && provider.as_ref() != crate::provider::DATA_SOURCE_CUSTOM_SCRAPER
+        {
+            return None;
+        }
+
         if provider.as_ref() == "BOERSE_FRANKFURT" {
             let has_mic = mic.is_some();
             let provider_symbol = if !has_mic {
@@ -448,6 +466,18 @@ mod tests {
             }
             _ => panic!("Expected EquitySymbol"),
         }
+    }
+
+    #[test]
+    fn custom_scraper_preserves_reserved_fund_symbol() {
+        let resolver = RulesResolver::new();
+        let context = make_equity_context("FUND:005827", None);
+        let result = resolver
+            .resolve(&"CUSTOM_SCRAPER".into(), &context)
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.instrument.to_symbol_string(), "FUND:005827");
+        assert!(resolver.resolve(&"YAHOO".into(), &context).is_none());
     }
 
     #[test]
