@@ -19,6 +19,7 @@ on:
       - "crates/connect/**"
       - "crates/core/src/connect_config.rs"
       - "config/**"
+      - "fork-release.json"
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
@@ -32,7 +33,33 @@ permissions:
   contents: read
 
 jobs:
+  release-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      fork: ${{ steps.policy.outputs.fork }}
+      publish: ${{ steps.policy.outputs.publish }}
+      version: ${{ steps.policy.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test release policy
+        run: python3 -m unittest discover -s .github/scripts -p 'test_fork_release.py'
+      - name: Validate release identity before building
+        id: policy
+        env:
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_REF: ${{ github.ref }}
+          EVENT_NAME: ${{ github.event_name }}
+          PUBLISH_REQUESTED: ${{ inputs.publish || false }}
+        run: |
+          args=()
+          if [ "$PUBLISH_REQUESTED" = "true" ]; then args+=(--publish); fi
+          python3 .github/scripts/fork_release.py \
+            --repository "$REPOSITORY" --ref "$RELEASE_REF" \
+            --event "$EVENT_NAME" "${args[@]}" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: release-policy
     strategy:
       fail-fast: false
       matrix:
@@ -60,6 +87,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository_owner }}/wealthfolio
+          labels: |
+            org.opencontainers.image.version=${{ needs.release-policy.outputs.fork == 'true' && needs.release-policy.outputs.version || github.ref_name }}
       - name: Build native image once
         uses: docker/build-push-action@v5
         with:
@@ -87,14 +116,14 @@ jobs:
       - name: Test encryption in the built image
         run: python3 .github/scripts/encryption_smoke.py --image wealthfolio-smoke:ci
       - name: Log into GHCR
-        if: (github.event_name == 'push' || inputs.publish) && startsWith(github.ref, 'refs/tags/v')
+        if: needs.release-policy.outputs.publish == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload tested image under a staging tag
-        if: (github.event_name == 'push' || inputs.publish) && startsWith(github.ref, 'refs/tags/v')
+        if: needs.release-policy.outputs.publish == 'true'
         env:
           GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/wealthfolio
           STAGING_TAG: ci-${{ github.run_id }}-${{ matrix.arch }}
@@ -105,8 +134,8 @@ jobs:
 
   publish:
     # Release tags move only after BOTH architectures have passed their tests.
-    needs: build
-    if: (github.event_name == 'push' || inputs.publish) && startsWith(github.ref, 'refs/tags/v')
+    needs: [release-policy, build]
+    if: needs.release-policy.outputs.publish == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -125,8 +154,9 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/wealthfolio
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=${{ needs.release-policy.outputs.version }},enable=${{ needs.release-policy.outputs.fork == 'true' }},priority=900
+            type=semver,pattern={{version}},enable=${{ needs.release-policy.outputs.fork != 'true' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ needs.release-policy.outputs.fork != 'true' }}
             type=raw,value=latest,enable=${{ !contains(github.ref, '-') }}
             type=sha,format=long
       - name: Publish manifests from tested images (no rebuild)

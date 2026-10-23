@@ -1,3 +1,10 @@
+> **Fork release policy:** This is FJiayang's Wealthfolio fork. Fork Git tags
+> use `v3.10.0.N` and GHCR images use `ghcr.io/fjiayang/wealthfolio:3.10.0.N`;
+> application manifests retain upstream's `3.10.0` version. See the
+> [fork maintenance guide](docs/fork-maintenance.md) for provenance, historical
+> tag migration, publishing, and update limitations. Upstream links below refer
+> to the original project, not this fork's releases.
+
 <div align="center">
   <a href="https://github.com/wealthfolio/wealthfolio">
     <img src="assets/brand/icon.png" alt="Logo" width="80" height="80">
