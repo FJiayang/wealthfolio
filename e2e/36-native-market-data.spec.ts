@@ -2,31 +2,27 @@ import { expect, test } from "@playwright/test";
 import { BASE_URL, loginIfNeeded } from "./helpers";
 
 for (const direction of ["ltr", "rtl"]) {
-  test(`HTTP API exact creation and local search (${direction})`, async ({ page }) => {
+  test(`Native providers automatic creation and local search (${direction})`, async ({ page }) => {
     test.setTimeout(180000);
     await loginIfNeeded(page);
     const api = `${BASE_URL}/api/v1`;
     await page.goto(`${BASE_URL}/settings/market-data?dir=${direction}`);
-    await page.getByRole("button", { name: "Standard HTTP API settings" }).click();
-    const url = page.getByLabel("Service base URL");
-    await url.fill("http://finance-data-api:8000");
-    await url.locator("..").getByRole("button", { name: "Save", exact: true }).click();
-    await expect
-      .poll(async () => {
-        const response = await page.request.get(`${api}/providers/settings`);
-        const providers = await response.json();
-        return providers.find((provider: { id: string }) => provider.id === "HTTP_API")?.baseUrl;
-      })
-      .toBe("http://finance-data-api:8000");
-    const enabled = page.getByRole("switch", { name: "Standard HTTP API", exact: true });
-    if ((await enabled.getAttribute("aria-checked")) === "false") await enabled.click();
-    await expect
-      .poll(async () => {
-        const response = await page.request.get(`${api}/providers/settings`);
-        const providers = await response.json();
-        return providers.find((provider: { id: string }) => provider.id === "HTTP_API")?.enabled;
-      })
-      .toBe(true);
+    const settings = await (await page.request.get(`${api}/providers/settings`)).json();
+    expect(settings.some((p: { id: string }) => p.id === "HTTP_API")).toBe(false);
+    for (const [id, name] of [
+      ["EASTMONEY", "Eastmoney"],
+      ["TENCENT", "Tencent Finance"],
+      ["SINA", "Sina Finance"],
+    ]) {
+      const enabled = page.getByRole("switch", { name, exact: true });
+      if ((await enabled.getAttribute("aria-checked")) === "false") await enabled.click();
+      await expect
+        .poll(async () => {
+          const rows = await (await page.request.get(`${api}/providers/settings`)).json();
+          return rows.find((p: { id: string }) => p.id === id)?.enabled;
+        })
+        .toBe(true);
+    }
 
     const createdIds: string[] = [];
     for (const [symbol, canonical, mic] of [
@@ -89,11 +85,28 @@ for (const direction of ["ltr", "rtl"]) {
       expect(matches[0]).toMatchObject({
         quoteCcy: "CNY",
         quoteMode: "MARKET",
-        providerConfig: { preferred_provider: "HTTP_API" },
       });
+      expect(matches[0].providerConfig?.preferred_provider).toBeUndefined();
+      const sync = await page.request.post(`${api}/market-data/sync/history`);
+      expect(sync.ok()).toBeTruthy();
+      await expect
+        .poll(
+          async () => {
+            const quotes = await (
+              await page.request.get(`${api}/market-data/quotes/history`, {
+                params: { symbol: matches[0].id },
+              })
+            ).json();
+            return quotes.some((quote: { dataSource: string }) =>
+              ["EASTMONEY", "TENCENT", "SINA"].includes(quote.dataSource),
+            );
+          },
+          { timeout: 30_000 },
+        )
+        .toBe(true);
     }
     const response = await page.request.put(`${api}/providers/settings`, {
-      data: { providerId: "HTTP_API", priority: 10, enabled: false },
+      data: { providerId: "EASTMONEY", priority: 10, enabled: false },
     });
     expect(response.ok()).toBeTruthy();
     for (const query of ["蓝筹", "0058"]) {

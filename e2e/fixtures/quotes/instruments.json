@@ -4,7 +4,7 @@
     {
       "symbol": "FUND:161725",
       "name": "招商中证白酒场外份额",
-      "provider": "HTTP_API",
+      "provider": "EASTMONEY",
       "assetType": "MUTUALFUND",
       "currency": "CNY",
       "exchange": "FUND",
@@ -13,45 +13,48 @@
       "seed": 505
     },
     {
-      "symbol": "XSHG:600519",
+      "symbol": "1.600519",
       "name": "贵州茅台",
-      "provider": "HTTP_API",
+      "provider": "EASTMONEY",
       "assetType": "EQUITY",
       "currency": "CNY",
       "exchange": "XSHG",
       "basePrice": 1.2345,
       "baseVolume": 0,
       "seed": 501,
-      "exchangeMic": "XSHG"
+      "exchangeMic": "XSHG",
+      "aliases": ["XSHG:600519", "600519"]
     },
     {
-      "symbol": "XSHG:510300",
+      "symbol": "1.510300",
       "name": "沪深300ETF",
-      "provider": "HTTP_API",
+      "provider": "EASTMONEY",
       "assetType": "ETF",
       "currency": "CNY",
       "exchange": "XSHG",
       "basePrice": 1.2345,
       "baseVolume": 0,
       "seed": 502,
-      "exchangeMic": "XSHG"
+      "exchangeMic": "XSHG",
+      "aliases": ["XSHG:510300", "510300"]
     },
     {
-      "symbol": "XSHE:161725",
+      "symbol": "0.161725",
       "name": "招商中证白酒LOF",
-      "provider": "HTTP_API",
+      "provider": "EASTMONEY",
       "assetType": "ETF",
       "currency": "CNY",
       "exchange": "XSHE",
       "basePrice": 1.2345,
       "baseVolume": 0,
       "seed": 503,
-      "exchangeMic": "XSHE"
+      "exchangeMic": "XSHE",
+      "aliases": ["XSHE:161725", "161725"]
     },
     {
       "symbol": "FUND:005827",
       "name": "易方达蓝筹精选混合",
-      "provider": "HTTP_API",
+      "provider": "EASTMONEY",
       "assetType": "MUTUALFUND",
       "currency": "CNY",
       "exchange": "FUND",
@@ -522,8 +525,14 @@
       "industry": "Exchange Traded Fund",
       "country": "United States",
       "assetAllocation": [
-        { "name": "stock", "weight": 0.6 },
-        { "name": "bond", "weight": 0.4 }
+        {
+          "name": "stock",
+          "weight": 0.6
+        },
+        {
+          "name": "bond",
+          "weight": 0.4
+        }
       ]
     },
     {
@@ -938,10 +947,96 @@
       "sector": "Technology",
       "industry": "Software - Application",
       "country": "Germany"
+    },
+    {
+      "symbol": "sh600519",
+      "name": "贵州茅台",
+      "provider": "TENCENT",
+      "assetType": "EQUITY",
+      "currency": "CNY",
+      "exchange": "XSHG",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 501,
+      "exchangeMic": "XSHG",
+      "aliases": ["XSHG:600519", "600519"]
+    },
+    {
+      "symbol": "sh600519",
+      "name": "贵州茅台",
+      "provider": "SINA",
+      "assetType": "EQUITY",
+      "currency": "CNY",
+      "exchange": "XSHG",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 501,
+      "exchangeMic": "XSHG",
+      "aliases": ["XSHG:600519", "600519"]
+    },
+    {
+      "symbol": "sh510300",
+      "name": "沪深300ETF",
+      "provider": "TENCENT",
+      "assetType": "ETF",
+      "currency": "CNY",
+      "exchange": "XSHG",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 502,
+      "exchangeMic": "XSHG",
+      "aliases": ["XSHG:510300", "510300"]
+    },
+    {
+      "symbol": "sh510300",
+      "name": "沪深300ETF",
+      "provider": "SINA",
+      "assetType": "ETF",
+      "currency": "CNY",
+      "exchange": "XSHG",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 502,
+      "exchangeMic": "XSHG",
+      "aliases": ["XSHG:510300", "510300"]
+    },
+    {
+      "symbol": "sz161725",
+      "name": "招商中证白酒LOF",
+      "provider": "TENCENT",
+      "assetType": "ETF",
+      "currency": "CNY",
+      "exchange": "XSHE",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 503,
+      "exchangeMic": "XSHE",
+      "aliases": ["XSHE:161725", "161725"]
+    },
+    {
+      "symbol": "sz161725",
+      "name": "招商中证白酒LOF",
+      "provider": "SINA",
+      "assetType": "ETF",
+      "currency": "CNY",
+      "exchange": "XSHE",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 503,
+      "exchangeMic": "XSHE",
+      "aliases": ["XSHE:161725", "161725"]
     }
   ],
   "splits": [
-    { "symbol": "TSLA", "date": "2020-08-31", "ratio": "5" },
-    { "symbol": "TSLA", "date": "2022-08-25", "ratio": "3" }
+    {
+      "symbol": "TSLA",
+      "date": "2020-08-31",
+      "ratio": "5"
+    },
+    {
+      "symbol": "TSLA",
+      "date": "2022-08-25",
+      "ratio": "3"
+    }
   ]
 }
