@@ -1071,7 +1071,8 @@
       "FINNHUB": "Finnhub는 전 세계 주식, 외환 및 암호화폐 실시간 데이터를 제공합니다. 무료 요금제는 분당 API 호출 60회를 지원합니다.",
       "EASTMONEY": "Eastmoney 및 Tiantian Fund의 주식, 펀드 및 지수 데이터",
       "TENCENT": "Tencent Finance의 주식, 상장 펀드 및 지수 데이터",
-      "SINA": "Sina Finance의 주식, 상장 펀드 및 지수 데이터"
+      "SINA": "Sina Finance의 주식, 상장 펀드 및 지수 데이터",
+      "FUTU": "Futunn OpenAPI 주식 및 ETF 시세"
     },
     "coverageLabels": {
       "Global": "글로벌",
@@ -1079,7 +1080,8 @@
       "USD only": "USD만 가능",
       "US Treasury": "미국 재무부",
       "Service-defined": "서비스 정의",
-      "User-defined": "사용자 정의"
+      "User-defined": "사용자 정의",
+      "US • HK • Shanghai • Shenzhen • Beijing": "미국 • 홍콩 • 상하이 • 선전 • 베이징"
     },
     "feature_no_api_key": "API 키 없음",
     "us_treasury_name": "미국 재무부(계산)",
@@ -1098,7 +1100,21 @@
     "native_provider_names": {
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
-      "SINA": "Sina Finance"
+      "SINA": "Sina Finance",
+      "FUTU": "Futu"
+    },
+    "futu": {
+      "private_key": "개인 키 (PEM)",
+      "show": "인증 정보 표시 / 편집",
+      "hide": "인증 정보 숨기기",
+      "delete": "인증 정보 삭제",
+      "help": "AppKeyId와 암호화되지 않은 Ed25519 또는 RSA PEM 개인 키를 사용하세요.",
+      "required": "AppKeyId와 개인 키를 입력하세요.",
+      "load_error": "인증 정보를 불러오지 못했습니다.",
+      "save_error": "인증 정보를 저장하지 못했습니다.",
+      "refresh_error": "인증 정보는 저장되었지만 검증 또는 클라이언트 새로 고침에 실패했습니다. 키 형식을 확인하고 다시 시도하세요.",
+      "saved": "인증 정보가 저장되었습니다.",
+      "deleted": "인증 정보가 삭제되었습니다."
     }
   },
   "addon_permission_none_detected": "감지된 데이터 접근 권한이 없습니다. 이 애드온은 시스템 접근 권한이 최소한인 것으로 보입니다.",

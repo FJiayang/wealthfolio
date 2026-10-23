@@ -59,7 +59,7 @@ fn native_migration_preserves_identity_prices_and_user_modes() {
         let activity = scalar(&mut conn,"SELECT json_group_array(json_array(id,account_id,asset_id,quantity,unit_price)) AS value FROM activities");
         conn.run_pending_migrations(MIGRATIONS).unwrap();
         assert_eq!(activity, scalar(&mut conn,"SELECT json_group_array(json_array(id,account_id,asset_id,quantity,unit_price)) AS value FROM activities"));
-        assert_eq!(scalar(&mut conn,"SELECT group_concat(id,',') AS value FROM (SELECT id FROM market_data_providers ORDER BY priority,id)"), order.replace("HTTP_API", "EASTMONEY,TENCENT,SINA"));
+        assert_eq!(scalar(&mut conn,"SELECT group_concat(id,',') AS value FROM (SELECT id FROM market_data_providers ORDER BY priority,id)"), format!("{},FUTU", order.replace("HTTP_API", "EASTMONEY,TENCENT,SINA")));
         assert_eq!(identity,scalar(&mut conn,"SELECT json_group_array(json_array(id,name,display_code,quote_mode,quote_ccy,instrument_symbol)) AS value FROM assets ORDER BY id"));
         assert_eq!(
             scalar(
@@ -121,4 +121,38 @@ fn native_migration_without_http_settings_defaults_to_disabled() {
         .unwrap();
     conn.run_pending_migrations(MIGRATIONS).unwrap();
     assert_eq!(scalar(&mut conn,"SELECT CAST(SUM(enabled) AS TEXT) AS value FROM market_data_providers WHERE id IN ('EASTMONEY','TENCENT','SINA')"), "0");
+}
+
+#[test]
+fn futu_migration_adds_disabled_provider_without_changing_existing_settings() {
+    let mut conn = older_database();
+    let mut migrations = conn.pending_migrations(MIGRATIONS).unwrap();
+    migrations.sort_by_key(|m| m.name().version().to_string());
+    for migration in migrations {
+        if migration.name().version().to_string().as_str() >= "20261023000002" {
+            break;
+        }
+        conn.run_migration(&*migration).unwrap();
+    }
+    let before = scalar(&mut conn, "SELECT group_concat(id || ':' || priority || ':' || enabled) AS value FROM (SELECT * FROM market_data_providers ORDER BY id)");
+    conn.run_pending_migrations(MIGRATIONS).unwrap();
+    assert_eq!(
+        scalar(
+            &mut conn,
+            "SELECT CAST(enabled AS TEXT) AS value FROM market_data_providers WHERE id='FUTU'"
+        ),
+        "0"
+    );
+    assert_eq!(before, scalar(&mut conn, "SELECT group_concat(id || ':' || priority || ':' || enabled) AS value FROM (SELECT * FROM market_data_providers WHERE id!='FUTU' ORDER BY id)"));
+    assert_eq!(scalar(&mut conn, "SELECT CAST(priority > (SELECT MAX(priority) FROM market_data_providers WHERE id!='FUTU') AS TEXT) AS value FROM market_data_providers WHERE id='FUTU'"), "1");
+    conn.batch_execute("UPDATE market_data_providers SET priority=99,enabled=1 WHERE id='FUTU'")
+        .unwrap();
+    assert!(conn.run_pending_migrations(MIGRATIONS).unwrap().is_empty());
+    assert_eq!(
+        scalar(
+            &mut conn,
+            "SELECT CAST(priority AS TEXT) AS value FROM market_data_providers WHERE id='FUTU'"
+        ),
+        "99"
+    );
 }

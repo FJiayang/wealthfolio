@@ -229,6 +229,10 @@ impl MarketDataClient {
 
         match provider_id {
             DATA_SOURCE_YAHOO => Ok(Some(Arc::new(FixtureProvider::new(fixture_dir)))),
+            DATA_SOURCE_FUTU => Ok(Some(Arc::new(FixtureProvider::new_for_provider(
+                fixture_dir,
+                DATA_SOURCE_FUTU,
+            )))),
             DATA_SOURCE_EASTMONEY | DATA_SOURCE_TENCENT | DATA_SOURCE_SINA => {
                 Ok(Some(Arc::new(FixtureProvider::new_for_provider(
                     fixture_dir,
@@ -278,6 +282,20 @@ impl MarketDataClient {
         }
 
         match provider_id {
+            DATA_SOURCE_FUTU => {
+                let Some(secret) = secret_store.get_secret(DATA_SOURCE_FUTU)? else {
+                    return Ok(None);
+                };
+                let credentials =
+                    serde_json::from_str::<wealthfolio_market_data::FutuCredentials>(&secret)
+                        .map_err(|_| {
+                            MarketDataClientError::InvalidData("FUTU: invalid credentials".into())
+                        })?;
+                Ok(Some(Arc::new(
+                    wealthfolio_market_data::FutuProvider::new(credentials)
+                        .map_err(MarketDataClientError::from)?,
+                )))
+            }
             DATA_SOURCE_EASTMONEY => Ok(Some(Arc::new(
                 wealthfolio_market_data::EastmoneyProvider::new()
                     .map_err(MarketDataClientError::from)?,
@@ -1368,6 +1386,83 @@ mod tests {
         fn delete_secret(&self, _service: &str) -> Result<()> {
             Ok(())
         }
+    }
+
+    struct FutuTestSecrets {
+        value: Option<String>,
+        reads: std::sync::atomic::AtomicUsize,
+    }
+    impl SecretStore for FutuTestSecrets {
+        fn set_secret(&self, _: &str, _: &str) -> Result<()> {
+            unreachable!()
+        }
+        fn delete_secret(&self, _: &str) -> Result<()> {
+            unreachable!()
+        }
+        fn get_secret(&self, service: &str) -> Result<Option<String>> {
+            assert_eq!(service, DATA_SOURCE_FUTU);
+            self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(self.value.clone())
+        }
+    }
+    #[tokio::test]
+    async fn futu_disabled_skips_secret_access_and_missing_credentials_skip_initialization() {
+        let store = Arc::new(FutuTestSecrets {
+            value: None,
+            reads: 0.into(),
+        });
+        let client = MarketDataClient::new(store.clone(), vec![]).await.unwrap();
+        assert!(client.registry.providers().is_empty());
+        assert_eq!(store.reads.load(std::sync::atomic::Ordering::SeqCst), 0);
+        let client = MarketDataClient::new(
+            store.clone(),
+            vec![ProviderConfig {
+                id: DATA_SOURCE_FUTU.into(),
+                priority: 1,
+            }],
+        )
+        .await
+        .unwrap();
+        assert!(client.registry.providers().is_empty());
+        assert_eq!(store.reads.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+    #[tokio::test]
+    async fn futu_initializes_locally_and_invalid_keys_do_not_remove_other_providers() {
+        let secret = serde_json::json!({"appKeyId":"synthetic-app","privateKey":"-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIAcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH\n-----END PRIVATE KEY-----\n"}).to_string();
+        let store = Arc::new(FutuTestSecrets {
+            value: Some(secret),
+            reads: 0.into(),
+        });
+        let client = MarketDataClient::new(
+            store,
+            vec![ProviderConfig {
+                id: DATA_SOURCE_FUTU.into(),
+                priority: 1,
+            }],
+        )
+        .await
+        .unwrap();
+        assert_eq!(client.registry.providers().len(), 1);
+        assert_eq!(client.registry.providers()[0].id(), DATA_SOURCE_FUTU);
+        let store = Arc::new(FutuTestSecrets {
+            value: Some(r#"{"appKeyId":"synthetic","privateKey":"invalid"}"#.into()),
+            reads: 0.into(),
+        });
+        let client = MarketDataClient::new_with_extra(
+            store,
+            vec![ProviderConfig {
+                id: DATA_SOURCE_FUTU.into(),
+                priority: 1,
+            }],
+            vec![Arc::new(FailingProvider {
+                id: "ALPHA_VANTAGE",
+                priority: 2,
+            })],
+        )
+        .await
+        .unwrap();
+        assert_eq!(client.registry.providers().len(), 1);
+        assert_eq!(client.registry.providers()[0].id(), "ALPHA_VANTAGE");
     }
 
     #[tokio::test]

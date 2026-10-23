@@ -1025,6 +1025,17 @@
       "seed": 503,
       "exchangeMic": "XSHE",
       "aliases": ["XSHE:161725", "161725"]
+    },
+    {
+      "symbol": "US.AAPL",
+      "name": "Apple Inc.",
+      "provider": "FUTU",
+      "assetType": "EQUITY",
+      "currency": "USD",
+      "exchangeMic": "XNAS",
+      "basePrice": 200,
+      "baseVolume": 100000,
+      "seed": 701
     }
   ],
   "splits": [

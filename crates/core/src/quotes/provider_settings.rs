@@ -54,6 +54,11 @@ impl ProviderCapabilities {
     /// Get capabilities for a provider by ID.
     pub fn for_provider(provider_id: &str) -> Option<Self> {
         match provider_id {
+            "FUTU" => Some(Self {
+                instruments: "Stocks • ETFs".into(),
+                coverage: "US • HK • Shanghai • Shenzhen • Beijing".into(),
+                features: vec!["Latest".into(), "Historical".into()],
+            }),
             "YAHOO" => Some(Self {
                 instruments: "Stocks • Crypto • Forex • Metals".to_string(),
                 coverage: "Global".to_string(),

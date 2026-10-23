@@ -1100,7 +1100,8 @@
       "FINNHUB": "Finnhub fornisce dati globali in tempo reale su azioni, forex e criptovalute. Il piano gratuito include 60 chiamate API al minuto.",
       "EASTMONEY": "Azioni, fondi e indici di Eastmoney e Tiantian Fund",
       "TENCENT": "Azioni, fondi quotati e indici di Tencent Finance",
-      "SINA": "Azioni, fondi quotati e indici di Sina Finance"
+      "SINA": "Azioni, fondi quotati e indici di Sina Finance",
+      "FUTU": "Quotazioni azionarie ed ETF da Futunn OpenAPI"
     },
     "coverageLabels": {
       "Global": "Globale",
@@ -1108,7 +1109,8 @@
       "USD only": "Solo USD",
       "US Treasury": "Ministero del Tesoro degli Stati Uniti",
       "Service-defined": "Definito dal servizio",
-      "User-defined": "Definito dall'utente"
+      "User-defined": "Definito dall'utente",
+      "US • HK • Shanghai • Shenzhen • Beijing": "USA • Hong Kong • Shanghai • Shenzhen • Pechino"
     },
     "feature_no_api_key": "Nessuna chiave API",
     "us_treasury_name": "Ministero del Tesoro degli Stati Uniti (calcolato)",
@@ -1127,7 +1129,21 @@
     "native_provider_names": {
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
-      "SINA": "Sina Finance"
+      "SINA": "Sina Finance",
+      "FUTU": "Futu"
+    },
+    "futu": {
+      "private_key": "Chiave privata (PEM)",
+      "show": "Mostra / modifica credenziali",
+      "hide": "Nascondi credenziali",
+      "delete": "Elimina credenziali",
+      "help": "Usa AppKeyId e una chiave privata PEM Ed25519 o RSA non cifrata.",
+      "required": "Inserisci AppKeyId e la chiave privata.",
+      "load_error": "Impossibile caricare le credenziali.",
+      "save_error": "Impossibile salvare le credenziali.",
+      "refresh_error": "Credenziali archiviate, ma convalida o aggiornamento del client non riusciti. Controlla il formato e riprova.",
+      "saved": "Credenziali salvate.",
+      "deleted": "Credenziali eliminate."
     }
   },
   "addon_permission_none_detected": "Nessun permesso di accesso ai dati rilevato. Questo add-on sembra avere un accesso minimo al sistema.",

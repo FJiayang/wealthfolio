@@ -1028,7 +1028,8 @@
       "FINNHUB": "Finnhub provides real-time stock, forex, and cryptocurrency data with global coverage. Free tier includes 60 API calls/minute.",
       "EASTMONEY": "Stocks, funds and indices from Eastmoney and Tiantian Fund",
       "TENCENT": "Stocks, listed funds and indices from Tencent Finance",
-      "SINA": "Stocks, listed funds and indices from Sina Finance"
+      "SINA": "Stocks, listed funds and indices from Sina Finance",
+      "FUTU": "Stock and ETF quotes from Futunn OpenAPI"
     },
     "coverageLabels": {
       "Global": "Global",
@@ -1036,7 +1037,8 @@
       "USD only": "USD only",
       "US Treasury": "US Treasury",
       "Service-defined": "Service-defined",
-      "User-defined": "User-defined"
+      "User-defined": "User-defined",
+      "US • HK • Shanghai • Shenzhen • Beijing": "US • HK • Shanghai • Shenzhen • Beijing"
     },
     "feature_dividends": "Dividends",
     "feature_no_api_key": "No API key",
@@ -1056,7 +1058,21 @@
     "native_provider_names": {
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
-      "SINA": "Sina Finance"
+      "SINA": "Sina Finance",
+      "FUTU": "Futu"
+    },
+    "futu": {
+      "private_key": "Private key (PEM)",
+      "show": "Show / edit credentials",
+      "hide": "Hide credentials",
+      "delete": "Delete credentials",
+      "help": "Use AppKeyId and an unencrypted Ed25519 or RSA PEM private key.",
+      "required": "Enter AppKeyId and private key.",
+      "load_error": "Unable to load credentials.",
+      "save_error": "Unable to save credentials.",
+      "refresh_error": "Credentials were stored, but validation or client refresh failed. Check the key format and retry.",
+      "saved": "Credentials saved.",
+      "deleted": "Credentials deleted."
     }
   },
   "addon_permission_none_detected": "No data access permissions detected. This addon appears to have minimal system access.",

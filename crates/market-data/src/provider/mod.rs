@@ -27,6 +27,7 @@ pub mod boerse_frankfurt;
 pub mod eastmoney;
 pub mod finnhub;
 pub mod fixture;
+pub mod futu;
 pub mod marketdata_app;
 pub mod metal_price_api;
 pub(crate) mod native;
