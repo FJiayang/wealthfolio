@@ -82,6 +82,7 @@ mod chain;
 pub mod exchange_metadata;
 pub(crate) mod exchange_registry;
 mod exchange_suffixes;
+pub(crate) mod futu;
 mod profile_check;
 mod rules_resolver;
 mod traits;

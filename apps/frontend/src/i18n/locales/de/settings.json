@@ -962,7 +962,8 @@
       "FINNHUB": "Finnhub bietet weltweite Echtzeitdaten zu Aktien, Devisen und Kryptowährungen. Der kostenlose Tarif umfasst 60 API-Aufrufe pro Minute.",
       "EASTMONEY": "Aktien, Fonds und Indizes von Eastmoney und Tiantian Fund",
       "TENCENT": "Aktien, börsennotierte Fonds und Indizes von Tencent Finance",
-      "SINA": "Aktien, börsennotierte Fonds und Indizes von Sina Finance"
+      "SINA": "Aktien, börsennotierte Fonds und Indizes von Sina Finance",
+      "FUTU": "Aktien- und ETF-Kurse von Futunn OpenAPI"
     },
     "coverageLabels": {
       "Global": "Global",
@@ -970,7 +971,8 @@
       "USD only": "Nur USD",
       "US Treasury": "US-Finanzministerium",
       "Service-defined": "Dienstdefiniert",
-      "User-defined": "Benutzerdefiniert"
+      "User-defined": "Benutzerdefiniert",
+      "US • HK • Shanghai • Shenzhen • Beijing": "USA • Hongkong • Shanghai • Shenzhen • Peking"
     },
     "feature_no_api_key": "Kein API-Schlüssel",
     "us_treasury_name": "US-Finanzministerium (berechnet)",
@@ -989,7 +991,21 @@
     "native_provider_names": {
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
-      "SINA": "Sina Finance"
+      "SINA": "Sina Finance",
+      "FUTU": "Futu"
+    },
+    "futu": {
+      "private_key": "Privater Schlüssel (PEM)",
+      "show": "Zugangsdaten anzeigen / bearbeiten",
+      "hide": "Zugangsdaten ausblenden",
+      "delete": "Zugangsdaten löschen",
+      "help": "AppKeyId und einen unverschlüsselten Ed25519- oder RSA-PEM-Schlüssel verwenden.",
+      "required": "AppKeyId und privaten Schlüssel eingeben.",
+      "load_error": "Zugangsdaten konnten nicht geladen werden.",
+      "save_error": "Zugangsdaten konnten nicht gespeichert werden.",
+      "refresh_error": "Zugangsdaten gespeichert, aber Prüfung oder Client-Aktualisierung fehlgeschlagen. Schlüsselformat prüfen und erneut versuchen.",
+      "saved": "Zugangsdaten gespeichert.",
+      "deleted": "Zugangsdaten gelöscht."
     }
   },
   "addon_permission_none_detected": "Keine Datenzugriffsberechtigungen erkannt. Dieses Add-on scheint minimalen Systemzugriff zu haben.",

@@ -1055,7 +1055,8 @@
       "Global": "全球",
       "US only": "仅限美国",
       "USD only": "仅限美元",
-      "US Treasury": "美国国债"
+      "US Treasury": "美国国债",
+      "US • HK • Shanghai • Shenzhen • Beijing": "美国 • 香港 • 上海 • 深圳 • 北京"
     },
     "feature_no_api_key": "无需 API 密钥",
     "us_treasury_name": "美国财政部（计算）",
@@ -1081,7 +1082,8 @@
       "FINNHUB": "Finnhub 提供覆盖全球的实时股票、外汇及加密货币数据。免费方案每分钟支持 60 次 API 调用。",
       "EASTMONEY": "东方财富和天天基金提供的股票、基金及指数数据",
       "TENCENT": "腾讯财经提供的股票、场内基金及指数数据",
-      "SINA": "新浪财经提供的股票、场内基金及指数数据"
+      "SINA": "新浪财经提供的股票、场内基金及指数数据",
+      "FUTU": "富途 OpenAPI 股票和 ETF 行情"
     },
     "templateDescriptions": {
       "workplace_fund_prices_fund_code": "雇主退休计划基金价格（基金代码）",
@@ -1098,7 +1100,21 @@
     "native_provider_names": {
       "EASTMONEY": "东方财富",
       "TENCENT": "腾讯财经",
-      "SINA": "新浪财经"
+      "SINA": "新浪财经",
+      "FUTU": "富途"
+    },
+    "futu": {
+      "private_key": "私钥（PEM）",
+      "show": "显示 / 编辑凭据",
+      "hide": "隐藏凭据",
+      "delete": "删除凭据",
+      "help": "使用 AppKeyId 和未加密的 Ed25519 或 RSA PEM 私钥。",
+      "required": "请填写 AppKeyId 和私钥。",
+      "load_error": "读取凭据失败。",
+      "save_error": "保存凭据失败。",
+      "refresh_error": "凭据已存储，但校验或客户端刷新失败。请检查密钥格式后重试。",
+      "saved": "凭据已保存。",
+      "deleted": "凭据已删除。"
     }
   },
   "addon_permission_none_detected": "未检测到数据访问权限。此插件似乎对系统的访问权限极少。",

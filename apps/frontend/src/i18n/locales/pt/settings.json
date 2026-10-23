@@ -1100,7 +1100,8 @@
       "FINNHUB": "A Finnhub oferece dados globais em tempo real de ações, câmbio e criptomoedas. O plano gratuito inclui 60 chamadas de API por minuto.",
       "EASTMONEY": "Ações, fundos e índices da Eastmoney e Tiantian Fund",
       "TENCENT": "Ações, fundos cotados e índices da Tencent Finance",
-      "SINA": "Ações, fundos cotados e índices da Sina Finance"
+      "SINA": "Ações, fundos cotados e índices da Sina Finance",
+      "FUTU": "Cotações de ações e ETFs da Futunn OpenAPI"
     },
     "coverageLabels": {
       "Global": "Global",
@@ -1108,7 +1109,8 @@
       "USD only": "Somente dólares americanos",
       "US Treasury": "Tesouro dos EUA",
       "Service-defined": "Definido pelo serviço",
-      "User-defined": "Definido pelo usuário"
+      "User-defined": "Definido pelo usuário",
+      "US • HK • Shanghai • Shenzhen • Beijing": "EUA • Hong Kong • Xangai • Shenzhen • Pequim"
     },
     "feature_no_api_key": "Nenhuma chave de API",
     "us_treasury_name": "Tesouro dos EUA (calculado)",
@@ -1127,7 +1129,21 @@
     "native_provider_names": {
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
-      "SINA": "Sina Finance"
+      "SINA": "Sina Finance",
+      "FUTU": "Futu"
+    },
+    "futu": {
+      "private_key": "Chave privada (PEM)",
+      "show": "Mostrar / editar credenciais",
+      "hide": "Ocultar credenciais",
+      "delete": "Excluir credenciais",
+      "help": "Use AppKeyId e uma chave privada PEM Ed25519 ou RSA sem criptografia.",
+      "required": "Informe AppKeyId e a chave privada.",
+      "load_error": "Não foi possível carregar as credenciais.",
+      "save_error": "Não foi possível salvar as credenciais.",
+      "refresh_error": "Credenciais armazenadas, mas a validação ou atualização do cliente falhou. Verifique o formato e tente novamente.",
+      "saved": "Credenciais salvas.",
+      "deleted": "Credenciais excluídas."
     }
   },
   "addon_permission_none_detected": "Nenhuma permissão de acesso a dados detectada. Esta extensão parece ter acesso mínimo ao sistema.",

@@ -1102,7 +1102,8 @@
       "FINNHUB": "Finnhub fournit des données mondiales en temps réel sur les actions, le forex et les cryptomonnaies. L’offre gratuite comprend 60 appels API par minute.",
       "EASTMONEY": "Actions, fonds et indices de Eastmoney et Tiantian Fund",
       "TENCENT": "Actions, fonds cotés et indices de Tencent Finance",
-      "SINA": "Actions, fonds cotés et indices de Sina Finance"
+      "SINA": "Actions, fonds cotés et indices de Sina Finance",
+      "FUTU": "Cours des actions et ETF de Futunn OpenAPI"
     },
     "coverageLabels": {
       "Global": "Mondial",
@@ -1110,7 +1111,8 @@
       "USD only": "USD uniquement",
       "US Treasury": "Trésor américain",
       "Service-defined": "Défini par le service",
-      "User-defined": "Défini par l'utilisateur"
+      "User-defined": "Défini par l'utilisateur",
+      "US • HK • Shanghai • Shenzhen • Beijing": "États-Unis • Hong Kong • Shanghai • Shenzhen • Pékin"
     },
     "feature_no_api_key": "Aucune clé API",
     "us_treasury_name": "Trésor américain (calculé)",
@@ -1129,7 +1131,21 @@
     "native_provider_names": {
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
-      "SINA": "Sina Finance"
+      "SINA": "Sina Finance",
+      "FUTU": "Futu"
+    },
+    "futu": {
+      "private_key": "Clé privée (PEM)",
+      "show": "Afficher / modifier les identifiants",
+      "hide": "Masquer les identifiants",
+      "delete": "Supprimer les identifiants",
+      "help": "Utilisez AppKeyId et une clé privée PEM Ed25519 ou RSA non chiffrée.",
+      "required": "Saisissez AppKeyId et la clé privée.",
+      "load_error": "Chargement des identifiants impossible.",
+      "save_error": "Enregistrement des identifiants impossible.",
+      "refresh_error": "Identifiants stockés, mais validation ou actualisation du client échouée. Vérifiez le format de la clé et réessayez.",
+      "saved": "Identifiants enregistrés.",
+      "deleted": "Identifiants supprimés."
     }
   },
   "addon_permission_none_detected": "Aucune permission d’accès aux données détectée. Cette extension semble avoir un accès système minimal.",

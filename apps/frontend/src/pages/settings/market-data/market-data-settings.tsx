@@ -61,6 +61,7 @@ import {
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
+import { FutuCredentialsForm } from "./futu-credentials-form";
 import { CustomProviderForm } from "./custom-provider-form";
 import { CustomProviderUsageChips } from "./custom-provider-usage-chips";
 import {
@@ -404,61 +405,65 @@ function ProviderSettings({
                   {t("settings:market_data_page.settings")}
                 </h4>
                 <div className="space-y-4">
-                  {provider.requiresApiKey && (
-                    <div className="space-y-2">
-                      <Label htmlFor={`apikey-${provider.id}`} className="text-xs font-medium">
-                        {t("settings:market_data_page.api_key")}
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          id={`apikey-${provider.id}`}
-                          type={showApiKey ? "text" : "password"}
-                          value={
-                            hasLoadedKey || apiKeyValue
-                              ? apiKeyValue
-                              : provider.hasApiKey
-                                ? "••••••••••••••••••••••••"
-                                : ""
-                          }
-                          onChange={(e) => setApiKeyValue(e.target.value)}
-                          placeholder={
-                            provider.hasApiKey
-                              ? ""
-                              : t("settings:market_data_page.api_key_placeholder")
-                          }
-                          className="grow font-mono text-xs"
-                          readOnly={!hasLoadedKey && provider.hasApiKey}
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={handleRevealApiKey}
-                          disabled={isLoadingKey}
-                          aria-label={
-                            showApiKey
-                              ? t("settings:market_data_page.hide_api_key")
-                              : t("settings:market_data_page.show_api_key")
-                          }
-                        >
-                          {isLoadingKey ? (
-                            <Spinner className="h-3.5 w-3.5" />
-                          ) : showApiKey ? (
-                            <Icons.EyeOff className="h-3.5 w-3.5" />
-                          ) : (
-                            <Icons.Eye className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
-                        <Button
-                          onClick={handleSaveApiKey}
-                          size="sm"
-                          className="h-8"
-                          disabled={provider.hasApiKey && !hasLoadedKey}
-                        >
-                          {t("settings:common_save")}
-                        </Button>
+                  {provider.id === "FUTU" ? (
+                    <FutuCredentialsForm provider={provider} />
+                  ) : (
+                    provider.requiresApiKey && (
+                      <div className="space-y-2">
+                        <Label htmlFor={`apikey-${provider.id}`} className="text-xs font-medium">
+                          {t("settings:market_data_page.api_key")}
+                        </Label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            id={`apikey-${provider.id}`}
+                            type={showApiKey ? "text" : "password"}
+                            value={
+                              hasLoadedKey || apiKeyValue
+                                ? apiKeyValue
+                                : provider.hasApiKey
+                                  ? "••••••••••••••••••••••••"
+                                  : ""
+                            }
+                            onChange={(e) => setApiKeyValue(e.target.value)}
+                            placeholder={
+                              provider.hasApiKey
+                                ? ""
+                                : t("settings:market_data_page.api_key_placeholder")
+                            }
+                            className="grow font-mono text-xs"
+                            readOnly={!hasLoadedKey && provider.hasApiKey}
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={handleRevealApiKey}
+                            disabled={isLoadingKey}
+                            aria-label={
+                              showApiKey
+                                ? t("settings:market_data_page.hide_api_key")
+                                : t("settings:market_data_page.show_api_key")
+                            }
+                          >
+                            {isLoadingKey ? (
+                              <Spinner className="h-3.5 w-3.5" />
+                            ) : showApiKey ? (
+                              <Icons.EyeOff className="h-3.5 w-3.5" />
+                            ) : (
+                              <Icons.Eye className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                          <Button
+                            onClick={handleSaveApiKey}
+                            size="sm"
+                            className="h-8"
+                            disabled={provider.hasApiKey && !hasLoadedKey}
+                          >
+                            {t("settings:common_save")}
+                          </Button>
+                        </div>
                       </div>
-                    </div>
+                    )
                   )}
 
                   <div className="flex items-center gap-3">

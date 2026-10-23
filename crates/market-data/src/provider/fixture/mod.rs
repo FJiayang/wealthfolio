@@ -578,6 +578,9 @@ impl MarketDataProvider for FixtureProvider {
     }
 
     fn capabilities(&self) -> ProviderCapabilities {
+        if self.provider_id == crate::provider::futu::DATA_SOURCE_FUTU {
+            return crate::provider::futu::capabilities();
+        }
         if self.provider_id == "BOERSE_FRANKFURT" {
             return ProviderCapabilities {
                 instrument_kinds: &[InstrumentKind::Equity, InstrumentKind::Bond],
