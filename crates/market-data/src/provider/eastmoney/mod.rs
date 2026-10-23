@@ -14,16 +14,31 @@ use std::collections::BTreeMap;
 
 pub struct EastmoneyProvider {
     client: reqwest::Client,
+    #[cfg(test)]
+    responses: Option<std::sync::Mutex<std::collections::VecDeque<Value>>>,
 }
 impl EastmoneyProvider {
     pub fn new() -> Result<Self, MarketDataError> {
-        Ok(Self { client: client()? })
+        Ok(Self {
+            client: client()?,
+            #[cfg(test)]
+            responses: None,
+        })
     }
     async fn request(
         &self,
         url: &str,
         params: &[(&str, String)],
     ) -> Result<Value, MarketDataError> {
+        #[cfg(test)]
+        if let Some(responses) = &self.responses {
+            assert_eq!(url, "https://push2his.eastmoney.com/api/qt/stock/kline/get");
+            return Ok(responses
+                .lock()
+                .expect("test response lock")
+                .pop_front()
+                .expect("unexpected history request"));
+        }
         json(&get(&self.client, self.id(), url, params).await?)
     }
     async fn fund_search(&self, code: &str) -> Result<Vec<SearchResult>, MarketDataError> {
@@ -335,7 +350,19 @@ fn parse_search(value: &Value) -> Result<Vec<SearchResult>, MarketDataError> {
     Ok(results)
 }
 fn parse_kline(value: &Value, currency: &str, symbol: &str) -> Result<Vec<Quote>, MarketDataError> {
-    if value["data"].is_null() {
+    let status = value["rc"]
+        .as_i64()
+        .ok_or_else(|| invalid("History status missing or invalid"))?;
+    if status != 0 {
+        return Err(MarketDataError::ProviderError {
+            provider: DATA_SOURCE_EASTMONEY.into(),
+            message: format!("History request failed (rc={status})"),
+        });
+    }
+    let data = value
+        .get("data")
+        .ok_or_else(|| invalid("History data missing"))?;
+    if data.is_null() {
         return Ok(vec![]);
     }
     let code = symbol
@@ -791,9 +818,69 @@ mod tests {
         assert!(matches_query(&rows[1], "XSHG:600519"));
         assert!(!matches_query(&rows[1], "XSHE:600519"));
     }
+    #[tokio::test]
+    async fn failed_year_discards_partial_history_and_allows_failover() {
+        use crate::errors::RetryClass;
+        use chrono::TimeZone;
+        let provider = EastmoneyProvider {
+            client: client().unwrap(),
+            responses: Some(std::sync::Mutex::new(std::collections::VecDeque::from([
+                json!({"rc":0,"data":{"code":"600519","klines":["2025-12-31,10,12,13,9,5"]}}),
+                json!({"rc":102,"data":null}),
+            ]))),
+        };
+        let context = QuoteContext {
+            instrument: InstrumentId::Equity {
+                ticker: "600519".into(),
+                mic: Some("XSHG".into()),
+            },
+            identifiers: Default::default(),
+            overrides: None,
+            currency_hint: Some("CNY".into()),
+            preferred_provider: None,
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+        let result = provider
+            .get_historical_quotes(
+                &context,
+                ProviderInstrument::EquitySymbol {
+                    symbol: "1.600519".into(),
+                },
+                Utc.with_ymd_and_hms(2025, 12, 31, 0, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2026, 1, 5, 0, 0, 0).unwrap(),
+            )
+            .await;
+        let error =
+            result.expect_err("a failed year must not return the other year's partial history");
+        assert_eq!(error.retry_class(), RetryClass::NextProvider);
+        assert!(provider
+            .responses
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn history_status_distinguishes_empty_data_from_failure() {
+        assert!(parse_kline(&json!({"rc":0,"data":null}), "CNY", "1.600519")
+            .unwrap()
+            .is_empty());
+        for response in [
+            json!({"rc":102,"data":null}),
+            json!({"data":null}),
+            json!({"rc":"bad","data":null}),
+            json!({"rc":0}),
+        ] {
+            assert!(parse_kline(&response, "CNY", "1.600519").is_err());
+        }
+    }
+
     #[test]
     fn volume_and_missing_prices_are_not_guessed() {
-        let data = json!({"data":{"code":"600519","klines":["2026-01-05,10,12,13,9,5"]}});
+        let data = json!({"rc":0,"data":{"code":"600519","klines":["2026-01-05,10,12,13,9,5"]}});
         assert_eq!(
             parse_kline(&data, "CNY", "1.600519").unwrap()[0].volume,
             Some(Decimal::from(500))

@@ -740,7 +740,13 @@ impl ProviderRegistry {
     /// Tries providers that support search until one succeeds.
     pub async fn search(&self, query: &str) -> Result<Vec<SearchResult>, MarketDataError> {
         let normalized = query.trim().to_uppercase();
+        let reserved_namespace = normalized
+            .split_once(':')
+            .is_some_and(|(namespace, _)| namespace == "FUND" || crate::is_known_mic(namespace));
         let qualified = crate::resolver::qualified_symbol(&normalized);
+        if reserved_namespace && qualified.is_none() {
+            return Ok(Vec::new());
+        }
         let context = qualified.map(|(mic, code)| crate::QuoteContext {
             instrument: InstrumentId::Equity {
                 ticker: if mic == "FUND" {
@@ -1389,6 +1395,7 @@ mod tests {
 
     #[derive(Default)]
     struct OperationCounts {
+        search: AtomicUsize,
         latest: AtomicUsize,
         historical: AtomicUsize,
         splits: AtomicUsize,
@@ -1417,7 +1424,7 @@ mod tests {
                 coverage: Coverage::global_best_effort(),
                 supports_latest: true,
                 supports_historical: true,
-                supports_search: false,
+                supports_search: true,
                 supports_profile: true,
                 supports_dividends: true,
             }
@@ -1425,6 +1432,13 @@ mod tests {
 
         fn rate_limit(&self) -> RateLimit {
             RateLimit::default()
+        }
+
+        async fn search(&self, _query: &str) -> Result<Vec<SearchResult>, MarketDataError> {
+            self.counts.search.fetch_add(1, Ordering::SeqCst);
+            Ok(vec![
+                SearchResult::new("AAPL", "Apple", "XNAS", "EQUITY").with_exchange_mic("XNAS")
+            ])
         }
 
         async fn get_latest_quote(
@@ -1511,6 +1525,34 @@ mod tests {
             DATA_SOURCE_TENCENT
         );
         assert_eq!(east.call_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn incomplete_reserved_prefixes_make_no_provider_requests() {
+        let counts = Arc::new(OperationCounts::default());
+        let providers: Vec<Arc<dyn MarketDataProvider>> = ["YAHOO", "EASTMONEY"]
+            .into_iter()
+            .map(|id| {
+                Arc::new(AllOperationsProvider {
+                    id,
+                    counts: counts.clone(),
+                }) as Arc<dyn MarketDataProvider>
+            })
+            .collect();
+        let registry = ProviderRegistry::new(providers, Arc::new(MockResolver));
+        for query in [
+            "FUND:",
+            " fund: ",
+            "FUND:005827/",
+            "XSHG:",
+            "xnas: ",
+            "XSHE:000001!",
+        ] {
+            assert!(registry.search(query).await.unwrap().is_empty(), "{query}");
+        }
+        assert_eq!(counts.search.load(Ordering::SeqCst), 0);
+        assert_eq!(registry.search("AAPL").await.unwrap()[0].symbol, "AAPL");
+        assert_eq!(counts.search.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
