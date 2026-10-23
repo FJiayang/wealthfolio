@@ -1,7 +1,8 @@
 # Self-Hosting Wealthfolio
 
-Wealthfolio ships an official Docker image so you can run the web edition on
-your own hardware.
+This repository builds FJiayang's fork of Wealthfolio for self-hosting the web
+edition. Its GHCR images are fork builds, not the upstream project's official
+Docker images.
 
 For more documentation, including platform setup, configuration, reverse
 proxies, and troubleshooting, see the
@@ -13,18 +14,29 @@ own repositories.
 
 ## Image
 
-Multi-arch (`linux/amd64`, `linux/arm64`), published on every `v*.*.*` tag:
+Fork images target both `linux/amd64` and `linux/arm64` and are published only
+to `ghcr.io/fjiayang/wealthfolio`. Releases use four-component Git tags such as
+`v3.10.0.8` and matching image tags such as `3.10.0.8`. The workflow publishes
+only after both architectures pass their smoke tests; creating a Git tag alone
+does not make the image available.
 
-Images are published only to GitHub Container Registry (GHCR), at
-`ghcr.io/<github-owner>/wealthfolio`. Replace `your-github-owner` below with the
-repository owner's lowercase name:
+After confirming that the release build succeeded, pull its exact version:
 
 ```bash
-docker pull ghcr.io/your-github-owner/wealthfolio:latest
+docker pull ghcr.io/fjiayang/wealthfolio:3.10.0.8
 ```
 
-Docker Hub images no longer receive releases from this workflow. Update existing
-deployments to use the GHCR image to receive future releases.
+To follow the most recently published fork build instead:
+
+```bash
+docker pull ghcr.io/fjiayang/wealthfolio:latest
+```
+
+Prefer a verified exact version or digest for reproducible deployments. See the
+[fork maintenance guide](../fork-maintenance.md) for versioning, historical tag
+migration, and the distinction between upstream application updates and fork
+releases. This fork's workflow does not publish Docker Hub images; upstream
+Docker Hub images follow the upstream project's release policy.
 
 ## Reverse proxies and profile startup
 
