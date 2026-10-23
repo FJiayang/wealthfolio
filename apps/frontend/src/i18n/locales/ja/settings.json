@@ -1060,6 +1060,7 @@
     "review_first_rows_one": "CSV データの最初の行を確認します。",
     "import_quotes_count_one": "{{count}} 見積をインポート",
     "providerDescriptions": {
+      "IFIND": "同花順 iFinD の株式・ファンド・指数データ",
       "YAHOO": "Yahoo Finance は、多くの市場を対象とする大手金融データ プロバイダーです。過去およびリアルタイムの株式データを提供します。",
       "MARKETDATA_APP": "MarketData.app は、米国株、オプション、ETF、投資信託などのリアルタイム データと履歴データを提供します。",
       "ALPHA_VANTAGE": "Alpha Vantage は、株式、外国為替、暗号通貨に関するリアルタイムおよび履歴データ用の無料 API を提供します。",
@@ -1074,6 +1075,7 @@
       "SINA": "Sina Financeの株式・上場ファンド・指数データ"
     },
     "coverageLabels": {
+      "China • Hong Kong • US": "中国 • 香港 • 米国",
       "Global": "グローバル",
       "US only": "米国のみ",
       "USD only": "米ドルのみ",
@@ -1096,6 +1098,7 @@
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "毎日の暗号通貨履歴 (コイン ID を使用: bitcoin、ethereumなど)"
     },
     "native_provider_names": {
+      "IFIND": "同花順 iFinD",
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
       "SINA": "Sina Finance"

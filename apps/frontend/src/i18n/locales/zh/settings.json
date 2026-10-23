@@ -1050,6 +1050,7 @@
     "failed_count_one": "失败 {{count}} 条",
     "feature_dividends": "股息",
     "coverageLabels": {
+      "China • Hong Kong • US": "中国内地 • 中国香港 • 美国",
       "Service-defined": "由服务定义",
       "User-defined": "用户自定义",
       "Global": "全球",
@@ -1070,6 +1071,7 @@
     "review_first_rows_one": "查看 CSV 数据的第一行",
     "import_quotes_count_one": "导入 {{count}} 报价",
     "providerDescriptions": {
+      "IFIND": "同花顺 iFinD 提供的股票、基金与指数行情",
       "YAHOO": "Yahoo Finance 提供多个市场的历史及实时股票数据。",
       "MARKETDATA_APP": "MarketData.app 提供美国股票、期权、ETF、共同基金等的实时和历史数据。",
       "ALPHA_VANTAGE": "Alpha Vantage 为股票、外汇和加密货币的实时和历史数据提供免费的 API。",
@@ -1096,6 +1098,7 @@
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "加密货币每日历史价格（使用币种 ID：bitcoin、ethereum 等）"
     },
     "native_provider_names": {
+      "IFIND": "同花顺 iFinD",
       "EASTMONEY": "东方财富",
       "TENCENT": "腾讯财经",
       "SINA": "新浪财经"

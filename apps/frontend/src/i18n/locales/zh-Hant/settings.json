@@ -1061,6 +1061,7 @@
     "priority_increase": "增加優先順序數值",
     "feature_dividends": "股利",
     "providerDescriptions": {
+      "IFIND": "同花順 iFinD 提供的股票、基金與指數行情",
       "US_TREASURY_CALC": "根據美國財政部公佈的殖利率曲線計算美國國債價格。",
       "BOERSE_FRANKFURT": "法蘭克福交易所提供歐洲市場的債券和證券定價資料。",
       "OPENFIGI": "OpenFIGI 提供金融工具標識符（FIGI、ISIN、CUSIP、股票代碼）的映射服務。",
@@ -1075,6 +1076,7 @@
       "SINA": "新浪財經提供的股票、場內基金及指數資料"
     },
     "coverageLabels": {
+      "China • Hong Kong • US": "中國內地 • 中國香港 • 美國",
       "Global": "全球",
       "US only": "僅限美國",
       "USD only": "僅限美元",
@@ -1097,6 +1099,7 @@
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "加密貨幣每日歷史價格（使用幣種 ID：bitcoin、ethereum 等）"
     },
     "native_provider_names": {
+      "IFIND": "同花順 iFinD",
       "EASTMONEY": "東方財富",
       "TENCENT": "騰訊財經",
       "SINA": "新浪財經"

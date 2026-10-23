@@ -306,6 +306,21 @@ impl FixtureInstrument {
         if let Some(exchange_mic) = &self.exchange_mic {
             result = result.with_exchange_mic(exchange_mic.clone());
         }
+        if self.provider == crate::provider::DATA_SOURCE_IFIND {
+            let (kind, code) = self
+                .symbol
+                .split_once(':')
+                .expect("IFIND fixture has a service category");
+            let ticker = code
+                .rsplit_once('.')
+                .expect("IFIND fixture has a listing suffix")
+                .0;
+            result.canonical_symbol = Some(if kind == "nav" {
+                format!("FUND:{ticker}")
+            } else {
+                ticker.into()
+            });
+        }
         if crate::provider::is_native_provider(&self.provider) {
             if let Some((market, code)) = crate::resolver::qualified_symbol(&self.symbol) {
                 result.canonical_symbol = Some(if crate::is_known_mic(market) {

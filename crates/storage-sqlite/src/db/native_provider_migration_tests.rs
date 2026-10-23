@@ -59,7 +59,7 @@ fn native_migration_preserves_identity_prices_and_user_modes() {
         let activity = scalar(&mut conn,"SELECT json_group_array(json_array(id,account_id,asset_id,quantity,unit_price)) AS value FROM activities");
         conn.run_pending_migrations(MIGRATIONS).unwrap();
         assert_eq!(activity, scalar(&mut conn,"SELECT json_group_array(json_array(id,account_id,asset_id,quantity,unit_price)) AS value FROM activities"));
-        assert_eq!(scalar(&mut conn,"SELECT group_concat(id,',') AS value FROM (SELECT id FROM market_data_providers ORDER BY priority,id)"), order.replace("HTTP_API", "EASTMONEY,TENCENT,SINA"));
+        assert_eq!(scalar(&mut conn,"SELECT group_concat(id,',') AS value FROM (SELECT id FROM market_data_providers ORDER BY priority,id)"), format!("{},IFIND", order.replace("HTTP_API", "EASTMONEY,TENCENT,SINA")));
         assert_eq!(identity,scalar(&mut conn,"SELECT json_group_array(json_array(id,name,display_code,quote_mode,quote_ccy,instrument_symbol)) AS value FROM assets ORDER BY id"));
         assert_eq!(
             scalar(
@@ -121,4 +121,28 @@ fn native_migration_without_http_settings_defaults_to_disabled() {
         .unwrap();
     conn.run_pending_migrations(MIGRATIONS).unwrap();
     assert_eq!(scalar(&mut conn,"SELECT CAST(SUM(enabled) AS TEXT) AS value FROM market_data_providers WHERE id IN ('EASTMONEY','TENCENT','SINA')"), "0");
+}
+
+#[test]
+fn ifind_migration_is_disabled_appended_and_not_reapplied() {
+    let mut conn = older_database();
+    conn.run_pending_migrations(MIGRATIONS).unwrap();
+    assert_eq!(
+        scalar(
+            &mut conn,
+            "SELECT CAST(enabled AS TEXT) AS value FROM market_data_providers WHERE id='IFIND'"
+        ),
+        "0"
+    );
+    assert_eq!(
+        scalar(
+            &mut conn,
+            "SELECT id AS value FROM market_data_providers ORDER BY priority DESC LIMIT 1"
+        ),
+        "IFIND"
+    );
+    conn.batch_execute("UPDATE market_data_providers SET enabled=1, priority=100 WHERE id='IFIND'")
+        .unwrap();
+    assert!(conn.run_pending_migrations(MIGRATIONS).unwrap().is_empty());
+    assert_eq!(scalar(&mut conn, "SELECT CAST(enabled AS TEXT)||':'||CAST(priority AS TEXT) AS value FROM market_data_providers WHERE id='IFIND'"), "1:100");
 }

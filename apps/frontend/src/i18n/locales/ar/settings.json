@@ -1378,6 +1378,7 @@
     "priority_increase": "زيادة رقم الأولوية",
     "feature_dividends": "توزيعات الأرباح",
     "providerDescriptions": {
+      "IFIND": "أسهم وصناديق ومؤشرات من تونغهواشون iFinD",
       "YAHOO": "Yahoo Finance هي شركة رائدة في توفير البيانات المالية للعديد من الأسواق. ويوفر بيانات المخزون التاريخية وفي الوقت الحقيقي.",
       "MARKETDATA_APP": "يوفر تطبيق MarketData.app بيانات تاريخية وفي الوقت الفعلي للأسهم الأمريكية والخيارات وصناديق الاستثمار المتداولة وصناديق الاستثمار المشتركة والمزيد.",
       "ALPHA_VANTAGE": "توفر Alpha Vantage واجهات برمجة التطبيقات (APIs) المجانية للبيانات التاريخية واللحظية المتعلقة بالأسهم والعملات الأجنبية والعملات المشفرة.",
@@ -1392,6 +1393,7 @@
       "SINA": "الأسهم والصناديق المدرجة والمؤشرات من Sina Finance"
     },
     "coverageLabels": {
+      "China • Hong Kong • US": "الصين • هونغ كونغ • الولايات المتحدة",
       "Global": "عالمي",
       "US only": "الولايات المتحدة فقط",
       "USD only": "دولار أمريكي فقط",
@@ -1414,6 +1416,7 @@
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "سجل العملات المشفرة اليومي (استخدم معرف العملة: bitcoin، ethereum...)"
     },
     "native_provider_names": {
+      "IFIND": "تونغهواشون iFinD",
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
       "SINA": "Sina Finance"

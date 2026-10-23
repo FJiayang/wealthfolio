@@ -1017,6 +1017,7 @@
     "priority_decrease": "Decrease priority number",
     "priority_increase": "Increase priority number",
     "providerDescriptions": {
+      "IFIND": "Stocks, funds and indices from Tonghuashun iFinD",
       "YAHOO": "Yahoo Finance is a leading financial data provider for many markets. It provides historical and real-time stock data.",
       "MARKETDATA_APP": "MarketData.app provides real-time and historical data for U.S. stocks, options, ETFs, mutual funds, and more.",
       "ALPHA_VANTAGE": "Alpha Vantage provides free APIs for real-time and historical data on stocks, forex, and cryptocurrencies.",
@@ -1031,6 +1032,7 @@
       "SINA": "Stocks, listed funds and indices from Sina Finance"
     },
     "coverageLabels": {
+      "China • Hong Kong • US": "China • Hong Kong • US",
       "Global": "Global",
       "US only": "US only",
       "USD only": "USD only",
@@ -1054,6 +1056,7 @@
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Daily crypto history (use coin ID: bitcoin, ethereum...)"
     },
     "native_provider_names": {
+      "IFIND": "Tonghuashun iFinD",
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
       "SINA": "Sina Finance"

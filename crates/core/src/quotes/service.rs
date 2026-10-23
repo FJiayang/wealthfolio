@@ -2266,7 +2266,8 @@ where
             // Check if provider requires an API key
             let requires_key = matches!(
                 setting.id.as_str(),
-                DATA_SOURCE_ALPHA_VANTAGE
+                DATA_SOURCE_IFIND
+                    | DATA_SOURCE_ALPHA_VANTAGE
                     | DATA_SOURCE_MARKET_DATA_APP
                     | DATA_SOURCE_METAL_PRICE_API
                     | DATA_SOURCE_FINNHUB

@@ -121,6 +121,16 @@ impl ProviderCapabilities {
                     "No API key".to_string(),
                 ],
             }),
+            "IFIND" => Some(Self {
+                instruments: "Stocks • ETFs • Funds".into(),
+                coverage: "China • Hong Kong • US".into(),
+                features: vec![
+                    "Latest".into(),
+                    "Historical".into(),
+                    "Search".into(),
+                    "Profiles".into(),
+                ],
+            }),
             "EASTMONEY" | "TENCENT" | "SINA" => Some(Self {
                 instruments: "Stocks • ETFs • Funds".into(),
                 coverage: "Global".into(),

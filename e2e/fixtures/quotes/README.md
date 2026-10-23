@@ -27,10 +27,18 @@ test exact lookup, canonical identity, creation and local search without calling
 a real HTTP service. Its HTTP protocol is tested separately against a local fake
 server.
 
+`IFIND` uses explicit `stock:`, `fund:`, `nav:`, `index:` and `global:` fixture
+symbols with canonical tickers and MICs. Its fixture entries cover A shares,
+listed/OTC funds, an index, Hong Kong and US shares. Live name search is checked
+by the separate acceptance executable; E2E uses the fixture catalog's code
+search.
+
 The e2e runner sets `WEALTHFOLIO_E2E=1` and `WEALTHFOLIO_FIXTURE_DIR` before
 starting `dev:web`. In that mode:
 
 - `YAHOO` is replaced by the fixture provider backed by `instruments.json`.
+- `IFIND` is replaced by the fixture provider without reading any market-data
+  key.
 - `BOERSE_FRANKFURT` is replaced by the same fixture provider, reporting itself
   as `BOERSE_FRANKFURT`.
 - `US_TREASURY_CALC` uses the production provider with the local security and
