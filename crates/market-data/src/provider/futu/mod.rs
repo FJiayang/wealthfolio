@@ -14,7 +14,7 @@ use crate::{
     errors::MarketDataError,
     registry::{RateLimitConfig, RateLimiter},
     resolver::futu::market_info,
-    Coverage, InstrumentId, InstrumentKind, ProviderInstrument, Quote, QuoteContext,
+    Coverage, InstrumentKind, ProviderInstrument, Quote, QuoteContext,
 };
 use auth::{signing_message, SigningKey};
 
@@ -285,14 +285,6 @@ impl MarketDataProvider for FutuProvider {
         capabilities()
     }
 
-    fn supports_instrument(&self, instrument: &InstrumentId) -> bool {
-        match instrument {
-            InstrumentId::Equity { ticker, .. } => {
-                self.capabilities().supports_instrument(instrument) && !ticker.starts_with("FUND:")
-            }
-            _ => false,
-        }
-    }
     fn rate_limit(&self) -> RateLimit {
         RateLimit {
             requests_per_minute: 60,
@@ -353,6 +345,7 @@ impl MarketDataProvider for FutuProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::InstrumentId;
     use ed25519_dalek::pkcs8::EncodePrivateKey;
     use serde_json::json;
     use std::{
@@ -577,6 +570,45 @@ mod tests {
         assert!(request.starts_with("POST /api/v1.0/quote/stock-quote"));
         assert!(request.ends_with(r#"{"code_list":["HK.00700"]}"#));
     }
+    #[tokio::test]
+    async fn futu_enabled_preserves_fund_and_exchange_qualified_search() {
+        use crate::{FixtureProvider, ProviderRegistry, ResolverChain};
+        use std::{collections::HashMap, sync::Arc};
+        let mut futu = provider();
+        futu.endpoint = Some("http://127.0.0.1:9".into());
+        let mut fund = context();
+        fund.instrument = InstrumentId::Equity {
+            ticker: "FUND:161725".into(),
+            mic: None,
+        };
+        assert!(!futu.supports_instrument(&fund.instrument));
+        let fixture = FixtureProvider::new_for_provider(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../e2e/fixtures/quotes"),
+            crate::provider::DATA_SOURCE_EASTMONEY,
+        );
+        let registry = ProviderRegistry::with_priorities(
+            vec![Arc::new(futu), Arc::new(fixture)],
+            Arc::new(ResolverChain::new()),
+            HashMap::from([("FUTU".into(), 0), ("EASTMONEY".into(), 1)]),
+        );
+        for (query, canonical, mic) in [
+            ("FUND:161725", "FUND:161725", None),
+            ("fund:005827", "FUND:005827", None),
+            ("XSHE:161725", "161725", Some("XSHE")),
+            ("xshg:600519", "600519", Some("XSHG")),
+        ] {
+            let rows = registry.search(query).await.unwrap();
+            assert_eq!(rows.len(), 1, "{query}");
+            assert_eq!(rows[0].canonical_symbol.as_deref(), Some(canonical));
+            assert_eq!(rows[0].exchange_mic.as_deref(), mic);
+            assert_eq!(rows[0].data_source.as_deref(), Some("EASTMONEY"));
+        }
+        assert_eq!(
+            registry.fetch_latest_quote(&fund).await.unwrap().source,
+            "EASTMONEY"
+        );
+    }
+
     #[test]
     fn futu_explicit_override_wins_without_modifying_user_configuration() {
         use crate::{ProviderOverrides, ResolverChain, SymbolResolver};

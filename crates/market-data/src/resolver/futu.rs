@@ -28,10 +28,9 @@ pub(crate) fn resolve(ticker: &str, mic: Option<&str>) -> Option<String> {
         Some("XSHG") => "SH",
         Some("XSHE") => "SZ",
         Some("BJSE") => "BJ",
-        None if !super::has_unrecognized_dotted_suffix(code)
-            && code
-                .bytes()
-                .all(|c| c.is_ascii_alphabetic() || b".-".contains(&c))
+        None if code
+            .bytes()
+            .all(|c| c.is_ascii_alphabetic() || b".-".contains(&c))
             && code.bytes().any(|c| c.is_ascii_alphabetic()) =>
         {
             "US"
@@ -95,6 +94,10 @@ mod tests {
             ("600519.SS", None, "SH.600519"),
             ("000001.SZ", None, "SZ.000001"),
             ("BJSE:920002", None, "BJ.920002"),
+            ("XSHG:600519", None, "SH.600519"),
+            ("XSHE:161725", None, "SZ.161725"),
+            ("XHKG:700", None, "HK.00700"),
+            ("XNAS:AAPL", None, "US.AAPL"),
             ("AAPL", None, "US.AAPL"),
             ("BRK-B", Some("XNYS"), "US.BRK.B"),
             ("BRK.B", None, "US.BRK.B"),

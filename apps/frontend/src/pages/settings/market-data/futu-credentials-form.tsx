@@ -77,10 +77,14 @@ export function FutuCredentialsForm({ provider }: { provider: MarketDataProvider
         await deleteSecret(provider.id);
       }
       saved = true;
+      const currentProvider =
+        queryClient
+          .getQueryData<MarketDataProviderSetting[]>([QueryKeys.MARKET_DATA_PROVIDER_SETTINGS])
+          ?.find((current) => current.id === provider.id) ?? provider;
       await updateMarketDataProviderSettings({
         providerId: provider.id,
-        enabled: provider.enabled,
-        priority: provider.priority,
+        enabled: currentProvider.enabled,
+        priority: currentProvider.priority,
       });
       form.reset({ appKeyId: "", privateKey: "" });
       setVisible(false);

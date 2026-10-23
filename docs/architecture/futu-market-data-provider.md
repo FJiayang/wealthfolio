@@ -3,6 +3,10 @@
 FUTU is an opt-in, built-in REST quote provider for US, Hong Kong, Shanghai,
 Shenzhen and Beijing stocks and ETFs. It provides latest OHLCV and historical
 daily bars. Securities search and profiles remain with existing providers.
+`FUND:005827` continues to identify an off-exchange fund served by Eastmoney; it
+is never routed to FUTU. Exchange-qualified searches such as `XSHG:600519`,
+`XSHE:161725` and `XHKG:00700` keep their existing identities. Supported
+exchange securities can use FUTU for quotes after creation.
 
 ## Configuration
 

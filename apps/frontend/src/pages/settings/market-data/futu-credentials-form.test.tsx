@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@/test/render";
+import { act, fireEvent, render, screen, waitFor } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MarketDataProviderSetting } from "@/adapters";
+import { QueryKeys } from "@/lib/query-keys";
 import { FutuCredentialsForm } from "./futu-credentials-form";
 
 const adapters = vi.hoisted(() => ({
@@ -61,6 +62,30 @@ describe("Futu credentials", () => {
     expect(client.getMutationCache().getAll()).toHaveLength(0);
     expect(client.getQueryCache().getAll()).toHaveLength(0);
     expect(screen.queryByLabelText("Private key (PEM)")).not.toBeInTheDocument();
+  });
+  it("preserves settings changed while the secret write is pending", async () => {
+    let finishWrite!: () => void;
+    adapters.setSecret.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishWrite = resolve;
+        }),
+    );
+    const client = setup();
+    await reveal();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(adapters.setSecret).toHaveBeenCalledOnce());
+    client.setQueryData(
+      [QueryKeys.MARKET_DATA_PROVIDER_SETTINGS],
+      [{ ...provider, enabled: false, priority: 3 }],
+    );
+    await act(async () => finishWrite());
+    await screen.findByText("Credentials saved.");
+    expect(adapters.updateMarketDataProviderSettings).toHaveBeenCalledWith({
+      providerId: "FUTU",
+      enabled: false,
+      priority: 3,
+    });
   });
   it("deletes without reading the private key and refreshes the client", async () => {
     setup();

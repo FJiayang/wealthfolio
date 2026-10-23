@@ -8,7 +8,9 @@ for (const direction of ["ltr", "rtl"]) {
     await loginIfNeeded(page);
     const api = `${BASE_URL}/api/v1`;
     const readSettings = async () => (await page.request.get(`${api}/providers/settings`)).json();
-    const original = (await readSettings()).find((row: { id: string }) => row.id === "FUTU");
+    const settings = await readSettings();
+    const original = settings.find((row: { id: string }) => row.id === "FUTU");
+    const eastmoney = settings.find((row: { id: string }) => row.id === "EASTMONEY");
     expect(original).toBeTruthy();
     expect(original.enabled).toBe(false);
     await page.goto(`${BASE_URL}/settings/market-data?dir=${direction}`);
@@ -38,6 +40,17 @@ for (const direction of ["ltr", "rtl"]) {
     await page.getByRole("button", { name: "Hide credentials" }).click();
     await expect(page.getByLabel("Private key (PEM)")).toHaveCount(0);
 
+    const search = await page.request.get(`${api}/market-data/search`, {
+      params: { query: "XNAS:AAPL" },
+    });
+    expect(search.ok()).toBeTruthy();
+    expect(
+      (await search.json()).some(
+        (row: { canonicalSymbol: string; exchangeMic: string }) =>
+          row.canonicalSymbol === "AAPL" && row.exchangeMic === "XNAS",
+      ),
+    ).toBe(true);
+
     const created = await page.request.post(`${api}/assets`, {
       data: {
         kind: "INVESTMENT",
@@ -53,6 +66,31 @@ for (const direction of ["ltr", "rtl"]) {
     expect(created.ok()).toBeTruthy();
     const asset = await created.json();
     try {
+      expect(
+        (
+          await page.request.put(`${api}/providers/settings`, {
+            data: {
+              providerId: "EASTMONEY",
+              priority: eastmoney.priority,
+              enabled: true,
+            },
+          })
+        ).ok(),
+      ).toBeTruthy();
+      for (const [query, canonical, mic] of [
+        ["FUND:161725", "FUND:161725", null],
+        ["XSHE:161725", "161725", "XSHE"],
+      ] as const) {
+        const response = await page.request.get(`${api}/market-data/search`, { params: { query } });
+        expect(response.ok()).toBeTruthy();
+        const rows = await response.json();
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+          canonicalSymbol: canonical,
+          dataSource: "EASTMONEY",
+        });
+        expect(rows[0].exchangeMic ?? null).toBe(mic);
+      }
       expect((await page.request.post(`${api}/market-data/sync/history`)).ok()).toBeTruthy();
       await expect
         .poll(
@@ -89,6 +127,17 @@ for (const direction of ["ltr", "rtl"]) {
         data: { providerId: "FUTU", priority: original.priority, enabled: false },
       });
       expect(restored.ok()).toBeTruthy();
+      expect(
+        (
+          await page.request.put(`${api}/providers/settings`, {
+            data: {
+              providerId: "EASTMONEY",
+              priority: eastmoney.priority,
+              enabled: eastmoney.enabled,
+            },
+          })
+        ).ok(),
+      ).toBeTruthy();
     }
   });
 }
