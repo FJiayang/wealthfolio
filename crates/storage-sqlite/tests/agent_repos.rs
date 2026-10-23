@@ -191,6 +191,8 @@ async fn permission_edit_preserves_credentials_expiration_and_usage() {
         .await
         .unwrap()
         .unwrap();
+    assert_eq!(after.id, before.id);
+    assert_eq!(after.revoked_at, before.revoked_at);
     assert_eq!(after.token_hash, before.token_hash);
     assert_eq!(after.token_prefix, before.token_prefix);
     assert_eq!(after.expires_at, before.expires_at);
@@ -200,6 +202,39 @@ async fn permission_edit_preserves_credentials_expiration_and_usage() {
     assert_eq!(after.scopes_json, r#"["market-data:read"]"#);
     assert!(repo
         .update_scopes("missing", vec!["accounts:read".into()])
+        .await
+        .unwrap()
+        .is_none());
+}
+
+#[tokio::test]
+async fn permission_edit_does_not_overwrite_concurrent_usage_or_another_token() {
+    let (_dir, pool, writer) = setup();
+    let repo = PatRepository::new(pool, writer);
+    let edited = repo
+        .create(new_token("editable", "edit-prefix", "edit-hash"))
+        .await
+        .unwrap();
+    let other = repo
+        .create(new_token("other", "other-prefix", "other-hash"))
+        .await
+        .unwrap();
+    let (update, touch) = tokio::join!(
+        repo.update_scopes(&edited.id, vec!["accounts:read".into()]),
+        repo.touch_last_used(&edited.id),
+    );
+    assert!(update.unwrap().is_some());
+    touch.unwrap();
+    let row = repo.find_by_prefix(&edited.token_prefix).unwrap().remove(0);
+    assert!(row.last_used_at.is_some());
+    assert_eq!(row.scopes_json, r#"["accounts:read"]"#);
+    assert_eq!(row.token_hash, edited.token_hash);
+    let unaffected = repo.find_by_prefix(&other.token_prefix).unwrap().remove(0);
+    assert_eq!(unaffected.scopes_json, other.scopes_json);
+    assert_eq!(unaffected.last_used_at, other.last_used_at);
+    repo.delete(&edited.id).await.unwrap();
+    assert!(repo
+        .update_scopes(&edited.id, vec!["holdings:read".into()])
         .await
         .unwrap()
         .is_none());

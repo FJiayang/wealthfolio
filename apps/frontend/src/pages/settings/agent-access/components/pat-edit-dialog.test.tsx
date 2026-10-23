@@ -56,4 +56,45 @@ describe("PatEditDialog", () => {
     expect(save).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalledOnce();
   });
+  it("disables saving an empty selection", () => {
+    const save = vi.fn();
+    render(<PatEditDialog token={token} onClose={vi.fn()} onSave={save} isSaving={false} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: /^Accounts \(read\)/ }));
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("prevents edits, repeated saves, and dismissal while saving", () => {
+    const save = vi.fn();
+    const close = vi.fn();
+    render(<PatEditDialog token={token} onClose={close} onSave={save} isSaving />);
+    expect(screen.getByRole("checkbox", { name: /^Activities — draft/ })).toBeDisabled();
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(save).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it("dismisses without saving and starts from persisted scopes when reopened", () => {
+    const close = vi.fn();
+    const save = vi.fn();
+    const { unmount } = render(
+      <PatEditDialog token={token} onClose={close} onSave={save} isSaving={false} />,
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: /^Activities — draft/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(close).toHaveBeenCalledOnce();
+    expect(save).not.toHaveBeenCalled();
+    unmount();
+    render(<PatEditDialog token={token} onClose={close} onSave={save} isSaving={false} />);
+    expect(screen.getByRole("checkbox", { name: /^Activities — draft/ })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+  });
 });

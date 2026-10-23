@@ -155,7 +155,7 @@ export function PatTable({ serverUrl }: { serverUrl?: string } = {}) {
                 <div
                   key={token.id}
                   className={cn(
-                    "grid grid-cols-[auto_1fr_auto] items-center gap-4 rounded-md border px-4 py-3.5 transition-colors",
+                    "grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4 rounded-md border px-4 py-3.5 transition-colors sm:grid-cols-[auto_minmax(0,1fr)_auto]",
                     inactive
                       ? "border-border border-dashed bg-transparent opacity-80"
                       : "bg-muted/30 border-border",
@@ -184,7 +184,7 @@ export function PatTable({ serverUrl }: { serverUrl?: string } = {}) {
                       {formatLastUsed(t, token.lastUsedAt, dateFnsLocale)}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
+                  <div className="col-span-2 flex flex-wrap items-center justify-end gap-3 sm:col-span-1">
                     <ScopeBadge scopes={token.scopes} />
                     <Button variant="outline" size="sm" onClick={() => setEditing(token)}>
                       {t("settings:agentAccess.edit_permissions")}

@@ -9,15 +9,18 @@ spending and budgets. See the [capability matrix](mcp-capability-coverage.md)
 for exact tool names, permissions, exclusions and validation paths. Existing
 tools and the in-app assistant catalog remain compatible.
 
-Existing API Key permissions can be edited from AI Agent Access. The original
-implementation lacked the repository update, management endpoints and UI;
-permissions were never immutable in the authentication design. Each request
-already resolves the token from SQLite, so updating only `scopes_json` through
-the existing writer makes the next request use the new permissions, including
-within an existing session. No cache, tool catalog or session rebuild is needed.
-The credential and expiration stay unchanged; editing an expired key does not
-reactivate it. Calls already authorized continue. Clients caching tool lists may
-need to refresh or reconnect. This operation is not exposed as an MCP tool.
+## Editing API key permissions
+
+Existing API key permissions can be edited from AI Agent Access through the
+application-authenticated management API or profile-scoped Tauri command. Both
+validate the complete scope replacement before updating only `scopes_json`
+through the existing SQLite writer. MCP authentication resolves the token for
+each request, so the next request uses the new permissions, including within an
+existing session. No authorization cache, tool catalog, or session rebuild is
+needed. The credential and expiration stay unchanged; editing an expired key
+does not reactivate it. Calls already authorized continue. Clients caching tool
+lists may need to refresh or reconnect. This operation is not exposed as an MCP
+tool.
 
 ## Overview
 

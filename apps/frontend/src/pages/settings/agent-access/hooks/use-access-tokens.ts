@@ -3,6 +3,7 @@ import {
   createAgentAccessToken,
   updateAgentAccessTokenScopes,
   type CreateAgentAccessTokenInput,
+  type AgentAccessToken,
   deleteAgentAccessToken,
   listAgentAccessTokens,
   logger,
@@ -37,8 +38,11 @@ export function useAccessTokens() {
   const updateMutation = useMutation({
     mutationFn: ({ id, scopes }: { id: string; scopes: string[] }) =>
       updateAgentAccessTokenScopes(id, { scopes }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [QueryKeys.AGENT_ACCESS_TOKENS] });
+    onSuccess: async (updated) => {
+      queryClient.setQueryData<AgentAccessToken[]>([QueryKeys.AGENT_ACCESS_TOKENS], (tokens) =>
+        tokens?.map((token) => (token.id === updated.id ? updated : token)),
+      );
+      await queryClient.invalidateQueries({ queryKey: [QueryKeys.AGENT_ACCESS_TOKENS] });
       toast({ title: i18n.t("settings:agentAccess.edit_success"), variant: "success" });
     },
     onError: (error) => {

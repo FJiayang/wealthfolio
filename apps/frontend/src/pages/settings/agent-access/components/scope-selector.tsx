@@ -6,9 +6,10 @@ import { SCOPES, scopeDescription, scopeLabel, type ScopeKey } from "../scopes";
 interface ScopeSelectorProps {
   selectedScopes: ScopeKey[];
   onToggle: (scope: ScopeKey) => void;
+  disabled?: boolean;
 }
 
-export function ScopeSelector({ selectedScopes, onToggle }: ScopeSelectorProps) {
+export function ScopeSelector({ selectedScopes, onToggle, disabled }: ScopeSelectorProps) {
   const { t } = useTranslation();
   const renderScope = (scope: (typeof SCOPES)[number]) => {
     const checked = selectedScopes.includes(scope.key);
@@ -30,14 +31,14 @@ export function ScopeSelector({ selectedScopes, onToggle }: ScopeSelectorProps) 
         role="checkbox"
         aria-checked={checked}
         aria-label={t("settings:agentAccess.dialog_scope_aria", { label, description })}
-        disabled={locked}
+        disabled={disabled || locked}
         title={locked ? lockedTitle : description}
         onClick={() => onToggle(scope.key)}
         className={cn(
           "flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-start text-sm transition-colors",
           "focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-2",
           checked
-            ? "border-success/50 bg-success/10"
+            ? "border-success-subtle-border bg-success-subtle text-success-subtle-foreground"
             : "border-border hover:border-muted-foreground/30 hover:bg-muted/40",
           locked && "cursor-not-allowed opacity-80",
         )}

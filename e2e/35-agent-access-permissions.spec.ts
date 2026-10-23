@@ -12,7 +12,12 @@ for (const direction of ["ltr", "rtl"]) {
     await page.getByRole("button", { name: "Create token", exact: true }).click();
     const create = page.getByRole("dialog");
     await create.getByLabel("Name", { exact: true }).fill(name);
+    const createdResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" && response.url().endsWith("/agent-access/tokens"),
+    );
     await create.getByRole("button", { name: "Create token", exact: true }).click();
+    const createdMetadata = await (await createdResponse).json();
     await expect(create.getByRole("heading", { name: "Token created", exact: true })).toBeVisible();
     await create.getByRole("button", { name: "Done", exact: true }).click();
     const row = page
@@ -36,6 +41,9 @@ for (const direction of ["ltr", "rtl"]) {
     expect(response.ok()).toBeTruthy();
     const metadata = await response.json();
     expect(metadata.scopes).toContain("assets:write");
+    for (const field of ["id", "name", "tokenPrefix", "createdAt", "expiresAt"]) {
+      expect(metadata[field]).toEqual(createdMetadata[field]);
+    }
     expect(metadata.token).toBeUndefined();
     expect(metadata.tokenHash).toBeUndefined();
     await expect(edit).not.toBeVisible();

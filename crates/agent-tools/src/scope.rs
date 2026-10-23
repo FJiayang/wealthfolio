@@ -342,5 +342,14 @@ mod request_validation_tests {
             validate_requested_scopes(&["assets:write".into(), "assets:write".into()]).unwrap(),
             vec!["assets:write"]
         );
+        assert_eq!(
+            validate_requested_scopes(&[
+                "holdings:read".into(),
+                "accounts:read".into(),
+                "holdings:read".into()
+            ])
+            .unwrap(),
+            vec!["accounts:read", "holdings:read"]
+        );
     }
 }
