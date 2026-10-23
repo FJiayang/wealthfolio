@@ -769,13 +769,11 @@ where
         let enabled: Vec<ProviderConfig> = providers
             .iter()
             .filter(|p| p.enabled)
-            .map(|p| {
-                Ok(ProviderConfig {
-                    id: p.id.clone(),
-                    priority: p.priority,
-                })
+            .map(|p| ProviderConfig {
+                id: p.id.clone(),
+                priority: p.priority,
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect();
 
         // Build extra providers (CustomScraperProvider if repo is available and enabled)
         let custom_scraper_enabled = providers
@@ -842,13 +840,11 @@ where
         let enabled: Vec<ProviderConfig> = providers
             .iter()
             .filter(|p| p.enabled)
-            .map(|p| {
-                Ok(ProviderConfig {
-                    id: p.id.clone(),
-                    priority: p.priority,
-                })
+            .map(|p| ProviderConfig {
+                id: p.id.clone(),
+                priority: p.priority,
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect();
 
         let custom_scraper_enabled = providers
             .iter()
