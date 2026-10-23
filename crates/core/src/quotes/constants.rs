@@ -15,9 +15,9 @@ pub const DATA_SOURCE_BROKER: &str = "BROKER";
 pub use wealthfolio_market_data::provider::futu::DATA_SOURCE_FUTU;
 pub use wealthfolio_market_data::provider::DATA_SOURCE_CUSTOM_SCRAPER;
 pub use wealthfolio_market_data::provider::{
-    DATA_SOURCE_EASTMONEY, DATA_SOURCE_SINA, DATA_SOURCE_TENCENT,
+    DATA_SOURCE_EASTMONEY, DATA_SOURCE_IFIND, DATA_SOURCE_SINA, DATA_SOURCE_TENCENT,
 };
-pub const MARKET_DATA_PROVIDER_IDS: [&str; 13] = [
+pub const MARKET_DATA_PROVIDER_IDS: [&str; 14] = [
     DATA_SOURCE_FUTU,
     DATA_SOURCE_YAHOO,
     DATA_SOURCE_ALPHA_VANTAGE,
@@ -31,6 +31,7 @@ pub const MARKET_DATA_PROVIDER_IDS: [&str; 13] = [
     DATA_SOURCE_EASTMONEY,
     DATA_SOURCE_TENCENT,
     DATA_SOURCE_SINA,
+    DATA_SOURCE_IFIND,
 ];
 
 /// Default number of days of history to fetch for new symbols when no activity date exists.

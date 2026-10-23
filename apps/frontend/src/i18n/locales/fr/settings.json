@@ -1091,6 +1091,7 @@
     "priority_increase": "Augmenter le numéro de priorité",
     "feature_dividends": "Dividendes",
     "providerDescriptions": {
+      "IFIND": "Actions, fonds et indices de Tonghuashun iFinD",
       "YAHOO": "Yahoo Finance est l'un des principaux fournisseurs de données financières pour de nombreux marchés. Il fournit des données boursières historiques et en temps réel.",
       "MARKETDATA_APP": "MarketData.app fournit des données historiques et en temps réel sur les actions, options, ETF, fonds communs de placement américains, etc.",
       "ALPHA_VANTAGE": "Alpha Vantage fournit des API gratuites pour les données historiques et en temps réel sur les actions, le forex et les crypto-monnaies.",
@@ -1106,6 +1107,7 @@
       "FUTU": "Cours des actions et ETF de Futunn OpenAPI"
     },
     "coverageLabels": {
+      "China • Hong Kong • US": "Chine • Hong Kong • États-Unis",
       "Global": "Mondial",
       "US only": "États-Unis uniquement",
       "USD only": "USD uniquement",
@@ -1129,6 +1131,7 @@
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Historique quotidien des cryptomonnaies (utilisez l'identifiant de la pièce : bitcoin, ethereum...)"
     },
     "native_provider_names": {
+      "IFIND": "Tonghuashun iFinD",
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
       "SINA": "Sina Finance",

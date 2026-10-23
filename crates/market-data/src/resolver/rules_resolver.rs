@@ -89,6 +89,16 @@ impl RulesResolver {
         // before reaching these generic rules.
         let has_unverified_dotted_suffix = mic.is_none() && has_unrecognized_dotted_suffix(ticker);
 
+        if provider.as_ref() == crate::provider::DATA_SOURCE_IFIND {
+            return crate::provider::ifind::resolve(ticker, mic.as_deref()).map(|symbol| {
+                (
+                    ProviderInstrument::EquitySymbol {
+                        symbol: Arc::from(symbol),
+                    },
+                    ResolutionSource::Rules,
+                )
+            });
+        }
         if provider.as_ref() == crate::provider::futu::DATA_SOURCE_FUTU {
             return super::futu::resolve(ticker, mic.as_deref()).map(|symbol| {
                 (
