@@ -86,7 +86,6 @@ pub struct ProviderConfig {
     pub id: String,
     /// User-configured priority (lower = higher priority)
     pub priority: i32,
-    pub base_url: Option<String>,
 }
 
 /// Market data client - facade for fetching quotes via the market-data crate.
@@ -230,10 +229,16 @@ impl MarketDataClient {
 
         match provider_id {
             DATA_SOURCE_YAHOO => Ok(Some(Arc::new(FixtureProvider::new(fixture_dir)))),
-            DATA_SOURCE_HTTP_API => Ok(Some(Arc::new(FixtureProvider::new_for_provider(
-                fixture_dir,
-                DATA_SOURCE_HTTP_API,
-            )))),
+            DATA_SOURCE_EASTMONEY | DATA_SOURCE_TENCENT | DATA_SOURCE_SINA => {
+                Ok(Some(Arc::new(FixtureProvider::new_for_provider(
+                    fixture_dir,
+                    match provider_id {
+                        DATA_SOURCE_TENCENT => DATA_SOURCE_TENCENT,
+                        DATA_SOURCE_SINA => DATA_SOURCE_SINA,
+                        _ => DATA_SOURCE_EASTMONEY,
+                    },
+                ))))
+            }
             DATA_SOURCE_BOERSE_FRANKFURT => Ok(Some(Arc::new(FixtureProvider::new_for_provider(
                 fixture_dir,
                 DATA_SOURCE_BOERSE_FRANKFURT,
@@ -273,17 +278,18 @@ impl MarketDataClient {
         }
 
         match provider_id {
-            DATA_SOURCE_HTTP_API => {
-                let base_url = config.base_url.as_deref().ok_or_else(|| {
-                    MarketDataClientError::InvalidData("HTTP API base URL is required".into())
-                })?;
-                let key = secret_store.get_secret(DATA_SOURCE_HTTP_API).map_err(|_| {
-                    MarketDataClientError::InvalidData("Cannot read HTTP API key".into())
-                })?;
-                let provider = wealthfolio_market_data::HttpApiProvider::new(base_url, key)
-                    .map_err(MarketDataClientError::from)?;
-                Ok(Some(Arc::new(provider)))
-            }
+            DATA_SOURCE_EASTMONEY => Ok(Some(Arc::new(
+                wealthfolio_market_data::EastmoneyProvider::new()
+                    .map_err(MarketDataClientError::from)?,
+            ))),
+            DATA_SOURCE_TENCENT => Ok(Some(Arc::new(
+                wealthfolio_market_data::TencentProvider::new()
+                    .map_err(MarketDataClientError::from)?,
+            ))),
+            DATA_SOURCE_SINA => Ok(Some(Arc::new(
+                wealthfolio_market_data::SinaProvider::new()
+                    .map_err(MarketDataClientError::from)?,
+            ))),
             DATA_SOURCE_YAHOO => {
                 // Yahoo doesn't need an API key
                 let provider = YahooProvider::new()
@@ -740,10 +746,20 @@ impl MarketDataClient {
         // Fall back to Yahoo-specific helpers when the provider didn't set it.
         let mut exchange_mic = result.exchange_mic.clone();
 
-        if exchange_mic.is_none() {
+        if exchange_mic.is_none()
+            && !result
+                .data_source
+                .as_deref()
+                .is_some_and(wealthfolio_market_data::provider::is_native_provider)
+        {
             exchange_mic = yahoo_exchange_to_mic(&result.exchange).map(|mic| mic.to_string());
         }
-        if exchange_mic.is_none() {
+        if exchange_mic.is_none()
+            && !result
+                .data_source
+                .as_deref()
+                .is_some_and(wealthfolio_market_data::provider::is_native_provider)
+        {
             if let Some(dot_pos) = result.symbol.rfind('.') {
                 let suffix = &result.symbol[dot_pos + 1..];
                 exchange_mic = yahoo_suffix_to_mic(suffix).map(String::from);
@@ -810,6 +826,14 @@ impl MarketDataClient {
             {
                 Some(suffix) if !suffix.is_empty() => format!("{display_symbol}{suffix}"),
                 _ => display_symbol.to_string(),
+            }
+        } else if provider_id
+            .as_deref()
+            .is_some_and(wealthfolio_market_data::provider::is_native_provider)
+        {
+            match canonical_identity.instrument_exchange_mic.as_deref() {
+                Some(mic) => format!("{mic}:{symbol_for_identity}"),
+                None => symbol_for_identity.clone(),
             }
         } else {
             result.symbol.clone()
@@ -947,7 +971,7 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn http_api_search_keeps_canonical_and_provider_identities_separate() {
+    fn native_search_keeps_canonical_and_provider_identities_separate() {
         for (provider_symbol, canonical, mic) in [
             ("XSHG:600519", "600519", Some("XSHG")),
             ("FUND:005827", "FUND:005827", None),
@@ -958,14 +982,14 @@ mod tests {
                 mic.unwrap_or("FUND"),
                 "MUTUALFUND",
             )
-            .with_data_source(DATA_SOURCE_HTTP_API)
+            .with_data_source(DATA_SOURCE_EASTMONEY)
             .with_currency("CNY");
             result.canonical_symbol = Some(canonical.into());
             result.exchange_mic = mic.map(str::to_owned);
             let result = MarketDataClient::convert_search_result(result);
             assert_eq!(result.canonical_symbol.as_deref(), Some(canonical));
             assert_eq!(result.provider_symbol.as_deref(), Some(provider_symbol));
-            assert_eq!(result.provider_id.as_deref(), Some(DATA_SOURCE_HTTP_API));
+            assert_eq!(result.provider_id.as_deref(), Some(DATA_SOURCE_EASTMONEY));
             assert_eq!(result.canonical_exchange_mic.as_deref(), mic);
             assert_eq!(result.quote_mode.as_deref(), Some("MARKET"));
         }
@@ -1355,7 +1379,6 @@ mod tests {
             vec![ProviderConfig {
                 id: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
                 priority: 50,
-                base_url: None,
             }],
             vec![
                 Arc::new(FailingProvider {

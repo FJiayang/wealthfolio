@@ -1,5 +1,4 @@
 import i18n from "i18next";
-import { HTTP_API_PROVIDER_ID } from "@/lib/constants";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   setSecret,
@@ -21,12 +20,8 @@ export function useMarketDataProviderSettings() {
 export function useUpdateMarketDataProviderSettings() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (variables: {
-      providerId: string;
-      priority: number;
-      enabled: boolean;
-      baseUrl?: string;
-    }) => updateMarketDataProviderSettings(variables),
+    mutationFn: async (variables: { providerId: string; priority: number; enabled: boolean }) =>
+      updateMarketDataProviderSettings(variables),
     onMutate: async (variables) => {
       await queryClient.cancelQueries({ queryKey: [QueryKeys.MARKET_DATA_PROVIDER_SETTINGS] });
 
@@ -72,15 +67,6 @@ export function useSetApiKey() {
   return useMutation({
     mutationFn: async (variables: { providerId: string; apiKey: string }) => {
       await setSecret(variables.providerId, variables.apiKey);
-      if (variables.providerId === HTTP_API_PROVIDER_ID) {
-        const providers = await getMarketDataProviderSettings();
-        const provider = providers.find((provider) => provider.id === variables.providerId)!;
-        await updateMarketDataProviderSettings({
-          providerId: provider.id,
-          priority: provider.priority,
-          enabled: provider.enabled,
-        });
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.MARKET_DATA_PROVIDER_SETTINGS] });
@@ -100,15 +86,6 @@ export function useDeleteApiKey() {
   return useMutation({
     mutationFn: async (variables: { providerId: string }) => {
       await deleteSecret(variables.providerId);
-      if (variables.providerId === HTTP_API_PROVIDER_ID) {
-        const providers = await getMarketDataProviderSettings();
-        const provider = providers.find((provider) => provider.id === variables.providerId)!;
-        await updateMarketDataProviderSettings({
-          providerId: provider.id,
-          priority: provider.priority,
-          enabled: provider.enabled,
-        });
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.MARKET_DATA_PROVIDER_SETTINGS] });

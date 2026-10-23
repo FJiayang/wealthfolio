@@ -306,14 +306,24 @@ impl FixtureInstrument {
         if let Some(exchange_mic) = &self.exchange_mic {
             result = result.with_exchange_mic(exchange_mic.clone());
         }
-        if self.provider == crate::provider::http_api::DATA_SOURCE_HTTP_API {
-            if let Some((market, code)) = crate::provider::http_api::qualified_symbol(&self.symbol)
-            {
+        if crate::provider::is_native_provider(&self.provider) {
+            if let Some((market, code)) = crate::resolver::qualified_symbol(&self.symbol) {
                 result.canonical_symbol = Some(if crate::is_known_mic(market) {
                     code.into()
                 } else {
                     self.symbol.clone()
                 });
+            } else if self.exchange_mic.is_some() {
+                result.canonical_symbol =
+                    Some(if self.provider == crate::provider::DATA_SOURCE_EASTMONEY {
+                        self.symbol
+                            .split_once('.')
+                            .map(|(_, code)| code)
+                            .unwrap_or(&self.symbol)
+                            .into()
+                    } else {
+                        self.symbol.get(2..).unwrap_or(&self.symbol).into()
+                    });
             }
         }
         if let Some(exchange_name) = &self.exchange_name {
@@ -553,6 +563,12 @@ fn decimal(value: f64) -> Decimal {
 
 #[async_trait]
 impl MarketDataProvider for FixtureProvider {
+    fn supports_instrument(&self, instrument: &crate::InstrumentId) -> bool {
+        if crate::provider::is_native_provider(self.id()) {
+            return crate::provider::native::supports(self.id(), instrument);
+        }
+        self.capabilities().supports_instrument(instrument)
+    }
     fn id(&self) -> &'static str {
         self.provider_id
     }

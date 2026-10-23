@@ -29,17 +29,18 @@ use wealthfolio_core::Result;
 // provider quote for the same day.
 // Unqualified column form — for use inside diesel typed queries.
 const SOURCE_PRIORITY_CASE: &str =
-    "CASE source WHEN 'MANUAL' THEN 1 WHEN 'BROKER' THEN 3 ELSE 2 END";
+    "CASE source WHEN 'MANUAL' THEN 1 WHEN 'HTTP_API' THEN 3 WHEN 'BROKER' THEN 4 ELSE 2 END";
 // Same expression qualified with table alias `q` — for use inside raw window
 // function SQL (`ROW_NUMBER() OVER (... ORDER BY ...)`).
 const SOURCE_PRIORITY_CASE_Q: &str =
-    "CASE q.source WHEN 'MANUAL' THEN 1 WHEN 'BROKER' THEN 3 ELSE 2 END";
+    "CASE q.source WHEN 'MANUAL' THEN 1 WHEN 'HTTP_API' THEN 3 WHEN 'BROKER' THEN 4 ELSE 2 END";
 
 /// `SOURCE_PRIORITY_CASE` for rows already read.
 fn source_priority(source: &str) -> u8 {
     match source {
         "MANUAL" => 1,
-        "BROKER" => 3,
+        "HTTP_API" => 3,
+        "BROKER" => 4,
         _ => 2,
     }
 }
@@ -1372,9 +1373,7 @@ impl ProviderSettingsStore for MarketDataRepository {
         let changes_db = UpdateMarketDataProviderSettingDB {
             priority: changes.priority,
             enabled: changes.enabled,
-            config: changes
-                .base_url
-                .map(|base_url| serde_json::json!({ "baseUrl": base_url }).to_string()),
+            config: None,
         };
 
         diesel::update(market_data_providers_dsl::market_data_providers.find(id))
@@ -1402,44 +1401,23 @@ mod tests {
     use wealthfolio_core::quotes::Quote;
 
     #[tokio::test]
-    async fn http_api_settings_persist_without_changing_other_provider_config() {
+    async fn native_settings_are_disabled_by_default_and_editable() {
         let (repo, _directory) = create_test_repository().await;
-        let initial = repo.get_provider("HTTP_API").unwrap();
-        assert!(!initial.enabled);
-        assert_eq!(initial.http_api_base_url().unwrap(), None);
-        repo.update_provider(
-            "HTTP_API",
-            UpdateMarketDataProviderSetting {
-                enabled: Some(true),
-                priority: Some(7),
-                base_url: Some("http://finance-data-api:8000".into()),
-            },
-        )
-        .unwrap();
-        let saved = repo.get_provider("HTTP_API").unwrap();
-        assert!(saved.enabled);
-        assert_eq!(
-            saved.http_api_base_url().unwrap().as_deref(),
-            Some("http://finance-data-api:8000")
-        );
-        repo.update_provider(
-            "HTTP_API",
-            UpdateMarketDataProviderSetting {
-                enabled: Some(false),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        let reloaded = repo
-            .get_all_providers()
-            .unwrap()
-            .into_iter()
-            .find(|provider| provider.id == "HTTP_API")
+        assert!(repo.get_provider("HTTP_API").is_err());
+        for id in ["EASTMONEY", "TENCENT", "SINA"] {
+            assert!(!repo.get_provider(id).unwrap().enabled);
+            repo.update_provider(
+                id,
+                UpdateMarketDataProviderSetting {
+                    enabled: Some(true),
+                    priority: Some(7),
+                },
+            )
             .unwrap();
-        assert_eq!(reloaded.config, saved.config);
-        assert_eq!(reloaded.priority, 7);
-        assert!(!reloaded.enabled);
-        assert_eq!(repo.get_provider("YAHOO").unwrap().config, None);
+            let saved = repo.get_provider(id).unwrap();
+            assert!(saved.enabled);
+            assert_eq!(saved.priority, 7);
+        }
     }
 
     async fn create_test_repository() -> (MarketDataRepository, tempfile::TempDir) {
@@ -2102,6 +2080,45 @@ mod tests {
             .expect("latest should succeed")
             .expect("quote should exist");
         assert_eq!(latest_typed.data_source, "MANUAL");
+    }
+
+    #[tokio::test]
+    async fn legacy_http_history_is_a_fallback_without_changing_provenance() {
+        let (repo, _temp) = create_test_repository().await;
+        insert_test_asset(&repo, "legacy");
+        let day = NaiveDate::from_ymd_opt(2026, 1, 5).unwrap();
+        for (source, price) in [("BROKER", 90), ("HTTP_API", 100), ("EASTMONEY", 110)] {
+            repo.save_quote(&quote_with_source(
+                "legacy",
+                day,
+                source,
+                Decimal::from(price),
+            ))
+            .await
+            .unwrap();
+            assert_eq!(repo.get_latest_quote("legacy").unwrap().data_source, source);
+        }
+        let rows = repo.get_latest_quotes(&["legacy".into()]).unwrap();
+        assert_eq!(rows["legacy"].data_source, "EASTMONEY");
+        assert_eq!(
+            repo.latest(&AssetId::new("legacy"), None)
+                .unwrap()
+                .unwrap()
+                .data_source,
+            "EASTMONEY"
+        );
+        repo.save_quote(&quote_with_source(
+            "legacy",
+            day,
+            "MANUAL",
+            Decimal::from(120),
+        ))
+        .await
+        .unwrap();
+        assert_eq!(
+            repo.get_latest_quote("legacy").unwrap().data_source,
+            "MANUAL"
+        );
     }
 
     /// When no MANUAL quote exists, provider quotes should win over BROKER

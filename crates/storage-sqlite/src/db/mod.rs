@@ -1971,3 +1971,6 @@ mod migration_backup_tests;
 
 #[cfg(test)]
 mod account_delete_cleanup_tests;
+
+#[cfg(test)]
+mod native_provider_migration_tests;

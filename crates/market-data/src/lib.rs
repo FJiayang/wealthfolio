@@ -83,12 +83,14 @@ pub use resolver::{
 // Re-export provider types
 pub use provider::alpha_vantage::AlphaVantageProvider;
 pub use provider::boerse_frankfurt::BoerseFrankfurtProvider;
+pub use provider::eastmoney::EastmoneyProvider;
 pub use provider::finnhub::FinnhubProvider;
 pub use provider::fixture::FixtureProvider;
-pub use provider::http_api::HttpApiProvider;
 pub use provider::marketdata_app::MarketDataAppProvider;
 pub use provider::metal_price_api::MetalPriceApiProvider;
 pub use provider::openfigi::OpenFigiProvider;
+pub use provider::sina::SinaProvider;
+pub use provider::tencent::TencentProvider;
 pub use provider::us_treasury_calc::UsTreasuryCalcProvider;
 pub use provider::yahoo::YahooProvider;
 pub use provider::{MarketDataProvider, ProviderCapabilities, RateLimit};
@@ -98,3 +100,5 @@ pub use registry::{
     CircuitBreaker, CircuitState, FetchDiagnostics, ProviderAttempt, ProviderRegistry,
     QuoteValidator, RateLimiter, SkipReason, ValidationSeverity,
 };
+
+pub use models::{FinancialReport, FinancialStatement, NewsItem};

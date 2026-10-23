@@ -933,7 +933,11 @@ impl AssetService {
             .map(str::trim)
             .filter(|provider| !provider.is_empty())?;
         let mut config = serde_json::json!({ "preferred_provider": provider });
-        let default_yahoo = provider.eq_ignore_ascii_case("YAHOO");
+        let default_yahoo = provider.eq_ignore_ascii_case("YAHOO")
+            || wealthfolio_market_data::provider::is_native_provider(provider);
+        if wealthfolio_market_data::provider::is_native_provider(provider) {
+            config = serde_json::json!({});
+        }
 
         let (Some(provider_symbol), Some(instrument_type), Some(canonical_symbol)) =
             (provider_symbol, instrument_type, canonical_symbol)
@@ -1420,40 +1424,14 @@ impl AssetService {
             }
         }
 
-        let effective_instrument_type = updated_instrument_type
-            .clone()
-            .or(existing_asset.instrument_type.clone());
-        let canonical = canonicalize_market_identity(
-            effective_instrument_type,
-            existing_asset
-                .instrument_symbol
-                .as_deref()
-                .or(existing_asset.display_code.as_deref()),
-            existing_asset.instrument_exchange_mic.as_deref(),
-            Some(provider_profile.currency.as_str()),
-        );
-        let http_api = existing_asset.preferred_provider().as_deref()
-            == Some(crate::quotes::constants::DATA_SOURCE_HTTP_API);
-        let resolved_quote_ccy = canonical
-            .quote_ccy
-            .unwrap_or_else(|| existing_asset.quote_ccy.clone());
-
         // Build profile update from provider data
         let mut update = UpdateAssetProfile {
             display_code: existing_asset.display_code.clone(),
-            name: if http_api {
-                existing_asset.name.clone().or(provider_profile.name)
-            } else {
-                provider_profile.name.or(existing_asset.name.clone())
-            },
+            name: existing_asset.name.clone().or(provider_profile.name),
             notes: existing_asset.notes.clone().unwrap_or_default(),
             kind: None,
             quote_mode: Some(existing_asset.quote_mode),
-            quote_ccy: Some(if http_api {
-                existing_asset.quote_ccy.clone()
-            } else {
-                resolved_quote_ccy
-            }),
+            quote_ccy: Some(existing_asset.quote_ccy.clone()),
             instrument_type: updated_instrument_type,
             instrument_symbol: None,
             instrument_exchange_mic: None,
@@ -3103,7 +3081,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     #[tokio::test]
-    async fn http_api_creation_is_idempotent_and_enrichment_preserves_user_fields() {
+    async fn native_creation_is_idempotent_and_enrichment_preserves_user_fields() {
         use crate::activities::activities_service_tests::tests::MockActivityRepository;
         let repo = Arc::new(TestAssetRepository::with_assets(vec![]));
         let quotes = Arc::new(TestQuoteService::default());
@@ -3115,7 +3093,7 @@ mod tests {
             InstrumentType::Equity,
             "CNY".into(),
         );
-        spec.provider_id = Some(crate::quotes::constants::DATA_SOURCE_HTTP_API.into());
+        spec.provider_id = Some(crate::quotes::constants::DATA_SOURCE_EASTMONEY.into());
         spec.provider_symbol = Some("FUND:005827".into());
         spec.name = Some("用户名称".into());
         let first = service
@@ -3127,10 +3105,7 @@ mod tests {
         let asset = repo.get_by_id(id).unwrap();
         assert_eq!(asset.quote_mode, QuoteMode::Market);
         assert_eq!(asset.quote_ccy, "CNY");
-        assert_eq!(
-            asset.preferred_provider().as_deref(),
-            Some(crate::quotes::constants::DATA_SOURCE_HTTP_API)
-        );
+        assert_eq!(asset.preferred_provider().as_deref(), None);
         let second = service
             .ensure_assets(vec![spec], &MockActivityRepository::default())
             .await
@@ -4021,7 +3996,6 @@ mod tests {
             _provider_id: &str,
             _priority: i32,
             _enabled: bool,
-            _base_url: Option<&str>,
         ) -> Result<()> {
             Ok(())
         }

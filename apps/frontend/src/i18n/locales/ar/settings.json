@@ -973,9 +973,6 @@
     "sync_interval_hours_few": "كل {{count}} ساعات",
     "sync_interval_hours_many": "كل {{count}} ساعة",
     "sync_interval_hours_other": "كل {{count}} ساعة",
-    "http_api_name": "واجهة HTTP API قياسية",
-    "http_api_base_url": "عنوان الخدمة الأساسي",
-    "http_api_help": "أدخل معرّفًا كاملاً مثل XSHG:600519 أو FUND:005827 لإنشاء أصل. مفتاح API اختياري.",
     "add_custom_provider": "إضافة مزوّد مخصص",
     "add_provider": "إضافة مزوّد",
     "api_key": "مفتاح API",
@@ -1389,8 +1386,10 @@
       "OPENFIGI": "يوفر OpenFIGI خدمة رسم الخرائط لمعرفات الأدوات المالية (FIGI وISIN وCUSIP وTicker).",
       "METAL_PRICE_API": "يوفر الأسعار الفورية والتاريخية للمعادن الثمينة (الذهب والفضة والبلاتين والبلاديوم).",
       "CUSTOM_SCRAPER": "مزود إرسال وقت التشغيل للمصادر المخصصة المعرفة من قبل المستخدم",
-      "HTTP_API": "البحث الدقيق عن الأدوات وملفات التعريف والأسعار من خدمة HTTP ذاتية الاستضافة",
-      "FINNHUB": "توفر Finnhub بيانات عالمية آنية للأسهم والعملات الأجنبية والعملات المشفرة. تشمل الخطة المجانية 60 طلب API في الدقيقة."
+      "FINNHUB": "توفر Finnhub بيانات عالمية آنية للأسهم والعملات الأجنبية والعملات المشفرة. تشمل الخطة المجانية 60 طلب API في الدقيقة.",
+      "EASTMONEY": "الأسهم والصناديق والمؤشرات من Eastmoney وTiantian Fund",
+      "TENCENT": "الأسهم والصناديق المدرجة والمؤشرات من Tencent Finance",
+      "SINA": "الأسهم والصناديق المدرجة والمؤشرات من Sina Finance"
     },
     "coverageLabels": {
       "Global": "عالمي",
@@ -1413,6 +1412,11 @@
       "workplace_fund_price_history_fund_code": "تاريخ أسعار صندوق مكان العمل (رمز الصندوق)",
       "lse_etfs_equities_html_table": "صناديق الاستثمار المتداولة والأسهم في بورصة لندن (جدول HTML)",
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "سجل العملات المشفرة اليومي (استخدم معرف العملة: bitcoin، ethereum...)"
+    },
+    "native_provider_names": {
+      "EASTMONEY": "Eastmoney",
+      "TENCENT": "Tencent Finance",
+      "SINA": "Sina Finance"
     }
   },
   "market_data_provider_api_key": "مفتاح API",

@@ -17,9 +17,11 @@ export function getProviderCoverage(t: TFunction, value: string): string {
 }
 
 export function getProviderName(t: TFunction, id: string, name: string): string {
-  if (id === "HTTP_API" && name === english.market_data_page.http_api_name) {
-    return t("settings:market_data_page.http_api_name");
+  const names: Record<string, string> = english.market_data_page.native_provider_names;
+  if (names[id] === name) {
+    return t(`settings:market_data_page.native_provider_names.${id}`, { defaultValue: name });
   }
+
   if (id === "US_TREASURY_CALC" && name === english.market_data_page.us_treasury_name) {
     return t("settings:market_data_page.us_treasury_name");
   }

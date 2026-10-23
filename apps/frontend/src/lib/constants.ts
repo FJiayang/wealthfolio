@@ -198,8 +198,6 @@ export function isLiabilityAssetKind(kind: AssetKind): boolean {
   return kind === "LIABILITY";
 }
 
-export const HTTP_API_PROVIDER_ID = "HTTP_API";
-
 // DataSource: Where quote data comes from (used on Quote objects)
 export const DataSource = {
   YAHOO: "YAHOO",

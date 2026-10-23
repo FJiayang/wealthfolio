@@ -32,8 +32,8 @@ it("localizes known capabilities and preserves external values", () => {
 });
 
 it("keeps brands and user-renamed provider names", () => {
-  expect(getProviderName(i18n.t, "HTTP_API", "Standard HTTP API")).toBe("标准 HTTP API");
-  expect(getProviderName(i18n.t, "HTTP_API", "My HTTP service")).toBe("My HTTP service");
+  expect(getProviderName(i18n.t, "EASTMONEY", "Eastmoney")).toBe("东方财富");
+  expect(getProviderName(i18n.t, "EASTMONEY", "My source")).toBe("My source");
   expect(getProviderName(i18n.t, "US_TREASURY_CALC", "US Treasury (Calculated)")).toBe(
     zh.market_data_page.us_treasury_name,
   );

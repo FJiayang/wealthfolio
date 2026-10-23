@@ -634,9 +634,6 @@
     "sync_interval_description": "Gilt für geplante Synchronisierungen, während die Desktop-App oder der Webserver läuft. Änderungen werden innerhalb einer Minute wirksam; Start- und manuelle Synchronisierungen bleiben unverändert.",
     "sync_interval_hours_one": "Alle {{count}} Stunde",
     "sync_interval_hours_other": "Alle {{count}} Stunden",
-    "http_api_name": "Standard-HTTP-API",
-    "http_api_base_url": "Basis-URL des Dienstes",
-    "http_api_help": "Geben Sie eine vollständige Kennung wie XSHG:600519 oder FUND:005827 ein, um eine Anlage anzulegen. Der API-Schlüssel ist optional.",
     "heading": "Marktdaten",
     "subtitle": "Konfigurieren Sie Ihre Marktdatenanbieter.",
     "rebuild_history": "Gesamten Verlauf aktualisieren",
@@ -959,11 +956,13 @@
       "OPENFIGI": "OpenFIGI bietet einen Mapping-Service für Finanzinstrument-Identifikatoren (FIGI, ISIN, CUSIP, Ticker).",
       "METAL_PRICE_API": "Bietet Echtzeit- und historische Spotpreise für Edelmetalle (Gold, Silber, Platin, Palladium).",
       "CUSTOM_SCRAPER": "Laufzeit-Dispatch-Provider für benutzerdefinierte benutzerdefinierte Quellen",
-      "HTTP_API": "Genaue Instrumentensuche, Profile und Preise über einen selbst gehosteten HTTP-Dienst",
       "YAHOO": "Yahoo Finance ist ein führender Finanzdatenanbieter für viele Märkte. Es liefert historische und Echtzeit-Bestandsdaten.",
       "MARKETDATA_APP": "MarketData.app bietet Echtzeit- und historische Daten für US-Aktien, Optionen, ETFs, Investmentfonds und mehr.",
       "ALPHA_VANTAGE": "Alpha Vantage bietet kostenlose APIs für Echtzeit- und historische Daten zu Aktien, Devisen und Kryptowährungen.",
-      "FINNHUB": "Finnhub bietet weltweite Echtzeitdaten zu Aktien, Devisen und Kryptowährungen. Der kostenlose Tarif umfasst 60 API-Aufrufe pro Minute."
+      "FINNHUB": "Finnhub bietet weltweite Echtzeitdaten zu Aktien, Devisen und Kryptowährungen. Der kostenlose Tarif umfasst 60 API-Aufrufe pro Minute.",
+      "EASTMONEY": "Aktien, Fonds und Indizes von Eastmoney und Tiantian Fund",
+      "TENCENT": "Aktien, börsennotierte Fonds und Indizes von Tencent Finance",
+      "SINA": "Aktien, börsennotierte Fonds und Indizes von Sina Finance"
     },
     "coverageLabels": {
       "Global": "Global",
@@ -986,6 +985,11 @@
       "workplace_fund_price_history_fund_code": "Preisverlauf des Arbeitsplatzfonds (Fondscode)",
       "lse_etfs_equities_html_table": "LSE ETFs und Aktien (HTML-Tabelle)",
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Täglicher Kryptoverlauf (Coin-ID verwenden: bitcoin, ethereum ...)"
+    },
+    "native_provider_names": {
+      "EASTMONEY": "Eastmoney",
+      "TENCENT": "Tencent Finance",
+      "SINA": "Sina Finance"
     }
   },
   "addon_permission_none_detected": "Keine Datenzugriffsberechtigungen erkannt. Dieses Add-on scheint minimalen Systemzugriff zu haben.",
