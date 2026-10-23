@@ -145,7 +145,7 @@ export function TaxonomyPicker({
       <PopoverTrigger
         render={
           <Button
-            variant="outline"
+            variant="field"
             role="combobox"
             aria-expanded={open}
             aria-label={t("settings:tax_select_category_aria")}

@@ -398,9 +398,10 @@ function SymbolMappingRow({
           control={control}
           name={`providerConfig.${index}.provider` as Path<AssetFormValues>}
           render={({ field: providerField }) => (
-            <FormItem className="space-y-0">
+            <FormItem>
               <FormControl>
                 <ResponsiveSelect
+                  aria-label={t("asset:editSheet.data_provider")}
                   value={providerField.value as string | undefined}
                   onValueChange={providerField.onChange}
                   options={mappingProviderOptions}
@@ -418,7 +419,7 @@ function SymbolMappingRow({
           control={control}
           name={`providerConfig.${index}.symbol` as Path<AssetFormValues>}
           render={({ field: symbolField }) => (
-            <FormItem className="space-y-0">
+            <FormItem>
               <FormControl>
                 <div className="relative flex items-center">
                   <Input

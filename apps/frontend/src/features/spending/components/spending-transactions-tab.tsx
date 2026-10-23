@@ -19,12 +19,16 @@ import { localizeActivityTypeName } from "@/lib/activity-utils";
 import { generateId } from "@/lib/id";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useIsMobileViewport } from "@/hooks/use-platform";
-import { useVirtualScrollContainer } from "@/hooks/use-virtual-scroll-container";
+import {
+  observeCurrentScrollOffset,
+  useVirtualScrollContainer,
+} from "@/hooks/use-virtual-scroll-container";
+import { useHorizontalOverflow } from "@/hooks/use-horizontal-overflow";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { InfiniteScrollTrigger } from "@/components/infinite-scroll-trigger";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { QueryKeys } from "@/lib/query-keys";
-import { formatDateISO } from "@/lib/utils";
+import { cn, formatDateISO } from "@/lib/utils";
 import type { Account, ActivityDetails, TaxonomyCategory } from "@/lib/types";
 import { useSettingsContext } from "@/lib/settings-provider";
 
@@ -60,6 +64,7 @@ import type { AmountRange } from "./amount-range-filter";
 import { DeleteTransactionsDialog, type DeletePreview } from "./delete-transactions-dialog";
 import { TransactionCard } from "./transaction-card";
 import { SelectionToolbar } from "./selection-toolbar";
+import { flattenDayGroups } from "@/lib/day-groups";
 import { TransactionDayHeader, TransactionDayHeading } from "./transaction-day-header";
 import { TransactionRow } from "./transaction-row";
 import { SplitTransactionSheet } from "./split-transaction-sheet";
@@ -73,12 +78,12 @@ import {
   isSpendingAccountType,
 } from "../lib/constants";
 import { cashActivityFlowMetadata } from "../lib/cash-activity-form-utils";
+import { Card } from "@wealthfolio/ui/components/ui/card";
 import {
   isTransferCashActivity,
   stableArr,
   toRowVM,
   groupRowsByDay,
-  flattenDayGroups,
   netSummary,
   type TransactionDayGroup,
   type TransactionRowVM,
@@ -860,9 +865,9 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
 
     const daySelectionState = useCallback(
       (group: TransactionDayGroup): boolean | "indeterminate" => {
-        const selected = group.rows.filter((r) => selectedRowIds.has(r.activity.id)).length;
+        const selected = group.items.filter((r) => selectedRowIds.has(r.activity.id)).length;
         if (selected === 0) return false;
-        return selected === group.rows.length ? true : "indeterminate";
+        return selected === group.items.length ? true : "indeterminate";
       },
       [selectedRowIds],
     );
@@ -870,8 +875,8 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const handleToggleDay = useCallback((group: TransactionDayGroup) => {
       setSelectedRowIds((prev) => {
         const next = new Set(prev);
-        const allSelected = group.rows.every((r) => next.has(r.activity.id));
-        group.rows.forEach((r) =>
+        const allSelected = group.items.every((r) => next.has(r.activity.id));
+        group.items.forEach((r) =>
           allSelected ? next.delete(r.activity.id) : next.add(r.activity.id),
         );
         return next;
@@ -956,12 +961,18 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
      * Both layouts render the same day-grouped sequence, so they share one flat
      * item list and one virtualizer; only one of them is ever mounted.
      */
-    const listItems = useMemo(() => flattenDayGroups(dayGroups), [dayGroups]);
+    const listItems = useMemo(
+      () => flattenDayGroups(dayGroups, (row) => row.activity.id),
+      [dayGroups],
+    );
 
     // Neither layout owns its scroll box — the table scrolls with the page, the
     // card list scrolls inside its swipeable pane — so both sit below a filter
     // bar whose height the virtualizer has to offset by.
     const { listRef, scrollElement, scrollMargin } = useVirtualScrollContainer();
+    const [tableBox, setTableBox] = useState<HTMLDivElement | null>(null);
+    const [tableElement, setTableElement] = useState<HTMLTableElement | null>(null);
+    const scrollsSideways = useHorizontalOverflow(tableBox, tableElement);
 
     /**
      * Keyed by activity rather than index, so a row keeps its measured height
@@ -979,6 +990,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const virtualizer = useVirtualizer({
       count: listItems.length,
       getScrollElement: () => scrollElement,
+      observeElementOffset: observeCurrentScrollOffset,
       estimateSize: (index) => {
         const isHeader = listItems[index]?.kind === "header";
         if (isMobile) return isHeader ? MOBILE_HEADING_HEIGHT : MOBILE_CARD_HEIGHT;
@@ -1064,7 +1076,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
               />
             ) : (
               <TransactionCard
-                {...sharedRowProps(item.row)}
+                {...sharedRowProps(item.item)}
                 showAccount={showAccount}
                 selectionMode={selectionMode}
               />
@@ -1113,7 +1125,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
               key={virtualItem.key}
               ref={virtualizer.measureElement}
               data-index={virtualItem.index}
-              {...sharedRowProps(item.row)}
+              {...sharedRowProps(item.item)}
               showAccount={showAccount}
               showBalance={showBalance}
             />
@@ -1267,13 +1279,20 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         ) : (
           // Row checkboxes show on hover or focus until something is selected,
           // then on every row; `data-selecting` is what switches them on.
-          <div
-            className="group/list rounded-md border"
+          <Card
+            ref={setTableBox}
+            data-virtual-scroll-parent
+            className={cn("group/list", scrollsSideways ? "overflow-auto" : "overflow-clip")}
             data-selecting={selectedRowIds.size > 0 || undefined}
             style={{ overflowAnchor: "none" }}
           >
-            <Table>
-              <TableHeader className="bg-muted-foreground/5">
+            <Table ref={setTableElement} containerClassName="overflow-visible">
+              <TableHeader
+                className={cn(
+                  "bg-card sticky top-0 z-10 [&_th]:shadow-[inset_0_-1px_0_var(--color-border)] [&_tr]:border-b-0",
+                  !scrollsSideways && "[@media(width>1024px)]:top-[var(--page-header-height,0px)]",
+                )}
+              >
                 <TableRow>
                   {/* Select-all stays visible: with the row boxes hidden at
                       rest, it is what shows the list can be selected. */}
@@ -1315,7 +1334,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
                 {loadMoreTrigger}
               </div>
             )}
-          </div>
+          </Card>
         )}
 
         <CashActivityForm

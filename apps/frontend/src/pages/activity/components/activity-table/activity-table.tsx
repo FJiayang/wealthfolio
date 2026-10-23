@@ -29,7 +29,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { observeElementOffset, useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   AmountDisplay,
   Button,
@@ -37,6 +37,7 @@ import {
   useAmountFormatting,
   useDateFormatting,
   buttonVariants,
+  Card,
   Empty,
   EmptyHeader,
   EmptyMedia,
@@ -67,12 +68,23 @@ import { InfiniteScrollTrigger } from "@/components/infinite-scroll-trigger";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useHorizontalOverflow } from "@/hooks/use-horizontal-overflow";
 import { usePersistentState } from "@/hooks/use-persistent-state";
-import { useVirtualScrollContainer } from "@/hooks/use-virtual-scroll-container";
+import {
+  observeCurrentScrollOffset,
+  useVirtualScrollContainer,
+} from "@/hooks/use-virtual-scroll-container";
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
 import { ActivityOperations } from "../activity-operations";
 import { ActivityTypeBadge } from "../activity-type-badge";
-import { flattenActivityDayGroups, groupActivitiesByDay } from "./activity-day-groups";
+import { flattenDayGroups } from "@/lib/day-groups";
+import { groupActivitiesByDay } from "./activity-day-groups";
 import { ActivityDayHeaderRow } from "./activity-day-header";
+import { useReviewExplanation } from "../activity-data-grid/status-indicator";
+import { getProviderMappingReasons } from "../activity-data-grid/types";
+import {
+  NEEDS_REVIEW_ROW_CLASS,
+  NeedsReviewIcon,
+  NeedsReviewStripe,
+} from "@/components/needs-review";
 
 /**
  * Starting heights for virtualized rows. Rows report their real height once
@@ -84,6 +96,27 @@ const DAY_HEADER_HEIGHT = 30;
 /** Rows kept mounted past the viewport edge, so a fast scroll stays painted. */
 const OVERSCAN = 8;
 const ACTIVITY_TABLE_COLUMN_VISIBILITY_KEY = "activity-table-column-visibility";
+/**
+ * Column widths, in rem, for the table's fixed layout. Rows are recycled as
+ * the list scrolls, so widths fitted to the mounted rows would change with
+ * every scroll; these fit the widest values instead. The symbol column has
+ * none: it takes the rest of the table and truncates.
+ */
+const COLUMN_WIDTHS: Partial<Record<string, number>> = {
+  date: 7.5,
+  activityType: 8,
+  quantity: 9,
+  unitPrice: 8,
+  fee: 5.5,
+  tax: 5.5,
+  value: 9,
+  cashBalance: 9,
+  account: 11.5,
+  currency: 5.5,
+  actions: 3.5,
+};
+/** Below this the symbol column stops shrinking and the table scrolls sideways. */
+const SYMBOL_MIN_WIDTH = 10;
 
 interface ActivityTableProps {
   activities: ActivityDetails[];
@@ -135,6 +168,7 @@ export const ActivityTable = ({
   const dateFormatting = useDateFormatting();
   const { isBalanceHidden } = useBalancePrivacy();
   const { t } = useTranslation();
+  const reviewExplanation = useReviewExplanation();
   const { duplicateActivityMutation } = useActivityMutations();
   // mutateAsync is stable; the mutation object is not, and `columns` depends on this handler.
   const { mutateAsync: duplicateActivity } = duplicateActivityMutation;
@@ -271,13 +305,26 @@ export const ActivityTable = ({
             </div>
           );
 
-          if (isCash || !hasAsset) {
-            return content;
-          }
+          const body =
+            isCash || !hasAsset ? (
+              content
+            ) : (
+              <Link to={`/holdings/${encodeURIComponent(assetId)}`} className="-m-1 block p-1">
+                {content}
+              </Link>
+            );
+          if (!row.original.needsReview) return body;
+          // The review icon is a button with its own tooltip, so it sits beside
+          // the asset link rather than inside it.
           return (
-            <Link to={`/holdings/${encodeURIComponent(assetId)}`} className="-m-1 block p-1">
-              {content}
-            </Link>
+            <div className="flex items-center gap-2">
+              <NeedsReviewIcon
+                label={t("activity:detail.needs_review")}
+                reasons={getProviderMappingReasons(row.original)}
+                explanation={reviewExplanation}
+              />
+              {body}
+            </div>
           );
         },
         enableHiding: false,
@@ -742,6 +789,7 @@ export const ActivityTable = ({
       amountFormatting,
       showsCashBalance,
       symbolExchangeCountMap,
+      reviewExplanation,
       t,
     ],
   );
@@ -786,7 +834,7 @@ export const ActivityTable = ({
       (row) => row.original,
       (activity) => formatDateTime(activity.date, dateFormatting, appTimezone).date,
     );
-    return flattenActivityDayGroups(groups, (row) => row.id);
+    return flattenDayGroups(groups, (row) => row.id);
   }, [appTimezone, dateFormatting, groupByDay, tableRows]);
 
   // Embedded tables may scroll with the page; the body can start below both
@@ -810,10 +858,7 @@ export const ActivityTable = ({
     getScrollElement: () => scrollElement,
     // A tab can mount this table inside an already-scrolled page. Read the
     // current offset before the virtualizer performs its initial scrollTo.
-    observeElementOffset: (instance, onChange) => {
-      onChange(instance.scrollElement?.scrollTop ?? 0, false);
-      return observeElementOffset(instance, onChange);
-    },
+    observeElementOffset: observeCurrentScrollOffset,
     estimateSize: (index) => (listItems[index]?.kind === "header" ? DAY_HEADER_HEIGHT : ROW_HEIGHT),
     getItemKey,
     overscan: OVERSCAN,
@@ -835,21 +880,17 @@ export const ActivityTable = ({
     : totalSize;
   const visibleColumns = table.getVisibleFlatColumns();
   const columnCount = visibleColumns.length;
+  const tableMinWidth = visibleColumns.reduce(
+    (width, column) => width + (COLUMN_WIDTHS[column.id] ?? 0),
+    SYMBOL_MIN_WIDTH,
+  );
   // A day's closing cash sits under the row totals, or at the row's end when
   // the Total column is hidden.
   const cashColumnIndex = visibleColumns.findIndex((column) => column.id === "value");
 
-  if (isLoading) {
-    return (
-      <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-        {t("activity:table.loading")}
-      </div>
-    );
-  }
-
   const hasRows = tableRows.length > 0;
 
-  if (!hasRows) {
+  if (!hasRows && !isLoading) {
     return (
       <div className="flex h-full flex-col">
         <Empty>
@@ -903,16 +944,18 @@ export const ActivityTable = ({
           nothing between them is a scroll container. A box that scrolls
           sideways is one, so the box scrolls only while the table is wider
           than it, and `Table`'s own wrapper never does. */}
-      <div
+      <Card
         ref={setTableBox}
         data-virtual-scroll-parent
-        className={cn(
-          "min-h-0 flex-1 rounded-md border",
-          scrollsSideways ? "overflow-auto" : "overflow-clip",
-        )}
+        className={cn("min-h-0 flex-1", scrollsSideways ? "overflow-auto" : "overflow-clip")}
         style={{ overflowAnchor: "none" }}
       >
-        <Table ref={setTableElement} containerClassName="overflow-visible">
+        <Table
+          ref={setTableElement}
+          containerClassName="overflow-visible"
+          className="table-fixed"
+          style={{ minWidth: `${tableMinWidth}rem` }}
+        >
           {/* Opaque, so rows don't show through the pinned header. A collapsed
               row border stays with the table grid instead of moving with
               sticky cells, so the cells draw the header's bottom line.
@@ -923,15 +966,20 @@ export const ActivityTable = ({
               offset would push it down over the rows. */}
           <TableHeader
             className={cn(
-              "bg-background sticky top-0 z-10 [&_th]:shadow-[inset_0_-1px_0_var(--color-border)] [&_tr]:border-b-0",
+              "bg-card sticky top-0 z-10 [&_th]:shadow-[inset_0_-1px_0_var(--color-border)] [&_tr]:border-b-0",
               !scrollsSideways && "[@media(width>1024px)]:top-[var(--page-header-height,0px)]",
             )}
           >
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="bg-muted-foreground/5">
+              <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
+                  const width = COLUMN_WIDTHS[header.column.id];
                   return (
-                    <TableHead key={header.id} className="px-3">
+                    <TableHead
+                      key={header.id}
+                      className="px-3"
+                      style={width ? { width: `${width}rem` } : undefined}
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(header.column.columnDef.header, header.getContext())}
@@ -947,50 +995,62 @@ export const ActivityTable = ({
               rendered window are stood in for by one spacer row at each end
               and the real rows stay in normal table flow. */}
           <TableBody ref={listRef}>
-            {paddingTop > 0 && (
+            {isLoading && (
+              <TableRow>
+                <TableCell colSpan={columnCount} className="text-muted-foreground h-32 text-center">
+                  <span role="status">{t("activity:table.loading")}</span>
+                </TableCell>
+              </TableRow>
+            )}
+            {!isLoading && paddingTop > 0 && (
               <TableRow aria-hidden className="hover:bg-transparent">
                 <TableCell colSpan={columnCount} className="p-0" style={{ height: paddingTop }} />
               </TableRow>
             )}
-            {virtualItems.map((virtualItem) => {
-              const listItem = listItems[virtualItem.index];
-              if (!listItem) return null;
-              if (listItem.kind === "header") {
+            {!isLoading &&
+              virtualItems.map((virtualItem) => {
+                const listItem = listItems[virtualItem.index];
+                if (!listItem) return null;
+                if (listItem.kind === "header") {
+                  return (
+                    <ActivityDayHeaderRow
+                      key={virtualItem.key}
+                      ref={virtualizer.measureElement}
+                      data-index={virtualItem.index}
+                      group={listItem.group}
+                      date={listItem.group.items[0].original.date}
+                      isPartial={hasNextPage && listItem.isLastGroup}
+                      columnCount={columnCount}
+                      cashColumnIndex={cashColumnIndex}
+                    />
+                  );
+                }
+                const row = listItem.item;
                 return (
-                  <ActivityDayHeaderRow
+                  <TableRow
                     key={virtualItem.key}
                     ref={virtualizer.measureElement}
                     data-index={virtualItem.index}
-                    group={listItem.group}
-                    date={listItem.group.items[0].original.date}
-                    isPartial={hasNextPage && listItem.isLastGroup}
-                    columnCount={columnCount}
-                    cashColumnIndex={cashColumnIndex}
-                  />
+                    className={cn(
+                      "group/row cursor-pointer",
+                      row.original.needsReview && NEEDS_REVIEW_ROW_CLASS,
+                    )}
+                    onClick={(e) => isRowBodyClick(e) && handleEdit(row.original)}
+                  >
+                    {row.getVisibleCells().map((cell, cellIndex) => (
+                      <TableCell
+                        key={cell.id}
+                        className={cn("px-3 py-2", cellIndex === 0 && "relative")}
+                        data-row-click-ignore={cell.column.id === "actions" || undefined}
+                      >
+                        {cellIndex === 0 && row.original.needsReview && <NeedsReviewStripe />}
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
                 );
-              }
-              const row = listItem.item;
-              return (
-                <TableRow
-                  key={virtualItem.key}
-                  ref={virtualizer.measureElement}
-                  data-index={virtualItem.index}
-                  className="group/row cursor-pointer"
-                  onClick={(e) => isRowBodyClick(e) && handleEdit(row.original)}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className="px-3 py-2"
-                      data-row-click-ignore={cell.column.id === "actions" || undefined}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              );
-            })}
-            {paddingBottom > 0 && (
+              })}
+            {!isLoading && paddingBottom > 0 && (
               <TableRow aria-hidden className="hover:bg-transparent">
                 <TableCell
                   colSpan={columnCount}
@@ -1010,7 +1070,7 @@ export const ActivityTable = ({
             hasLoadMoreError={hasLoadMoreError}
           />
         )}
-      </div>
+      </Card>
     </div>
   );
 };

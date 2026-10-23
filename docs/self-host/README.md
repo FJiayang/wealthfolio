@@ -16,14 +16,14 @@ own repositories.
 
 Fork images target both `linux/amd64` and `linux/arm64` and are published only
 to `ghcr.io/fjiayang/wealthfolio`. Releases use four-component Git tags such as
-`v3.10.0.8` and matching image tags such as `3.10.0.8`. The workflow publishes
+`v3.11.0.1` and matching image tags such as `3.11.0.1`. The workflow publishes
 only after both architectures pass their smoke tests; creating a Git tag alone
 does not make the image available.
 
 After confirming that the release build succeeded, pull its exact version:
 
 ```bash
-docker pull ghcr.io/fjiayang/wealthfolio:3.10.0.8
+docker pull ghcr.io/fjiayang/wealthfolio:3.11.0.1
 ```
 
 To follow the most recently published fork build instead:

@@ -1,5 +1,5 @@
 > **Fork release policy:** This is FJiayang's Wealthfolio fork. Fork Git tags
-> use `v3.10.0.N` and GHCR images use `ghcr.io/fjiayang/wealthfolio:3.10.0.N`;
+> use `v3.11.0.N` and GHCR images use `ghcr.io/fjiayang/wealthfolio:3.11.0.N`;
 > application manifests retain upstream's `3.10.0` version. See the
 > [fork maintenance guide](docs/fork-maintenance.md) for provenance, historical
 > tag migration, publishing, and update limitations. Upstream links below refer
@@ -250,6 +250,21 @@ To populate development with existing data, use the supported backup/export and
 restore flow. A raw copy of an encrypted production database still requires its
 original encryption key; development does not copy or fall back to production
 credentials. Never point development at the live production profile directory.
+
+#### Packaging for a Distribution
+
+If a package manager delivers updates, set `WEALTHFOLIO_UPDATE_EXPLANATION` to
+the message users should see when building:
+
+```bash
+WEALTHFOLIO_UPDATE_EXPLANATION="Update Wealthfolio with your package manager." pnpm tauri build
+```
+
+The desktop app still announces new releases with their notes, but shows this
+message instead of an Update Now button and refuses to install updates itself. A
+launcher script can set the same variable at run time instead. Flatpak installs,
+and `.deb`/`.rpm` builds whose binary dpkg or rpm did not install, are detected
+without it.
 
 #### Addon Development Mode
 

@@ -7,9 +7,9 @@ its Git release tags and Docker image tags.
 
 ## Version contract
 
-- Upstream application version: `3.10.0`.
-- Fork release tag: `v3.10.0.8`; exact Docker image tag:
-  `ghcr.io/fjiayang/wealthfolio:3.10.0.8`.
+- Upstream application version: `3.11.0`.
+- Fork release tag: `v3.11.0.1`; exact Docker image tag:
+  `ghcr.io/fjiayang/wealthfolio:3.11.0.1`.
 - `fork-release.json` records the upstream version, fork revision, and exact
   upstream commit incorporated into the fork. The revision is reserved for the
   next release; editing this file does not itself publish anything.
@@ -21,25 +21,26 @@ its Git release tags and Docker image tags.
   revisions, prerelease suffixes, or reused tags. The tag must exactly match the
   release manifest at that commit.
 - Fork Docker releases publish the full four-component version, a commit SHA
-  alias, and `latest`. They do not publish upstream-shaped `3.10` or `3.10.0`
+  alias, and `latest`. They do not publish upstream-shaped `3.11` or `3.11.0`
   aliases. Prefer an exact version or image digest for reproducible deployments.
   `latest` is mutable; publishing an older release can move it backwards.
 
-The current upstream base is `c77ae693d8a5930e3ef13ec001e4d6775d85be4a`, which
-includes 258 upstream commits after the `v3.10.0` release commit
-`f9643209e7cafcaf133d5a8fbe1ef2fa4fd7fc04`. The version above describes the
-application manifests, not an assertion that this fork contains only stable-tag
-source plus fork patches. A newer upstream release does not change this fork's
-base until it is deliberately integrated.
+The current upstream base is the stable `v3.11.0` release commit
+`d1fda0b65f69d8557b1ef80e555c799215ad28b3`. Upstream synchronization uses a real
+merge, retaining the fork's history and compatible fork-only features. When
+behavior is incompatible, upstream takes precedence. The two contributed PR
+branches are merged separately without modifying or closing the upstream PRs. A
+newer upstream release does not change this fork's base until deliberately
+integrated.
 
 ## Publishing the next fork revision
 
 1. Integrate and test changes on the fork. Increment `forkRevision` for each new
-   release; this policy change reserves revision 8.
+   release; the 3.11.0 upstream version resets this fork to revision 1.
 2. Run
    `python3 -m unittest discover -s .github/scripts -p 'test_fork_release.py'`
    and validate the intended tag:
-   `python3 .github/scripts/fork_release.py --repository FJiayang/wealthfolio --ref refs/tags/v3.10.0.8 --event push`.
+   `python3 .github/scripts/fork_release.py --repository FJiayang/wealthfolio --ref refs/tags/v3.11.0.1 --event push`.
 3. After review, create the matching immutable release tag on the intended
    commit. Do not recreate or move a previously published tag.
 4. The Docker workflow validates the identity before building. Both architecture

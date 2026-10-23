@@ -32,6 +32,18 @@ class ForkReleaseTests(unittest.TestCase):
     def test_exact_fork_release(self):
         self.assertEqual(self.policy(), {"fork": "true", "publish": "true", "version": "3.10.0.8"})
 
+    def test_new_upstream_version_resets_fork_revision(self):
+        self.config.update(upstreamVersion="3.11.0", forkRevision=1,
+                           upstreamCommit="d1fda0b65f69d8557b1ef80e555c799215ad28b3")
+        self.write_config()
+        for name in ("package.json", "apps/frontend/package.json", "apps/tauri/tauri.conf.json", "Cargo.toml"):
+            path = self.root / name
+            path.write_text(path.read_text().replace("3.10.0", "3.11.0"))
+        self.assertEqual(self.policy(ref="refs/tags/v3.11.0.1"),
+                         {"fork": "true", "publish": "true", "version": "3.11.0.1"})
+        with self.assertRaises(ValueError):
+            self.policy(ref="refs/tags/v3.10.0.8")
+
     def test_reject_invalid_or_mismatched_tag(self):
         for tag in ("v3.10.8", "v3.10.0.0", "v3.10.0.08", "v03.10.0.8", "v3.010.0.8",
                     "v3.10.00.8", "v3.10.0.-1", "v3.10.0.8-beta", "v3.10.0.8.1",
