@@ -34,6 +34,12 @@ it("localizes known capabilities and preserves external values", () => {
 it("keeps brands and user-renamed provider names", () => {
   expect(getProviderName(i18n.t, "HTTP_API", "Standard HTTP API")).toBe("标准 HTTP API");
   expect(getProviderName(i18n.t, "HTTP_API", "My HTTP service")).toBe("My HTTP service");
+  expect(getProviderName(i18n.t, "US_TREASURY_CALC", "US Treasury (Calculated)")).toBe(
+    zh.market_data_page.us_treasury_name,
+  );
+  expect(getProviderName(i18n.t, "US_TREASURY_CALC", "My treasury provider")).toBe(
+    "My treasury provider",
+  );
   expect(getProviderName(i18n.t, "YAHOO", "Yahoo Finance")).toBe("Yahoo Finance");
 });
 
@@ -42,3 +48,22 @@ it("translates built-in instrument capabilities while preserving future provider
     "股票 • 基金 • New instrument",
   );
 });
+
+const settingsCatalogs = import.meta.glob<typeof en>("../i18n/locales/*/settings.json", {
+  eager: true,
+  import: "default",
+});
+
+it.each(Object.entries(settingsCatalogs))(
+  "keeps example API identifiers literal in %s",
+  (_, catalog) => {
+    const descriptions = catalog.market_data_page.templateDescriptions;
+    for (const description of [
+      descriptions.free_crypto_use_coin_id_bitcoin_ethereum,
+      descriptions.daily_crypto_history_use_coin_id_bitcoin_ethereum,
+    ]) {
+      expect(description).toContain("bitcoin");
+      expect(description).toContain("ethereum");
+    }
+  },
+);

@@ -363,14 +363,18 @@
     "allAccountsProtected": "所有帳戶均受保護"
   },
   "categoryNouns": {
-    "region_other": "個地區",
-    "category_other": "個類別",
+    "region_other": "地區",
+    "category_other": "類別",
     "assetClass_one": "資產類別",
     "assetClass_other": "資產類別",
     "region_one": "地區",
     "industry_one": "行業",
     "industry_other": "行業",
-    "category_one": "類別"
+    "category_one": "類別",
+    "assetClass": "資產類別",
+    "region": "地區",
+    "industry": "行業",
+    "category": "類別"
   },
   "savedTarget": "已保存目標",
   "builtInPresets": {

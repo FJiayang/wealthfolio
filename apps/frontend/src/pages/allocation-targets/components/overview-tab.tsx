@@ -27,7 +27,7 @@ export function OverviewTab({
   const resolvedReport = resolveDriftReportCategories(report, taxonomy?.categories);
   const taxonomyName = taxonomy?.taxonomy.name;
   const categoryLabel = categoryNoun(t, taxonomyId, taxonomyName, report.outOfBandCount);
-  const pluralCategoryLabel = categoryNoun(t, taxonomyId, taxonomyName, 2);
+  const pluralCategoryLabel = categoryNoun(t, taxonomyId, taxonomyName);
   const displayTaxonomy = taxonomyLabel(t, taxonomyId, taxonomyName);
   const gapStatus =
     report.outOfBandCount === 0

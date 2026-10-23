@@ -367,10 +367,14 @@
     "category_other": "Kategorien",
     "region_one": "Region",
     "category_one": "Kategorie",
-    "assetClass_one": "Anlageklassen",
+    "assetClass_one": "Anlageklasse",
     "assetClass_other": "Anlageklassen",
-    "industry_one": "Branchen",
-    "industry_other": "Branchen"
+    "industry_one": "Branche",
+    "industry_other": "Branchen",
+    "assetClass": "Anlageklassen",
+    "region": "Regionen",
+    "industry": "Branchen",
+    "category": "Kategorien"
   },
   "savedTarget": "Gespeichertes Ziel",
   "builtInPresets": {

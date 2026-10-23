@@ -375,16 +375,20 @@
   "categoryNouns": {
     "region_other": "régions",
     "category_other": "catégories",
-    "assetClass_one": "classes d'actifs",
+    "assetClass_one": "classe d'actifs",
     "assetClass_other": "classes d'actifs",
     "assetClass_many": "classes d'actifs",
-    "region_one": "régions",
-    "industry_one": "industries",
+    "region_one": "région",
+    "industry_one": "industrie",
     "industry_other": "industries",
     "industry_many": "industries",
-    "category_one": "catégories",
+    "category_one": "catégorie",
     "region_many": "régions",
-    "category_many": "catégories"
+    "category_many": "catégories",
+    "assetClass": "classes d'actifs",
+    "region": "régions",
+    "industry": "industries",
+    "category": "catégories"
   },
   "savedTarget": "Cible enregistrée",
   "builtInPresets": {

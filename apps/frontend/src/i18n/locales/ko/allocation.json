@@ -370,7 +370,11 @@
     "region_one": "지역",
     "industry_one": "산업",
     "industry_other": "산업",
-    "category_one": "범주"
+    "category_one": "범주",
+    "assetClass": "자산 클래스",
+    "region": "지역",
+    "industry": "산업",
+    "category": "카테고리"
   },
   "savedTarget": "저장된 목표",
   "builtInPresets": {

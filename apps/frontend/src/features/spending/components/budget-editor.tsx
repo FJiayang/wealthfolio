@@ -131,7 +131,7 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
         .map((c) => ({
           category: c,
           fromGroupId: g.group.id,
-          fromGroupName: getBudgetGroupLabel(t, g.group.id, g.group.name),
+          fromGroupName: g.group.name,
         })),
     ),
     ...budget.computed.ungroupedRows
@@ -750,26 +750,25 @@ function AddCategoryRow({
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
-  const [pendingMove, setPendingMove] = useState<{
-    categoryId: string;
-    categoryName: string;
-    fromGroupName: string;
-  } | null>(null);
+  const [pendingMove, setPendingMove] = useState<CategoryPoolEntry | null>(null);
+  const groupLabel = getBudgetGroupLabel(t, groupId, groupName);
+  const pendingCategoryLabel = pendingMove
+    ? getCategoryLabel(
+        t,
+        pendingMove.category.taxonomyId,
+        pendingMove.category.categoryId,
+        pendingMove.category.name,
+      )
+    : undefined;
+  const pendingFromGroupLabel = pendingMove?.fromGroupName
+    ? getBudgetGroupLabel(t, pendingMove.fromGroupId ?? "", pendingMove.fromGroupName)
+    : undefined;
 
   const handlePick = (entry: CategoryPoolEntry) => {
     if (entry.fromGroupName) {
       // Always confirm when moving from another group — the source group
       // loses the category, which can shift its allocation surface area.
-      setPendingMove({
-        categoryId: entry.category.categoryId,
-        categoryName: getCategoryLabel(
-          t,
-          entry.category.taxonomyId,
-          entry.category.categoryId,
-          entry.category.name,
-        ),
-        fromGroupName: entry.fromGroupName,
-      });
+      setPendingMove(entry);
       setOpen(false);
     } else {
       onMoveCategory(entry.category.categoryId, groupId);
@@ -841,7 +840,9 @@ function AddCategoryRow({
               </div>
               {entry.fromGroupName && (
                 <div className="text-muted-foreground truncate text-xs">
-                  {t("spending:budgetEditor.fromGroup", { name: entry.fromGroupName })}
+                  {t("spending:budgetEditor.fromGroup", {
+                    name: getBudgetGroupLabel(t, entry.fromGroupId ?? "", entry.fromGroupName),
+                  })}
                 </div>
               )}
             </div>
@@ -887,7 +888,7 @@ function AddCategoryRow({
             </div>
             <SheetHeader className="px-4 pb-3 pt-1 text-start">
               <SheetTitle className="text-base">
-                {t("spending:budgetEditor.addCategoryTo", { name: groupName })}
+                {t("spending:budgetEditor.addCategoryTo", { name: groupLabel })}
               </SheetTitle>
             </SheetHeader>
             {pool.length === 0 ? (
@@ -927,15 +928,15 @@ function AddCategoryRow({
           <AlertDialogHeader>
             <AlertDialogTitle>
               {t("spending:budgetEditor.moveCategoryTitle", {
-                name: pendingMove?.categoryName,
-                group: groupName,
+                name: pendingCategoryLabel,
+                group: groupLabel,
               })}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {t("spending:budgetEditor.moveCategoryBody", {
-                name: pendingMove?.categoryName,
-                from: pendingMove?.fromGroupName,
-                group: groupName,
+                name: pendingCategoryLabel,
+                from: pendingFromGroupLabel,
+                group: groupLabel,
               })}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -944,7 +945,7 @@ function AddCategoryRow({
             <AlertDialogAction
               onClick={() => {
                 if (pendingMove) {
-                  onMoveCategory(pendingMove.categoryId, groupId);
+                  onMoveCategory(pendingMove.category.categoryId, groupId);
                   setPendingMove(null);
                 }
               }}

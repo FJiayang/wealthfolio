@@ -363,14 +363,18 @@
     "allAccountsProtected": "所有账户均受保护"
   },
   "categoryNouns": {
-    "region_other": "个地区",
-    "category_other": "个类别",
+    "region_other": "地区",
+    "category_other": "类别",
     "assetClass_one": "资产类别",
     "assetClass_other": "资产类别",
     "region_one": "地区",
     "industry_one": "行业",
     "industry_other": "行业",
-    "category_one": "类别"
+    "category_one": "类别",
+    "assetClass": "资产类别",
+    "region": "地区",
+    "industry": "行业",
+    "category": "类别"
   },
   "savedTarget": "已保存目标",
   "builtInPresets": {

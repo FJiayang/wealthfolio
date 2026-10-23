@@ -442,7 +442,11 @@
     "industry_one": "industry",
     "industry_other": "industries",
     "category_one": "category",
-    "category_other": "categories"
+    "category_other": "categories",
+    "assetClass": "asset classes",
+    "region": "regions",
+    "industry": "industries",
+    "category": "categories"
   },
   "savedTarget": "Saved target"
 }

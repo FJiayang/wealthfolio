@@ -375,16 +375,20 @@
   "categoryNouns": {
     "region_other": "regiões",
     "category_other": "categorias",
-    "assetClass_one": "classes de ativos",
+    "assetClass_one": "classe de ativos",
     "assetClass_other": "classes de ativos",
     "assetClass_many": "classes de ativos",
-    "region_one": "regiões",
-    "industry_one": "indústrias",
+    "region_one": "região",
+    "industry_one": "indústria",
     "industry_other": "indústrias",
     "industry_many": "indústrias",
-    "category_one": "categorias",
+    "category_one": "categoria",
     "region_many": "regiões",
-    "category_many": "categorias"
+    "category_many": "categorias",
+    "assetClass": "classes de ativos",
+    "region": "regiões",
+    "industry": "indústrias",
+    "category": "categorias"
   },
   "savedTarget": "Meta salva",
   "builtInPresets": {

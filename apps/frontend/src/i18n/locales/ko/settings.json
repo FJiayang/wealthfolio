@@ -1086,7 +1086,7 @@
     "us_treasury_name": "미국 재무부(계산)",
     "templateDescriptions": {
       "workplace_fund_prices_fund_code": "직장 펀드 가격(펀드 코드)",
-      "free_crypto_use_coin_id_bitcoin_ethereum": "무료 암호화폐(코인 ID 사용: 비트코인, 이더리움...)",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "무료 암호화폐(코인 ID 사용: bitcoin, ethereum...)",
       "free_currency_rates": "자유 환율",
       "lse_etfs_equities": "LSE ETF 및 주식",
       "eu_funds_equities_isin_mic": "EU 펀드 및 주식(ISIN-MIC)",
@@ -1094,7 +1094,7 @@
       "italian_bonds_stocks": "이탈리아 채권 및 주식",
       "workplace_fund_price_history_fund_code": "직장 펀드 가격 내역(펀드 코드)",
       "lse_etfs_equities_html_table": "LSE ETF 및 주식(HTML 테이블)",
-      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "일일 암호화폐 기록(코인 ID 사용: 비트코인, 이더리움...)"
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "일일 암호화폐 기록(코인 ID 사용: bitcoin, ethereum...)"
     }
   },
   "addon_permission_none_detected": "감지된 데이터 접근 권한이 없습니다. 이 애드온은 시스템 접근 권한이 최소한인 것으로 보입니다.",

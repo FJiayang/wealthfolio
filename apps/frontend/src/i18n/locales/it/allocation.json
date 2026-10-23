@@ -375,16 +375,20 @@
   "categoryNouns": {
     "region_other": "regioni",
     "category_other": "categorie",
-    "assetClass_one": "classi di attività",
+    "assetClass_one": "classe di attività",
     "assetClass_other": "classi di attività",
     "assetClass_many": "classi di attività",
-    "region_one": "regioni",
-    "industry_one": "industrie",
+    "region_one": "regione",
+    "industry_one": "industria",
     "industry_other": "industrie",
     "industry_many": "industrie",
-    "category_one": "categorie",
+    "category_one": "categoria",
     "region_many": "regioni",
-    "category_many": "categorie"
+    "category_many": "categorie",
+    "assetClass": "classi di attività",
+    "region": "regioni",
+    "industry": "industrie",
+    "category": "categorie"
   },
   "savedTarget": "Obiettivo salvato",
   "builtInPresets": {

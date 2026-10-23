@@ -1086,7 +1086,7 @@
     "us_treasury_name": "米国財務省 (計算値)",
     "templateDescriptions": {
       "workplace_fund_prices_fund_code": "職場基金の価格（基金コード）",
-      "free_crypto_use_coin_id_bitcoin_ethereum": "無料の暗号通貨 (コイン ID を使用: ビットコイン、イーサリアムなど)",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "無料の暗号通貨 (コイン ID を使用: bitcoin、ethereumなど)",
       "free_currency_rates": "無料通貨レート",
       "lse_etfs_equities": "LSE ETF と株式",
       "eu_funds_equities_isin_mic": "EU のファンドと株式 (ISIN-MIC)",
@@ -1094,7 +1094,7 @@
       "italian_bonds_stocks": "イタリアの債券と株式",
       "workplace_fund_price_history_fund_code": "職場基金の価格履歴 (基金コード)",
       "lse_etfs_equities_html_table": "LSE ETF と株式 (HTML テーブル)",
-      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "毎日の暗号通貨履歴 (コイン ID を使用: ビットコイン、イーサリアムなど)"
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "毎日の暗号通貨履歴 (コイン ID を使用: bitcoin、ethereumなど)"
     }
   },
   "addon_permission_none_detected": "データへのアクセス権限は検出されませんでした。このアドオンのシステムアクセスは最小限のようです。",

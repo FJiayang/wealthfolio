@@ -1094,7 +1094,7 @@
       "italian_bonds_stocks": "義大利債券和股票",
       "workplace_fund_price_history_fund_code": "雇主退休計畫基金歷史價格（基金代碼）",
       "lse_etfs_equities_html_table": "LSE ETF 和股票（HTML 表格）",
-      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "加密貨幣每日曆史價格（使用幣種 ID：bitcoin、ethereum 等）"
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "加密貨幣每日歷史價格（使用幣種 ID：bitcoin、ethereum 等）"
     }
   },
   "addon_permission_none_detected": "未偵測到資料存取權限。此擴充功能對系統的存取權限似乎很少。",
