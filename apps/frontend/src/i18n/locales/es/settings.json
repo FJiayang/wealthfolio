@@ -750,9 +750,6 @@
     "sync_interval_hours_one": "Cada {{count}} hora",
     "sync_interval_hours_many": "Cada {{count}} horas",
     "sync_interval_hours_other": "Cada {{count}} horas",
-    "http_api_name": "API HTTP estándar",
-    "http_api_base_url": "URL base del servicio",
-    "http_api_help": "Introduce un identificador completo como XSHG:600519 o FUND:005827 para crear un activo. La clave API es opcional.",
     "heading": "Datos de mercado",
     "subtitle": "Configura tus proveedores de datos de mercado.",
     "rebuild_history": "Actualizar historial completo",
@@ -1100,8 +1097,10 @@
       "OPENFIGI": "OpenFIGI proporciona un servicio de mapeo para identificadores de instrumentos financieros (FIGI, ISIN, CUSIP, ticker).",
       "METAL_PRICE_API": "Proporciona precios al contado históricos y en tiempo real para metales preciosos (oro, plata, platino, paladio).",
       "CUSTOM_SCRAPER": "Proveedor de distribución en tiempo de ejecución para fuentes personalizadas definidas por el usuario",
-      "HTTP_API": "Búsqueda exacta de instrumentos, perfiles y precios desde un servicio HTTP autohospedado",
-      "FINNHUB": "Finnhub ofrece datos globales en tiempo real de acciones, divisas y criptomonedas. El plan gratuito incluye 60 llamadas a la API por minuto."
+      "FINNHUB": "Finnhub ofrece datos globales en tiempo real de acciones, divisas y criptomonedas. El plan gratuito incluye 60 llamadas a la API por minuto.",
+      "EASTMONEY": "Acciones, fondos e índices de Eastmoney y Tiantian Fund",
+      "TENCENT": "Acciones, fondos cotizados e índices de Tencent Finance",
+      "SINA": "Acciones, fondos cotizados e índices de Sina Finance"
     },
     "coverageLabels": {
       "Global": "Global",
@@ -1124,6 +1123,11 @@
       "workplace_fund_price_history_fund_code": "Historial de precios de fondos de Workplace (código de fondo)",
       "lse_etfs_equities_html_table": "ETF y acciones de LSE (tabla HTML)",
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Historial criptográfico diario (use ID de moneda: bitcoin, ethereum...)"
+    },
+    "native_provider_names": {
+      "EASTMONEY": "Eastmoney",
+      "TENCENT": "Tencent Finance",
+      "SINA": "Sina Finance"
     }
   },
   "addon_permission_none_detected": "No se detectaron permisos de acceso a datos. Este complemento parece tener un acceso mínimo al sistema.",

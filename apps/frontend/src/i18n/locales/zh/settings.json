@@ -743,9 +743,6 @@
     "sync_interval_label": "自动同步间隔",
     "sync_interval_description": "控制桌面应用或 Web 服务运行期间的定时同步。修改后一分钟内生效，不影响启动时和手动同步。",
     "sync_interval_hours_other": "每 {{count}} 小时",
-    "http_api_name": "标准 HTTP API",
-    "http_api_base_url": "服务地址",
-    "http_api_help": "输入 XSHG:600519 或 FUND:005827 等完整标识即可建档。API Key 为可选项。",
     "heading": "市场数据",
     "subtitle": "配置您的市场数据提供商。",
     "rebuild_history": "刷新全部历史",
@@ -1081,8 +1078,10 @@
       "OPENFIGI": "OpenFIGI 提供金融工具标识符（FIGI、ISIN、CUSIP、股票代码）的映射服务。",
       "METAL_PRICE_API": "提供贵金属（黄金、白银、铂金、钯金）的实时和历史现货价格。",
       "CUSTOM_SCRAPER": "为用户自定义数据源提供运行时调度。",
-      "HTTP_API": "通过自托管 HTTP 服务精确查询证券、基本资料及价格。",
-      "FINNHUB": "Finnhub 提供覆盖全球的实时股票、外汇及加密货币数据。免费方案每分钟支持 60 次 API 调用。"
+      "FINNHUB": "Finnhub 提供覆盖全球的实时股票、外汇及加密货币数据。免费方案每分钟支持 60 次 API 调用。",
+      "EASTMONEY": "东方财富和天天基金提供的股票、基金及指数数据",
+      "TENCENT": "腾讯财经提供的股票、场内基金及指数数据",
+      "SINA": "新浪财经提供的股票、场内基金及指数数据"
     },
     "templateDescriptions": {
       "workplace_fund_prices_fund_code": "雇主退休计划基金价格（基金代码）",
@@ -1095,6 +1094,11 @@
       "workplace_fund_price_history_fund_code": "雇主退休计划基金历史价格（基金代码）",
       "lse_etfs_equities_html_table": "LSE ETF 和股票（HTML 表格）",
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "加密货币每日历史价格（使用币种 ID：bitcoin、ethereum 等）"
+    },
+    "native_provider_names": {
+      "EASTMONEY": "东方财富",
+      "TENCENT": "腾讯财经",
+      "SINA": "新浪财经"
     }
   },
   "addon_permission_none_detected": "未检测到数据访问权限。此插件似乎对系统的访问权限极少。",

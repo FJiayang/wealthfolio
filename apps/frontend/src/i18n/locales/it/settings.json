@@ -750,9 +750,6 @@
     "sync_interval_hours_one": "Ogni {{count}} ora",
     "sync_interval_hours_many": "Ogni {{count}} ore",
     "sync_interval_hours_other": "Ogni {{count}} ore",
-    "http_api_name": "API HTTP standard",
-    "http_api_base_url": "URL di base del servizio",
-    "http_api_help": "Inserisci un identificatore completo come XSHG:600519 o FUND:005827 per creare un asset. La chiave API è facoltativa.",
     "heading": "Dati di mercato",
     "subtitle": "Configura i tuoi provider di dati di mercato.",
     "rebuild_history": "Aggiorna tutta la cronologia",
@@ -1100,8 +1097,10 @@
       "OPENFIGI": "OpenFIGI fornisce un servizio di mappatura degli identificatori degli strumenti finanziari (FIGI, ISIN, CUSIP, ticker).",
       "METAL_PRICE_API": "Fornisce prezzi spot storici e in tempo reale per i metalli preziosi (oro, argento, platino, palladio).",
       "CUSTOM_SCRAPER": "Provider di invio runtime per origini personalizzate definite dall'utente",
-      "HTTP_API": "Ricerca esatta di strumenti, profili e prezzi da un servizio HTTP self-hosted",
-      "FINNHUB": "Finnhub fornisce dati globali in tempo reale su azioni, forex e criptovalute. Il piano gratuito include 60 chiamate API al minuto."
+      "FINNHUB": "Finnhub fornisce dati globali in tempo reale su azioni, forex e criptovalute. Il piano gratuito include 60 chiamate API al minuto.",
+      "EASTMONEY": "Azioni, fondi e indici di Eastmoney e Tiantian Fund",
+      "TENCENT": "Azioni, fondi quotati e indici di Tencent Finance",
+      "SINA": "Azioni, fondi quotati e indici di Sina Finance"
     },
     "coverageLabels": {
       "Global": "Globale",
@@ -1124,6 +1123,11 @@
       "workplace_fund_price_history_fund_code": "Cronologia dei prezzi del fondo Workplace (codice fondo)",
       "lse_etfs_equities_html_table": "ETF e azioni LSE (tabella HTML)",
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Cronologia crittografica giornaliera (utilizza l'ID moneta: bitcoin, ethereum...)"
+    },
+    "native_provider_names": {
+      "EASTMONEY": "Eastmoney",
+      "TENCENT": "Tencent Finance",
+      "SINA": "Sina Finance"
     }
   },
   "addon_permission_none_detected": "Nessun permesso di accesso ai dati rilevato. Questo add-on sembra avere un accesso minimo al sistema.",

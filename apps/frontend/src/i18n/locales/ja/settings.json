@@ -743,9 +743,6 @@
     "sync_interval_label": "自動同期の間隔",
     "sync_interval_description": "デスクトップアプリまたは Web サーバーの実行中の定期同期に適用されます。変更は1分以内に反映され、起動時や手動の同期には影響しません。",
     "sync_interval_hours_other": "{{count}} 時間ごと",
-    "http_api_name": "標準 HTTP API",
-    "http_api_base_url": "サービスのベース URL",
-    "http_api_help": "XSHG:600519 または FUND:005827 のような完全な識別子を入力して資産を登録します。API キーは任意です。",
     "heading": "市場データ",
     "subtitle": "市場データプロバイダーを設定します。",
     "rebuild_history": "全履歴を更新",
@@ -1071,8 +1068,10 @@
       "OPENFIGI": "OpenFIGI は、金融商品識別子 (FIGI、ISIN、CUSIP、ティッカー) のマッピング サービスを提供します。",
       "METAL_PRICE_API": "貴金属 (金、銀、プラチナ、パラジウム) のリアルタイムおよび過去のスポット価格を提供します。",
       "CUSTOM_SCRAPER": "ユーザー定義のカスタム ソースのランタイム ディスパッチ プロバイダー",
-      "HTTP_API": "自己ホスト型 HTTP サービスからの正確な機器検索、プロファイル、価格",
-      "FINNHUB": "Finnhub は世界の株式、外国為替、暗号資産のリアルタイムデータを提供します。無料プランでは毎分 60 回の API 呼び出しが可能です。"
+      "FINNHUB": "Finnhub は世界の株式、外国為替、暗号資産のリアルタイムデータを提供します。無料プランでは毎分 60 回の API 呼び出しが可能です。",
+      "EASTMONEY": "EastmoneyとTiantian Fundの株式・ファンド・指数データ",
+      "TENCENT": "Tencent Financeの株式・上場ファンド・指数データ",
+      "SINA": "Sina Financeの株式・上場ファンド・指数データ"
     },
     "coverageLabels": {
       "Global": "グローバル",
@@ -1095,6 +1094,11 @@
       "workplace_fund_price_history_fund_code": "職場基金の価格履歴 (基金コード)",
       "lse_etfs_equities_html_table": "LSE ETF と株式 (HTML テーブル)",
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "毎日の暗号通貨履歴 (コイン ID を使用: bitcoin、ethereumなど)"
+    },
+    "native_provider_names": {
+      "EASTMONEY": "Eastmoney",
+      "TENCENT": "Tencent Finance",
+      "SINA": "Sina Finance"
     }
   },
   "addon_permission_none_detected": "データへのアクセス権限は検出されませんでした。このアドオンのシステムアクセスは最小限のようです。",

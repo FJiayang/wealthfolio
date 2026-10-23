@@ -1075,14 +1075,23 @@ mod tests {
 
     #[test]
     fn older_schema_is_migrated_only_in_private_candidate() {
+        use diesel::migration::{MigrationConnection, MigrationSource};
         use diesel_migrations::MigrationHarness;
         let dir = tempfile::tempdir().unwrap();
-        let source = seeded(dir.path(), false);
-        source
-            .connect()
-            .unwrap()
-            .revert_last_migration(super::super::MIGRATIONS)
+        let source = DbAccess::plaintext(dir.path().join("older.db").to_str().unwrap());
+        source.prepare().unwrap();
+        // Construct an older database directly: data migrations need not be reversible.
+        {
+            let mut conn = source.connect().unwrap();
+            conn.setup().unwrap();
+            let mut migrations = <diesel_migrations::EmbeddedMigrations as MigrationSource<
+                diesel::sqlite::Sqlite,
+            >>::migrations(&super::super::MIGRATIONS)
             .unwrap();
+            migrations.sort_by(|a, b| a.name().version().cmp(&b.name().version()));
+            conn.run_migrations(&migrations[..migrations.len() - 1])
+                .unwrap();
+        }
         let original = fs::read(source.path()).unwrap();
         assert!(prepare_import(Path::new(source.path()), dir.path(), None, None).is_ok());
         assert_eq!(fs::read(source.path()).unwrap(), original);

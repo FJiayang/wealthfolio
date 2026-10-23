@@ -160,7 +160,6 @@ export const updateMarketDataProviderSettings = async (payload: {
   providerId: string;
   priority: number;
   enabled: boolean;
-  baseUrl?: string;
 }): Promise<void> => {
   try {
     return await invoke<void>("update_market_data_provider_settings", payload);

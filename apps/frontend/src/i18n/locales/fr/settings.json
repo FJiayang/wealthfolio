@@ -752,9 +752,6 @@
     "sync_interval_hours_one": "Toutes les {{count}} heure",
     "sync_interval_hours_many": "Toutes les {{count}} heures",
     "sync_interval_hours_other": "Toutes les {{count}} heures",
-    "http_api_name": "API HTTP standard",
-    "http_api_base_url": "URL de base du service",
-    "http_api_help": "Saisissez un identifiant complet comme XSHG:600519 ou FUND:005827 pour créer un actif. La clé API est facultative.",
     "heading": "Données de marché",
     "subtitle": "Configurez vos fournisseurs de données de marché.",
     "rebuild_history": "Actualiser tout l’historique",
@@ -1102,8 +1099,10 @@
       "OPENFIGI": "OpenFIGI fournit un service de cartographie des identifiants d'instruments financiers (FIGI, ISIN, CUSIP, ticker).",
       "METAL_PRICE_API": "Fournit les prix au comptant historiques et en temps réel des métaux précieux (or, argent, platine, palladium).",
       "CUSTOM_SCRAPER": "Fournisseur de répartition d'exécution pour les sources personnalisées définies par l'utilisateur",
-      "HTTP_API": "Recherche exacte d'instruments, profils et prix à partir d'un service HTTP auto-hébergé",
-      "FINNHUB": "Finnhub fournit des données mondiales en temps réel sur les actions, le forex et les cryptomonnaies. L’offre gratuite comprend 60 appels API par minute."
+      "FINNHUB": "Finnhub fournit des données mondiales en temps réel sur les actions, le forex et les cryptomonnaies. L’offre gratuite comprend 60 appels API par minute.",
+      "EASTMONEY": "Actions, fonds et indices de Eastmoney et Tiantian Fund",
+      "TENCENT": "Actions, fonds cotés et indices de Tencent Finance",
+      "SINA": "Actions, fonds cotés et indices de Sina Finance"
     },
     "coverageLabels": {
       "Global": "Mondial",
@@ -1126,6 +1125,11 @@
       "workplace_fund_price_history_fund_code": "Historique des prix des fonds Workplace (code du fonds)",
       "lse_etfs_equities_html_table": "ETF et actions LSE (tableau HTML)",
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Historique quotidien des cryptomonnaies (utilisez l'identifiant de la pièce : bitcoin, ethereum...)"
+    },
+    "native_provider_names": {
+      "EASTMONEY": "Eastmoney",
+      "TENCENT": "Tencent Finance",
+      "SINA": "Sina Finance"
     }
   },
   "addon_permission_none_detected": "Aucune permission d’accès aux données détectée. Cette extension semble avoir un accès système minimal.",

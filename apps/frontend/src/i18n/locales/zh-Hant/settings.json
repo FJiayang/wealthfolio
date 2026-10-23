@@ -744,9 +744,6 @@
     "sync_interval_description": "控制桌面應用程式或 Web 服務執行期間的定時同步。修改後一分鐘內生效，不影響啟動時與手動同步。",
     "sync_interval_hours_one": "每 {{count}} 小時",
     "sync_interval_hours_other": "每 {{count}} 小時",
-    "http_api_name": "標準 HTTP API",
-    "http_api_base_url": "服務位址",
-    "http_api_help": "輸入 XSHG:600519 或 FUND:005827 等完整識別碼即可建檔。API Key 為選填項目。",
     "heading": "市場資料",
     "subtitle": "設定市場資料來源。",
     "rebuild_history": "重新整理全部歷史",
@@ -1069,11 +1066,13 @@
       "OPENFIGI": "OpenFIGI 提供金融工具標識符（FIGI、ISIN、CUSIP、股票代碼）的映射服務。",
       "METAL_PRICE_API": "提供貴金屬（黃金、白銀、鉑金、鈀金）的實時和歷史現貨價格。",
       "CUSTOM_SCRAPER": "為使用者自訂資料源提供運行時調度。",
-      "HTTP_API": "通過自托管 HTTP 服務精確查詢證券、基本資料及價格。",
       "YAHOO": "Yahoo Finance 提供多個市場的歷史及實時股票資料。",
       "MARKETDATA_APP": "MarketData.app 提供美國股票、期權、ETF、共同基金等的實時和歷史資料。",
       "ALPHA_VANTAGE": "Alpha Vantage 為股票、外匯和加密貨幣的實時和歷史資料提供免費的 API。",
-      "FINNHUB": "Finnhub 提供覆蓋全球的實時股票、外匯及加密貨幣資料。免費方案每分鐘支持 60 次 API 調用。"
+      "FINNHUB": "Finnhub 提供覆蓋全球的實時股票、外匯及加密貨幣資料。免費方案每分鐘支持 60 次 API 調用。",
+      "EASTMONEY": "東方財富和天天基金提供的股票、基金及指數資料",
+      "TENCENT": "騰訊財經提供的股票、場內基金及指數資料",
+      "SINA": "新浪財經提供的股票、場內基金及指數資料"
     },
     "coverageLabels": {
       "Global": "全球",
@@ -1096,6 +1095,11 @@
       "workplace_fund_price_history_fund_code": "雇主退休計畫基金歷史價格（基金代碼）",
       "lse_etfs_equities_html_table": "LSE ETF 和股票（HTML 表格）",
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "加密貨幣每日歷史價格（使用幣種 ID：bitcoin、ethereum 等）"
+    },
+    "native_provider_names": {
+      "EASTMONEY": "東方財富",
+      "TENCENT": "騰訊財經",
+      "SINA": "新浪財經"
     }
   },
   "addon_permission_none_detected": "未偵測到資料存取權限。此擴充功能對系統的存取權限似乎很少。",
