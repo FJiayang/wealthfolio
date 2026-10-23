@@ -1250,7 +1250,6 @@ mod tests {
             _provider_id: &str,
             _priority: i32,
             _enabled: bool,
-            _base_url: Option<&str>,
         ) -> Result<()> {
             Ok(())
         }

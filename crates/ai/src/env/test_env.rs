@@ -1331,7 +1331,6 @@ impl QuoteServiceTrait for MockQuoteService {
         _provider_id: &str,
         _priority: i32,
         _enabled: bool,
-        _base_url: Option<&str>,
     ) -> CoreResult<()> {
         Ok(())
     }

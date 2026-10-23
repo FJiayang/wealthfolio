@@ -17,10 +17,8 @@ use tokio::sync::RwLock;
 
 use crate::utils::time_utils;
 
-use super::client::{MarketDataClient, MarketDataClientError, ProviderConfig};
-use super::constants::{
-    DATA_SOURCE_CUSTOM_SCRAPER, DATA_SOURCE_HTTP_API, DATA_SOURCE_MANUAL, MAX_SYNC_ERRORS,
-};
+use super::client::{MarketDataClient, ProviderConfig};
+use super::constants::{DATA_SOURCE_CUSTOM_SCRAPER, DATA_SOURCE_MANUAL, MAX_SYNC_ERRORS};
 use super::import::{
     ImportValidationStatus, QuoteConverter, QuoteImport, QuoteImportOutcome, QuoteImportPreview,
     QuoteImportRow, QuoteValidator,
@@ -61,7 +59,6 @@ pub struct ProviderInfo {
     pub priority: i32,
     pub logo_filename: Option<String>,
     pub capabilities: Option<super::provider_settings::ProviderCapabilities>,
-    pub base_url: Option<String>,
     pub requires_api_key: bool,
     pub has_api_key: bool,
     /// Number of assets synced by this provider
@@ -172,9 +169,7 @@ fn local_search_identity(query: &str) -> Option<(String, Option<&str>)> {
         return None;
     }
 
-    if let Some((market, code)) =
-        wealthfolio_market_data::provider::http_api::qualified_symbol(query)
-    {
+    if let Some((market, code)) = wealthfolio_market_data::resolver::qualified_symbol(query) {
         if wealthfolio_market_data::is_known_mic(market) {
             return Some((code.to_string(), Some(market)));
         }
@@ -654,7 +649,6 @@ pub trait QuoteServiceTrait: Send + Sync {
         provider_id: &str,
         priority: i32,
         enabled: bool,
-        base_url: Option<&str>,
     ) -> Result<()>;
 
     // =========================================================================
@@ -779,7 +773,6 @@ where
                 Ok(ProviderConfig {
                     id: p.id.clone(),
                     priority: p.priority,
-                    base_url: p.http_api_base_url()?,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -853,7 +846,6 @@ where
                 Ok(ProviderConfig {
                     id: p.id.clone(),
                     priority: p.priority,
-                    base_url: p.http_api_base_url()?,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -941,27 +933,25 @@ where
             .or_else(|| asset.instrument_symbol.clone())
             .unwrap_or_default();
         let provider_id = asset_resolution_provider_id(asset);
-        let provider_symbol = if provider_id.as_deref() == Some(DATA_SOURCE_HTTP_API) {
-            asset
-                .provider_overrides()
-                .and_then(|json| ProviderOverrides::from_json(json).ok())
-                .and_then(|overrides| {
-                    overrides
-                        .get(DATA_SOURCE_HTTP_API)
-                        .map(ProviderInstrument::to_symbol_string)
-                })
-                .or_else(|| {
-                    asset.instrument_symbol.clone().filter(|symbol| {
-                        wealthfolio_market_data::provider::http_api::qualified_symbol(symbol)
-                            .is_some()
+        let provider_symbol = provider_id
+            .as_deref()
+            .and_then(|id| {
+                asset
+                    .provider_overrides()
+                    .and_then(|json| ProviderOverrides::from_json(json).ok())
+                    .and_then(|overrides| {
+                        overrides.get(id).map(ProviderInstrument::to_symbol_string)
                     })
+            })
+            .or_else(|| {
+                provider_id.as_ref().and_then(|_| {
+                    asset
+                        .instrument_symbol
+                        .clone()
+                        .filter(|s| s.starts_with("FUND:"))
                 })
-        } else {
-            None
-        };
-        let display = provider_symbol
-            .clone()
-            .unwrap_or_else(|| asset_search_display_symbol(asset));
+            });
+        let display = asset_search_display_symbol(asset);
 
         SymbolSearchResult {
             symbol: display.clone(),
@@ -1559,8 +1549,7 @@ where
 
         // Explicit identities already on disk do not need a network lookup.
         let qualified =
-            wealthfolio_market_data::provider::http_api::qualified_symbol(&normalized_query)
-                .is_some();
+            wealthfolio_market_data::resolver::qualified_symbol(&normalized_query).is_some();
         let has_exact_local = qualified
             && existing_assets.iter().any(|asset| {
                 asset_provider_alias_symbols(asset)
@@ -2287,8 +2276,7 @@ where
                     | DATA_SOURCE_FINNHUB
             );
             // Check if API key is set (skip for disabled providers to avoid keychain prompts)
-            let has_key = if (requires_key || setting.id == DATA_SOURCE_HTTP_API) && setting.enabled
-            {
+            let has_key = if requires_key && setting.enabled {
                 self.secret_store
                     .get_secret(&setting.id)
                     .ok()
@@ -2296,7 +2284,7 @@ where
                     .map(|k| !k.is_empty())
                     .unwrap_or(false)
             } else {
-                !requires_key && setting.id != DATA_SOURCE_HTTP_API
+                !requires_key
             };
 
             // Get sync stats for this provider
@@ -2322,7 +2310,6 @@ where
                 priority: setting.priority,
                 logo_filename: setting.logo_filename.clone(),
                 capabilities: setting.capabilities.clone(),
-                base_url: setting.http_api_base_url()?,
                 requires_api_key: requires_key,
                 has_api_key: has_key,
                 asset_count,
@@ -2343,35 +2330,12 @@ where
         provider_id: &str,
         priority: i32,
         enabled: bool,
-        base_url: Option<&str>,
     ) -> Result<()> {
         use super::provider_settings::UpdateMarketDataProviderSetting;
 
-        if let Some(base_url) = base_url {
-            if provider_id != DATA_SOURCE_HTTP_API {
-                return Err(Error::Validation(
-                    crate::errors::ValidationError::InvalidInput(
-                        "Only HTTP API providers accept a base URL".into(),
-                    ),
-                ));
-            }
-            wealthfolio_market_data::provider::http_api::validate_base_url(base_url)
-                .map_err(MarketDataClientError::from)?;
-        }
-        if provider_id == DATA_SOURCE_HTTP_API && enabled && base_url.is_none() {
-            let setting = self.provider_settings_store.get_provider(provider_id)?;
-            let saved_url = setting.http_api_base_url()?.ok_or_else(|| {
-                Error::Validation(crate::errors::ValidationError::InvalidInput(
-                    "HTTP API base URL is required".into(),
-                ))
-            })?;
-            wealthfolio_market_data::provider::http_api::validate_base_url(&saved_url)
-                .map_err(MarketDataClientError::from)?;
-        }
         self.provider_settings_store.update_provider(
             provider_id,
             UpdateMarketDataProviderSetting {
-                base_url: base_url.map(str::to_owned),
                 priority: Some(priority),
                 enabled: Some(enabled),
             },
@@ -2914,7 +2878,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     #[tokio::test]
-    async fn http_api_existing_identity_and_fuzzy_search_work_without_the_service() {
+    async fn native_existing_identity_and_fuzzy_search_work_without_enabled_providers() {
         let asset = Asset {
             id: "fund".into(),
             name: Some("易方达蓝筹精选混合".into()),
@@ -2923,7 +2887,7 @@ mod tests {
             instrument_type: Some(InstrumentType::Equity),
             quote_ccy: "CNY".into(),
             quote_mode: QuoteMode::Market,
-            provider_config: Some(serde_json::json!({ "preferred_provider": "HTTP_API" })),
+            provider_config: Some(serde_json::json!({ "preferred_provider": "EASTMONEY" })),
             ..Default::default()
         };
         let stock = Asset {
@@ -2946,7 +2910,7 @@ mod tests {
             quote_ccy: "CNY".into(),
             quote_mode: QuoteMode::Market,
             provider_config: Some(
-                serde_json::json!({ "preferred_provider": "HTTP_API", "overrides": { "HTTP_API": { "type": "equity_symbol", "symbol": "XSHG:510300" } } }),
+                serde_json::json!({ "preferred_provider": "EASTMONEY", "overrides": { "EASTMONEY": { "type": "equity_symbol", "symbol": "XSHG:510300" } } }),
             ),
             ..Default::default()
         };
@@ -2959,19 +2923,19 @@ mod tests {
             }),
             Arc::new(MockProviderSettingsStore {
                 providers: vec![MarketDataProviderSetting {
-                    id: DATA_SOURCE_HTTP_API.into(),
-                    name: "HTTP API".into(),
+                    id: crate::quotes::constants::DATA_SOURCE_EASTMONEY.into(),
+                    name: "Eastmoney".into(),
                     description: String::new(),
                     url: None,
                     priority: 10,
-                    enabled: true,
+                    enabled: false,
                     logo_filename: None,
                     last_synced_at: None,
                     last_sync_status: None,
                     last_sync_error: None,
                     capabilities: None,
                     provider_type: None,
-                    config: Some(r#"{"baseUrl":"http://127.0.0.1:1"}"#.into()),
+                    config: None,
                 }],
             }),
             Arc::new(

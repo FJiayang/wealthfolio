@@ -121,9 +121,9 @@ impl ProviderCapabilities {
                     "No API key".to_string(),
                 ],
             }),
-            "HTTP_API" => Some(Self {
+            "EASTMONEY" | "TENCENT" | "SINA" => Some(Self {
                 instruments: "Stocks • ETFs • Funds".into(),
-                coverage: "Service-defined".into(),
+                coverage: "Global".into(),
                 features: vec![
                     "Latest".into(),
                     "Historical".into(),
@@ -146,31 +146,4 @@ impl ProviderCapabilities {
 pub struct UpdateMarketDataProviderSetting {
     pub priority: Option<i32>,
     pub enabled: Option<bool>,
-    pub base_url: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HttpApiConfig {
-    pub base_url: String,
-}
-
-impl MarketDataProviderSetting {
-    pub fn http_api_base_url(&self) -> crate::Result<Option<String>> {
-        if self.id != super::constants::DATA_SOURCE_HTTP_API {
-            return Ok(None);
-        }
-        self.config
-            .as_deref()
-            .map(|config| {
-                serde_json::from_str::<HttpApiConfig>(config)
-                    .map(|config| config.base_url)
-                    .map_err(|_| {
-                        crate::Error::Validation(crate::errors::ValidationError::InvalidInput(
-                            "Invalid HTTP API provider configuration".into(),
-                        ))
-                    })
-            })
-            .transpose()
-    }
 }
