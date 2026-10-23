@@ -742,6 +742,7 @@
   "market_data_page": {
     "sync_interval_label": "自動同步間隔",
     "sync_interval_description": "控制桌面應用程式或 Web 服務執行期間的定時同步。修改後一分鐘內生效，不影響啟動時與手動同步。",
+    "sync_interval_hours_one": "每 {{count}} 小時",
     "sync_interval_hours_other": "每 {{count}} 小時",
     "http_api_name": "標準 HTTP API",
     "http_api_base_url": "服務位址",
