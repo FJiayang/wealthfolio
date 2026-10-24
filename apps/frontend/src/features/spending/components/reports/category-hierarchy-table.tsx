@@ -104,9 +104,12 @@ export function CategoryHierarchyTable({
   const groups = useMemo(
     () =>
       groupRows && groupRows.length > 0
-        ? buildGroupWeights({ tree, groupRows, budgetRows, otherLabel: tr("spending:hero.other") }).map(
-            (group) => ({ ...group, name: getBudgetGroupLabel(tr, group.id, group.name) }),
-          )
+        ? buildGroupWeights({
+            tree,
+            groupRows,
+            budgetRows,
+            otherLabel: tr("spending:hero.other"),
+          }).map((group) => ({ ...group, name: getBudgetGroupLabel(tr, group.id, group.name) }))
         : null,
     [tree, groupRows, budgetRows, tr],
   );
