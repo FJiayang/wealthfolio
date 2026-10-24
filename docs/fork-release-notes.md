@@ -12,7 +12,7 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
-## v3.11.0.5 — Unreleased
+## v3.11.0.5 — 2026-10-24
 
 - Add per-provider API request-attempt statistics, including custom sources,
   with daily totals and 7/30/90-day views. Failed requests count; cache hits and
@@ -28,10 +28,6 @@ Git tag alone does not establish Docker image availability.
   synthetic portfolio performance label and known holdings-only MWR explanation.
   Preserve custom or renamed labels, stored identities, editing values and
   report totals.
-
-This section describes the pending integration, not a published release.
-Finalize its scope and remove “Unreleased” only when creating the matching
-release tag.
 
 ## v3.11.0.4
 
