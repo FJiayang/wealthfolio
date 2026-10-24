@@ -217,16 +217,20 @@ function validatePreview(
   const proposedAssignments = result.proposedAssignments ?? [];
   const categoryIds = new Set<string>();
   for (const row of proposedAssignments) {
+    const categoryName = getCategoryLabel(
+      t,
+      result.taxonomy?.taxonomyId ?? "",
+      row.categoryId,
+      row.categoryName,
+    );
     if (row.weightBasisPoints < 0 || row.weightBasisPoints > 10000) {
-      issues.push(t("ai:assetClassification.invalidWeight", { categoryName: row.categoryName }));
+      issues.push(t("ai:assetClassification.invalidWeight", { categoryName }));
     }
 
     if (row.weightBasisPoints === 0) continue;
 
     if (categoryIds.has(row.categoryId)) {
-      issues.push(
-        t("ai:assetClassification.duplicateCategory", { categoryName: row.categoryName }),
-      );
+      issues.push(t("ai:assetClassification.duplicateCategory", { categoryName }));
     }
     categoryIds.add(row.categoryId);
   }
@@ -439,7 +443,12 @@ function ClassificationComparisonTable({
                 >
                   <input
                     aria-label={t("ai:assetClassification.newPercentLabel", {
-                      categoryName: row.categoryName,
+                      categoryName: getCategoryLabel(
+                        t,
+                        taxonomyId,
+                        row.categoryId,
+                        row.categoryName,
+                      ),
                     })}
                     className="h-6 w-full bg-transparent pe-4 ps-1.5 text-end text-xs font-medium outline-none disabled:cursor-not-allowed"
                     disabled={disabled}

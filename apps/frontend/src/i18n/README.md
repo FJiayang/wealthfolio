@@ -156,11 +156,12 @@ reports are expected and welcome — file them as issues against the locale.
 
 `lib/taxonomy-labels.ts` translates built-in taxonomy/category and budget-group
 names only when both the stable ID and the original seed name match the English
-catalog. `common:taxonomyNames`, `common:categoryNames`, and
-`common:budgetGroupNames` therefore retain the canonical English seed names.
-Keep these entries in sync when introducing or changing built-in seed data.
-`lib/provider-labels.ts` applies the same rule to built-in provider
-descriptions; unknown coverage values and custom descriptions remain verbatim.
+catalog. Event-type labels use the same guard; event names remain user data.
+`common:taxonomyNames`, `common:categoryNames`, and `common:budgetGroupNames`
+therefore retain the canonical English seed names. Keep these entries in sync
+when introducing or changing built-in seed data. `lib/provider-labels.ts`
+applies the same rule to built-in provider descriptions; unknown coverage values
+and custom descriptions remain verbatim.
 
 Call these helpers in the presentation layer. Keep query results, selection IDs,
 mutation inputs, editable name fields, and persisted data raw. Translate search
