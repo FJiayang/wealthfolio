@@ -5,7 +5,9 @@ import zh from "@/i18n/locales/zh/common.json";
 import type { TaxonomyAllocation } from "./types";
 import {
   getBudgetGroupLabel,
+  getEventTypeLabel,
   getCategoryLabel,
+  getCategoryPathLabel,
   getTaxonomyLabel,
   localizeAllocation,
 } from "./taxonomy-labels";
@@ -103,5 +105,68 @@ describe("built-in taxonomy labels", () => {
     expect(localizeAllocation(i18n.getFixedT("en"), allocation).categories[0].categoryName).toBe(
       "Equity",
     );
+  });
+});
+
+describe("built-in event type labels", () => {
+  it("translates all unchanged seeded types and preserves renamed or custom types", () => {
+    const t = i18n.getFixedT("zh");
+    for (const [id, name] of Object.entries(en.eventTypeNames)) {
+      expect(getEventTypeLabel(t, id, name)).toBe(
+        zh.eventTypeNames[id as keyof typeof zh.eventTypeNames],
+      );
+      expect(getEventTypeLabel(t, id, `My ${name}`)).toBe(`My ${name}`);
+      expect(getEventTypeLabel(t, `custom-${id}`, name)).toBe(name);
+      expect(getEventTypeLabel(i18n.getFixedT("en"), id, name)).toBe(name);
+    }
+  });
+});
+
+describe("category paths with stable identities", () => {
+  const categories = [
+    { categoryId: "cat_food", name: "Food & Dining", path: "Food & Dining" },
+    { categoryId: "cat_groceries", name: "Groceries", path: "Food & Dining / Groceries" },
+  ];
+  it("localizes known ancestors and leaves without changing raw paths", () => {
+    const t = i18n.getFixedT("zh");
+    expect(
+      getCategoryPathLabel(
+        t,
+        "spending_categories",
+        "cat_groceries",
+        categories[1].path,
+        categories,
+      ),
+    ).toBe(
+      `${getCategoryLabel(t, "spending_categories", "cat_food", "Food & Dining")} / ${getCategoryLabel(t, "spending_categories", "cat_groceries", "Groceries")}`,
+    );
+    expect(categories[1].path).toBe("Food & Dining / Groceries");
+  });
+  it("preserves renamed ancestors, slash-containing names and unknown paths", () => {
+    const t = i18n.getFixedT("zh");
+    const renamed = [
+      { categoryId: "cat_food", name: "My / food", path: "My / food" },
+      { categoryId: "cat_groceries", name: "Groceries", path: "My / food / Groceries" },
+    ];
+    expect(
+      getCategoryPathLabel(t, "spending_categories", "cat_groceries", renamed[1].path, renamed),
+    ).toBe(
+      `My / food / ${getCategoryLabel(t, "spending_categories", "cat_groceries", "Groceries")}`,
+    );
+    expect(getCategoryPathLabel(t, "custom", "cat_groceries", categories[1].path, categories)).toBe(
+      categories[1].path,
+    );
+    expect(
+      getCategoryPathLabel(t, "spending_categories", "missing", categories[1].path, categories),
+    ).toBe(categories[1].path);
+    expect(
+      getCategoryPathLabel(
+        t,
+        "spending_categories",
+        "cat_groceries",
+        "Different / Groceries",
+        categories,
+      ),
+    ).toBe("Different / Groceries");
   });
 });
