@@ -1,4 +1,4 @@
-import { getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getBudgetGroupLabel, getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useCallback, useEffect, useMemo, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -1880,6 +1880,7 @@ function GroupedCategoryBlock({
   themeColor: string;
   activityHrefFor: (id: string) => string;
 }) {
+  const { t } = useTranslation();
   const numberFormatting = useNumberFormatting();
   const [expanded, setExpanded] = useState(false);
   const share = total > 0 ? (bucket.total / total) * 100 : 0;
@@ -1915,7 +1916,7 @@ function GroupedCategoryBlock({
           style={{ backgroundColor: accent }}
         />
         <span className="text-foreground min-w-0 flex-1 truncate text-start text-xs font-semibold uppercase tracking-wide">
-          {bucket.name}
+          {getBudgetGroupLabel(t, bucket.id, bucket.name)}
         </span>
         <span className="text-muted-foreground/80 text-2xs w-12 text-end font-medium tabular-nums">
           {numberFormatting.formatPercent(share / 100, { digits: 1 })}

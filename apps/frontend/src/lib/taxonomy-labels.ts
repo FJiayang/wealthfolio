@@ -52,3 +52,32 @@ export function getBudgetGroupLabel(t: TFunction, id: string, name: string): str
   const names: Record<string, string> = english.budgetGroupNames;
   return names[id] === name ? t(`common:budgetGroupNames.${id}`, { defaultValue: name }) : name;
 }
+
+/** Translate only unchanged seeded event types, never user-created types or event names. */
+export function getEventTypeLabel(t: TFunction, id: string, name: string): string {
+  const names: Record<string, string> = english.eventTypeNames;
+  return names[id] === name ? t(`common:eventTypeNames.${id}`, { defaultValue: name }) : name;
+}
+
+/** Localize a tool's category path only through identities supplied with that path. */
+export function getCategoryPathLabel(
+  t: TFunction,
+  taxonomyId: string,
+  categoryId: string,
+  path: string,
+  categories: readonly { categoryId: string; name: string; path: string }[],
+): string {
+  const category = categories.find((row) => row.categoryId === categoryId && row.path === path);
+  if (!category) return path;
+  const label = getCategoryLabel(t, taxonomyId, categoryId, category.name);
+  if (path === category.name) return label;
+  const suffix = ` / ${category.name}`;
+  if (!path.endsWith(suffix)) return path;
+  const parentPath = path.slice(0, -suffix.length);
+  const parents = categories.filter((row) => row.path === parentPath);
+  const parentLabel =
+    parents.length === 1
+      ? getCategoryPathLabel(t, taxonomyId, parents[0].categoryId, parentPath, categories)
+      : parentPath;
+  return `${parentLabel} / ${label}`;
+}

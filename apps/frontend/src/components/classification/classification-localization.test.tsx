@@ -1,3 +1,5 @@
+import { AssetForm } from "@/pages/asset/asset-form";
+import type { ParsedAsset } from "@/pages/asset/asset-utils";
 import { act, render, screen, waitFor } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -20,6 +22,7 @@ import { DrillableDonutChart } from "@/pages/holdings/components/drillable-donut
 
 vi.mock("@/adapters", () => ({
   getTaxonomy: vi.fn(),
+  getTaxonomies: vi.fn(),
   getAssetTaxonomyAssignments: vi.fn(),
   assignAssetToCategory: vi.fn(),
   updateCategory: vi.fn(),
@@ -28,6 +31,7 @@ vi.mock("@/adapters", () => ({
 }));
 import {
   getTaxonomy,
+  getTaxonomies,
   getAssetTaxonomyAssignments,
   assignAssetToCategory,
   updateCategory,
@@ -169,4 +173,37 @@ it("refreshes chart labels on language changes and preserves the source allocati
   await act(() => i18n.changeLanguage("en"));
   expect(container).toHaveTextContent("Equity");
   expect(allocation.categories[0].categoryName).toBe("Equity");
+});
+
+it("localizes asset-form taxonomy headings without changing asset or custom taxonomy names", async () => {
+  const { i18n, wrapper } = await setup();
+  const taxonomies = [
+    { id: "risk_category", name: "Risk Category", isSingleSelect: true, sortOrder: 0 },
+    { id: "asset_classes", name: "Asset Classes", isSingleSelect: false, sortOrder: 1 },
+    { id: "custom", name: "Asset Classes", isSingleSelect: false, sortOrder: 2 },
+  ] as Awaited<ReturnType<typeof getTaxonomies>>;
+  vi.mocked(getTaxonomies).mockResolvedValue(taxonomies);
+  const onSubmit = vi.fn().mockResolvedValue(undefined);
+  const asset = {
+    id: "asset-1",
+    name: "Equity",
+    quoteCcy: "USD",
+    quoteMode: "MANUAL",
+    notes: "My notes",
+  } as ParsedAsset;
+  render(<AssetForm asset={asset} onSubmit={onSubmit} />, { wrapper });
+  expect(await screen.findByText(zhCommon.taxonomyNames.risk_category)).toBeInTheDocument();
+  expect(screen.getByText(zhCommon.taxonomyNames.asset_classes)).toBeInTheDocument();
+  expect(screen.getByText("Asset Classes")).toBeInTheDocument();
+  await act(() => i18n.changeLanguage("en"));
+  expect(screen.getAllByText("Asset Classes")).toHaveLength(2);
+  await userEvent
+    .setup()
+    .click(screen.getByRole("button", { name: enAsset.assetForm.save_changes }));
+  await waitFor(() =>
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Equity", notes: "My notes" }),
+    ),
+  );
+  expect(getTaxonomies).toHaveBeenCalledTimes(1);
 });
