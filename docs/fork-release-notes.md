@@ -23,9 +23,11 @@ Git tag alone does not establish Docker image availability.
 - Store profile-local UTC events and regroup history using an independent,
   configurable statistics timezone, defaulting to `Asia/Shanghai`. Both desktop
   and web use the same statistics service; events are not device-synced.
-- Localize unchanged built-in allocation categories, budget groups and event
-  types across settings, forms, reports and assistant tools. Preserve custom or
-  renamed labels, stored identities, editing values and report totals.
+- Localize unchanged built-in allocation categories, spending/budget groups and
+  event types across settings, forms, reports and assistant tools, plus the
+  synthetic portfolio performance label and known holdings-only MWR explanation.
+  Preserve custom or renamed labels, stored identities, editing values and
+  report totals.
 
 This section describes the pending integration, not a published release.
 Finalize its scope and remove “Unreleased” only when creating the matching
