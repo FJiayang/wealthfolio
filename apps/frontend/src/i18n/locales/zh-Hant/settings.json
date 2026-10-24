@@ -1061,6 +1061,7 @@
     "priority_increase": "增加優先順序數值",
     "feature_dividends": "股利",
     "providerDescriptions": {
+      "IFIND": "同花順 iFinD 提供的股票、基金與指數行情",
       "US_TREASURY_CALC": "根據美國財政部公佈的殖利率曲線計算美國國債價格。",
       "BOERSE_FRANKFURT": "法蘭克福交易所提供歐洲市場的債券和證券定價資料。",
       "OPENFIGI": "OpenFIGI 提供金融工具標識符（FIGI、ISIN、CUSIP、股票代碼）的映射服務。",
@@ -1072,15 +1073,18 @@
       "FINNHUB": "Finnhub 提供覆蓋全球的實時股票、外匯及加密貨幣資料。免費方案每分鐘支持 60 次 API 調用。",
       "EASTMONEY": "東方財富和天天基金提供的股票、基金及指數資料",
       "TENCENT": "騰訊財經提供的股票、場內基金及指數資料",
-      "SINA": "新浪財經提供的股票、場內基金及指數資料"
+      "SINA": "新浪財經提供的股票、場內基金及指數資料",
+      "FUTU": "富途 OpenAPI 股票和 ETF 行情"
     },
     "coverageLabels": {
+      "China • Hong Kong • US": "中國內地 • 中國香港 • 美國",
       "Global": "全球",
       "US only": "僅限美國",
       "USD only": "僅限美元",
       "US Treasury": "美國國債",
       "Service-defined": "由服務定義",
-      "User-defined": "使用者自訂"
+      "User-defined": "使用者自訂",
+      "US • HK • Shanghai • Shenzhen • Beijing": "美國 • 香港 • 上海 • 深圳 • 北京"
     },
     "feature_no_api_key": "不需 API 金鑰",
     "us_treasury_name": "美國財政部（計算）",
@@ -1097,9 +1101,24 @@
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "加密貨幣每日歷史價格（使用幣種 ID：bitcoin、ethereum 等）"
     },
     "native_provider_names": {
+      "IFIND": "同花順 iFinD",
       "EASTMONEY": "東方財富",
       "TENCENT": "騰訊財經",
-      "SINA": "新浪財經"
+      "SINA": "新浪財經",
+      "FUTU": "富途"
+    },
+    "futu": {
+      "private_key": "私鑰（PEM）",
+      "show": "顯示 / 編輯憑證",
+      "hide": "隱藏憑證",
+      "delete": "刪除憑證",
+      "help": "使用 AppKeyId 和未加密的 Ed25519 或 RSA PEM 私鑰。",
+      "required": "請填寫 AppKeyId 和私鑰。",
+      "load_error": "讀取憑證失敗。",
+      "save_error": "儲存憑證失敗。",
+      "refresh_error": "憑證已儲存，但驗證或用戶端重新整理失敗。請檢查金鑰格式後重試。",
+      "saved": "憑證已儲存。",
+      "deleted": "憑證已刪除。"
     }
   },
   "addon_permission_none_detected": "未偵測到資料存取權限。此擴充功能對系統的存取權限似乎很少。",

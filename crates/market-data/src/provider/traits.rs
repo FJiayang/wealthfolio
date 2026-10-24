@@ -76,6 +76,7 @@ pub trait MarketDataProvider: Send + Sync {
     /// Refine coverage for namespaces that a provider can actually resolve.
     fn supports_instrument(&self, instrument: &crate::InstrumentId) -> bool {
         if self.id() != crate::provider::DATA_SOURCE_CUSTOM_SCRAPER
+            && self.id() != crate::provider::DATA_SOURCE_IFIND
             && matches!(instrument, crate::InstrumentId::Equity { ticker, .. } if ticker.starts_with("FUND:"))
         {
             return false;

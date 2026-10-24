@@ -1089,6 +1089,7 @@
     "priority_increase": "Aumentar el número de prioridad",
     "feature_dividends": "Dividendos",
     "providerDescriptions": {
+      "IFIND": "Acciones, fondos e índices de Tonghuashun iFinD",
       "YAHOO": "Yahoo Finance es un proveedor líder de datos financieros para muchos mercados. Proporciona datos bursátiles históricos y en tiempo real.",
       "MARKETDATA_APP": "MarketData.app proporciona datos históricos y en tiempo real sobre acciones, opciones, ETF, fondos mutuos y más de EE. UU.",
       "ALPHA_VANTAGE": "Alpha Vantage proporciona API gratuitas para datos históricos y en tiempo real sobre acciones, divisas y criptomonedas.",
@@ -1100,15 +1101,18 @@
       "FINNHUB": "Finnhub ofrece datos globales en tiempo real de acciones, divisas y criptomonedas. El plan gratuito incluye 60 llamadas a la API por minuto.",
       "EASTMONEY": "Acciones, fondos e índices de Eastmoney y Tiantian Fund",
       "TENCENT": "Acciones, fondos cotizados e índices de Tencent Finance",
-      "SINA": "Acciones, fondos cotizados e índices de Sina Finance"
+      "SINA": "Acciones, fondos cotizados e índices de Sina Finance",
+      "FUTU": "Cotizaciones de acciones y ETF de Futunn OpenAPI"
     },
     "coverageLabels": {
+      "China • Hong Kong • US": "China • Hong Kong • EE. UU.",
       "Global": "Global",
       "US only": "solo EE. UU.",
       "USD only": "solo USD",
       "US Treasury": "Tesoro de EE. UU.",
       "Service-defined": "Definido por el servicio",
-      "User-defined": "Definido por el usuario"
+      "User-defined": "Definido por el usuario",
+      "US • HK • Shanghai • Shenzhen • Beijing": "EE. UU. • Hong Kong • Shanghái • Shenzhen • Pekín"
     },
     "feature_no_api_key": "Sin clave API",
     "us_treasury_name": "Tesoro de EE. UU. (calculado)",
@@ -1125,9 +1129,24 @@
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Historial criptográfico diario (use ID de moneda: bitcoin, ethereum...)"
     },
     "native_provider_names": {
+      "IFIND": "Tonghuashun iFinD",
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
-      "SINA": "Sina Finance"
+      "SINA": "Sina Finance",
+      "FUTU": "Futu"
+    },
+    "futu": {
+      "private_key": "Clave privada (PEM)",
+      "show": "Mostrar / editar credenciales",
+      "hide": "Ocultar credenciales",
+      "delete": "Eliminar credenciales",
+      "help": "Usa AppKeyId y una clave privada PEM Ed25519 o RSA sin cifrar.",
+      "required": "Introduce AppKeyId y la clave privada.",
+      "load_error": "No se pudieron cargar las credenciales.",
+      "save_error": "No se pudieron guardar las credenciales.",
+      "refresh_error": "Credenciales almacenadas, pero falló la validación o actualización del cliente. Comprueba el formato y reintenta.",
+      "saved": "Credenciales guardadas.",
+      "deleted": "Credenciales eliminadas."
     }
   },
   "addon_permission_none_detected": "No se detectaron permisos de acceso a datos. Este complemento parece tener un acceso mínimo al sistema.",

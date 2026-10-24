@@ -1017,6 +1017,7 @@
     "priority_decrease": "Decrease priority number",
     "priority_increase": "Increase priority number",
     "providerDescriptions": {
+      "IFIND": "Stocks, funds and indices from Tonghuashun iFinD",
       "YAHOO": "Yahoo Finance is a leading financial data provider for many markets. It provides historical and real-time stock data.",
       "MARKETDATA_APP": "MarketData.app provides real-time and historical data for U.S. stocks, options, ETFs, mutual funds, and more.",
       "ALPHA_VANTAGE": "Alpha Vantage provides free APIs for real-time and historical data on stocks, forex, and cryptocurrencies.",
@@ -1028,15 +1029,18 @@
       "FINNHUB": "Finnhub provides real-time stock, forex, and cryptocurrency data with global coverage. Free tier includes 60 API calls/minute.",
       "EASTMONEY": "Stocks, funds and indices from Eastmoney and Tiantian Fund",
       "TENCENT": "Stocks, listed funds and indices from Tencent Finance",
-      "SINA": "Stocks, listed funds and indices from Sina Finance"
+      "SINA": "Stocks, listed funds and indices from Sina Finance",
+      "FUTU": "Stock and ETF quotes from Futunn OpenAPI"
     },
     "coverageLabels": {
+      "China • Hong Kong • US": "China • Hong Kong • US",
       "Global": "Global",
       "US only": "US only",
       "USD only": "USD only",
       "US Treasury": "US Treasury",
       "Service-defined": "Service-defined",
-      "User-defined": "User-defined"
+      "User-defined": "User-defined",
+      "US • HK • Shanghai • Shenzhen • Beijing": "US • HK • Shanghai • Shenzhen • Beijing"
     },
     "feature_dividends": "Dividends",
     "feature_no_api_key": "No API key",
@@ -1054,9 +1058,24 @@
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Daily crypto history (use coin ID: bitcoin, ethereum...)"
     },
     "native_provider_names": {
+      "IFIND": "Tonghuashun iFinD",
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
-      "SINA": "Sina Finance"
+      "SINA": "Sina Finance",
+      "FUTU": "Futu"
+    },
+    "futu": {
+      "private_key": "Private key (PEM)",
+      "show": "Show / edit credentials",
+      "hide": "Hide credentials",
+      "delete": "Delete credentials",
+      "help": "Use AppKeyId and an unencrypted Ed25519 or RSA PEM private key.",
+      "required": "Enter AppKeyId and private key.",
+      "load_error": "Unable to load credentials.",
+      "save_error": "Unable to save credentials.",
+      "refresh_error": "Credentials were stored, but validation or client refresh failed. Check the key format and retry.",
+      "saved": "Credentials saved.",
+      "deleted": "Credentials deleted."
     }
   },
   "addon_permission_none_detected": "No data access permissions detected. This addon appears to have minimal system access.",

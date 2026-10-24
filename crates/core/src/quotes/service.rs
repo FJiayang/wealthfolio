@@ -2309,7 +2309,9 @@ where
             // Check if provider requires an API key
             let requires_key = matches!(
                 setting.id.as_str(),
-                DATA_SOURCE_ALPHA_VANTAGE
+                super::constants::DATA_SOURCE_FUTU
+                    | DATA_SOURCE_IFIND
+                    | DATA_SOURCE_ALPHA_VANTAGE
                     | DATA_SOURCE_MARKET_DATA_APP
                     | DATA_SOURCE_METAL_PRICE_API
                     | DATA_SOURCE_FINNHUB
@@ -2320,7 +2322,14 @@ where
                     .get_secret(&setting.id)
                     .ok()
                     .flatten()
-                    .map(|k| !k.is_empty())
+                    .map(|k| {
+                        if setting.id == super::constants::DATA_SOURCE_FUTU {
+                            serde_json::from_str::<wealthfolio_market_data::FutuCredentials>(&k)
+                                .is_ok_and(|credentials| credentials.validate().is_ok())
+                        } else {
+                            !k.is_empty()
+                        }
+                    })
                     .unwrap_or(false)
             } else {
                 !requires_key
@@ -2371,6 +2380,30 @@ where
         enabled: bool,
     ) -> Result<()> {
         use super::provider_settings::UpdateMarketDataProviderSetting;
+
+        // Invalid credentials must not prevent disabling the provider.
+        if provider_id == super::constants::DATA_SOURCE_FUTU
+            && (enabled
+                || !self
+                    .provider_settings_store
+                    .get_provider(provider_id)?
+                    .enabled)
+        {
+            if let Some(secret) = self.secret_store.get_secret(provider_id)? {
+                let credentials =
+                    serde_json::from_str::<wealthfolio_market_data::FutuCredentials>(&secret)
+                        .map_err(|_| {
+                            Error::Validation(crate::errors::ValidationError::InvalidInput(
+                                "FUTU: invalid credentials".into(),
+                            ))
+                        })?;
+                credentials.validate().map_err(|err| {
+                    Error::Validation(crate::errors::ValidationError::InvalidInput(
+                        err.to_string(),
+                    ))
+                })?;
+            }
+        }
 
         self.provider_settings_store.update_provider(
             provider_id,

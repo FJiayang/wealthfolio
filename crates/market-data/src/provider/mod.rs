@@ -27,6 +27,8 @@ pub mod boerse_frankfurt;
 pub mod eastmoney;
 pub mod finnhub;
 pub mod fixture;
+pub mod futu;
+pub mod ifind;
 pub mod marketdata_app;
 pub mod metal_price_api;
 pub(crate) mod native;
@@ -42,6 +44,8 @@ pub use traits::MarketDataProvider;
 
 /// Identifier shared with the custom scraper adapter in core.
 pub const DATA_SOURCE_CUSTOM_SCRAPER: &str = "CUSTOM_SCRAPER";
+
+pub const DATA_SOURCE_IFIND: &str = "IFIND";
 
 pub const DATA_SOURCE_EASTMONEY: &str = "EASTMONEY";
 pub const DATA_SOURCE_TENCENT: &str = "TENCENT";

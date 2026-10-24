@@ -244,6 +244,10 @@ impl MarketDataClient {
 
         match provider_id {
             DATA_SOURCE_YAHOO => Ok(Some(Arc::new(FixtureProvider::new(fixture_dir)))),
+            DATA_SOURCE_FUTU => Ok(Some(Arc::new(FixtureProvider::new_for_provider(
+                fixture_dir,
+                DATA_SOURCE_FUTU,
+            )))),
             DATA_SOURCE_EASTMONEY | DATA_SOURCE_TENCENT | DATA_SOURCE_SINA => {
                 Ok(Some(Arc::new(FixtureProvider::new_for_provider(
                     fixture_dir,
@@ -254,6 +258,10 @@ impl MarketDataClient {
                     },
                 ))))
             }
+            DATA_SOURCE_IFIND => Ok(Some(Arc::new(FixtureProvider::new_for_provider(
+                fixture_dir,
+                DATA_SOURCE_IFIND,
+            )))),
             DATA_SOURCE_BOERSE_FRANKFURT => Ok(Some(Arc::new(FixtureProvider::new_for_provider(
                 fixture_dir,
                 DATA_SOURCE_BOERSE_FRANKFURT,
@@ -294,6 +302,20 @@ impl MarketDataClient {
         }
 
         match provider_id {
+            DATA_SOURCE_FUTU => {
+                let Some(secret) = secret_store.get_secret(DATA_SOURCE_FUTU)? else {
+                    return Ok(None);
+                };
+                let credentials =
+                    serde_json::from_str::<wealthfolio_market_data::FutuCredentials>(&secret)
+                        .map_err(|_| {
+                            MarketDataClientError::InvalidData("FUTU: invalid credentials".into())
+                        })?;
+                Ok(Some(Arc::new(
+                    wealthfolio_market_data::FutuProvider::new(credentials)
+                        .map_err(MarketDataClientError::from)?,
+                )))
+            }
             DATA_SOURCE_EASTMONEY => Ok(Some(Arc::new(
                 wealthfolio_market_data::EastmoneyProvider::new()
                     .map_err(MarketDataClientError::from)?
@@ -327,6 +349,13 @@ impl MarketDataClient {
                 }
                 Ok(None)
             }
+            DATA_SOURCE_IFIND => match secret_store.get_secret(DATA_SOURCE_IFIND)? {
+                Some(key) if !key.trim().is_empty() => Ok(Some(Arc::new(
+                    wealthfolio_market_data::IfindProvider::new(key)
+                        .map_err(MarketDataClientError::from)?,
+                ))),
+                _ => Ok(None),
+            },
             DATA_SOURCE_ALPHA_VANTAGE => {
                 if let Ok(Some(key)) = secret_store.get_secret(provider_id) {
                     if !key.is_empty() {
@@ -777,18 +806,16 @@ impl MarketDataClient {
         let mut exchange_mic = result.exchange_mic.clone();
 
         if exchange_mic.is_none()
-            && !result
-                .data_source
-                .as_deref()
-                .is_some_and(wealthfolio_market_data::provider::is_native_provider)
+            && !result.data_source.as_deref().is_some_and(|id| {
+                id == DATA_SOURCE_IFIND || wealthfolio_market_data::provider::is_native_provider(id)
+            })
         {
             exchange_mic = yahoo_exchange_to_mic(&result.exchange).map(|mic| mic.to_string());
         }
         if exchange_mic.is_none()
-            && !result
-                .data_source
-                .as_deref()
-                .is_some_and(wealthfolio_market_data::provider::is_native_provider)
+            && !result.data_source.as_deref().is_some_and(|id| {
+                id == DATA_SOURCE_IFIND || wealthfolio_market_data::provider::is_native_provider(id)
+            })
         {
             if let Some(dot_pos) = result.symbol.rfind('.') {
                 let suffix = &result.symbol[dot_pos + 1..];
@@ -857,10 +884,9 @@ impl MarketDataClient {
                 Some(suffix) if !suffix.is_empty() => format!("{display_symbol}{suffix}"),
                 _ => display_symbol.to_string(),
             }
-        } else if provider_id
-            .as_deref()
-            .is_some_and(wealthfolio_market_data::provider::is_native_provider)
-        {
+        } else if provider_id.as_deref().is_some_and(|id| {
+            id == DATA_SOURCE_IFIND || wealthfolio_market_data::provider::is_native_provider(id)
+        }) {
             match canonical_identity.instrument_exchange_mic.as_deref() {
                 Some(mic) => format!("{mic}:{symbol_for_identity}"),
                 None => symbol_for_identity.clone(),
@@ -1398,6 +1424,105 @@ mod tests {
         fn delete_secret(&self, _service: &str) -> Result<()> {
             Ok(())
         }
+    }
+
+    struct FutuTestSecrets {
+        value: Option<String>,
+        reads: std::sync::atomic::AtomicUsize,
+    }
+    impl SecretStore for FutuTestSecrets {
+        fn set_secret(&self, _: &str, _: &str) -> Result<()> {
+            unreachable!()
+        }
+        fn delete_secret(&self, _: &str) -> Result<()> {
+            unreachable!()
+        }
+        fn get_secret(&self, service: &str) -> Result<Option<String>> {
+            assert_eq!(service, DATA_SOURCE_FUTU);
+            self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(self.value.clone())
+        }
+    }
+    #[tokio::test]
+    async fn futu_disabled_skips_secret_access_and_missing_credentials_skip_initialization() {
+        let store = Arc::new(FutuTestSecrets {
+            value: None,
+            reads: 0.into(),
+        });
+        let client = MarketDataClient::new(store.clone(), vec![]).await.unwrap();
+        assert!(client.registry.providers().is_empty());
+        assert_eq!(store.reads.load(std::sync::atomic::Ordering::SeqCst), 0);
+        let client = MarketDataClient::new(
+            store.clone(),
+            vec![ProviderConfig {
+                id: DATA_SOURCE_FUTU.into(),
+                priority: 1,
+            }],
+        )
+        .await
+        .unwrap();
+        assert!(client.registry.providers().is_empty());
+        assert_eq!(store.reads.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+    #[tokio::test]
+    async fn futu_initializes_locally_and_invalid_keys_do_not_remove_other_providers() {
+        let secret = serde_json::json!({"appKeyId":"synthetic-app","privateKey":"-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIAcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH\n-----END PRIVATE KEY-----\n"}).to_string();
+        let store = Arc::new(FutuTestSecrets {
+            value: Some(secret),
+            reads: 0.into(),
+        });
+        let client = MarketDataClient::new(
+            store,
+            vec![ProviderConfig {
+                id: DATA_SOURCE_FUTU.into(),
+                priority: 1,
+            }],
+        )
+        .await
+        .unwrap();
+        assert_eq!(client.registry.providers().len(), 1);
+        assert_eq!(client.registry.providers()[0].id(), DATA_SOURCE_FUTU);
+        let store = Arc::new(FutuTestSecrets {
+            value: Some(r#"{"appKeyId":"synthetic","privateKey":"invalid"}"#.into()),
+            reads: 0.into(),
+        });
+        let client = MarketDataClient::new_with_extra(
+            store,
+            vec![ProviderConfig {
+                id: DATA_SOURCE_FUTU.into(),
+                priority: 1,
+            }],
+            vec![Arc::new(FailingProvider {
+                id: "ALPHA_VANTAGE",
+                priority: 2,
+            })],
+        )
+        .await
+        .unwrap();
+        assert_eq!(client.registry.providers().len(), 1);
+        assert_eq!(client.registry.providers()[0].id(), "ALPHA_VANTAGE");
+    }
+
+    #[tokio::test]
+    async fn ifind_without_a_key_or_when_disabled_is_not_contacted() {
+        let store: Arc<dyn SecretStore> = Arc::new(NoSecrets);
+        assert!(MarketDataClient::create_provider(
+            &ProviderConfig {
+                id: DATA_SOURCE_IFIND.into(),
+                priority: 13
+            },
+            &store
+        )
+        .await
+        .unwrap()
+        .is_none());
+        let client = create_test_client();
+        let mut asset = create_test_asset(AssetKind::Investment, "600519", "CNY");
+        asset.provider_config = Some(
+            serde_json::json!({"preferred_provider": "IFIND", "overrides": {"IFIND": {"type":"equity_symbol", "symbol":"stock:600519.SH"}}}),
+        );
+        assert!(client.get_profile(&asset).await.is_err());
+        assert!(client.fetch_latest_quote(&asset).await.is_err());
     }
 
     #[tokio::test]

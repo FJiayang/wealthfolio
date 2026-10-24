@@ -67,3 +67,13 @@ it.each(Object.entries(settingsCatalogs))(
     }
   },
 );
+
+it("localizes the IFIND provider metadata", () => {
+  expect(getProviderName(i18n.t, "IFIND", "Tonghuashun iFinD")).toBe("同花顺 iFinD");
+  expect(
+    getProviderDescription(i18n.t, "IFIND", en.market_data_page.providerDescriptions.IFIND),
+  ).toBe(zh.market_data_page.providerDescriptions.IFIND);
+  expect(getProviderCoverage(i18n.t, "China • Hong Kong • US")).toBe(
+    zh.market_data_page.coverageLabels["China • Hong Kong • US"],
+  );
+});

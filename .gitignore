@@ -123,3 +123,7 @@ apps/tauri/db/
 tasks
 **/*.local.md
 wealthfolio.db
+
+skills-lock.json
+.agents/
+.agent/

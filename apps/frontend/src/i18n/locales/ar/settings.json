@@ -1378,6 +1378,7 @@
     "priority_increase": "زيادة رقم الأولوية",
     "feature_dividends": "توزيعات الأرباح",
     "providerDescriptions": {
+      "IFIND": "أسهم وصناديق ومؤشرات من تونغهواشون iFinD",
       "YAHOO": "Yahoo Finance هي شركة رائدة في توفير البيانات المالية للعديد من الأسواق. ويوفر بيانات المخزون التاريخية وفي الوقت الحقيقي.",
       "MARKETDATA_APP": "يوفر تطبيق MarketData.app بيانات تاريخية وفي الوقت الفعلي للأسهم الأمريكية والخيارات وصناديق الاستثمار المتداولة وصناديق الاستثمار المشتركة والمزيد.",
       "ALPHA_VANTAGE": "توفر Alpha Vantage واجهات برمجة التطبيقات (APIs) المجانية للبيانات التاريخية واللحظية المتعلقة بالأسهم والعملات الأجنبية والعملات المشفرة.",
@@ -1389,15 +1390,18 @@
       "FINNHUB": "توفر Finnhub بيانات عالمية آنية للأسهم والعملات الأجنبية والعملات المشفرة. تشمل الخطة المجانية 60 طلب API في الدقيقة.",
       "EASTMONEY": "الأسهم والصناديق والمؤشرات من Eastmoney وTiantian Fund",
       "TENCENT": "الأسهم والصناديق المدرجة والمؤشرات من Tencent Finance",
-      "SINA": "الأسهم والصناديق المدرجة والمؤشرات من Sina Finance"
+      "SINA": "الأسهم والصناديق المدرجة والمؤشرات من Sina Finance",
+      "FUTU": "أسعار الأسهم وصناديق ETF من Futunn OpenAPI"
     },
     "coverageLabels": {
+      "China • Hong Kong • US": "الصين • هونغ كونغ • الولايات المتحدة",
       "Global": "عالمي",
       "US only": "الولايات المتحدة فقط",
       "USD only": "دولار أمريكي فقط",
       "US Treasury": "الخزانة الأمريكية",
       "Service-defined": "خدمة محددة",
-      "User-defined": "المعرفة من قبل المستخدم"
+      "User-defined": "المعرفة من قبل المستخدم",
+      "US • HK • Shanghai • Shenzhen • Beijing": "أمريكا • هونغ كونغ • شنغهاي • شنتشن • بكين"
     },
     "feature_no_api_key": "لا يوجد مفتاح API",
     "us_treasury_name": "الخزانة الأمريكية (محسوبة)",
@@ -1414,9 +1418,24 @@
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "سجل العملات المشفرة اليومي (استخدم معرف العملة: bitcoin، ethereum...)"
     },
     "native_provider_names": {
+      "IFIND": "تونغهواشون iFinD",
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
-      "SINA": "Sina Finance"
+      "SINA": "Sina Finance",
+      "FUTU": "Futu"
+    },
+    "futu": {
+      "private_key": "المفتاح الخاص (PEM)",
+      "show": "عرض / تعديل بيانات الاعتماد",
+      "hide": "إخفاء بيانات الاعتماد",
+      "delete": "حذف بيانات الاعتماد",
+      "help": "استخدم AppKeyId ومفتاح PEM خاصًا غير مشفر من نوع Ed25519 أو RSA.",
+      "required": "أدخل AppKeyId والمفتاح الخاص.",
+      "load_error": "تعذر تحميل بيانات الاعتماد.",
+      "save_error": "تعذر حفظ بيانات الاعتماد.",
+      "refresh_error": "تم تخزين البيانات، لكن فشل التحقق أو تحديث العميل. تحقق من تنسيق المفتاح وأعد المحاولة.",
+      "saved": "تم حفظ بيانات الاعتماد.",
+      "deleted": "تم حذف بيانات الاعتماد."
     }
   },
   "market_data_provider_api_key": "مفتاح API",

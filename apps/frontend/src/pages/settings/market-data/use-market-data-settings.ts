@@ -62,11 +62,27 @@ export function useUpdateMarketDataProviderSettings() {
   });
 }
 
+async function refreshIfindSettings(providerId: string) {
+  if (providerId !== "IFIND") return;
+  const providers = await getMarketDataProviderSettings();
+  const provider = providers.find((entry) => entry.id === providerId);
+  if (!provider) throw new Error("IFIND provider settings are missing");
+  await updateMarketDataProviderSettings({
+    providerId,
+    priority: provider.priority,
+    enabled: provider.enabled,
+  });
+}
+
 export function useSetApiKey() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (variables: { providerId: string; apiKey: string }) => {
-      await setSecret(variables.providerId, variables.apiKey);
+      await setSecret(
+        variables.providerId,
+        variables.providerId === "IFIND" ? variables.apiKey.trim() : variables.apiKey,
+      );
+      await refreshIfindSettings(variables.providerId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.MARKET_DATA_PROVIDER_SETTINGS] });
@@ -86,6 +102,7 @@ export function useDeleteApiKey() {
   return useMutation({
     mutationFn: async (variables: { providerId: string }) => {
       await deleteSecret(variables.providerId);
+      await refreshIfindSettings(variables.providerId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.MARKET_DATA_PROVIDER_SETTINGS] });

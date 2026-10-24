@@ -2,6 +2,96 @@
   "defaultAsOf": "2026-05-12",
   "instruments": [
     {
+      "symbol": "stock:600519.SH",
+      "aliases": ["600519"],
+      "name": "贵州茅台",
+      "provider": "IFIND",
+      "assetType": "EQUITY",
+      "currency": "CNY",
+      "exchange": "XSHG",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 600,
+      "exchangeMic": "XSHG"
+    },
+    {
+      "symbol": "fund:510300.SH",
+      "aliases": ["510300"],
+      "name": "沪深300ETF",
+      "provider": "IFIND",
+      "assetType": "ETF",
+      "currency": "CNY",
+      "exchange": "XSHG",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 601,
+      "exchangeMic": "XSHG"
+    },
+    {
+      "symbol": "fund:161725.SZ",
+      "aliases": ["161725"],
+      "name": "白酒基金LOF",
+      "provider": "IFIND",
+      "assetType": "MUTUALFUND",
+      "currency": "CNY",
+      "exchange": "XSHE",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 602,
+      "exchangeMic": "XSHE"
+    },
+    {
+      "symbol": "nav:005827.OF",
+      "aliases": ["FUND:005827"],
+      "name": "易方达蓝筹精选混合",
+      "provider": "IFIND",
+      "assetType": "MUTUALFUND",
+      "currency": "CNY",
+      "exchange": "FUND",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 603
+    },
+    {
+      "symbol": "index:000300.SH",
+      "aliases": ["000300"],
+      "name": "沪深300指数",
+      "provider": "IFIND",
+      "assetType": "INDEX",
+      "currency": "CNY",
+      "exchange": "XSHG",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 604,
+      "exchangeMic": "XSHG"
+    },
+    {
+      "symbol": "global:00700.HK",
+      "aliases": ["00700"],
+      "name": "腾讯控股",
+      "provider": "IFIND",
+      "assetType": "EQUITY",
+      "currency": "HKD",
+      "exchange": "XHKG",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 605,
+      "exchangeMic": "XHKG"
+    },
+    {
+      "symbol": "global:AAPL.O",
+      "aliases": ["AAPL"],
+      "name": "苹果 Apple",
+      "provider": "IFIND",
+      "assetType": "EQUITY",
+      "currency": "USD",
+      "exchange": "XNAS",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 606,
+      "exchangeMic": "XNAS"
+    },
+    {
       "symbol": "FUND:161725",
       "name": "招商中证白酒场外份额",
       "provider": "EASTMONEY",
@@ -1025,6 +1115,17 @@
       "seed": 503,
       "exchangeMic": "XSHE",
       "aliases": ["XSHE:161725", "161725"]
+    },
+    {
+      "symbol": "US.AAPL",
+      "name": "Apple Inc.",
+      "provider": "FUTU",
+      "assetType": "EQUITY",
+      "currency": "USD",
+      "exchangeMic": "XNAS",
+      "basePrice": 200,
+      "baseVolume": 100000,
+      "seed": 701
     }
   ],
   "splits": [

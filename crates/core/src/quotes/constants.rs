@@ -12,11 +12,13 @@ pub const DATA_SOURCE_OPENFIGI: &str = "OPENFIGI";
 pub const DATA_SOURCE_US_TREASURY_CALC: &str = "US_TREASURY_CALC";
 pub const DATA_SOURCE_BOERSE_FRANKFURT: &str = "BOERSE_FRANKFURT";
 pub const DATA_SOURCE_BROKER: &str = "BROKER";
+pub use wealthfolio_market_data::provider::futu::DATA_SOURCE_FUTU;
 pub use wealthfolio_market_data::provider::DATA_SOURCE_CUSTOM_SCRAPER;
 pub use wealthfolio_market_data::provider::{
-    DATA_SOURCE_EASTMONEY, DATA_SOURCE_SINA, DATA_SOURCE_TENCENT,
+    DATA_SOURCE_EASTMONEY, DATA_SOURCE_IFIND, DATA_SOURCE_SINA, DATA_SOURCE_TENCENT,
 };
-pub const MARKET_DATA_PROVIDER_IDS: [&str; 12] = [
+pub const MARKET_DATA_PROVIDER_IDS: [&str; 14] = [
+    DATA_SOURCE_FUTU,
     DATA_SOURCE_YAHOO,
     DATA_SOURCE_ALPHA_VANTAGE,
     DATA_SOURCE_MARKET_DATA_APP,
@@ -29,6 +31,7 @@ pub const MARKET_DATA_PROVIDER_IDS: [&str; 12] = [
     DATA_SOURCE_EASTMONEY,
     DATA_SOURCE_TENCENT,
     DATA_SOURCE_SINA,
+    DATA_SOURCE_IFIND,
 ];
 
 /// Default number of days of history to fetch for new symbols when no activity date exists.

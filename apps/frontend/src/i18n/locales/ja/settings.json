@@ -1060,6 +1060,7 @@
     "review_first_rows_one": "CSV データの最初の行を確認します。",
     "import_quotes_count_one": "{{count}} 見積をインポート",
     "providerDescriptions": {
+      "IFIND": "同花順 iFinD の株式・ファンド・指数データ",
       "YAHOO": "Yahoo Finance は、多くの市場を対象とする大手金融データ プロバイダーです。過去およびリアルタイムの株式データを提供します。",
       "MARKETDATA_APP": "MarketData.app は、米国株、オプション、ETF、投資信託などのリアルタイム データと履歴データを提供します。",
       "ALPHA_VANTAGE": "Alpha Vantage は、株式、外国為替、暗号通貨に関するリアルタイムおよび履歴データ用の無料 API を提供します。",
@@ -1071,15 +1072,18 @@
       "FINNHUB": "Finnhub は世界の株式、外国為替、暗号資産のリアルタイムデータを提供します。無料プランでは毎分 60 回の API 呼び出しが可能です。",
       "EASTMONEY": "EastmoneyとTiantian Fundの株式・ファンド・指数データ",
       "TENCENT": "Tencent Financeの株式・上場ファンド・指数データ",
-      "SINA": "Sina Financeの株式・上場ファンド・指数データ"
+      "SINA": "Sina Financeの株式・上場ファンド・指数データ",
+      "FUTU": "Futunn OpenAPI の株式・ETF 相場"
     },
     "coverageLabels": {
+      "China • Hong Kong • US": "中国 • 香港 • 米国",
       "Global": "グローバル",
       "US only": "米国のみ",
       "USD only": "米ドルのみ",
       "US Treasury": "米国財務省",
       "Service-defined": "サービス定義",
-      "User-defined": "ユーザー定義"
+      "User-defined": "ユーザー定義",
+      "US • HK • Shanghai • Shenzhen • Beijing": "米国 • 香港 • 上海 • 深圳 • 北京"
     },
     "feature_no_api_key": "APIキーがありません",
     "us_treasury_name": "米国財務省 (計算値)",
@@ -1096,9 +1100,24 @@
       "daily_crypto_history_use_coin_id_bitcoin_ethereum": "毎日の暗号通貨履歴 (コイン ID を使用: bitcoin、ethereumなど)"
     },
     "native_provider_names": {
+      "IFIND": "同花順 iFinD",
       "EASTMONEY": "Eastmoney",
       "TENCENT": "Tencent Finance",
-      "SINA": "Sina Finance"
+      "SINA": "Sina Finance",
+      "FUTU": "Futu"
+    },
+    "futu": {
+      "private_key": "秘密鍵（PEM）",
+      "show": "認証情報を表示 / 編集",
+      "hide": "認証情報を隠す",
+      "delete": "認証情報を削除",
+      "help": "AppKeyId と暗号化されていない Ed25519 または RSA PEM 秘密鍵を使用します。",
+      "required": "AppKeyId と秘密鍵を入力してください。",
+      "load_error": "認証情報を読み込めませんでした。",
+      "save_error": "認証情報を保存できませんでした。",
+      "refresh_error": "認証情報は保存されましたが、検証またはクライアントの更新に失敗しました。鍵の形式を確認して再試行してください。",
+      "saved": "認証情報を保存しました。",
+      "deleted": "認証情報を削除しました。"
     }
   },
   "addon_permission_none_detected": "データへのアクセス権限は検出されませんでした。このアドオンのシステムアクセスは最小限のようです。",
