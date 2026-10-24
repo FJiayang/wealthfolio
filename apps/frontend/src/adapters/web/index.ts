@@ -216,6 +216,7 @@ export {
   getLatestQuotes,
   getMarketDataProviders,
   getMarketDataProviderSettings,
+  getProviderRequestCounts,
   getQuoteHistory,
   importManualQuotes,
   resolveSymbolQuote,
@@ -552,3 +553,5 @@ export {
   type CloudBackupOperation,
 } from "../shared/cloud-backups";
 export { downloadCloudBackup, previewCloudBackupRestore } from "./cloud-backups";
+
+export type { ProviderRequestCounts, ProviderRequestCountRow } from "../shared/market-data";

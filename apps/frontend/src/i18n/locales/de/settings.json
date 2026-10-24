@@ -1791,5 +1791,30 @@
   "cloud_backup_hint_running": "Du kannst Wealthfolio weiter nutzen, während wir dein verschlüsseltes Cloud-Backup speichern.",
   "cloud_backup_hint_failed": "Das Backup konnte nicht abgeschlossen werden. Wir versuchen es automatisch erneut, oder du kannst es jetzt versuchen.",
   "cloud_backup_retry_label": "Nächster Versuch",
-  "cloud_backup_retry_now": "Backup erneut versuchen"
+  "cloud_backup_retry_now": "Backup erneut versuchen",
+  "provider_request_counts": {
+    "title": "Anbieteranfragen",
+    "description": "Erfasste Aufrufversuche an nachgelagerte APIs, einschließlich Wiederholungen und fehlgeschlagener Anfragen. Dies ist keine Abrechnungssumme.",
+    "today": "Heute bisher: {{value}}",
+    "history": "Tagesverlauf",
+    "provider": "Anbieter",
+    "range": "Zeitraum",
+    "days": "Letzte {{value}} Tage",
+    "timezone": "Zeitzone der Statistik",
+    "timezone_hint": "Eine Änderung dieser Zeitzone gruppiert den gesamten Anfrageverlauf neu. Andere Datumsangaben in der App bleiben unverändert.",
+    "save": "Zeitzone speichern",
+    "saving": "Wird gespeichert…",
+    "refresh": "Aktualisieren",
+    "loading": "Anfragezahlen werden geladen…",
+    "unavailable": "Anfragezahlen sind nicht verfügbar. Versuchen Sie, sie zu aktualisieren.",
+    "not_tracked": "Nicht erfasst",
+    "partial": "Unvollständiger Tag",
+    "tracking_since": "Die Erfassung begann am {{value}}. Frühere Tage wurden nicht erfasst.",
+    "date": "Datum",
+    "requests": "Anfragen",
+    "no_providers": "Keine Anbieter verfügbar.",
+    "save_failed": "Die Zeitzone der Statistik konnte nicht gespeichert werden.",
+    "updated": "Aktualisiert: {{value}}",
+    "stale": "Die angezeigten Zahlen sind möglicherweise nicht aktuell."
+  }
 }

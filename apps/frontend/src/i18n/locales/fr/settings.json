@@ -1842,5 +1842,30 @@
   "cloud_backup_hint_running": "Vous pouvez continuer à utiliser Wealthfolio pendant l’enregistrement de votre sauvegarde chiffrée dans le cloud.",
   "cloud_backup_hint_failed": "Nous n’avons pas pu terminer la sauvegarde. Nous réessaierons automatiquement, ou vous pouvez réessayer maintenant.",
   "cloud_backup_retry_label": "Prochain essai",
-  "cloud_backup_retry_now": "Réessayer la sauvegarde"
+  "cloud_backup_retry_now": "Réessayer la sauvegarde",
+  "provider_request_counts": {
+    "title": "Requêtes aux fournisseurs",
+    "description": "Tentatives d’appels aux API des fournisseurs enregistrées, y compris les nouvelles tentatives et les requêtes ayant échoué. Il ne s’agit pas d’un total de facturation.",
+    "today": "Aujourd’hui jusqu’à présent : {{value}}",
+    "history": "Historique quotidien",
+    "provider": "Fournisseur",
+    "range": "Période de l’historique",
+    "days": "{{value}} derniers jours",
+    "timezone": "Fuseau horaire des statistiques",
+    "timezone_hint": "La modification de ce fuseau horaire regroupe à nouveau l’ensemble de l’historique des requêtes. Les autres dates de l’application restent inchangées.",
+    "save": "Enregistrer le fuseau horaire",
+    "saving": "Enregistrement…",
+    "refresh": "Actualiser",
+    "loading": "Chargement du nombre de requêtes…",
+    "unavailable": "Le nombre de requêtes est indisponible. Essayez d’actualiser.",
+    "not_tracked": "Non suivi",
+    "partial": "Journée partielle",
+    "tracking_since": "Le suivi a commencé le {{value}}. Les dates antérieures n’ont pas été suivies.",
+    "date": "Date",
+    "requests": "Requêtes",
+    "no_providers": "Aucun fournisseur disponible.",
+    "save_failed": "Impossible d’enregistrer le fuseau horaire des statistiques.",
+    "updated": "Mis à jour : {{value}}",
+    "stale": "Les nombres affichés peuvent ne pas être à jour."
+  }
 }

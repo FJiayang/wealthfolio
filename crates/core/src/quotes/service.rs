@@ -719,6 +719,8 @@ where
     secret_store: Arc<dyn SecretStore>,
     /// Optional custom provider repository for CUSTOM_SCRAPER provider.
     custom_provider_repo: Option<Arc<dyn crate::custom_provider::CustomProviderRepository>>,
+    /// Profile-local request recorder, retained when provider settings rebuild the client.
+    request_recorder: Arc<dyn wealthfolio_market_data::RequestRecorder>,
     /// Sync service.
     #[allow(clippy::type_complexity)]
     sync_service: Arc<RwLock<Option<Arc<QuoteSyncService<Q, S, A, R>>>>>,
@@ -765,6 +767,31 @@ where
         secret_store: Arc<dyn SecretStore>,
         custom_provider_repo: Option<Arc<dyn crate::custom_provider::CustomProviderRepository>>,
     ) -> Result<Self> {
+        Self::new_with_custom_provider_and_recorder(
+            quote_store,
+            sync_state_store,
+            provider_settings_store,
+            asset_repo,
+            activity_repo,
+            secret_store,
+            custom_provider_repo,
+            Arc::new(wealthfolio_market_data::NoopRequestRecorder),
+        )
+        .await
+    }
+
+    /// Construct with the active profile's recorder. Statistics never share a global database.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn new_with_custom_provider_and_recorder(
+        quote_store: Arc<Q>,
+        sync_state_store: Arc<S>,
+        provider_settings_store: Arc<PS>,
+        asset_repo: Arc<A>,
+        activity_repo: Arc<R>,
+        secret_store: Arc<dyn SecretStore>,
+        custom_provider_repo: Option<Arc<dyn crate::custom_provider::CustomProviderRepository>>,
+        request_recorder: Arc<dyn wealthfolio_market_data::RequestRecorder>,
+    ) -> Result<Self> {
         let providers = provider_settings_store.get_all_providers()?;
         let enabled: Vec<ProviderConfig> = providers
             .iter()
@@ -780,13 +807,18 @@ where
             .iter()
             .any(|p| p.id == super::constants::DATA_SOURCE_CUSTOM_SCRAPER && p.enabled);
         let extra = if custom_scraper_enabled {
-            Self::build_extra_providers(&custom_provider_repo, &secret_store)
+            Self::build_extra_providers(&custom_provider_repo, &secret_store, &request_recorder)
         } else {
             Vec::new()
         };
 
-        let client =
-            MarketDataClient::new_with_extra(secret_store.clone(), enabled.clone(), extra).await?;
+        let client = MarketDataClient::new_with_extra_and_recorder(
+            secret_store.clone(),
+            enabled.clone(),
+            extra,
+            request_recorder.clone(),
+        )
+        .await?;
         let client_arc = Arc::new(RwLock::new(client));
 
         let sync_service = QuoteSyncService::new(
@@ -806,6 +838,7 @@ where
             client: client_arc,
             secret_store,
             custom_provider_repo,
+            request_recorder,
             sync_service: Arc::new(RwLock::new(Some(Arc::new(sync_service)))),
             event_sink: Arc::new(NoOpDomainEventSink),
         })
@@ -821,6 +854,7 @@ where
     fn build_extra_providers(
         custom_provider_repo: &Option<Arc<dyn crate::custom_provider::CustomProviderRepository>>,
         secret_store: &Arc<dyn SecretStore>,
+        request_recorder: &Arc<dyn wealthfolio_market_data::RequestRecorder>,
     ) -> Vec<Arc<dyn wealthfolio_market_data::MarketDataProvider>> {
         let mut extra: Vec<Arc<dyn wealthfolio_market_data::MarketDataProvider>> = Vec::new();
         if let Some(repo) = custom_provider_repo {
@@ -828,7 +862,8 @@ where
                 super::custom_scraper_provider::CustomScraperProvider::new(
                     repo.clone(),
                     secret_store.clone(),
-                ),
+                )
+                .with_request_recorder(request_recorder.clone()),
             ));
         }
         extra
@@ -850,13 +885,21 @@ where
             .iter()
             .any(|p| p.id == super::constants::DATA_SOURCE_CUSTOM_SCRAPER && p.enabled);
         let extra = if custom_scraper_enabled {
-            Self::build_extra_providers(&self.custom_provider_repo, &self.secret_store)
+            Self::build_extra_providers(
+                &self.custom_provider_repo,
+                &self.secret_store,
+                &self.request_recorder,
+            )
         } else {
             Vec::new()
         };
-        let new_client =
-            MarketDataClient::new_with_extra(self.secret_store.clone(), enabled.clone(), extra)
-                .await?;
+        let new_client = MarketDataClient::new_with_extra_and_recorder(
+            self.secret_store.clone(),
+            enabled.clone(),
+            extra,
+            self.request_recorder.clone(),
+        )
+        .await?;
         *self.client.write().await = new_client;
 
         // Refresh sync service with updated client
@@ -4099,6 +4142,36 @@ mod tests {
         fn delete_secret(&self, _service: &str) -> Result<()> {
             Ok(())
         }
+    }
+
+    #[tokio::test]
+    async fn request_counts_recorder_survives_client_refresh() {
+        let recorder: Arc<dyn wealthfolio_market_data::RequestRecorder> =
+            Arc::new(wealthfolio_market_data::NoopRequestRecorder);
+        let service = QuoteService::new_with_custom_provider_and_recorder(
+            Arc::new(NoopQuoteStore),
+            Arc::new(MockSyncStateStore {
+                provider_sync_stats: vec![],
+                with_errors: vec![],
+                states: Arc::new(Mutex::new(HashMap::new())),
+            }),
+            Arc::new(MockProviderSettingsStore { providers: vec![] }),
+            Arc::new(NoopAssetRepository),
+            Arc::new(NoopActivityRepository),
+            Arc::new(MockSecretStore),
+            None,
+            recorder.clone(),
+        )
+        .await
+        .unwrap();
+        service.refresh_client().await.unwrap();
+        assert!(Arc::ptr_eq(&service.request_recorder, &recorder));
+        assert!(service
+            .client
+            .read()
+            .await
+            .provider_configuration()
+            .is_empty());
     }
 
     #[tokio::test]

@@ -7,6 +7,7 @@
 //!
 //! No pricing support.
 
+use crate::request_recorder::RecordedRequest;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::Client;
@@ -60,6 +61,7 @@ struct SearchResponse {
 // ---------------------------------------------------------------------------
 
 pub struct OpenFigiProvider {
+    request_recorder: std::sync::Arc<dyn crate::RequestRecorder>,
     client: Client,
 }
 
@@ -70,12 +72,24 @@ impl Default for OpenFigiProvider {
 }
 
 impl OpenFigiProvider {
+    /// Attach this profile's recorder without changing provider request behavior.
+    pub fn with_request_recorder(
+        mut self,
+        recorder: std::sync::Arc<dyn crate::RequestRecorder>,
+    ) -> Self {
+        self.request_recorder = recorder;
+        self
+    }
+
     pub fn new() -> Self {
         let client = wealthfolio_http::client_builder()
             .timeout(REQUEST_TIMEOUT)
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
-        Self { client }
+        Self {
+            client,
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+        }
     }
 
     // -- /v3/mapping helpers ------------------------------------------------
@@ -92,7 +106,7 @@ impl OpenFigiProvider {
             .client
             .post(MAPPING_URL)
             .json(&body)
-            .send()
+            .send_recorded(self.id(), self.request_recorder.as_ref())
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
@@ -156,7 +170,7 @@ impl OpenFigiProvider {
             .client
             .post(SEARCH_URL)
             .json(&body)
-            .send()
+            .send_recorded(self.id(), self.request_recorder.as_ref())
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),

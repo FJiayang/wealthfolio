@@ -10,14 +10,34 @@ use rust_decimal::Decimal;
 use serde_json::Value;
 
 pub struct TencentProvider {
+    request_recorder: std::sync::Arc<dyn crate::RequestRecorder>,
     client: reqwest::Client,
 }
 impl TencentProvider {
+    /// Attach this profile's recorder without changing provider request behavior.
+    pub fn with_request_recorder(
+        mut self,
+        recorder: std::sync::Arc<dyn crate::RequestRecorder>,
+    ) -> Self {
+        self.request_recorder = recorder;
+        self
+    }
+
     pub fn new() -> Result<Self, MarketDataError> {
-        Ok(Self { client: client()? })
+        Ok(Self {
+            client: client()?,
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+        })
     }
     async fn text(&self, url: &str, params: &[(&str, String)]) -> Result<String, MarketDataError> {
-        get(&self.client, self.id(), url, params).await
+        get(
+            &self.client,
+            self.id(),
+            url,
+            params,
+            self.request_recorder.as_ref(),
+        )
+        .await
     }
 }
 fn assignment(text: &str) -> Result<String, MarketDataError> {

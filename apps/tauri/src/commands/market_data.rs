@@ -39,6 +39,27 @@ impl ResetProviderHistoryError {
 }
 
 #[tauri::command]
+pub async fn get_provider_request_counts(
+    days: u32,
+    state: ProfileAccess,
+) -> Result<wealthfolio_core::quotes::request_counts::ProviderRequestCounts, String> {
+    use wealthfolio_core::settings::{
+        DEFAULT_PROVIDER_REQUEST_TIMEZONE, PROVIDER_REQUEST_TIMEZONE_KEY,
+    };
+    let context = state.context()?;
+    let timezone = context
+        .settings_service()
+        .get_setting_value(PROVIDER_REQUEST_TIMEZONE_KEY)
+        .map_err(|error| error.to_string())?
+        .unwrap_or_else(|| DEFAULT_PROVIDER_REQUEST_TIMEZONE.to_string());
+    context
+        .provider_request_service
+        .get_counts(days, &timezone)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub async fn reset_provider_history(
     asset_id: String,
     state: ProfileAccess,

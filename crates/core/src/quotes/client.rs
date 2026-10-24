@@ -125,6 +125,21 @@ impl MarketDataClient {
         enabled_providers: Vec<ProviderConfig>,
         extra_providers: Vec<Arc<dyn wealthfolio_market_data::MarketDataProvider>>,
     ) -> Result<Self> {
+        Self::new_with_extra_and_recorder(
+            secret_store,
+            enabled_providers,
+            extra_providers,
+            Arc::new(wealthfolio_market_data::NoopRequestRecorder),
+        )
+        .await
+    }
+
+    pub async fn new_with_extra_and_recorder(
+        secret_store: Arc<dyn SecretStore>,
+        enabled_providers: Vec<ProviderConfig>,
+        extra_providers: Vec<Arc<dyn wealthfolio_market_data::MarketDataProvider>>,
+        request_recorder: Arc<dyn wealthfolio_market_data::RequestRecorder>,
+    ) -> Result<Self> {
         use std::collections::HashMap;
 
         let mut providers: Vec<Arc<dyn wealthfolio_market_data::MarketDataProvider>> = Vec::new();
@@ -136,7 +151,7 @@ impl MarketDataClient {
             if extra_providers.iter().any(|ep| ep.id() == config.id) {
                 continue;
             }
-            match Self::create_provider(config, &secret_store).await {
+            match Self::create_provider(config, &secret_store, request_recorder.clone()).await {
                 Ok(Some(provider)) => {
                     info!("Initialized market data provider: {}", config.id);
                     custom_priorities.insert(config.id.clone(), config.priority);
@@ -271,6 +286,7 @@ impl MarketDataClient {
     async fn create_provider(
         config: &ProviderConfig,
         secret_store: &Arc<dyn SecretStore>,
+        request_recorder: Arc<dyn wealthfolio_market_data::RequestRecorder>,
     ) -> Result<Option<Arc<dyn wealthfolio_market_data::MarketDataProvider>>> {
         let provider_id = config.id.as_str();
         if Self::is_e2e_mode() {
@@ -280,27 +296,32 @@ impl MarketDataClient {
         match provider_id {
             DATA_SOURCE_EASTMONEY => Ok(Some(Arc::new(
                 wealthfolio_market_data::EastmoneyProvider::new()
-                    .map_err(MarketDataClientError::from)?,
+                    .map_err(MarketDataClientError::from)?
+                    .with_request_recorder(request_recorder.clone()),
             ))),
             DATA_SOURCE_TENCENT => Ok(Some(Arc::new(
                 wealthfolio_market_data::TencentProvider::new()
-                    .map_err(MarketDataClientError::from)?,
+                    .map_err(MarketDataClientError::from)?
+                    .with_request_recorder(request_recorder.clone()),
             ))),
             DATA_SOURCE_SINA => Ok(Some(Arc::new(
                 wealthfolio_market_data::SinaProvider::new()
-                    .map_err(MarketDataClientError::from)?,
+                    .map_err(MarketDataClientError::from)?
+                    .with_request_recorder(request_recorder.clone()),
             ))),
             DATA_SOURCE_YAHOO => {
                 // Yahoo doesn't need an API key
                 let provider = YahooProvider::new()
                     .await
-                    .map_err(MarketDataClientError::from)?;
+                    .map_err(MarketDataClientError::from)?
+                    .with_request_recorder(request_recorder.clone());
                 Ok(Some(Arc::new(provider)))
             }
             DATA_SOURCE_MARKET_DATA_APP => {
                 if let Ok(Some(key)) = secret_store.get_secret(provider_id) {
                     if !key.is_empty() {
-                        let provider = MarketDataAppProvider::new(key);
+                        let provider = MarketDataAppProvider::new(key)
+                            .with_request_recorder(request_recorder.clone());
                         return Ok(Some(Arc::new(provider)));
                     }
                 }
@@ -309,7 +330,8 @@ impl MarketDataClient {
             DATA_SOURCE_ALPHA_VANTAGE => {
                 if let Ok(Some(key)) = secret_store.get_secret(provider_id) {
                     if !key.is_empty() {
-                        let provider = AlphaVantageProvider::new(key);
+                        let provider = AlphaVantageProvider::new(key)
+                            .with_request_recorder(request_recorder.clone());
                         return Ok(Some(Arc::new(provider)));
                     }
                 }
@@ -318,7 +340,8 @@ impl MarketDataClient {
             DATA_SOURCE_METAL_PRICE_API => {
                 if let Ok(Some(key)) = secret_store.get_secret(provider_id) {
                     if !key.is_empty() {
-                        let provider = MetalPriceApiProvider::new(key);
+                        let provider = MetalPriceApiProvider::new(key)
+                            .with_request_recorder(request_recorder.clone());
                         return Ok(Some(Arc::new(provider)));
                     }
                 }
@@ -327,7 +350,8 @@ impl MarketDataClient {
             DATA_SOURCE_FINNHUB => {
                 if let Ok(Some(key)) = secret_store.get_secret(provider_id) {
                     if !key.is_empty() {
-                        let provider = FinnhubProvider::new(key);
+                        let provider = FinnhubProvider::new(key)
+                            .with_request_recorder(request_recorder.clone());
                         return Ok(Some(Arc::new(provider)));
                     }
                 }
@@ -335,15 +359,21 @@ impl MarketDataClient {
             }
             DATA_SOURCE_OPENFIGI => {
                 // OpenFIGI doesn't need an API key (free tier)
-                Ok(Some(Arc::new(OpenFigiProvider::new())))
+                Ok(Some(Arc::new(
+                    OpenFigiProvider::new().with_request_recorder(request_recorder.clone()),
+                )))
             }
             DATA_SOURCE_US_TREASURY_CALC => {
                 // Calculates bond prices from US Treasury yield curve data (no API key)
-                Ok(Some(Arc::new(UsTreasuryCalcProvider::new())))
+                Ok(Some(Arc::new(
+                    UsTreasuryCalcProvider::new().with_request_recorder(request_recorder.clone()),
+                )))
             }
             DATA_SOURCE_BOERSE_FRANKFURT => {
                 // European bond pricing via Börse Frankfurt (no API key)
-                Ok(Some(Arc::new(BoerseFrankfurtProvider::new())))
+                Ok(Some(Arc::new(
+                    BoerseFrankfurtProvider::new().with_request_recorder(request_recorder.clone()),
+                )))
             }
             _ => {
                 warn!("Unknown provider ID: {}", provider_id);

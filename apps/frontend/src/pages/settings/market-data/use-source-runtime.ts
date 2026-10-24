@@ -181,6 +181,7 @@ export function useSourceRuntime({
 
     testSource(
       {
+        providerId: form.getValues("code").trim() || undefined,
         format,
         url: rawUrl,
         pricePath: dummyPath,
@@ -268,6 +269,7 @@ export function useSourceRuntime({
         const values = form.getValues(prefix);
         testSource(
           {
+            providerId: form.getValues("code").trim() || undefined,
             format: values?.format ?? "json",
             url: rawUrl,
             pricePath: path,

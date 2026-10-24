@@ -649,3 +649,19 @@ describe("agent token permission editing", () => {
     expect(JSON.parse(body as string)).toEqual({ scopes: ["holdings:read"] });
   });
 });
+
+describe("provider request counts routing", () => {
+  it("forwards relative days through the web API", async () => {
+    const mock = stubFetch();
+    await invoke("get_provider_request_counts", { days: 30 });
+    const { url, method } = lastCall(mock);
+    expect(url).toBe("/api/v1/providers/request-counts?days=30");
+    expect(method).toBe("GET");
+  });
+  it("shares the same command and payload with Tauri", async () => {
+    const { getProviderRequestCounts } = await import("./shared/market-data");
+    platformInvokeMock.mockResolvedValueOnce({});
+    await getProviderRequestCounts(7);
+    expect(platformInvokeMock).toHaveBeenLastCalledWith("get_provider_request_counts", { days: 7 });
+  });
+});

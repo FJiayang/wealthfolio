@@ -45,6 +45,19 @@ vi.mock("@/hooks/use-custom-providers", () => ({
   useUpdateCustomProvider: hookMocks.useUpdateCustomProvider,
 }));
 
+vi.mock("@/lib/settings-provider", () => ({
+  useSettingsContext: () => ({ settings: { providerRequestTimezone: "Asia/Shanghai" } }),
+}));
+
+vi.mock("./use-provider-request-counts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./use-provider-request-counts")>()),
+  useProviderRequestCounts: () => ({ data: undefined, isError: false }),
+}));
+vi.mock("./provider-request-counts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./provider-request-counts")>()),
+  ProviderRequestCountsPanel: () => null,
+}));
+
 vi.mock("./market-data-sync-settings", () => ({ MarketDataSyncSettings: () => null }));
 
 vi.mock("./custom-provider-form", () => ({

@@ -949,6 +949,8 @@ export interface Settings {
   baseCurrency: string;
   defaultReturnMetric: "twr" | "irr" | "valueReturn";
   timezone: string;
+  /** Independent timezone for grouping UTC provider request timestamps. */
+  providerRequestTimezone?: string;
   onboardingCompleted: boolean;
   autoUpdateCheckEnabled: boolean;
   menuBarVisible: boolean;

@@ -1790,5 +1790,30 @@
   "addon_store_filter_uninstalled_one": "설치 안 됨 ({{count}})",
   "addon_store_showing_one": "전체 {{total}}개 중 {{count}}개 애드온 표시",
   "tax_migration_body_one": "{{count}} 자산에는 더 나은 구성 및 분석을 위해 새로운 분류 시스템으로 마이그레이션할 수 있는 기존 부문/국가 데이터가 있습니다.",
-  "addon_rating_characters_one": "{{count}}/500자"
+  "addon_rating_characters_one": "{{count}}/500자",
+  "provider_request_counts": {
+    "title": "공급자 요청",
+    "description": "재시도 및 실패한 요청을 포함하여 기록된 하위 API 호출 시도입니다. 청구용 합계가 아닙니다.",
+    "today": "오늘 현재까지: {{value}}",
+    "history": "일별 기록",
+    "provider": "공급자",
+    "range": "기록 범위",
+    "days": "최근 {{value}}일",
+    "timezone": "통계 시간대",
+    "timezone_hint": "이 시간대를 변경하면 전체 요청 기록이 다시 그룹화됩니다. 앱의 다른 날짜는 변경되지 않습니다.",
+    "save": "시간대 저장",
+    "saving": "저장 중…",
+    "refresh": "새로고침",
+    "loading": "요청 수를 불러오는 중…",
+    "unavailable": "요청 수를 사용할 수 없습니다. 새로고침해 보세요.",
+    "not_tracked": "기록되지 않음",
+    "partial": "일부 시간만 기록됨",
+    "tracking_since": "{{value}}부터 기록이 시작되었습니다. 이전 날짜는 기록되지 않았습니다.",
+    "date": "날짜",
+    "requests": "요청 수",
+    "no_providers": "사용 가능한 공급자가 없습니다.",
+    "save_failed": "통계 시간대를 저장하지 못했습니다.",
+    "updated": "업데이트: {{value}}",
+    "stale": "표시된 요청 수가 최신이 아닐 수 있습니다."
+  }
 }

@@ -1,4 +1,5 @@
 //! Parsing shared by the native wire protocols; routing remains in the registry.
+use crate::request_recorder::RecordedRequest;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -43,6 +44,7 @@ pub async fn get(
     provider: &str,
     url: &str,
     params: &[(&str, String)],
+    recorder: &dyn crate::RequestRecorder,
 ) -> Result<String, MarketDataError> {
     let referer = if url.contains("fund.eastmoney.com") {
         "https://fundf10.eastmoney.com/"
@@ -57,7 +59,7 @@ pub async fn get(
         .get(url)
         .header("Referer", referer)
         .query(params)
-        .send()
+        .send_recorded(provider, recorder)
         .await
         .map_err(|error| {
             if error.is_timeout() {
@@ -337,6 +339,38 @@ pub fn quote(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn each_native_dispatch_is_attributed_to_its_provider() {
+        use crate::request_recorder::tests::{MemoryRecorder, MockServer};
+        let server = MockServer::start(vec![
+            (200, String::new(), "{}".into()),
+            (200, String::new(), "{}".into()),
+            (200, String::new(), "{}".into()),
+        ]);
+        let recorder = MemoryRecorder::default();
+        let client = client().unwrap();
+        for provider in [DATA_SOURCE_EASTMONEY, DATA_SOURCE_TENCENT, DATA_SOURCE_SINA] {
+            assert_eq!(
+                get(
+                    &client,
+                    provider,
+                    &server.url,
+                    &[("page", "1".into())],
+                    &recorder
+                )
+                .await
+                .unwrap(),
+                "{}"
+            );
+        }
+        let events = recorder.0.lock().unwrap();
+        assert_eq!(
+            events.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(),
+            vec![DATA_SOURCE_EASTMONEY, DATA_SOURCE_TENCENT, DATA_SOURCE_SINA]
+        );
+        assert_eq!(server.requests.lock().unwrap().len(), 3);
+    }
+
     #[test]
     fn identities_are_market_specific() {
         assert_eq!(

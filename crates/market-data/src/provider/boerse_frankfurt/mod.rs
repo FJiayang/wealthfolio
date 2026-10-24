@@ -4,6 +4,7 @@
 //! via the Deutsche Boerse TradingView UDF protocol and price_information endpoint.
 //! No API key required — only a browser User-Agent header.
 
+use crate::request_recorder::RecordedRequest;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use log::debug;
@@ -105,6 +106,7 @@ struct PriceInfoCurrency {
 // ---------------------------------------------------------------------------
 
 pub struct BoerseFrankfurtProvider {
+    request_recorder: std::sync::Arc<dyn crate::RequestRecorder>,
     client: Client,
     isin_cache: Arc<RwLock<HashMap<String, String>>>,
     request_limiter: RateLimiter,
@@ -117,6 +119,15 @@ impl Default for BoerseFrankfurtProvider {
 }
 
 impl BoerseFrankfurtProvider {
+    /// Attach this profile's recorder without changing provider request behavior.
+    pub fn with_request_recorder(
+        mut self,
+        recorder: std::sync::Arc<dyn crate::RequestRecorder>,
+    ) -> Self {
+        self.request_recorder = recorder;
+        self
+    }
+
     pub fn new() -> Self {
         let client = wealthfolio_http::client_builder()
             .timeout(REQUEST_TIMEOUT)
@@ -135,6 +146,7 @@ impl BoerseFrankfurtProvider {
         );
 
         Self {
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
             client,
             isin_cache: Arc::new(RwLock::new(HashMap::new())),
             request_limiter,
@@ -146,7 +158,7 @@ impl BoerseFrankfurtProvider {
         self.request_limiter.acquire(&provider_id).await;
         self.client
             .get(url)
-            .send()
+            .send_recorded(self.id(), self.request_recorder.as_ref())
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),

@@ -2,7 +2,9 @@ use super::SettingsRepositoryTrait;
 use crate::errors::{DatabaseError, Error, Result};
 use crate::fx::currency::get_normalization_rule;
 use crate::fx::FxServiceTrait;
-use crate::settings::{Settings, SettingsUpdate};
+use crate::settings::{
+    validate_provider_request_timezone, Settings, SettingsUpdate, PROVIDER_REQUEST_TIMEZONE_KEY,
+};
 use crate::utils::time_utils::canonicalize_timezone;
 use async_trait::async_trait;
 use log::{debug, error};
@@ -226,6 +228,10 @@ impl SettingsServiceTrait for SettingsService {
             normalized_settings.timezone = Some(canonicalize_timezone(timezone_raw)?);
         }
 
+        if let Some(ref timezone) = normalized_settings.provider_request_timezone {
+            validate_provider_request_timezone(timezone)?;
+        }
+
         if let Some(ref scheme) = normalized_settings.gain_loss_color_scheme {
             validate_gain_loss_color_scheme(scheme)?;
         }
@@ -299,6 +305,9 @@ impl SettingsServiceTrait for SettingsService {
     }
 
     async fn set_setting_value(&self, key: &str, value: &str) -> Result<()> {
+        if key == PROVIDER_REQUEST_TIMEZONE_KEY {
+            validate_provider_request_timezone(value)?;
+        }
         self.settings_repository.update_setting(key, value).await
     }
 }

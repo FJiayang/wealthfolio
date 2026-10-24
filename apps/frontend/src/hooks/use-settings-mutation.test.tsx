@@ -208,3 +208,23 @@ it("only invalidates settings when gain/loss colors change", async () => {
     expect.objectContaining({ gainLossColorScheme: "red-up-green-down" }),
   );
 });
+
+it("invalidates request counts without changing portfolio or spending timezone caches", async () => {
+  vi.mocked(updateSettings).mockResolvedValue({
+    providerRequestTimezone: "UTC",
+    onboardingCompleted: false,
+  } as Settings);
+  const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+  const invalidate = vi.spyOn(client, "invalidateQueries");
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result } = renderHook(() => useSettingsMutation(vi.fn(), vi.fn()), { wrapper });
+  await act(async () => {
+    await result.current.mutateAsync({ providerRequestTimezone: "UTC" });
+  });
+  const keys = invalidate.mock.calls.flatMap((call) => call[0]?.queryKey ?? []);
+  expect(keys).toContain(QueryKeys.PROVIDER_REQUEST_COUNTS);
+  expect(keys).not.toContain(QueryKeys.SPENDING_TRANSACTIONS);
+  expect(keys).not.toContain(QueryKeys.RETIREMENT_OVERVIEW);
+});

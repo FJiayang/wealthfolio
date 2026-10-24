@@ -86,6 +86,8 @@ pub struct ServiceContext {
     pub device_sync_runtime: Arc<DeviceSyncRuntimeState>,
     pub broker_sync_running: Arc<AtomicBool>,
     pub health_service: Arc<health::HealthService>,
+    pub provider_request_service:
+        Arc<wealthfolio_core::quotes::request_counts::ProviderRequestService>,
     pub custom_provider_service: Arc<wealthfolio_core::custom_provider::CustomProviderService>,
     pub portfolio_service: Arc<dyn portfolios::PortfolioServiceTrait>,
     pub spending_settings_service: Arc<SpendingSettingsService>,

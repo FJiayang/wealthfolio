@@ -1842,5 +1842,30 @@
   "cloud_backup_hint_running": "Puedes seguir usando Wealthfolio mientras guardamos tu copia cifrada en la nube.",
   "cloud_backup_hint_failed": "No pudimos completar la copia. Lo intentaremos de nuevo automáticamente, o puedes intentarlo ahora.",
   "cloud_backup_retry_label": "Próximo intento",
-  "cloud_backup_retry_now": "Reintentar copia"
+  "cloud_backup_retry_now": "Reintentar copia",
+  "provider_request_counts": {
+    "title": "Solicitudes a proveedores",
+    "description": "Intentos registrados de llamadas a las API de los proveedores, incluidos los reintentos y las solicitudes fallidas. No es un total de facturación.",
+    "today": "Hoy hasta ahora: {{value}}",
+    "history": "Historial diario",
+    "provider": "Proveedor",
+    "range": "Intervalo del historial",
+    "days": "Últimos {{value}} días",
+    "timezone": "Zona horaria de las estadísticas",
+    "timezone_hint": "Al cambiar esta zona horaria, se reagrupa todo el historial de solicitudes. Las demás fechas de la aplicación no cambian.",
+    "save": "Guardar zona horaria",
+    "saving": "Guardando…",
+    "refresh": "Actualizar",
+    "loading": "Cargando el número de solicitudes…",
+    "unavailable": "El número de solicitudes no está disponible. Prueba a actualizar.",
+    "not_tracked": "Sin seguimiento",
+    "partial": "Día parcial",
+    "tracking_since": "El seguimiento comenzó el {{value}}. No se registraron las fechas anteriores.",
+    "date": "Fecha",
+    "requests": "Solicitudes",
+    "no_providers": "No hay proveedores disponibles.",
+    "save_failed": "No se pudo guardar la zona horaria de las estadísticas.",
+    "updated": "Actualizado: {{value}}",
+    "stale": "Las cifras mostradas pueden estar desactualizadas."
+  }
 }

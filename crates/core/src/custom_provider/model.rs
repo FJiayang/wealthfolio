@@ -431,6 +431,9 @@ pub struct NewCustomProviderSource {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TestSourceRequest {
+    /// Custom provider code for request accounting; drafts may omit it.
+    #[serde(default)]
+    pub provider_id: Option<String>,
     pub format: String,
     pub url: String,
     pub price_path: String,

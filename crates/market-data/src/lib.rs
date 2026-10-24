@@ -59,7 +59,10 @@ pub mod errors;
 pub mod models;
 pub mod provider;
 pub mod registry;
+pub mod request_recorder;
 pub mod resolver;
+
+pub use request_recorder::{NoopRequestRecorder, RecordedRequest, RequestRecorder};
 
 // Re-export all public types from models
 pub use models::{

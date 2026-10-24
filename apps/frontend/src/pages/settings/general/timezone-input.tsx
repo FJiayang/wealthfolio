@@ -19,9 +19,18 @@ interface TimezoneInputProps {
   onChange: (value: string) => void;
   timezones: string[];
   placeholder?: string;
+  ariaLabel?: string;
+  disabled?: boolean;
 }
 
-export function TimezoneInput({ value, onChange, timezones, placeholder }: TimezoneInputProps) {
+export function TimezoneInput({
+  value,
+  onChange,
+  timezones,
+  placeholder,
+  ariaLabel,
+  disabled,
+}: TimezoneInputProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -53,7 +62,8 @@ export function TimezoneInput({ value, onChange, timezones, placeholder }: Timez
             variant="field"
             role="combobox"
             aria-expanded={open}
-            aria-label={t("settings:timezone_title")}
+            aria-label={ariaLabel ?? t("settings:timezone_title")}
+            disabled={disabled}
             className={cn(
               "h-input-height w-full justify-between",
               !value && "text-muted-foreground",

@@ -1790,5 +1790,30 @@
   "addon_store_filter_uninstalled_one": "未インストール ({{count}})",
   "addon_store_showing_one": "全{{total}}件中{{count}}件のアドオンを表示",
   "tax_migration_body_one": "{{count}} アセットには従来のセクター/国データが含まれており、組織化と分析を向上させるために新しい分類システムに移行できます。",
-  "addon_rating_characters_one": "{{count}}/500 文字"
+  "addon_rating_characters_one": "{{count}}/500 文字",
+  "provider_request_counts": {
+    "title": "プロバイダーへのリクエスト",
+    "description": "下流 API への呼び出し試行を記録します。再試行や失敗したリクエストも含まれます。請求用の集計ではありません。",
+    "today": "今日の現在までの件数：{{value}}",
+    "history": "日別履歴",
+    "provider": "プロバイダー",
+    "range": "履歴の期間",
+    "days": "過去 {{value}} 日間",
+    "timezone": "統計のタイムゾーン",
+    "timezone_hint": "このタイムゾーンを変更すると、リクエスト履歴全体が再集計されます。アプリ内の他の日付は変わりません。",
+    "save": "タイムゾーンを保存",
+    "saving": "保存中…",
+    "refresh": "更新",
+    "loading": "リクエスト数を読み込み中…",
+    "unavailable": "リクエスト数を取得できません。更新してみてください。",
+    "not_tracked": "未記録",
+    "partial": "一部期間のみ",
+    "tracking_since": "記録開始日：{{value}}。それ以前の日付は記録されていません。",
+    "date": "日付",
+    "requests": "リクエスト数",
+    "no_providers": "利用可能なプロバイダーがありません。",
+    "save_failed": "統計のタイムゾーンを保存できませんでした。",
+    "updated": "更新日時：{{value}}",
+    "stale": "表示されている件数は最新でない可能性があります。"
+  }
 }

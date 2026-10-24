@@ -1791,5 +1791,30 @@
   "cloud_backup_hint_running": "儲存加密雲端備份期間，你可以繼續使用 Wealthfolio。",
   "cloud_backup_hint_failed": "未能完成備份。我們會自動重試，你也可以立即重試。",
   "cloud_backup_retry_label": "下次重試",
-  "cloud_backup_retry_now": "重新嘗試備份"
+  "cloud_backup_retry_now": "重新嘗試備份",
+  "provider_request_counts": {
+    "title": "供應商請求統計",
+    "description": "記錄對下游 API 的呼叫嘗試，包括重試和失敗的請求。這不是計費總量。",
+    "today": "今日截至目前：{{value}}",
+    "history": "每日歷史",
+    "provider": "供應商",
+    "range": "歷史範圍",
+    "days": "最近 {{value}} 天",
+    "timezone": "統計時區",
+    "timezone_hint": "變更此時區會依新時區重新彙總全部請求歷史。應用程式中的其他日期不受影響。",
+    "save": "儲存時區",
+    "saving": "正在儲存…",
+    "refresh": "重新整理",
+    "loading": "正在載入請求次數…",
+    "unavailable": "請求次數暫時無法取得，請嘗試重新整理。",
+    "not_tracked": "未記錄",
+    "partial": "非完整日",
+    "tracking_since": "於 {{value}} 開始記錄。此前的日期未記錄。",
+    "date": "日期",
+    "requests": "請求次數",
+    "no_providers": "目前沒有可用的供應商。",
+    "save_failed": "無法儲存統計時區。",
+    "updated": "更新於 {{value}}",
+    "stale": "顯示的次數可能不是最新資料。"
+  }
 }

@@ -1842,5 +1842,30 @@
   "cloud_backup_hint_running": "Puoi continuare a usare Wealthfolio mentre salviamo il tuo backup crittografato nel cloud.",
   "cloud_backup_hint_failed": "Non siamo riusciti a completare il backup. Riproveremo automaticamente, oppure puoi riprovare ora.",
   "cloud_backup_retry_label": "Prossimo tentativo",
-  "cloud_backup_retry_now": "Riprova il backup"
+  "cloud_backup_retry_now": "Riprova il backup",
+  "provider_request_counts": {
+    "title": "Richieste ai provider",
+    "description": "Tentativi registrati di chiamata alle API dei provider, inclusi i nuovi tentativi e le richieste non riuscite. Non si tratta di un totale di fatturazione.",
+    "today": "Oggi finora: {{value}}",
+    "history": "Cronologia giornaliera",
+    "provider": "Provider",
+    "range": "Intervallo della cronologia",
+    "days": "Ultimi {{value}} giorni",
+    "timezone": "Fuso orario delle statistiche",
+    "timezone_hint": "La modifica di questo fuso orario raggruppa nuovamente l’intera cronologia delle richieste. Le altre date dell’app rimangono invariate.",
+    "save": "Salva fuso orario",
+    "saving": "Salvataggio…",
+    "refresh": "Aggiorna",
+    "loading": "Caricamento del numero di richieste…",
+    "unavailable": "Il numero di richieste non è disponibile. Prova ad aggiornare.",
+    "not_tracked": "Non monitorato",
+    "partial": "Giorno parziale",
+    "tracking_since": "Il monitoraggio è iniziato il {{value}}. Le date precedenti non sono state monitorate.",
+    "date": "Data",
+    "requests": "Richieste",
+    "no_providers": "Nessun provider disponibile.",
+    "save_failed": "Impossibile salvare il fuso orario delle statistiche.",
+    "updated": "Aggiornato: {{value}}",
+    "stale": "I conteggi visualizzati potrebbero non essere aggiornati."
+  }
 }

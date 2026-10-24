@@ -15,6 +15,24 @@ import type { MarketDataProviderSetting } from "../types";
 
 import { invoke, logger } from "./platform";
 
+export interface ProviderRequestCountRow {
+  providerId: string;
+  day: string;
+  requestCount: number;
+}
+
+export interface ProviderRequestCounts {
+  timezone: string;
+  trackingSince: string;
+  asOf: string;
+  startDate: string;
+  endDate: string;
+  rows: ProviderRequestCountRow[];
+}
+
+export const getProviderRequestCounts = (days: number): Promise<ProviderRequestCounts> =>
+  invoke<ProviderRequestCounts>("get_provider_request_counts", { days });
+
 export const searchTicker = async (query: string): Promise<SymbolSearchResult[]> => {
   try {
     return await invoke<SymbolSearchResult[]>("search_symbol", { query });

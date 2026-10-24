@@ -78,6 +78,7 @@ export interface NewCustomProviderSource {
 }
 
 export interface TestSourceRequest {
+  providerId?: string;
   format: "json" | "html" | "html_table" | "csv";
   url: string;
   pricePath: string;

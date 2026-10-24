@@ -1791,5 +1791,30 @@
   "cloud_backup_hint_running": "You can keep using Wealthfolio while we save your encrypted cloud backup.",
   "cloud_backup_hint_failed": "We couldn’t finish the backup. We’ll try again automatically, or you can try now.",
   "cloud_backup_retry_label": "Next retry",
-  "cloud_backup_retry_now": "Try backup again"
+  "cloud_backup_retry_now": "Try backup again",
+  "provider_request_counts": {
+    "title": "Provider requests",
+    "description": "Recorded downstream API attempts, including retries and failed requests. This is not a billing total.",
+    "today": "Today so far: {{value}}",
+    "history": "Daily history",
+    "provider": "Provider",
+    "range": "History range",
+    "days": "Last {{value}} days",
+    "timezone": "Statistics timezone",
+    "timezone_hint": "Changing this timezone regroups the complete request history. Other app dates are unchanged.",
+    "save": "Save timezone",
+    "saving": "Saving…",
+    "refresh": "Refresh",
+    "loading": "Loading request counts…",
+    "unavailable": "Request counts are unavailable. Try refreshing.",
+    "not_tracked": "Not tracked",
+    "partial": "Partial day",
+    "tracking_since": "Tracking began {{value}}. Earlier dates were not tracked.",
+    "date": "Date",
+    "requests": "Requests",
+    "no_providers": "No providers available.",
+    "save_failed": "Could not save the statistics timezone.",
+    "updated": "Updated {{value}}",
+    "stale": "The displayed counts may be out of date."
+  }
 }

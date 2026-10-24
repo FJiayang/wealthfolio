@@ -46,6 +46,9 @@ export function useSettingsMutation(
         queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_DATA] });
         queryClient.invalidateQueries({ queryKey: [QueryKeys.ACTIVITIES] });
       }
+      if ("providerRequestTimezone" in variables) {
+        queryClient.invalidateQueries({ queryKey: [QueryKeys.PROVIDER_REQUEST_COUNTS] });
+      }
       setSettings(updatedSettings);
       await applySettingsToDocument(updatedSettings);
       // Don't show toast during onboarding

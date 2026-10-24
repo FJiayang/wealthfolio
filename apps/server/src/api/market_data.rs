@@ -66,6 +66,30 @@ async fn reset_all_provider_history(
     Ok(Json(result))
 }
 
+#[derive(serde::Deserialize)]
+struct ProviderRequestCountsQuery {
+    days: u32,
+}
+
+async fn get_provider_request_counts(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Query(query): Query<ProviderRequestCountsQuery>,
+) -> ApiResult<Json<wealthfolio_core::quotes::request_counts::ProviderRequestCounts>> {
+    use wealthfolio_core::settings::{
+        SettingsServiceTrait, DEFAULT_PROVIDER_REQUEST_TIMEZONE, PROVIDER_REQUEST_TIMEZONE_KEY,
+    };
+    let timezone = state
+        .settings_service
+        .get_setting_value(PROVIDER_REQUEST_TIMEZONE_KEY)?
+        .unwrap_or_else(|| DEFAULT_PROVIDER_REQUEST_TIMEZONE.to_string());
+    Ok(Json(
+        state
+            .provider_request_service
+            .get_counts(query.days, &timezone)
+            .await?,
+    ))
+}
+
 async fn get_market_data_providers(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<Vec<ProviderInfo>>> {
@@ -357,6 +381,10 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
         .route("/exchanges", get(get_exchanges))
         .route("/providers", get(get_market_data_providers))
+        .route(
+            "/providers/request-counts",
+            get(get_provider_request_counts),
+        )
         .route(
             "/providers/settings",
             get(get_market_data_provider_settings).put(update_market_data_provider_settings),

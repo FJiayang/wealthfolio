@@ -8,6 +8,7 @@
 //!
 //! Note: Alpha Vantage free tier is limited to 5 API calls per minute.
 
+use crate::request_recorder::RecordedRequest;
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use log::{debug, warn};
@@ -36,6 +37,7 @@ const PROVIDER_ID: &str = "ALPHA_VANTAGE";
 /// Supports equities, FX rates, and cryptocurrencies.
 /// Free tier is limited to 5 API calls per minute.
 pub struct AlphaVantageProvider {
+    request_recorder: std::sync::Arc<dyn crate::RequestRecorder>,
     client: Client,
     api_key: String,
 }
@@ -519,6 +521,15 @@ impl CompanyOverviewResponse {
 // ============================================================================
 
 impl AlphaVantageProvider {
+    /// Attach this profile's recorder without changing provider request behavior.
+    pub fn with_request_recorder(
+        mut self,
+        recorder: std::sync::Arc<dyn crate::RequestRecorder>,
+    ) -> Self {
+        self.request_recorder = recorder;
+        self
+    }
+
     /// Create a new Alpha Vantage provider with the given API key.
     ///
     /// # Errors
@@ -530,7 +541,11 @@ impl AlphaVantageProvider {
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
 
-        Self { client, api_key }
+        Self {
+            client,
+            api_key,
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+        }
     }
 
     /// Make a request to the Alpha Vantage API.
@@ -550,18 +565,23 @@ impl AlphaVantageProvider {
             url.as_str().replace(&self.api_key, "***")
         );
 
-        let response = self.client.get(url).send().await.map_err(|e| {
-            if e.is_timeout() {
-                MarketDataError::Timeout {
-                    provider: PROVIDER_ID.to_string(),
+        let response = self
+            .client
+            .get(url)
+            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .await
+            .map_err(|e| {
+                if e.is_timeout() {
+                    MarketDataError::Timeout {
+                        provider: PROVIDER_ID.to_string(),
+                    }
+                } else {
+                    MarketDataError::ProviderError {
+                        provider: PROVIDER_ID.to_string(),
+                        message: e.to_string(),
+                    }
                 }
-            } else {
-                MarketDataError::ProviderError {
-                    provider: PROVIDER_ID.to_string(),
-                    message: e.to_string(),
-                }
-            }
-        })?;
+            })?;
 
         let status = response.status();
         if status == reqwest::StatusCode::TOO_MANY_REQUESTS {

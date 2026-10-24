@@ -10,8 +10,10 @@ use crate::schema::{accounts, assets};
 use wealthfolio_core::assets::AssetKind;
 use wealthfolio_core::errors::{Error, Result};
 use wealthfolio_core::settings::{
-    Settings, SettingsRepositoryTrait, SettingsUpdate, CURRENCY_FORMATTING_REGIONS_KEY,
-    GAIN_LOSS_COLOR_SCHEME_KEY, INSIGHTS_OVERVIEW_LAYOUT_KEY, MARKET_DATA_SYNC_INTERVAL_HOURS_KEY,
+    validate_provider_request_timezone, Settings, SettingsRepositoryTrait, SettingsUpdate,
+    CURRENCY_FORMATTING_REGIONS_KEY, DEFAULT_PROVIDER_REQUEST_TIMEZONE, GAIN_LOSS_COLOR_SCHEME_KEY,
+    INSIGHTS_OVERVIEW_LAYOUT_KEY, MARKET_DATA_SYNC_INTERVAL_HOURS_KEY,
+    PROVIDER_REQUEST_TIMEZONE_KEY,
 };
 
 pub struct SettingsRepository {
@@ -50,6 +52,7 @@ impl SettingsRepositoryTrait for SettingsRepository {
                 }
                 "base_currency" => settings.base_currency = value,
                 "timezone" => settings.timezone = value,
+                PROVIDER_REQUEST_TIMEZONE_KEY => settings.provider_request_timezone = value,
                 "onboarding_completed" => {
                     settings.onboarding_completed = value.parse().unwrap_or(false);
                 }
@@ -82,6 +85,9 @@ impl SettingsRepositoryTrait for SettingsRepository {
     }
 
     async fn update_settings(&self, new_settings: &SettingsUpdate) -> Result<()> {
+        if let Some(ref timezone) = new_settings.provider_request_timezone {
+            validate_provider_request_timezone(timezone)?;
+        }
         let settings = new_settings.clone();
         self.writer
             .exec_tx(move |tx| {
@@ -156,6 +162,16 @@ impl SettingsRepositoryTrait for SettingsRepository {
                         .values(&AppSettingDB {
                             setting_key: "base_currency".to_string(),
                             setting_value: base_currency.clone(),
+                        })
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                }
+
+                if let Some(ref timezone) = settings.provider_request_timezone {
+                    diesel::replace_into(app_settings)
+                        .values(&AppSettingDB {
+                            setting_key: PROVIDER_REQUEST_TIMEZONE_KEY.to_string(),
+                            setting_value: timezone.clone(),
                         })
                         .execute(tx.conn())
                         .map_err(StorageError::from)?;
@@ -264,6 +280,7 @@ impl SettingsRepositoryTrait for SettingsRepository {
                     "font" => "font-mono",
                     "language" => "en",
                     "timezone" => "",
+                    PROVIDER_REQUEST_TIMEZONE_KEY => DEFAULT_PROVIDER_REQUEST_TIMEZONE,
                     "onboarding_completed" => "false",
                     "auto_update_check_enabled" => "true",
                     "menu_bar_visible" => "true",
@@ -282,6 +299,9 @@ impl SettingsRepositoryTrait for SettingsRepository {
         setting_key_param: &str,
         setting_value_param: &str,
     ) -> Result<()> {
+        if setting_key_param == PROVIDER_REQUEST_TIMEZONE_KEY {
+            validate_provider_request_timezone(setting_value_param)?;
+        }
         let key = setting_key_param.to_string();
         let value = setting_value_param.to_string();
 

@@ -12,6 +12,7 @@
 //!
 //! Supplies TreasuryDirect bond terms through the standard provider profile interface.
 
+use crate::request_recorder::RecordedRequest;
 use async_trait::async_trait;
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use log::{debug, warn};
@@ -106,6 +107,7 @@ struct TdSecurityItem {
 // ---------------------------------------------------------------------------
 
 pub struct UsTreasuryCalcProvider {
+    request_recorder: std::sync::Arc<dyn crate::RequestRecorder>,
     client: reqwest::Client,
     /// Cached yield curves keyed by calendar year.
     curve_cache: Arc<RwLock<HashMap<i32, YearCurves>>>,
@@ -124,6 +126,15 @@ impl Default for UsTreasuryCalcProvider {
 }
 
 impl UsTreasuryCalcProvider {
+    /// Attach this profile's recorder without changing provider request behavior.
+    pub fn with_request_recorder(
+        mut self,
+        recorder: std::sync::Arc<dyn crate::RequestRecorder>,
+    ) -> Self {
+        self.request_recorder = recorder;
+        self
+    }
+
     pub fn new() -> Self {
         let client = wealthfolio_http::client_builder()
             .timeout(REQUEST_TIMEOUT)
@@ -131,6 +142,7 @@ impl UsTreasuryCalcProvider {
             .unwrap_or_else(|_| wealthfolio_http::client());
 
         Self {
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
             client,
             curve_cache: Arc::new(RwLock::new(HashMap::new())),
             fixtures: None,
@@ -186,7 +198,7 @@ impl UsTreasuryCalcProvider {
             .client
             .get(&url)
             .timeout(REQUEST_TIMEOUT)
-            .send()
+            .send_recorded(self.id(), self.request_recorder.as_ref())
             .await
             .map_err(|_| treasury_details_error("Treasury details request failed"))?
             .error_for_status()
@@ -235,15 +247,15 @@ impl UsTreasuryCalcProvider {
 
         debug!("Fetching Treasury yield curve for year {}", year);
 
-        let resp =
-            self.client
-                .get(&url)
-                .send()
-                .await
-                .map_err(|e| MarketDataError::ProviderError {
-                    provider: PROVIDER_ID.to_string(),
-                    message: format!("HTTP request failed: {}", e),
-                })?;
+        let resp = self
+            .client
+            .get(&url)
+            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .await
+            .map_err(|e| MarketDataError::ProviderError {
+                provider: PROVIDER_ID.to_string(),
+                message: format!("HTTP request failed: {}", e),
+            })?;
 
         if !resp.status().is_success() {
             return Err(MarketDataError::ProviderError {
@@ -851,7 +863,8 @@ mod tests {
 
     #[tokio::test]
     async fn fixtures_use_validated_terms_and_real_treasury_calculator() {
-        let provider = fixture_provider();
+        let recorder = Arc::new(crate::request_recorder::tests::MemoryRecorder::default());
+        let provider = fixture_provider().with_request_recorder(recorder.clone());
         let profile = provider.get_profile("US91282CRF04").await.unwrap();
         let bond = profile.bond.unwrap();
         assert_eq!(profile.isin.as_deref(), Some("US91282CRF04"));
@@ -881,6 +894,7 @@ mod tests {
             let close: f64 = quotes[0].close.try_into().unwrap();
             assert!((close - expected).abs() < 1e-10);
         }
+        assert!(recorder.0.lock().unwrap().is_empty());
     }
 
     #[tokio::test]

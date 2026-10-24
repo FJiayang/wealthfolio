@@ -6,7 +6,9 @@
 //! - Foreign exchange rates (e.g., EURUSD=X)
 
 mod models;
+mod transport;
 
+use crate::request_recorder::RecordedRequest;
 use std::sync::RwLock;
 use std::time::Duration;
 
@@ -81,10 +83,20 @@ lazy_static! {
 /// Provides access to market data for equities, ETFs, cryptocurrencies,
 /// and foreign exchange rates through the Yahoo Finance API.
 pub struct YahooProvider {
-    connector: yahoo::YahooConnector,
+    request_recorder: std::sync::Arc<dyn crate::RequestRecorder>,
+    client: reqwest::Client,
 }
 
 impl YahooProvider {
+    /// Attach this profile's recorder without changing provider request behavior.
+    pub fn with_request_recorder(
+        mut self,
+        recorder: std::sync::Arc<dyn crate::RequestRecorder>,
+    ) -> Self {
+        self.request_recorder = recorder;
+        self
+    }
+
     /// Create a new Yahoo Finance provider.
     pub async fn new() -> Result<Self, MarketDataError> {
         let client = wealthfolio_http::client_builder()
@@ -96,13 +108,10 @@ impl YahooProvider {
                 provider: "YAHOO".to_string(),
                 message: format!("Failed to initialize Yahoo HTTP client: {}", e),
             })?;
-        let connector = yahoo::YahooConnectorBuilder::build_with_client(client).map_err(|e| {
-            MarketDataError::ProviderError {
-                provider: "YAHOO".to_string(),
-                message: format!("Failed to initialize Yahoo connector: {}", e),
-            }
-        })?;
-        Ok(Self { connector })
+        Ok(Self {
+            client,
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+        })
     }
 
     // ========================================================================
@@ -183,7 +192,7 @@ impl YahooProvider {
         // Step 1: Get cookie from fc.yahoo.com
         let response = client
             .get("https://fc.yahoo.com")
-            .send()
+            .send_recorded(self.id(), self.request_recorder.as_ref())
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -208,7 +217,7 @@ impl YahooProvider {
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             )
             .header(header::COOKIE, &cookie)
-            .send()
+            .send_recorded(self.id(), self.request_recorder.as_ref())
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -273,7 +282,7 @@ impl YahooProvider {
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             )
             .header(header::COOKIE, &crumb_data.cookie)
-            .send()
+            .send_recorded(self.id(), self.request_recorder.as_ref())
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -499,7 +508,7 @@ impl YahooProvider {
                 header::USER_AGENT,
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             )
-            .send()
+            .send_recorded(self.id(), self.request_recorder.as_ref())
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -522,8 +531,7 @@ impl YahooProvider {
         context: &QuoteContext,
     ) -> Result<Quote, MarketDataError> {
         let response = self
-            .connector
-            .get_latest_quotes(symbol, "1d")
+            .chart_latest(symbol)
             .await
             .map_err(|e| self.convert_yahoo_error(e, symbol))?;
 
@@ -564,7 +572,7 @@ impl YahooProvider {
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             )
             .header(header::COOKIE, &crumb.cookie)
-            .send()
+            .send_recorded(self.id(), self.request_recorder.as_ref())
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -668,7 +676,7 @@ impl YahooProvider {
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             )
             .header(header::COOKIE, &crumb.cookie)
-            .send()
+            .send_recorded(self.id(), self.request_recorder.as_ref())
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -720,8 +728,7 @@ impl YahooProvider {
     async fn fetch_search_profile(&self, symbol: &str) -> Result<AssetProfile, MarketDataError> {
         let encoded_symbol = encode(symbol);
         let result = self
-            .connector
-            .search_ticker(&encoded_symbol)
+            .search_ticker_recorded(&encoded_symbol)
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -888,8 +895,7 @@ impl YahooProvider {
         }
 
         let result = self
-            .connector
-            .search_ticker(&encoded_query)
+            .search_ticker_recorded(&encoded_query)
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -1008,8 +1014,7 @@ impl MarketDataProvider for YahooProvider {
         let end_time = Self::chrono_to_offset_datetime(end);
 
         let response = self
-            .connector
-            .get_quote_history(&symbol, start_time, end_time)
+            .chart_history(&symbol, start_time, end_time, "1d")
             .await
             .map_err(|e| self.convert_yahoo_error(e, &symbol))?;
 
@@ -1071,8 +1076,7 @@ impl MarketDataProvider for YahooProvider {
         // Use 3mo interval to minimize OHLCV data in the response (~200 bars max)
         // while still returning all split events within the requested date range.
         let response = self
-            .connector
-            .get_quote_history_interval(&symbol, start_time, end_time, "3mo")
+            .chart_history(&symbol, start_time, end_time, "3mo")
             .await
             .map_err(|e| self.convert_yahoo_error(e, &symbol))?;
 
@@ -1484,7 +1488,8 @@ mod tests {
     #[test]
     fn test_get_currency_with_hint() {
         let provider = YahooProvider {
-            connector: yahoo::YahooConnector::new().expect("Failed to initialize Yahoo connector"),
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+            client: wealthfolio_http::client(),
         };
         let context = create_test_context();
         assert_eq!(provider.get_currency(&context), "USD");
@@ -1493,7 +1498,8 @@ mod tests {
     #[test]
     fn test_get_currency_prefers_resolver_over_hint() {
         let provider = YahooProvider {
-            connector: yahoo::YahooConnector::new().expect("Failed to initialize Yahoo connector"),
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+            client: wealthfolio_http::client(),
         };
         // FX resolver returns the quote currency ("CAD"), which takes priority over hint
         let context = create_test_fx_context(Some("TWD"), "CAD");
@@ -1503,7 +1509,8 @@ mod tests {
     #[test]
     fn test_get_currency_falls_back_to_hint_when_resolver_empty() {
         let provider = YahooProvider {
-            connector: yahoo::YahooConnector::new().expect("Failed to initialize Yahoo connector"),
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+            client: wealthfolio_http::client(),
         };
         // No MIC → resolver returns None for equities, so hint wins
         let context = create_test_context();
@@ -1516,7 +1523,8 @@ mod tests {
         // BATS@XLON: asset has quote_ccy="GBP" but Yahoo prices are in pence.
         // get_currency() must return "GBp" from exchange metadata, not "GBP" from hint.
         let provider = YahooProvider {
-            connector: yahoo::YahooConnector::new().expect("Failed to initialize Yahoo connector"),
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+            client: wealthfolio_http::client(),
         };
         let context = QuoteContext {
             instrument: InstrumentId::Equity {
@@ -1651,7 +1659,8 @@ mod tests {
     #[test]
     fn test_no_data_range_error_message_detection() {
         let provider = YahooProvider {
-            connector: yahoo::YahooConnector::new().expect("Failed to initialize Yahoo connector"),
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+            client: wealthfolio_http::client(),
         };
         let err = yahoo::YahooError::FetchFailed(
             "yahoo! finance returned api error: YErrorMessage { code: Some(\"Bad Request\") description: Some(\"Data doesn't exist for startDate = 1747094400 endDate = 1750118399\") }"

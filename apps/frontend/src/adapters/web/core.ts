@@ -125,6 +125,7 @@ export const COMMANDS: CommandMap = {
   delete_import_template: { method: "DELETE", path: "/activities/import/templates" },
   // Market data providers
   get_exchanges: { method: "GET", path: "/exchanges" },
+  get_provider_request_counts: { method: "GET", path: "/providers/request-counts" },
   get_market_data_providers: { method: "GET", path: "/providers" },
   get_market_data_providers_settings: { method: "GET", path: "/providers/settings" },
   update_market_data_provider_settings: { method: "PUT", path: "/providers/settings" },
@@ -947,6 +948,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
         contextKind?: string;
       };
       body = JSON.stringify({ accountId, templateId, contextKind });
+      break;
+    }
+    case "get_provider_request_counts": {
+      const { days } = payload as { days: number };
+      url += `?${new URLSearchParams({ days: String(days) })}`;
       break;
     }
     case "update_market_data_provider_settings": {

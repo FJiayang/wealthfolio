@@ -21,6 +21,7 @@ use crate::quotes::constants::DATA_SOURCE_CUSTOM_SCRAPER;
 use crate::secrets::SecretStore;
 
 use wealthfolio_market_data::errors::MarketDataError;
+use wealthfolio_market_data::RecordedRequest;
 use wealthfolio_market_data::{
     Coverage, InstrumentKind, MarketDataProvider, ProviderCapabilities, ProviderInstrument,
     Quote as MarketQuote, QuoteContext, RateLimit,
@@ -31,6 +32,7 @@ pub struct CustomScraperProvider {
     repo: Arc<dyn CustomProviderRepository>,
     secret_store: Arc<dyn SecretStore>,
     client: reqwest::Client,
+    request_recorder: Arc<dyn wealthfolio_market_data::RequestRecorder>,
 }
 
 impl CustomScraperProvider {
@@ -48,7 +50,16 @@ impl CustomScraperProvider {
             repo,
             secret_store,
             client,
+            request_recorder: Arc::new(wealthfolio_market_data::NoopRequestRecorder),
         }
+    }
+
+    pub fn with_request_recorder(
+        mut self,
+        recorder: Arc<dyn wealthfolio_market_data::RequestRecorder>,
+    ) -> Self {
+        self.request_recorder = recorder;
+        self
     }
 
     fn template_identifiers(context: Option<&QuoteContext>) -> (Option<String>, Option<String>) {
@@ -112,19 +123,24 @@ impl CustomScraperProvider {
     async fn fetch_body(
         &self,
         request: &PreparedCustomProviderRequest,
+        provider_id: &str,
     ) -> Result<String, MarketDataError> {
-        let url = &request.url;
-        let do_fetch = || request.request_builder(&self.client).send();
+        let provider_id = format!("CUSTOM_SCRAPER:{provider_id}");
+        let do_fetch = || {
+            request
+                .request_builder(&self.client)
+                .send_recorded(&provider_id, self.request_recorder.as_ref())
+        };
 
         let response = match do_fetch().await {
             Ok(resp) if resp.status().is_server_error() => {
-                debug!("CustomScraper: 5xx from {}, retrying once", url);
+                debug!("CustomScraper: 5xx response, retrying once");
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 do_fetch().await.map_err(MarketDataError::Network)?
             }
             Ok(resp) => resp,
             Err(_e) => {
-                debug!("CustomScraper: network error from {}, retrying once", url);
+                debug!("CustomScraper: network error, retrying once");
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 do_fetch().await.map_err(MarketDataError::Network)?
             }
@@ -307,12 +323,9 @@ impl CustomScraperProvider {
             message: e.to_string(),
         })?;
 
-        debug!(
-            "CustomScraper: fetching {} for symbol '{}'",
-            request.url, symbol
-        );
+        debug!("CustomScraper: dispatching configured source");
 
-        let body = match self.fetch_body(&request).await {
+        let body = match self.fetch_body(&request, &source.provider_id).await {
             Ok(b) => b,
             Err(e) => {
                 // Fall back to default_price on fetch failure
@@ -1328,6 +1341,227 @@ mod tests {
         }
     }
 
+    #[derive(Default)]
+    struct CountingRecorder(std::sync::Mutex<Vec<(String, DateTime<Utc>)>>);
+
+    #[async_trait]
+    impl wealthfolio_market_data::RequestRecorder for CountingRecorder {
+        async fn record_request(&self, provider_id: &str, at: DateTime<Utc>) {
+            self.0.lock().unwrap().push((provider_id.to_string(), at));
+        }
+    }
+
+    fn request_test_server(statuses: Vec<u16>) -> (String, std::thread::JoinHandle<()>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/quotes", listener.local_addr().unwrap());
+        listener.set_nonblocking(true).unwrap();
+        let handle = std::thread::spawn(move || {
+            for status in statuses {
+                let deadline = std::time::Instant::now() + Duration::from_secs(5);
+                let (mut stream, _) = loop {
+                    match listener.accept() {
+                        Ok(connection) => break connection,
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            assert!(
+                                std::time::Instant::now() < deadline,
+                                "expected provider request"
+                            );
+                            std::thread::sleep(Duration::from_millis(5));
+                        }
+                        Err(error) => panic!("mock accept failed: {error}"),
+                    }
+                };
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut buffer = [0; 4096];
+                let _ = stream.read(&mut buffer).unwrap();
+                let body = r#"{"price":12.5}"#;
+                write!(stream, "HTTP/1.1 {status} Test\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            }
+        });
+        (url, handle)
+    }
+
+    fn counting_provider(recorder: Arc<CountingRecorder>) -> CustomScraperProvider {
+        CustomScraperProvider::new(
+            Arc::new(MockCustomProviderRepository { providers: vec![] }),
+            Arc::new(MockSecretStore),
+        )
+        .with_request_recorder(recorder)
+    }
+
+    #[tokio::test]
+    async fn request_counts_each_retry_and_attributes_configured_source() {
+        let recorder = Arc::new(CountingRecorder::default());
+        let provider = counting_provider(recorder.clone());
+        let (url, server) = request_test_server(vec![503, 200]);
+        let source = source_with_url("custom-one", "latest", &url);
+        let before = Utc::now();
+        let quotes = provider
+            .fetch_from_source_with_dates(&source, "TEST", None, None, None, None)
+            .await
+            .unwrap();
+        server.join().unwrap();
+        assert_eq!(quotes.len(), 1);
+        let events = recorder.0.lock().unwrap();
+        assert_eq!(events.len(), 2);
+        assert!(events
+            .iter()
+            .all(|(id, at)| id == "CUSTOM_SCRAPER:custom-one"
+                && *at >= before
+                && *at <= Utc::now()));
+    }
+
+    #[tokio::test]
+    async fn request_counts_failed_responses_but_not_static_or_validation() {
+        let recorder = Arc::new(CountingRecorder::default());
+        let provider = counting_provider(recorder.clone());
+        let mut source = source_with_url("custom-one", "latest", "");
+        source.default_price = Some(10.0);
+        assert!(provider
+            .fetch_from_source_with_dates(&source, "TEST", None, None, None, None)
+            .await
+            .is_ok());
+        source.url = "file:///invalid".to_string();
+        assert!(provider
+            .fetch_from_source_with_dates(&source, "TEST", None, None, None, None)
+            .await
+            .is_err());
+        assert!(recorder.0.lock().unwrap().is_empty());
+        let (url, server) = request_test_server(vec![403]);
+        source.url = url;
+        source.default_price = None;
+        assert!(provider
+            .fetch_from_source_with_dates(&source, "TEST", None, None, None, None)
+            .await
+            .is_err());
+        server.join().unwrap();
+        assert_eq!(recorder.0.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn request_counts_network_failure_and_retry() {
+        let recorder = Arc::new(CountingRecorder::default());
+        let provider = counting_provider(recorder.clone());
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/quotes", listener.local_addr().unwrap());
+        drop(listener);
+        let source = source_with_url("offline", "latest", &url);
+        assert!(provider
+            .fetch_from_source_with_dates(&source, "TEST", None, None, None, None)
+            .await
+            .is_err());
+        assert_eq!(recorder.0.lock().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn request_counts_timeouts_include_each_attempt() {
+        let recorder = Arc::new(CountingRecorder::default());
+        let mut provider = counting_provider(recorder.clone());
+        provider.client = wealthfolio_http::client_builder()
+            .no_proxy()
+            .timeout(Duration::from_millis(30))
+            .build()
+            .unwrap();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/quotes", listener.local_addr().unwrap());
+        let server = std::thread::spawn(move || {
+            for _ in 0..2 {
+                let (_stream, _) = listener.accept().unwrap();
+                std::thread::sleep(Duration::from_millis(100));
+            }
+        });
+        let source = source_with_url("slow", "latest", &url);
+        assert!(provider
+            .fetch_from_source_with_dates(&source, "TEST", None, None, None, None)
+            .await
+            .is_err());
+        server.join().unwrap();
+        assert_eq!(recorder.0.lock().unwrap().len(), 2);
+    }
+
+    struct FailedStatisticsRepository;
+
+    #[async_trait]
+    impl crate::quotes::request_counts::ProviderRequestRepository for FailedStatisticsRepository {
+        async fn insert_event(&self, _: &str, _: DateTime<Utc>) -> crate::errors::Result<()> {
+            Err(crate::Error::Repository("database unavailable".into()))
+        }
+        fn visit_events(
+            &self,
+            _: DateTime<Utc>,
+            _: DateTime<Utc>,
+            _: &mut dyn FnMut(&str, DateTime<Utc>) -> crate::errors::Result<()>,
+        ) -> crate::errors::Result<DateTime<Utc>> {
+            Err(crate::Error::Repository("database unavailable".into()))
+        }
+    }
+
+    #[tokio::test]
+    async fn request_counts_database_failure_does_not_fail_or_retry_quote() {
+        let recorder = Arc::new(crate::quotes::request_counts::ProviderRequestRecorder::new(
+            Arc::new(FailedStatisticsRepository),
+        ));
+        let provider = CustomScraperProvider::new(
+            Arc::new(MockCustomProviderRepository { providers: vec![] }),
+            Arc::new(MockSecretStore),
+        )
+        .with_request_recorder(recorder);
+        let (url, server) = request_test_server(vec![200]);
+        let source = source_with_url("custom-one", "latest", &url);
+        let quotes = provider
+            .fetch_from_source_with_dates(&source, "TEST", None, None, None, None)
+            .await
+            .unwrap();
+        server.join().unwrap();
+        assert_eq!(quotes.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn request_counts_test_button_calls_and_rejects_validation_without_counting() {
+        let recorder = Arc::new(CountingRecorder::default());
+        let service = crate::custom_provider::CustomProviderService::new(
+            Arc::new(MockCustomProviderRepository { providers: vec![] }),
+            Arc::new(MockSecretStore),
+        )
+        .with_request_recorder(recorder.clone());
+        let payload = |url: &str, code: Option<&str>| {
+            serde_json::from_value(serde_json::json!({
+                "providerId": code, "format": "json", "url": url,
+                "pricePath": "$.price", "symbol": "TEST"
+            }))
+            .unwrap()
+        };
+        assert!(service
+            .test_source(payload("file:///invalid", Some("custom-one")))
+            .await
+            .is_err());
+        assert!(recorder.0.lock().unwrap().is_empty());
+        let (url, server) = request_test_server(vec![200, 503]);
+        assert!(
+            service
+                .test_source(payload(&url, Some("custom-one")))
+                .await
+                .unwrap()
+                .success
+        );
+        assert!(
+            !service
+                .test_source(payload(&url, None))
+                .await
+                .unwrap()
+                .success
+        );
+        server.join().unwrap();
+        let events = recorder.0.lock().unwrap();
+        assert_eq!(
+            events.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(),
+            vec!["CUSTOM_SCRAPER:custom-one", "CUSTOM_SCRAPER:UNSAVED"]
+        );
+    }
+
     #[test]
     fn expand_url_uses_equity_identifier_isin_independently_from_symbol() {
         let context = QuoteContext {
@@ -1487,6 +1721,62 @@ mod tests {
             bond_metadata: None,
             custom_provider_code: custom_provider_code.map(str::to_string),
         }
+    }
+
+    #[tokio::test]
+    async fn request_counts_fallback_attributed_to_each_actual_custom_provider() {
+        let recorder = Arc::new(CountingRecorder::default());
+        let (first_url, first_server) = request_test_server(vec![403]);
+        let (second_url, second_server) = request_test_server(vec![200]);
+        let provider = CustomScraperProvider::new(
+            Arc::new(MockCustomProviderRepository {
+                providers: vec![
+                    provider_with_scope("first", true, &format!("{first_url}?symbol={{SYMBOL}}")),
+                    provider_with_scope("second", true, &format!("{second_url}?symbol={{SYMBOL}}")),
+                ],
+            }),
+            Arc::new(MockSecretStore),
+        )
+        .with_request_recorder(recorder.clone());
+        // Identity placeholders are needed for general custom sources.
+        let mut context = equity_context(None);
+        context.preferred_provider = Some(Cow::Borrowed("CUSTOM_SCRAPER"));
+        let instrument = ProviderInstrument::EquitySymbol {
+            symbol: Arc::from("AAPL"),
+        };
+        let result = provider.get_latest_quote(&context, instrument).await;
+        first_server.join().unwrap();
+        second_server.join().unwrap();
+        assert!(result.is_ok());
+        let events = recorder.0.lock().unwrap();
+        assert_eq!(
+            events.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(),
+            vec!["CUSTOM_SCRAPER:first", "CUSTOM_SCRAPER:second"]
+        );
+    }
+
+    #[tokio::test]
+    async fn request_counts_disabled_custom_source_is_zero() {
+        let recorder = Arc::new(CountingRecorder::default());
+        let mut source = provider_with_scope("disabled", true, "http://127.0.0.1:9/{SYMBOL}");
+        source.enabled = false;
+        let provider = CustomScraperProvider::new(
+            Arc::new(MockCustomProviderRepository {
+                providers: vec![source],
+            }),
+            Arc::new(MockSecretStore),
+        )
+        .with_request_recorder(recorder.clone());
+        let result = provider
+            .get_latest_quote(
+                &equity_context(None),
+                ProviderInstrument::EquitySymbol {
+                    symbol: Arc::from("AAPL"),
+                },
+            )
+            .await;
+        assert!(result.is_err());
+        assert!(recorder.0.lock().unwrap().is_empty());
     }
 
     #[test]

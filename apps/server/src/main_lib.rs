@@ -139,6 +139,8 @@ pub struct AppState {
     pub broker_sync_running: Arc<AtomicBool>,
     pub health_service: Arc<dyn HealthServiceTrait + Send + Sync>,
     pub token_lifecycle: Arc<TokenLifecycleState>,
+    pub provider_request_service:
+        Arc<wealthfolio_core::quotes::request_counts::ProviderRequestService>,
     pub custom_provider_service: Arc<wealthfolio_core::custom_provider::CustomProviderService>,
     pub portfolio_service: Arc<dyn PortfolioServiceTrait + Send + Sync>,
     pub spending_settings_service: Arc<wealthfolio_spending::settings::SpendingSettingsService>,
@@ -587,8 +589,24 @@ async fn initialize_profile_state(
             writer.clone(),
         ),
     );
+    let provider_request_repository = Arc::new(
+        wealthfolio_storage_sqlite::market_data::ProviderRequestSqliteRepository::new(
+            pool.clone(),
+            writer.clone(),
+        ),
+    );
+    let provider_request_service = Arc::new(
+        wealthfolio_core::quotes::request_counts::ProviderRequestService::new(
+            provider_request_repository.clone(),
+        ),
+    );
+    let request_recorder = Arc::new(
+        wealthfolio_core::quotes::request_counts::ProviderRequestRecorder::new(
+            provider_request_repository,
+        ),
+    );
     let quote_service: Arc<dyn QuoteServiceTrait + Send + Sync> = Arc::new(
-        QuoteService::new_with_custom_provider(
+        QuoteService::new_with_custom_provider_and_recorder(
             market_data_repository.clone(),      // QuoteStore
             quote_sync_state_repository.clone(), // SyncStateStore
             market_data_repository.clone(),      // ProviderSettingsStore
@@ -596,6 +614,7 @@ async fn initialize_profile_state(
             activity_repository.clone(),         // ActivityRepositoryTrait
             secret_store.clone(),
             Some(custom_provider_repository.clone()),
+            request_recorder.clone(),
         )
         .await?
         .with_event_sink(domain_event_sink.clone()),
@@ -604,7 +623,8 @@ async fn initialize_profile_state(
         wealthfolio_core::custom_provider::CustomProviderService::new(
             custom_provider_repository.clone(),
             secret_store.clone(),
-        ),
+        )
+        .with_request_recorder(request_recorder),
     );
 
     let portfolio_repository = Arc::new(PortfolioRepository::new(pool.clone(), writer.clone()));
@@ -1176,6 +1196,7 @@ async fn initialize_profile_state(
         broker_sync_running,
         health_service,
         token_lifecycle,
+        provider_request_service,
         custom_provider_service,
         portfolio_service,
         spending_settings_service,

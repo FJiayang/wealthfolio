@@ -18,6 +18,20 @@ fn default_market_data_sync_interval_hours() -> u32 {
     DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS
 }
 
+pub const PROVIDER_REQUEST_TIMEZONE_KEY: &str = "provider_request_timezone";
+pub const DEFAULT_PROVIDER_REQUEST_TIMEZONE: &str = "Asia/Shanghai";
+
+fn default_provider_request_timezone() -> String {
+    DEFAULT_PROVIDER_REQUEST_TIMEZONE.to_string()
+}
+
+/// Validate independently of the portfolio/display timezone.
+pub fn validate_provider_request_timezone(value: &str) -> crate::errors::Result<()> {
+    value.parse::<chrono_tz::Tz>().map(|_| ()).map_err(|_| {
+        crate::Error::InvalidConfigValue("Invalid provider request statistics timezone".to_string())
+    })
+}
+
 pub const CURRENCY_FORMATTING_REGIONS_KEY: &str = "currency_formatting_regions";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -35,6 +49,8 @@ pub struct Settings {
     pub currency_formatting_regions: BTreeMap<String, String>,
     pub base_currency: String,
     pub timezone: String,
+    #[serde(default = "default_provider_request_timezone")]
+    pub provider_request_timezone: String,
     pub onboarding_completed: bool,
     pub auto_update_check_enabled: bool,
     pub menu_bar_visible: bool,
@@ -61,6 +77,7 @@ impl Default for Settings {
             currency_formatting_regions: BTreeMap::new(),
             base_currency: "".to_string(),
             timezone: "".to_string(),
+            provider_request_timezone: default_provider_request_timezone(),
             onboarding_completed: false,
             auto_update_check_enabled: true,
             menu_bar_visible: true,
@@ -85,6 +102,7 @@ pub struct SettingsUpdate {
     pub currency_formatting_regions: Option<BTreeMap<String, String>>,
     pub base_currency: Option<String>,
     pub timezone: Option<String>,
+    pub provider_request_timezone: Option<String>,
     pub onboarding_completed: Option<bool>,
     pub auto_update_check_enabled: Option<bool>,
     pub menu_bar_visible: Option<bool>,

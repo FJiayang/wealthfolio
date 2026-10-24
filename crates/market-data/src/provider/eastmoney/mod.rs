@@ -13,13 +13,24 @@ use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
 pub struct EastmoneyProvider {
+    request_recorder: std::sync::Arc<dyn crate::RequestRecorder>,
     client: reqwest::Client,
     #[cfg(test)]
     responses: Option<std::sync::Mutex<std::collections::VecDeque<Value>>>,
 }
 impl EastmoneyProvider {
+    /// Attach this profile's recorder without changing provider request behavior.
+    pub fn with_request_recorder(
+        mut self,
+        recorder: std::sync::Arc<dyn crate::RequestRecorder>,
+    ) -> Self {
+        self.request_recorder = recorder;
+        self
+    }
+
     pub fn new() -> Result<Self, MarketDataError> {
         Ok(Self {
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
             client: client()?,
             #[cfg(test)]
             responses: None,
@@ -39,7 +50,16 @@ impl EastmoneyProvider {
                 .pop_front()
                 .expect("unexpected history request"));
         }
-        json(&get(&self.client, self.id(), url, params).await?)
+        json(
+            &get(
+                &self.client,
+                self.id(),
+                url,
+                params,
+                self.request_recorder.as_ref(),
+            )
+            .await?,
+        )
     }
     async fn fund_search(&self, code: &str) -> Result<Vec<SearchResult>, MarketDataError> {
         if code.len() != 6 || !code.bytes().all(|b| b.is_ascii_digit()) {
@@ -823,6 +843,7 @@ mod tests {
         use crate::errors::RetryClass;
         use chrono::TimeZone;
         let provider = EastmoneyProvider {
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
             client: client().unwrap(),
             responses: Some(std::sync::Mutex::new(std::collections::VecDeque::from([
                 json!({"rc":0,"data":{"code":"600519","klines":["2025-12-31,10,12,13,9,5"]}}),

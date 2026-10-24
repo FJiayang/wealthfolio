@@ -81,6 +81,7 @@ export const QueryKeys = {
 
   // Market Data Providers
   MARKET_DATA_PROVIDERS: "marketDataProviders",
+  PROVIDER_REQUEST_COUNTS: "providerRequestCounts",
   MARKET_DATA_PROVIDER_SETTINGS: "marketDataProviderSettings",
   CUSTOM_PROVIDERS: "CUSTOM_PROVIDERS",
 

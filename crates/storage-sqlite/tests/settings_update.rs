@@ -292,3 +292,79 @@ async fn saved_invalid_base_currency_is_rejected_when_sent_again() {
     assert_eq!(settings.base_currency, "usd");
     assert_eq!(settings.timezone, "UTC");
 }
+
+#[tokio::test]
+async fn provider_request_timezone_defaults_and_stays_independent_of_display_timezone() {
+    let fixture = fixture().await;
+    assert_eq!(
+        fixture
+            .settings
+            .get_settings()
+            .unwrap()
+            .provider_request_timezone,
+        "Asia/Shanghai"
+    );
+    for timezone in ["America/New_York", "UTC", "Asia/Shanghai"] {
+        fixture
+            .settings
+            .update_settings(&update(json!({"providerRequestTimezone": timezone})))
+            .await
+            .unwrap();
+        let settings = fixture.settings.get_settings().unwrap();
+        assert_eq!(settings.provider_request_timezone, timezone);
+        assert_eq!(settings.timezone, "UTC");
+        assert_eq!(
+            fixture
+                .settings
+                .get_setting_value("provider_request_timezone")
+                .unwrap()
+                .as_deref(),
+            Some(timezone)
+        );
+    }
+    fixture
+        .settings
+        .update_settings(&update(json!({"timezone": "Europe/Paris"})))
+        .await
+        .unwrap();
+    assert_eq!(
+        fixture
+            .settings
+            .get_settings()
+            .unwrap()
+            .provider_request_timezone,
+        "Asia/Shanghai"
+    );
+}
+
+#[tokio::test]
+async fn invalid_provider_request_timezone_rejects_the_entire_update() {
+    let fixture = fixture().await;
+    for timezone in ["", "UTC+8", "Mars/Olympus"] {
+        assert!(fixture
+            .settings
+            .update_settings(&update(json!({
+                "providerRequestTimezone": timezone,
+                "baseCurrency": "EUR",
+                "timezone": "Europe/Paris"
+            })))
+            .await
+            .is_err());
+        assert_unchanged(&fixture);
+        assert_eq!(
+            fixture
+                .settings
+                .get_settings()
+                .unwrap()
+                .provider_request_timezone,
+            "Asia/Shanghai"
+        );
+        assert_eq!(fx_pairs(&fixture.pool), [Some("FX:CAD/USD".to_string())]);
+        assert!(fixture.events.events().is_empty());
+        assert!(fixture
+            .settings
+            .set_setting_value("provider_request_timezone", timezone)
+            .await
+            .is_err());
+    }
+}

@@ -12,6 +12,7 @@
 //!
 //! The API returns parallel arrays for OHLCV data with a status field `s` indicating success ("ok") or error.
 
+use crate::request_recorder::RecordedRequest;
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use log::warn;
@@ -80,11 +81,21 @@ struct PriceResponse {
 /// let quote = provider.get_latest_quote(&context, instrument).await?;
 /// ```
 pub struct MarketDataAppProvider {
+    request_recorder: std::sync::Arc<dyn crate::RequestRecorder>,
     client: Client,
     api_key: String,
 }
 
 impl MarketDataAppProvider {
+    /// Attach this profile's recorder without changing provider request behavior.
+    pub fn with_request_recorder(
+        mut self,
+        recorder: std::sync::Arc<dyn crate::RequestRecorder>,
+    ) -> Self {
+        self.request_recorder = recorder;
+        self
+    }
+
     /// Create a new MarketData.app provider with the given API key.
     pub fn new(api_key: String) -> Self {
         let client = wealthfolio_http::client_builder()
@@ -92,7 +103,11 @@ impl MarketDataAppProvider {
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
 
-        Self { client, api_key }
+        Self {
+            client,
+            api_key,
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+        }
     }
 
     /// Extract symbol from ProviderInstrument, returning an error for unsupported types.
@@ -112,7 +127,7 @@ impl MarketDataAppProvider {
             .client
             .get(url)
             .bearer_auth(&self.api_key)
-            .send()
+            .send_recorded(self.id(), self.request_recorder.as_ref())
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),

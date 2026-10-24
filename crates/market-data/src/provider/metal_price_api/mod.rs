@@ -13,6 +13,7 @@
 //!
 //! Supports both real-time (latest) and historical (timeframe) quotes.
 
+use crate::request_recorder::RecordedRequest;
 use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use reqwest::Client;
@@ -72,6 +73,7 @@ struct MetalPriceTimeframeResponse {
 /// let provider = MetalPriceApiProvider::new("your_api_key".to_string());
 /// ```
 pub struct MetalPriceApiProvider {
+    request_recorder: std::sync::Arc<dyn crate::RequestRecorder>,
     client: Client,
     api_key: String,
 }
@@ -80,6 +82,15 @@ pub struct MetalPriceApiProvider {
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 impl MetalPriceApiProvider {
+    /// Attach this profile's recorder without changing provider request behavior.
+    pub fn with_request_recorder(
+        mut self,
+        recorder: std::sync::Arc<dyn crate::RequestRecorder>,
+    ) -> Self {
+        self.request_recorder = recorder;
+        self
+    }
+
     /// Create a new Metal Price API provider with the given API key.
     pub fn new(api_key: String) -> Self {
         let client = wealthfolio_http::client_builder()
@@ -87,7 +98,11 @@ impl MetalPriceApiProvider {
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
 
-        Self { client, api_key }
+        Self {
+            client,
+            api_key,
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+        }
     }
 
     /// Parse a metal symbol, returning the base metal code and a troy-ounce
@@ -206,7 +221,7 @@ impl MarketDataProvider for MetalPriceApiProvider {
             .client
             .get(&url)
             .header("X-API-KEY", &self.api_key)
-            .send()
+            .send_recorded(self.id(), self.request_recorder.as_ref())
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
@@ -295,7 +310,7 @@ impl MarketDataProvider for MetalPriceApiProvider {
             .client
             .get(&url)
             .header("X-API-KEY", &self.api_key)
-            .send()
+            .send_recorded(self.id(), self.request_recorder.as_ref())
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),

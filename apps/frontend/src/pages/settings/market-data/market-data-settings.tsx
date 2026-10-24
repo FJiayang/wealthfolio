@@ -36,6 +36,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ResetProviderHistoryDialog } from "@/pages/asset/reset-provider-history-dialog";
 
 import { SettingsHeader } from "../settings-header";
+import { ProviderRequestCountsPanel, ProviderTodayRequests } from "./provider-request-counts";
+import { todayRequestCount, useProviderRequestCounts } from "./use-provider-request-counts";
 import { MarketDataSyncSettings } from "./market-data-sync-settings";
 
 import { getAssets, getSecret, type MarketDataProviderSetting } from "@/adapters";
@@ -48,6 +50,7 @@ import {
   useDeleteCustomProvider,
   useUpdateCustomProvider,
 } from "@/hooks/use-custom-providers";
+import { useSettingsContext } from "@/lib/settings-provider";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Asset } from "@/lib/types";
 import type { CustomProviderWithSources } from "@/lib/types/custom-provider";
@@ -80,6 +83,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/ui/alert";
 
 interface ProviderSettingsProps {
+  todayRequests?: number;
   provider: MarketDataProviderSetting;
   priorityValue: number;
   onUpdate: (settings: { priority?: number; enabled?: boolean }) => void;
@@ -89,6 +93,7 @@ interface ProviderSettingsProps {
 }
 
 function ProviderSettings({
+  todayRequests,
   provider,
   priorityValue,
   onUpdate,
@@ -271,6 +276,7 @@ function ProviderSettings({
                 </Popover>
               )}
             </div>
+            <ProviderTodayRequests count={todayRequests} />
             {/* Description - smaller text */}
             {provider.description && (
               <p className="text-muted-foreground mt-0.5 text-xs">
@@ -560,6 +566,7 @@ function ProviderSettings({
 }
 
 function CustomProviderCard({
+  todayRequests,
   provider,
   usage,
   onEdit,
@@ -569,6 +576,7 @@ function CustomProviderCard({
   isToggling = false,
   isLast = false,
 }: {
+  todayRequests?: number;
   provider: CustomProviderWithSources;
   usage: CustomProviderUsage;
   onEdit: () => void;
@@ -608,6 +616,7 @@ function CustomProviderCard({
               </Badge>
             )}
           </div>
+          <ProviderTodayRequests count={todayRequests} />
           {provider.description && (
             <p className="text-muted-foreground mt-0.5 text-xs">{provider.description}</p>
           )}
@@ -757,6 +766,14 @@ function HistoryMenuItem({
 
 export default function MarketDataSettingsPage() {
   const { t } = useTranslation();
+  const [requestCountDays, setRequestCountDays] = useState(30);
+  const { settings } = useSettingsContext();
+  const requestTimezone = settings?.providerRequestTimezone ?? "Asia/Shanghai";
+  const requestCounts = useProviderRequestCounts(requestCountDays, requestTimezone);
+  const countData =
+    !requestCounts.isError && requestCounts.data?.timezone === requestTimezone
+      ? requestCounts.data
+      : undefined;
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { data: providers, isLoading, error } = useMarketDataProviderSettings();
@@ -1090,6 +1107,7 @@ export default function MarketDataSettingsPage() {
                 <ProviderSettings
                   key={provider.id}
                   provider={provider}
+                  todayRequests={todayRequestCount(countData, provider.id)}
                   priorityValue={priorityInputs[provider.id]}
                   onUpdate={(settings) => handleUpdateSetting(provider.id, settings)}
                   onPriorityChange={(value) => handlePriorityInputChange(provider.id, value)}
@@ -1151,6 +1169,7 @@ export default function MarketDataSettingsPage() {
                 <CustomProviderCard
                   key={cp.id}
                   provider={cp}
+                  todayRequests={todayRequestCount(countData, `CUSTOM_SCRAPER:${cp.id}`)}
                   usage={usageByProvider.get(cp.id) ?? EMPTY_USAGE}
                   onEdit={() => {
                     setEditingProvider(cp);
@@ -1178,6 +1197,22 @@ export default function MarketDataSettingsPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <ProviderRequestCountsPanel
+        query={requestCounts}
+        days={requestCountDays}
+        onDaysChange={setRequestCountDays}
+        providers={[
+          ...builtinProviders.map((provider) => ({
+            id: provider.id,
+            name: getProviderName(t, provider.id, provider.name),
+          })),
+          ...customProviders.map((provider) => ({
+            id: `CUSTOM_SCRAPER:${provider.id}`,
+            name: provider.name,
+          })),
+        ]}
+      />
 
       <CustomProviderForm
         open={customFormOpen}

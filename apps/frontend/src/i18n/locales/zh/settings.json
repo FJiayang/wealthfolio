@@ -1790,5 +1790,30 @@
   "addon_store_filter_uninstalled_one": "未安装（{{count}}）",
   "addon_store_showing_one": "显示 {{total}} 个插件中的 {{count}} 个",
   "tax_migration_body_one": "{{count}} 资产具有旧的部门/国家/地区数据，可以将其迁移到新的分类系统，以实现更好的组织和分析。",
-  "addon_rating_characters_one": "{{count}}/500 个字符"
+  "addon_rating_characters_one": "{{count}}/500 个字符",
+  "provider_request_counts": {
+    "title": "供应商请求统计",
+    "description": "记录对下游 API 的调用尝试，包括重试和失败的请求。这不是计费总量。",
+    "today": "今日截至目前：{{value}}",
+    "history": "每日历史",
+    "provider": "供应商",
+    "range": "历史范围",
+    "days": "最近 {{value}} 天",
+    "timezone": "统计时区",
+    "timezone_hint": "更改此时区会按新时区重新汇总全部请求历史。应用中的其他日期不受影响。",
+    "save": "保存时区",
+    "saving": "正在保存…",
+    "refresh": "刷新",
+    "loading": "正在加载请求次数…",
+    "unavailable": "请求次数暂不可用，请尝试刷新。",
+    "not_tracked": "未记录",
+    "partial": "非完整日",
+    "tracking_since": "于 {{value}} 开始记录。此前的日期未记录。",
+    "date": "日期",
+    "requests": "请求次数",
+    "no_providers": "暂无可用供应商。",
+    "save_failed": "无法保存统计时区。",
+    "updated": "更新于 {{value}}",
+    "stale": "显示的次数可能不是最新数据。"
+  }
 }

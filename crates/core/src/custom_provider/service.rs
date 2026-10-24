@@ -1,5 +1,6 @@
 use std::fmt::Write;
 use std::sync::Arc;
+use wealthfolio_market_data::RecordedRequest;
 
 use log::info;
 
@@ -27,6 +28,7 @@ const RESERVED_CODES: &[&str] = &[
 pub struct CustomProviderService {
     repo: Arc<dyn CustomProviderRepository>,
     secret_store: Arc<dyn SecretStore>,
+    request_recorder: Arc<dyn wealthfolio_market_data::RequestRecorder>,
 }
 
 impl CustomProviderService {
@@ -34,7 +36,19 @@ impl CustomProviderService {
         repo: Arc<dyn CustomProviderRepository>,
         secret_store: Arc<dyn SecretStore>,
     ) -> Self {
-        Self { repo, secret_store }
+        Self {
+            repo,
+            secret_store,
+            request_recorder: Arc::new(wealthfolio_market_data::NoopRequestRecorder),
+        }
+    }
+
+    pub fn with_request_recorder(
+        mut self,
+        recorder: Arc<dyn wealthfolio_market_data::RequestRecorder>,
+    ) -> Self {
+        self.request_recorder = recorder;
+        self
     }
 
     /// List all custom providers with their sources.
@@ -174,7 +188,23 @@ impl CustomProviderService {
 
         validate_url(&request.url).map_err(|e| crate::Error::Unexpected(e.to_string()))?;
 
-        let response = match request.request_builder(&client).send().await {
+        let provider_id = payload
+            .provider_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|code| {
+                !code.is_empty() && code.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+            })
+            .map(str::to_ascii_lowercase)
+            .unwrap_or_else(|| "UNSAVED".to_string());
+        let response = match request
+            .request_builder(&client)
+            .send_recorded(
+                &format!("CUSTOM_SCRAPER:{provider_id}"),
+                self.request_recorder.as_ref(),
+            )
+            .await
+        {
             Ok(resp) => resp,
             Err(e) => {
                 return Ok(TestSourceResult {

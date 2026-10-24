@@ -264,8 +264,24 @@ async fn build_context(
         Arc::new(QuoteSyncStateRepository::new(pool.clone(), writer.clone()));
 
     // QuoteService provides all quote operations via QuoteServiceTrait
+    let provider_request_repository = Arc::new(
+        wealthfolio_storage_sqlite::market_data::ProviderRequestSqliteRepository::new(
+            pool.clone(),
+            writer.clone(),
+        ),
+    );
+    let provider_request_service = Arc::new(
+        wealthfolio_core::quotes::request_counts::ProviderRequestService::new(
+            provider_request_repository.clone(),
+        ),
+    );
+    let request_recorder = Arc::new(
+        wealthfolio_core::quotes::request_counts::ProviderRequestRecorder::new(
+            provider_request_repository,
+        ),
+    );
     let quote_service: Arc<dyn QuoteServiceTrait> = Arc::new(
-        QuoteService::new_with_custom_provider(
+        QuoteService::new_with_custom_provider_and_recorder(
             market_data_repo.clone(),            // QuoteStore
             quote_sync_state_repository.clone(), // SyncStateStore
             market_data_repo.clone(),            // ProviderSettingsStore
@@ -273,6 +289,7 @@ async fn build_context(
             activity_repository.clone(),         // ActivityRepositoryTrait
             secret_store.clone(),
             Some(custom_provider_repository.clone()),
+            request_recorder.clone(),
         )
         .await?
         .with_event_sink(domain_event_sink.clone()),
@@ -290,7 +307,8 @@ async fn build_context(
         wealthfolio_core::custom_provider::CustomProviderService::new(
             custom_provider_repository.clone(),
             secret_store.clone(),
-        ),
+        )
+        .with_request_recorder(request_recorder),
     );
 
     // Create taxonomy service before asset service (needed for auto-classification)
@@ -809,6 +827,7 @@ async fn build_context(
             device_sync_runtime,
             broker_sync_running,
             health_service,
+            provider_request_service,
             custom_provider_service,
             portfolio_service,
             spending_settings_service,

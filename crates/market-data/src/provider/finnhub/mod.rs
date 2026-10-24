@@ -8,6 +8,7 @@
 //! Finnhub free tier: 60 API calls/minute, US stocks only, no historical candles.
 //! API documentation: https://finnhub.io/docs/api
 
+use crate::request_recorder::RecordedRequest;
 use std::time::Duration;
 
 use crate::SymbolResolver;
@@ -157,11 +158,21 @@ struct ErrorResponse {
 /// Supports equities with global coverage for major exchanges.
 /// Free tier is limited to 60 API calls per minute.
 pub struct FinnhubProvider {
+    request_recorder: std::sync::Arc<dyn crate::RequestRecorder>,
     client: Client,
     api_key: String,
 }
 
 impl FinnhubProvider {
+    /// Attach this profile's recorder without changing provider request behavior.
+    pub fn with_request_recorder(
+        mut self,
+        recorder: std::sync::Arc<dyn crate::RequestRecorder>,
+    ) -> Self {
+        self.request_recorder = recorder;
+        self
+    }
+
     /// Create a new Finnhub provider with the given API key.
     pub fn new(api_key: String) -> Self {
         let client = wealthfolio_http::client_builder()
@@ -169,7 +180,11 @@ impl FinnhubProvider {
             .build()
             .unwrap_or_else(|_| wealthfolio_http::client());
 
-        Self { client, api_key }
+        Self {
+            client,
+            api_key,
+            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+        }
     }
 
     /// Make a GET request to the Finnhub API.
@@ -192,18 +207,21 @@ impl FinnhubProvider {
 
         debug!("Finnhub request: {} with {} params", endpoint, params.len());
 
-        let response = request.send().await.map_err(|e| {
-            if e.is_timeout() {
-                MarketDataError::Timeout {
-                    provider: PROVIDER_ID.to_string(),
+        let response = request
+            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .await
+            .map_err(|e| {
+                if e.is_timeout() {
+                    MarketDataError::Timeout {
+                        provider: PROVIDER_ID.to_string(),
+                    }
+                } else {
+                    MarketDataError::ProviderError {
+                        provider: PROVIDER_ID.to_string(),
+                        message: format!("Request failed: {}", e),
+                    }
                 }
-            } else {
-                MarketDataError::ProviderError {
-                    provider: PROVIDER_ID.to_string(),
-                    message: format!("Request failed: {}", e),
-                }
-            }
-        })?;
+            })?;
 
         let status = response.status();
         debug!("Finnhub response status: {} for {}", status, endpoint);
