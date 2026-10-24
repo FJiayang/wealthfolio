@@ -5,6 +5,9 @@ This repository is FJiayang's fork of
 three-component application version; this fork appends a positive revision for
 its Git release tags and Docker image tags.
 
+For supported functionality and changes by version, see the
+[brief fork release notes](fork-release-notes.md).
+
 ## Version contract
 
 - Upstream application version: `3.11.0`.
