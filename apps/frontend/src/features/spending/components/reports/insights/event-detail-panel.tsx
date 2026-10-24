@@ -79,6 +79,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
     heatmapActivities,
     accountTypeById,
     taxonomyCategories,
+    t("spending:insightsPage.uncategorized"),
     dailySpendByDate,
     baselinePeriod,
   );
