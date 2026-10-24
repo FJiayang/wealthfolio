@@ -38,8 +38,9 @@ network requests. Explicit `FUND:005827` and exchange-qualified searches such as
 `XSHG:600519`, `XSHE:161725`, `XHKG:00700` and `XNAS:AAPL` use the same local
 resolver and a single profile lookup. Unsupported or ambiguous qualified codes
 never fall back to a fuzzy search. Internal listed-fund symbols (`fund:...`)
-remain distinct from the public `FUND:` NAV namespace. Search results are checked against a category-specific profile
-before being returned; partial market failures do not discard other successes.
+remain distinct from the public `FUND:` NAV namespace. Search results are
+checked against a category-specific profile before being returned; partial
+market failures do not discard other successes.
 
 The service returns real-time tables and Markdown tables wrapped in JSON text.
 Parsing uses columns, security identity, currency and adjustment metadata rather
