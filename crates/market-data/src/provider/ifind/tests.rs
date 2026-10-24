@@ -1,5 +1,5 @@
 use super::*;
-use crate::InstrumentId;
+use crate::{request_recorder::tests::MemoryRecorder, InstrumentId};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
@@ -139,12 +139,23 @@ async fn server() -> (
     tokio::task::JoinHandle<()>,
     Arc<Mutex<Vec<(String, Instant)>>>,
 ) {
+    server_with_sse(false).await
+}
+
+async fn server_with_sse(
+    reconnect: bool,
+) -> (
+    String,
+    tokio::task::JoinHandle<()>,
+    Arc<Mutex<Vec<(String, Instant)>>>,
+) {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}", listener.local_addr().unwrap());
     let calls = Arc::new(Mutex::new(Vec::new()));
     let seen = calls.clone();
     let handle = tokio::spawn(async move {
+        let mut streams = 0;
         loop {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut bytes = Vec::new();
@@ -175,7 +186,26 @@ async fn server() -> (
             }
             assert!(headers.to_lowercase().contains("authorization: test-key"));
             assert!(!headers.contains("Bearer"));
+            if headers.starts_with("GET") {
+                streams += 1;
+                if reconnect && streams == 1 {
+                    seen.lock().await.push(("GET".into(), Instant::now()));
+                    // Control events are not HTTP requests. The closed stream
+                    // asks the SDK to reconnect once with the last event ID.
+                    let body = "id: checkpoint\nretry: 1\n\n: keepalive\n\n: keepalive\n\n";
+                    let response = format!("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+                    stream.write_all(response.as_bytes()).await.unwrap();
+                    continue;
+                }
+                if reconnect {
+                    assert!(headers.to_lowercase().contains("last-event-id: checkpoint"));
+                }
+            }
             let (status, body, session) = if !headers.starts_with("POST") {
+                seen.lock().await.push((
+                    headers.split_whitespace().next().unwrap().to_string(),
+                    Instant::now(),
+                ));
                 ("405 Method Not Allowed", String::new(), false)
             } else {
                 let request: Value = serde_json::from_slice(&body).unwrap();
@@ -196,6 +226,13 @@ async fn server() -> (
                         } else if name == "expired" { ("404 Not Found", String::new(), false) } else {
                             let sample = match name {
                                 "get_stock_info" => samples()["stock-get_stock_info"].clone(),
+                                "get_stock_performance" => {
+                                    let query = request["params"]["arguments"]["query"].as_str().unwrap();
+                                    let day = &query.split_once('在').unwrap().1[..8];
+                                    let mut sample = samples()["stock-get_stock_performance"].clone();
+                                    sample["data"]["answer"] = json!(format!("|证券代码|交易币种|日期|收盘价|开盘价|最高价|最低价|成交量|\n|---|---|---|---|---|---|---|---|\n|600519.SH|CNY|{day}|10|10|10|10|100|"));
+                                    sample
+                                },
                                 "get_fund_profile" => samples()["fund-get_fund_profile"].clone(),
                                 "global_stock_profile" => samples()["global-stock-global_stock_profile"].clone(),
                                 _ => json!({"code":1,"data":{}}),
@@ -217,10 +254,167 @@ async fn server() -> (
     });
     (url, handle, calls)
 }
+
+async fn wait_for_method(calls: &Mutex<Vec<(String, Instant)>>, method: &str, count: usize) {
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            if calls
+                .lock()
+                .await
+                .iter()
+                .filter(|(m, _)| m == method)
+                .count()
+                >= count
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn request_counts_include_handshake_cached_tools_and_session_cleanup() {
+    let (url, server, calls) = server().await;
+    let recorder = Arc::new(MemoryRecorder::default());
+    let mut provider = IfindProvider::new("test-key".into())
+        .unwrap()
+        .with_request_recorder(recorder.clone());
+    provider.base = url;
+    assert!(provider.get_profile("invalid symbol").await.is_err());
+    assert!(provider.search("FUND:005").await.unwrap().is_empty());
+    assert!(recorder.0.lock().unwrap().is_empty());
+
+    let before = Utc::now();
+    provider.call("stock", "ok", json!({})).await.unwrap();
+    wait_for_method(&calls, "GET", 1).await;
+    assert_eq!(recorder.0.lock().unwrap().len(), 4);
+    provider.call("stock", "ok", json!({})).await.unwrap();
+    assert_eq!(recorder.0.lock().unwrap().len(), 5);
+    // A cached connection has no handshake to count; invalid tool arguments
+    // fail before dispatch and must not replay or invalidate the connection.
+    assert!(provider.call("stock", "ok", json!(null)).await.is_err());
+    assert_eq!(recorder.0.lock().unwrap().len(), 5);
+    let mut connection = provider
+        .state
+        .lock()
+        .await
+        .connections
+        .remove("stock")
+        .unwrap();
+    connection.close().await.unwrap();
+    let after = Utc::now();
+    let calls = calls.lock().await;
+    let events = recorder.0.lock().unwrap();
+    assert_eq!(events.len(), 6);
+    assert!(events
+        .iter()
+        .all(|(id, time)| id == DATA_SOURCE_IFIND && *time >= before && *time <= after));
+    assert_eq!(calls.len(), events.len());
+    assert_eq!(calls.iter().filter(|(m, _)| m == "initialize").count(), 1);
+    assert_eq!(
+        calls
+            .iter()
+            .filter(|(m, _)| m == "notifications/initialized")
+            .count(),
+        1
+    );
+    assert_eq!(calls.iter().filter(|(m, _)| m == "DELETE").count(), 1);
+    server.abort();
+}
+
+#[tokio::test]
+async fn initialization_failure_counts_only_the_dispatched_attempt() {
+    let recorder = Arc::new(MemoryRecorder::default());
+    let mut provider = IfindProvider::new("test-key".into())
+        .unwrap()
+        .with_request_recorder(recorder.clone());
+    provider.base = "not a URL".into();
+    assert!(provider.call("stock", "ok", json!({})).await.is_err());
+    assert!(recorder.0.lock().unwrap().is_empty());
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    provider.base = format!("http://{}", listener.local_addr().unwrap());
+    drop(listener);
+    assert!(provider.call("stock", "ok", json!({})).await.is_err());
+    assert_eq!(recorder.0.lock().unwrap().len(), 1);
+    assert!(provider.state.lock().await.connections.is_empty());
+}
+
+#[tokio::test]
+async fn request_counts_include_sse_reconnects_but_not_stream_events() {
+    let (url, server, calls) = server_with_sse(true).await;
+    let recorder = Arc::new(MemoryRecorder::default());
+    let mut provider = IfindProvider::new("test-key".into())
+        .unwrap()
+        .with_request_recorder(recorder.clone());
+    provider.base = url;
+    provider.call("stock", "ok", json!({})).await.unwrap();
+    wait_for_method(&calls, "GET", 2).await;
+    let mut connection = provider
+        .state
+        .lock()
+        .await
+        .connections
+        .remove("stock")
+        .unwrap();
+    connection.close().await.unwrap();
+    let calls = calls.lock().await;
+    assert_eq!(calls.iter().filter(|(m, _)| m == "GET").count(), 2);
+    assert_eq!(calls.iter().filter(|(m, _)| m == "tools/call").count(), 1);
+    assert_eq!(calls.iter().filter(|(m, _)| m == "DELETE").count(), 1);
+    assert_eq!(calls.len(), 6);
+    assert_eq!(recorder.0.lock().unwrap().len(), calls.len());
+    server.abort();
+}
+
+#[tokio::test]
+async fn request_counts_each_history_window_without_repeating_handshake() {
+    let (url, server, calls) = server().await;
+    let recorder = Arc::new(MemoryRecorder::default());
+    let mut provider = IfindProvider::new("test-key".into())
+        .unwrap()
+        .with_request_recorder(recorder.clone());
+    provider.base = url;
+    let start = NaiveDate::from_ymd_opt(2026, 9, 1)
+        .unwrap()
+        .and_hms_opt(0, 0, 0)
+        .unwrap()
+        .and_utc();
+    let end = start + chrono::Duration::days(30);
+    let rows = provider
+        .history("stock:600519.SH", start, end)
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].timestamp, start);
+    assert_eq!(rows[1].timestamp, end);
+    wait_for_method(&calls, "GET", 1).await;
+    assert_eq!(recorder.0.lock().unwrap().len(), 5);
+    let mut connection = provider
+        .state
+        .lock()
+        .await
+        .connections
+        .remove("stock")
+        .unwrap();
+    connection.close().await.unwrap();
+    let calls = calls.lock().await;
+    assert_eq!(calls.iter().filter(|(m, _)| m == "initialize").count(), 1);
+    assert_eq!(calls.iter().filter(|(m, _)| m == "tools/call").count(), 2);
+    assert_eq!(calls.len(), 6);
+    assert_eq!(recorder.0.lock().unwrap().len(), calls.len());
+    server.abort();
+}
+
 #[tokio::test]
 async fn sdk_handshake_session_serialization_and_expiry_without_replay() {
     let (url, server, calls) = server().await;
-    let mut provider = IfindProvider::new(" test-key ".into()).unwrap();
+    let recorder = Arc::new(MemoryRecorder::default());
+    let mut provider = IfindProvider::new(" test-key ".into())
+        .unwrap()
+        .with_request_recorder(recorder.clone());
     provider.base = url;
     provider.call("stock", "ok", json!({})).await.unwrap();
     let (a, b) = tokio::join!(
@@ -233,10 +427,13 @@ async fn sdk_handshake_session_serialization_and_expiry_without_replay() {
         .await
         .is_err());
     assert!(provider.call("stock", "expired", json!({})).await.is_err());
+    wait_for_method(&calls, "DELETE", 1).await;
     let calls = calls.lock().await;
     assert_eq!(calls.iter().filter(|(m, _)| m == "initialize").count(), 2);
     let tools: Vec<_> = calls.iter().filter(|(m, _)| m == "tools/call").collect();
     assert_eq!(tools.len(), 5);
+    assert_eq!(calls.len(), 12);
+    assert_eq!(recorder.0.lock().unwrap().len(), calls.len());
     assert!(tools
         .windows(2)
         .all(|pair| pair[1].1.duration_since(pair[0].1) >= Duration::from_millis(480)));

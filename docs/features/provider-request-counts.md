@@ -10,9 +10,17 @@ a source is included; a source tested before it has a code is shown as
 One application dispatch counts once, whether it succeeds, fails, or times out.
 Explicit retries, pages and yearly history segments each count; a batch sent in
 one request counts once. Cache hits, static/local results, validation failures
-and disabled providers do not dispatch and do not count. Fallbacks belong to the
-provider actually contacted. Automatic HTTP redirects and protocol-level retries
-inside the HTTP client are not additional application dispatches.
+and disabled-provider quote lookups do not dispatch and do not count. Fallbacks
+belong to the provider actually contacted. Automatic HTTP redirects and
+protocol-level retries inside the HTTP client are not additional application
+dispatches.
+
+Futu counts each signed HTTP execution after local validation/signing succeeds.
+iFinD counts MCP HTTP initialization, tool, stream-open/reconnect and session
+cleanup requests separately. Messages or control events received on an existing
+SSE connection are not new HTTP requests and do not add counts. Cleanup of a
+previously active MCP session remains a counted HTTP request, including when
+rebuilding the client after disabling a provider.
 
 This is attempt accounting, not a billing reconciliation. The event is recorded
 immediately before dispatch, using the UTC timestamp captured before awaiting

@@ -2,11 +2,13 @@
 mod parse;
 #[cfg(test)]
 mod tests;
+mod transport;
 
 use super::DATA_SOURCE_IFIND;
 use crate::{
     errors::MarketDataError, AssetProfile, Coverage, InstrumentKind, MarketDataProvider,
-    ProviderCapabilities, ProviderInstrument, Quote, QuoteContext, RateLimit, SearchResult,
+    NoopRequestRecorder, ProviderCapabilities, ProviderInstrument, Quote, QuoteContext, RateLimit,
+    RequestRecorder, SearchResult,
 };
 use async_trait::async_trait;
 use chrono::{DateTime, Days, Utc};
@@ -39,6 +41,7 @@ struct State {
 
 pub struct IfindProvider {
     client: reqwest::Client,
+    request_recorder: Arc<dyn RequestRecorder>,
     authorization: reqwest::header::HeaderValue,
     state: Mutex<State>,
     base: String,
@@ -74,10 +77,16 @@ impl IfindProvider {
             .map_err(|_| error("HTTP client initialization failed"))?;
         Ok(Self {
             client,
+            request_recorder: Arc::new(NoopRequestRecorder),
             authorization,
             state: Mutex::new(State::default()),
             base: BASE.into(),
         })
+    }
+
+    pub fn with_request_recorder(mut self, recorder: Arc<dyn RequestRecorder>) -> Self {
+        self.request_recorder = recorder;
+        self
     }
 
     async fn call(
@@ -100,7 +109,13 @@ impl IfindProvider {
             ))
             .custom_headers(headers)
             .reinit_on_expired_session(false);
-            let transport = StreamableHttpClientTransport::with_client(self.client.clone(), config);
+            let transport = StreamableHttpClientTransport::with_client(
+                transport::RecordedHttpClient::new(
+                    self.client.clone(),
+                    self.request_recorder.clone(),
+                ),
+                config,
+            );
             let info = ClientInfo::new(
                 ClientCapabilities::default(),
                 Implementation::new("wealthfolio", env!("CARGO_PKG_VERSION")),

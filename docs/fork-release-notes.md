@@ -1,33 +1,41 @@
 # Fork release notes
 
-Brief, cumulative release history for [FJiayang/wealthfolio](https://github.com/FJiayang/wealthfolio).
-Each entry lists changes from the preceding fork release, not the full upstream
-changelog. Existing features remain supported unless an entry says otherwise.
+Brief, cumulative release history for
+[FJiayang/wealthfolio](https://github.com/FJiayang/wealthfolio). Each entry
+lists changes from the preceding fork release, not the full upstream changelog.
+Existing features remain supported unless an entry says otherwise.
 
 Tags use `vMAJOR.MINOR.PATCH.REVISION`: the first three components identify the
 upstream application version; the last is the fork revision, reset to 1 for a
 new upstream version. Application manifests retain the three-component version.
 See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
-Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds;
-a Git tag alone does not establish Docker image availability.
+Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
+Git tag alone does not establish Docker image availability.
 
 ## v3.11.0.5 — Unreleased
 
 - Add per-provider API request-attempt statistics, including custom sources,
   with daily totals and 7/30/90-day views. Failed requests count; cache hits and
   local lookups do not. Counts are application attempts, not provider billing.
+- Include Futu signed HTTP attempts and iFinD MCP HTTP attempts, including
+  initialization, stream reconnects and session cleanup, without counting
+  individual events on an existing stream.
 - Store profile-local UTC events and regroup history using an independent,
   configurable statistics timezone, defaulting to `Asia/Shanghai`. Both desktop
   and web use the same statistics service; events are not device-synced.
+- Localize unchanged built-in allocation categories, budget groups and event
+  types across settings, forms, reports and assistant tools. Preserve custom or
+  renamed labels, stored identities, editing values and report totals.
 
-This section describes the pending integration, not a published release. Finalize
-its scope and remove “Unreleased” only when creating the matching release tag.
+This section describes the pending integration, not a published release.
+Finalize its scope and remove “Unreleased” only when creating the matching
+release tag.
 
 ## v3.11.0.4
 
-- Add opt-in [Futu](architecture/futu-market-data-provider.md) signed REST quotes
-  and unadjusted daily history for supported US, HK and mainland stocks/ETFs;
-  preserve provider settings when updating credentials.
+- Add opt-in [Futu](architecture/futu-market-data-provider.md) signed REST
+  quotes and unadjusted daily history for supported US, HK and mainland
+  stocks/ETFs; preserve provider settings when updating credentials.
 - Add opt-in [Tonghuashun iFinD](architecture/ifind-market-data-provider.md) via
   its MCP service for supported A shares, listed/OTC funds, indices and HK/US
   shares. Supported operations vary by category; HK/US latest prices are the
@@ -45,13 +53,14 @@ its scope and remove “Unreleased” only when creating the matching release ta
   selection through existing priorities and fallbacks. No Python sidecar is
   needed; coverage varies by provider and operation.
 - Migrate HTTP provider bindings/settings offline while preserving assets,
-  transactions and stored quotes. See [native providers](architecture/native-market-data-providers.md)
-  for migration details and limitations; news/statements are provider-layer only.
+  transactions and stored quotes. See
+  [native providers](architecture/native-market-data-providers.md) for migration
+  details and limitations; news/statements are provider-layer only.
 
 ## v3.11.0.1
 
-- Integrate upstream `v3.11.0` and retain compatible fork features; reset the fork
-  revision to 1. Upstream functionality is documented in its
+- Integrate upstream `v3.11.0` and retain compatible fork features; reset the
+  fork revision to 1. Upstream functionality is documented in its
   [release](https://github.com/wealthfolio/wealthfolio/releases/tag/v3.11.0).
 - Integrate API-key permission editing and frontend localization fixes, preserve
   user/CSV data, and restore Traditional Chinese sync-interval key parity.
@@ -77,8 +86,9 @@ its scope and remove “Unreleased” only when creating the matching release ta
 
 - Expand permission-scoped MCP business tools for accounts/portfolios, assets,
   holdings, activities, spending, classifications, goals and planning; support
-  editing existing access-token permissions. See [capability coverage](architecture/mcp-capability-coverage.md)
-  for supported operations and exclusions.
+  editing existing access-token permissions. See
+  [capability coverage](architecture/mcp-capability-coverage.md) for supported
+  operations and exclusions.
 
 ## v3.10.0.4
 
@@ -96,14 +106,14 @@ its scope and remove “Unreleased” only when creating the matching release ta
 
 ## v3.10.0.1
 
-- Add a configurable standard HTTP market-data service and exact asset lookup
-  on the then-current upstream 3.10.0 development base. This integration is
+- Add a configurable standard HTTP market-data service and exact asset lookup on
+  the then-current upstream 3.10.0 development base. This integration is
   superseded by native providers in `v3.11.0.2`.
 - Publish fork Docker images to GHCR only.
 
 ## Maintenance
 
-Update this document with each release, using the actual tag-to-tag diff.
-Keep pending work marked “Unreleased”; distinguish inherited upstream changes,
-new functionality, fixes and migrations. Do not infer deployment availability or
+Update this document with each release, using the actual tag-to-tag diff. Keep
+pending work marked “Unreleased”; distinguish inherited upstream changes, new
+functionality, fixes and migrations. Do not infer deployment availability or
 successful validation from a tag or from the presence of tests.

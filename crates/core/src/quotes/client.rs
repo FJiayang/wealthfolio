@@ -313,7 +313,8 @@ impl MarketDataClient {
                         })?;
                 Ok(Some(Arc::new(
                     wealthfolio_market_data::FutuProvider::new(credentials)
-                        .map_err(MarketDataClientError::from)?,
+                        .map_err(MarketDataClientError::from)?
+                        .with_request_recorder(request_recorder.clone()),
                 )))
             }
             DATA_SOURCE_EASTMONEY => Ok(Some(Arc::new(
@@ -352,7 +353,8 @@ impl MarketDataClient {
             DATA_SOURCE_IFIND => match secret_store.get_secret(DATA_SOURCE_IFIND)? {
                 Some(key) if !key.trim().is_empty() => Ok(Some(Arc::new(
                     wealthfolio_market_data::IfindProvider::new(key)
-                        .map_err(MarketDataClientError::from)?,
+                        .map_err(MarketDataClientError::from)?
+                        .with_request_recorder(request_recorder.clone()),
                 ))),
                 _ => Ok(None),
             },
@@ -1504,6 +1506,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn request_counts_futu_ifind_without_credentials_do_not_dispatch() {
+        #[derive(Default)]
+        struct Recorder(std::sync::atomic::AtomicUsize);
+        #[async_trait::async_trait]
+        impl wealthfolio_market_data::RequestRecorder for Recorder {
+            async fn record_request(&self, _: &str, _: DateTime<Utc>) {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+        let recorder = Arc::new(Recorder::default());
+        let client = MarketDataClient::new_with_extra_and_recorder(
+            Arc::new(NoSecrets),
+            vec![
+                ProviderConfig {
+                    id: DATA_SOURCE_FUTU.into(),
+                    priority: 12,
+                },
+                ProviderConfig {
+                    id: DATA_SOURCE_IFIND.into(),
+                    priority: 13,
+                },
+            ],
+            vec![],
+            recorder.clone(),
+        )
+        .await
+        .unwrap();
+        assert!(client.registry.providers().is_empty());
+        assert_eq!(recorder.0.load(std::sync::atomic::Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
     async fn ifind_without_a_key_or_when_disabled_is_not_contacted() {
         let store: Arc<dyn SecretStore> = Arc::new(NoSecrets);
         assert!(MarketDataClient::create_provider(
@@ -1511,7 +1545,8 @@ mod tests {
                 id: DATA_SOURCE_IFIND.into(),
                 priority: 13
             },
-            &store
+            &store,
+            Arc::new(wealthfolio_market_data::NoopRequestRecorder),
         )
         .await
         .unwrap()

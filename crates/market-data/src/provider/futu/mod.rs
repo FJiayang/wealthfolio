@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, NaiveDate, Utc};
 use reqwest::Method;
 use serde_json::Value;
-use std::{borrow::Cow, time::Duration};
+use std::{borrow::Cow, sync::Arc, time::Duration};
 use uuid::Uuid;
 
 use super::{native, MarketDataProvider, ProviderCapabilities, RateLimit};
@@ -14,7 +14,8 @@ use crate::{
     errors::MarketDataError,
     registry::{RateLimitConfig, RateLimiter},
     resolver::futu::market_info,
-    Coverage, InstrumentKind, ProviderInstrument, Quote, QuoteContext,
+    Coverage, InstrumentKind, NoopRequestRecorder, ProviderInstrument, Quote, QuoteContext,
+    RequestRecorder,
 };
 use auth::{signing_message, SigningKey};
 
@@ -30,6 +31,7 @@ fn error(message: &str) -> MarketDataError {
 
 pub struct FutuProvider {
     client: reqwest::Client,
+    request_recorder: Arc<dyn RequestRecorder>,
     app_key_id: String,
     key: SigningKey,
     limiter: RateLimiter,
@@ -55,12 +57,18 @@ impl FutuProvider {
             .build()?;
         Ok(Self {
             client,
+            request_recorder: Arc::new(NoopRequestRecorder),
             app_key_id: credentials.app_key_id,
             key,
             limiter,
             #[cfg(test)]
             endpoint: None,
         })
+    }
+
+    pub fn with_request_recorder(mut self, recorder: Arc<dyn RequestRecorder>) -> Self {
+        self.request_recorder = recorder;
+        self
     }
 
     async fn request(
@@ -71,6 +79,9 @@ impl FutuProvider {
         body: &[u8],
     ) -> Result<Value, MarketDataError> {
         let request = self.signed_request(method, path, params, body).await?;
+        self.request_recorder
+            .record_request(DATA_SOURCE_FUTU, Utc::now())
+            .await;
         let mut response = self.client.execute(request).await.map_err(|err| {
             if err.is_timeout() {
                 MarketDataError::Timeout {
@@ -345,7 +356,10 @@ impl MarketDataProvider for FutuProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::InstrumentId;
+    use crate::{
+        request_recorder::tests::{MemoryRecorder, MockServer},
+        InstrumentId,
+    };
     use ed25519_dalek::pkcs8::EncodePrivateKey;
     use serde_json::json;
     use std::{
@@ -475,7 +489,8 @@ mod tests {
     }
     #[tokio::test]
     async fn futu_each_request_is_throttled_and_independently_signed() {
-        let provider = provider();
+        let recorder = Arc::new(MemoryRecorder::default());
+        let provider = provider().with_request_recorder(recorder.clone());
         let first = provider
             .signed_request(Method::GET, "/one", &[], &[])
             .await
@@ -492,6 +507,7 @@ mod tests {
             second.headers()["authorization"]
         );
         assert!(second.headers()["authorization"].is_sensitive());
+        assert!(recorder.0.lock().unwrap().is_empty());
         use base64::Engine;
         use ed25519_dalek::Verifier;
         for request in [first, second] {
@@ -526,7 +542,8 @@ mod tests {
                 json!({"ret_code":0,"data":{"kline_list":[historical(20250101, "10")]}}),
                 second,
             ]);
-            let mut provider = provider();
+            let recorder = Arc::new(MemoryRecorder::default());
+            let mut provider = provider().with_request_recorder(recorder.clone());
             provider.endpoint = Some(endpoint);
             let result = provider
                 .get_historical_quotes(&context(), instrument("US.AAPL"), start, end)
@@ -542,6 +559,9 @@ mod tests {
             let second = requests.recv_timeout(Duration::from_secs(5)).unwrap();
             assert!(first.contains("start=2025-01-01&end=2025-10-27&ktype=2&autype=0&num=370"));
             assert!(second.contains("start=2025-10-28&end=2025-10-28"));
+            let events = recorder.0.lock().unwrap();
+            assert_eq!(events.len(), 2);
+            assert!(events.iter().all(|(id, _)| id == DATA_SOURCE_FUTU));
         }
     }
     #[tokio::test]
@@ -550,7 +570,8 @@ mod tests {
             {"code":"US.OTHER","data_date":"2026-01-05","last_price":999},
             {"code":"HK.00700","data_date":"2026-01-05","last_price":"450.12","volume":100}
         ]}})]);
-        let mut provider = provider();
+        let recorder = Arc::new(MemoryRecorder::default());
+        let mut provider = provider().with_request_recorder(recorder.clone());
         provider.endpoint = Some(endpoint);
         assert!(provider
             .get_latest_quote(&context(), instrument("CA.SHOP"))
@@ -560,6 +581,7 @@ mod tests {
             .get_historical_quotes(&context(), instrument("600519"), Utc::now(), Utc::now())
             .await
             .is_err());
+        assert!(recorder.0.lock().unwrap().is_empty());
         let quote = provider
             .get_latest_quote(&context(), instrument("HK.00700"))
             .await
@@ -569,6 +591,67 @@ mod tests {
         let request = requests.recv_timeout(Duration::from_secs(5)).unwrap();
         assert!(request.starts_with("POST /api/v1.0/quote/stock-quote"));
         assert!(request.ends_with(r#"{"code_list":["HK.00700"]}"#));
+        assert_eq!(recorder.0.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn futu_failed_dispatches_count_once_and_local_failures_do_not_count() {
+        let recorder = Arc::new(MemoryRecorder::default());
+        let mut provider = provider().with_request_recorder(recorder.clone());
+        provider.limiter.configure(
+            &Cow::Borrowed(DATA_SOURCE_FUTU),
+            RateLimitConfig {
+                requests_per_minute: 60_000,
+                burst_capacity: 10.0,
+            },
+        );
+        provider.endpoint = Some("not a URL".into());
+        assert!(provider.request(Method::GET, "/", &[], &[]).await.is_err());
+        provider.endpoint = Some("http://127.0.0.1:9".into());
+        provider.app_key_id = "invalid\nheader".into();
+        assert!(provider.request(Method::GET, "/", &[], &[]).await.is_err());
+        assert!(recorder.0.lock().unwrap().is_empty());
+        provider.app_key_id = "synthetic-app".into();
+
+        let server = MockServer::start(vec![
+            (429, String::new(), String::new()),
+            (500, String::new(), String::new()),
+        ]);
+        provider.endpoint = Some(server.url.clone());
+        let before = Utc::now();
+        assert!(matches!(
+            provider.request(Method::GET, "/", &[], &[]).await,
+            Err(MarketDataError::RateLimited { .. })
+        ));
+        assert!(provider.request(Method::GET, "/", &[], &[]).await.is_err());
+        assert_eq!(server.requests.lock().unwrap().len(), 2);
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        provider.endpoint = Some(format!("http://{}", listener.local_addr().unwrap()));
+        drop(listener);
+        assert!(provider.request(Method::GET, "/", &[], &[]).await.is_err());
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        provider.endpoint = Some(format!("http://{}", listener.local_addr().unwrap()));
+        provider.client = wealthfolio_http::client_builder()
+            .timeout(Duration::from_millis(50))
+            .build()
+            .unwrap();
+        let hanging = tokio::spawn(async move {
+            let (_stream, _) = listener.accept().await.unwrap();
+            std::future::pending::<()>().await;
+        });
+        assert!(matches!(
+            provider.request(Method::GET, "/", &[], &[]).await,
+            Err(MarketDataError::Timeout { .. })
+        ));
+        hanging.abort();
+        let after = Utc::now();
+        let events = recorder.0.lock().unwrap();
+        assert_eq!(events.len(), 4);
+        assert!(events
+            .iter()
+            .all(|(id, time)| id == DATA_SOURCE_FUTU && *time >= before && *time <= after));
     }
     #[tokio::test]
     async fn futu_enabled_preserves_fund_and_exchange_qualified_search() {
