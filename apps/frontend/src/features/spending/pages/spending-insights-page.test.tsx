@@ -268,6 +268,7 @@ it.each(["changed", "when"])(
       id,
       name,
       taxonomyId: "spending_categories",
+      color: "#123456",
       parentId: null,
       key: id,
       sortOrder: 0,
