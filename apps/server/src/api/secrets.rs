@@ -29,6 +29,10 @@ async fn set_secret(
     state
         .secret_store
         .set_secret(&body.secret_key, &body.secret)?;
+    state
+        .quote_service
+        .handle_credential_change(&body.secret_key)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -53,6 +57,10 @@ async fn delete_secret(
 ) -> ApiResult<StatusCode> {
     validate_unscoped_secret_service_id(&q.secret_key).map_err(ApiError::BadRequest)?;
     state.secret_store.delete_secret(&q.secret_key)?;
+    state
+        .quote_service
+        .handle_credential_change(&q.secret_key)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

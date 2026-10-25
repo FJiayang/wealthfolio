@@ -877,6 +877,126 @@ The sync state system tracks what quotes exist and what's needed for each asset.
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### Request Intent, Scheduling, and Completion
+
+Range intent is separate from permission to bypass local coverage:
+
+- `Incremental`, `RefetchRecent`, and `BackfillHistory` select the required
+  history window and reuse fresh local coverage. Automatic base-currency
+  updates, health-driven work, and portfolio recalculation do not become
+  provider-forcing operations merely because they need a full history window.
+- The existing `sync_market_data` command with `refetch_all=true` selects
+  `RefreshAllHistory` through the shared `MarketSyncMode::for_quote_refresh`
+  mapping in both Tauri and Axum. This explicit action bypasses local coverage
+  and keeps ordinary provider upsert/revision behavior with manual-price
+  precedence. The existing recent-window flag still takes precedence if both
+  command flags are supplied.
+- Reset Provider History is the other explicit bypass. Its separate command,
+  confirmation, validation, and atomic provider-history replacement remain
+  unchanged. A refresh-all operation is not a reset, and a projection's
+  `force_full` flag is not a market-data bypass.
+
+Startup, resume, manual requests, and periodic work retain their existing
+entrypoints and backend coordinator. The periodic worker starts its own interval
+baseline when it launches. After the startup delay it checks the configured
+interval, instead of unconditionally performing another startup sync. Settings
+are still checked every minute, and subsequent periodic attempts wait from their
+own completion. This is not a global last-completion clock: page visits and
+other local no-op jobs cannot continually postpone the periodic interval.
+Overlapping requests still enter the existing coordinator; local coverage is
+rechecked after acquiring the history lock, rather than dropping a request that
+might cover another asset, another range, or an explicit refresh.
+
+The sync, update, and recalculate commands acknowledge background-job admission,
+not completed writes. Their frontend mutation hooks therefore do not invalidate
+queries on success. The shared completion listener refreshes data after the job's
+persistence and reconciliation have finished. Both hosts include an optional
+`changed` verdict on the portfolio completion event:
+
+- `false`: confirmed no price or projection changes; clear the progress
+  indicator and refresh only database-backed health/provider status. Performance
+  and benchmark queries are not invalidated, so health recovery cannot create a
+  market-fetch feedback cycle.
+- `true`: completed price writes or a successful nonempty projection plan;
+  refresh the affected portfolio queries.
+- `null` or an absent field: an uncertain partial-write outcome or an older host;
+  retain the conservative refresh behavior.
+
+Failed jobs still report errors, and a job that wrote prices before a later
+projection failure is never reported as a confirmed no-op. The observer's
+backward-compatible default callback preserves existing non-UI observers.
+
+**Architecture impact:** provider request planning and periodic first-run timing
+are intentionally optimized. The existing provider registry, transport/API
+entrypoints, background-job owner, pricing precedence, reset transaction, and
+portfolio calculation rules remain in place; there is no new queue or scheduler.
+The completion payload is a small additive event change, compatible with callers
+that do not consume it.
+
+### Local Query Outcomes and Benchmark History
+
+Ordinary history reads and symbol-price resolution share the existing
+`QuoteSyncService` owner. Pure database getters remain pure. Each profile owns a
+weak per-asset lock registry: requests for the same asset wait and recheck local
+query outcomes, while different assets retain existing concurrent fetching.
+Waiting does not discard another requested range or an explicit force action.
+
+SQLite stores small query receipts in `market_history_queries`, separate from
+`QuoteSyncState.last_synced_at`. Receipts contain a digested canonical/configuration
+identity, asset ID, inclusive query window, outcome and fetch time. Neither
+quote min/max bounds nor missing calendar days establish complete coverage.
+Provider authentication, fallback, parsing and disable rules remain in the
+existing registry. Providers explicitly attest complete range results; bounded
+or otherwise uncertified successful replies are partial observations:
+
+- Complete historical prefixes can be reused durably. The existing five-day
+  correction overlap remains mutable when its market session is not settled.
+- An open/current session rechecks using the existing configured market sync
+  interval (default six hours), not a new polling timer. The existing market
+  timezone/close-grace helpers distinguish settled sessions from intraday data.
+  A session closing after an intraday fetch makes that mutable tail due again;
+  a settled Friday does not repeatedly expire over the weekend.
+- Empty and partial observations are reused only for the configured interval.
+  Partial observations never become durable historical coverage or settled
+  session proof. Newly requested, unqueried ranges are still fetched.
+- Errors and authentication failures do not create receipts. Future dates are
+  not certified; latest responses with future quote dates are rejected.
+
+Fetched prices and the query receipt commit atomically. The transaction checks
+that the asset/provider context has not changed since fetching. Query commits
+skip financially identical provider rows and report actual changed-price counts;
+ordinary bulk-upsert and atomic reset semantics are unchanged. Successful
+provider recovery can still heal sync-health state without forcing portfolio
+price invalidation. Manual prices keep their existing precedence, and existing
+provider rows are not deleted merely because preferences change.
+
+A benchmark that is absent from the user's asset catalog uses isolated
+`benchmark_history` rows in the same profile database. It never creates a fake
+asset or appears in normal quote lists. Prices for existing assets continue to
+use the original quotes table. Benchmark and ordinary history both survive a
+service restart; changing canonical identity, currency or provider configuration
+invalidates reuse assumptions. Destructive quote changes invalidate receipts.
+Only digests of non-secret fetch configuration are stored in query identity;
+credentials and raw request URLs are not persisted there.
+
+With an available profile context, both hosts notify the quote service after
+successful writes/deletions of a known
+market-provider credential or a credential referenced by a custom source header.
+The service rebuilds the existing client and invalidates query receipts without
+hashing secret values; unrelated application secrets do not trigger market work.
+Credential storage and client reload are not one transaction: a reload/validation
+failure is explicitly reported as occurring after the credential changed. The
+frontend does not issue a duplicate settings refresh for the same credential write.
+Tauri preserves generic secret writes while the profile database is unavailable;
+reopening constructs a new client from current secrets. Immediate receipt
+invalidation cannot run without that database. Credential-backed provider
+responses, secret-header custom history, and a public fallback after the
+request's credential-dependent primary fails therefore remain bounded Partial
+observations, not indefinitely reusable authenticated history. Public Yahoo,
+Eastmoney and unauthenticated custom history retain durable restart reuse;
+unrelated enabled credential providers do not downgrade those public requests.
+Normal market settings require an available profile context.
+
 ### Sync Categories
 
 The system categorizes each asset to determine sync behavior:

@@ -40,7 +40,7 @@ pub mod yahoo;
 
 // Re-exports
 pub use capabilities::{ProviderCapabilities, RateLimit};
-pub use traits::MarketDataProvider;
+pub use traits::{HistoricalQuotes, MarketDataProvider};
 
 /// Identifier shared with the custom scraper adapter in core.
 pub const DATA_SOURCE_CUSTOM_SCRAPER: &str = "CUSTOM_SCRAPER";

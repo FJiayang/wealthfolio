@@ -10,6 +10,7 @@
 use async_trait::async_trait;
 use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use log::{debug, info};
+use sha2::{Digest, Sha256};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -84,6 +85,73 @@ pub struct FetchDividendsParams {
     pub preferred_provider: Option<String>,
     pub start: Option<NaiveDate>,
     pub end: Option<NaiveDate>,
+}
+
+/// Only a digest of non-secret settings participates in persisted query identity.
+/// Bookkeeping (last sync, labels) must not invalidate reusable history.
+fn history_provider_configuration(providers: &[super::MarketDataProviderSetting]) -> String {
+    let mut settings: Vec<_> = providers
+        .iter()
+        .map(|provider| {
+            (
+                &provider.id,
+                provider.enabled,
+                provider.priority,
+                &provider.config,
+            )
+        })
+        .collect();
+    settings.sort_by(|left, right| left.0.cmp(right.0));
+    let serialized = serde_json::to_vec(&settings)
+        .expect("provider configuration consists only of JSON-serializable fields");
+    hex::encode(Sha256::digest(serialized))
+}
+
+/// Match every supplied market identity component, never just a bare ticker.
+/// A request with no MIC cannot borrow a listing from an arbitrary exchange.
+fn asset_matches_quote_resolution(existing: &Asset, requested: &Asset) -> bool {
+    existing.instrument_type == requested.instrument_type
+        && existing.instrument_symbol.as_deref().map(str::to_uppercase)
+            == requested
+                .instrument_symbol
+                .as_deref()
+                .map(str::to_uppercase)
+        && existing
+            .instrument_exchange_mic
+            .as_deref()
+            .map(str::to_uppercase)
+            == requested
+                .instrument_exchange_mic
+                .as_deref()
+                .map(str::to_uppercase)
+        && (requested.quote_ccy.is_empty() || existing.quote_ccy == requested.quote_ccy)
+        && requested
+            .provider_config
+            .as_ref()
+            .is_none_or(|configuration| existing.provider_config.as_ref() == Some(configuration))
+}
+
+fn custom_provider_uses_credential(
+    providers: &[crate::custom_provider::CustomProviderWithSources],
+    key: &str,
+) -> bool {
+    let key = crate::secrets::format_service_id(key);
+    providers
+        .iter()
+        .flat_map(|provider| &provider.sources)
+        .any(|source| {
+            source
+                .headers
+                .as_deref()
+                .and_then(|headers| serde_json::from_str::<HashMap<String, String>>(headers).ok())
+                .is_some_and(|headers| {
+                    headers.values().any(|value| {
+                        value.strip_prefix("__SECRET__").is_some_and(|reference| {
+                            crate::secrets::format_service_id(reference) == key
+                        })
+                    })
+                })
+        })
 }
 
 fn resolve_effective_quote_currency(asset_quote_ccy: &str, quote_ccy: &str) -> Option<String> {
@@ -643,6 +711,12 @@ pub trait QuoteServiceTrait: Send + Sync {
     /// Get all provider info.
     async fn get_providers_info(&self) -> Result<Vec<ProviderInfo>>;
 
+    /// Notify after a successful market credential write. Unrelated secret keys
+    /// are ignored; implementations must not log or persist credential values.
+    async fn handle_credential_change(&self, _key: &str) -> Result<()> {
+        Ok(())
+    }
+
     /// Update provider settings.
     async fn update_provider_settings(
         &self,
@@ -711,8 +785,6 @@ where
     provider_settings_store: Arc<PS>,
     /// Asset repository.
     asset_repo: Arc<A>,
-    /// Activity repository.
-    activity_repo: Arc<R>,
     /// Market data client for provider operations.
     client: Arc<RwLock<MarketDataClient>>,
     /// Secret store for API keys.
@@ -792,6 +864,33 @@ where
         custom_provider_repo: Option<Arc<dyn crate::custom_provider::CustomProviderRepository>>,
         request_recorder: Arc<dyn wealthfolio_market_data::RequestRecorder>,
     ) -> Result<Self> {
+        Self::new_with_custom_provider_and_settings(
+            quote_store,
+            sync_state_store,
+            provider_settings_store,
+            asset_repo,
+            activity_repo,
+            secret_store,
+            custom_provider_repo,
+            request_recorder,
+            None,
+        )
+        .await
+    }
+
+    /// Construct with the existing profile settings reader for query freshness.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn new_with_custom_provider_and_settings(
+        quote_store: Arc<Q>,
+        sync_state_store: Arc<S>,
+        provider_settings_store: Arc<PS>,
+        asset_repo: Arc<A>,
+        activity_repo: Arc<R>,
+        secret_store: Arc<dyn SecretStore>,
+        custom_provider_repo: Option<Arc<dyn crate::custom_provider::CustomProviderRepository>>,
+        request_recorder: Arc<dyn wealthfolio_market_data::RequestRecorder>,
+        settings_service: Option<Arc<dyn crate::settings::SettingsServiceTrait>>,
+    ) -> Result<Self> {
         let providers = provider_settings_store.get_all_providers()?;
         let enabled: Vec<ProviderConfig> = providers
             .iter()
@@ -812,13 +911,14 @@ where
             Vec::new()
         };
 
-        let client = MarketDataClient::new_with_extra_and_recorder(
+        let mut client = MarketDataClient::new_with_extra_and_recorder(
             secret_store.clone(),
             enabled.clone(),
             extra,
             request_recorder.clone(),
         )
         .await?;
+        client.set_history_configuration_fingerprint(history_provider_configuration(&providers));
         let client_arc = Arc::new(RwLock::new(client));
 
         let sync_service = QuoteSyncService::new(
@@ -828,13 +928,16 @@ where
             asset_repo.clone(),
             activity_repo.clone(),
         );
+        let sync_service = match settings_service {
+            Some(settings) => sync_service.with_settings_service(settings),
+            None => sync_service,
+        };
 
         Ok(Self {
             quote_store,
             sync_state_store,
             provider_settings_store,
             asset_repo,
-            activity_repo,
             client: client_arc,
             secret_store,
             custom_provider_repo,
@@ -870,7 +973,19 @@ where
     }
 
     /// Refresh the market data client (e.g., after provider settings change).
-    async fn refresh_client(&self) -> Result<()> {
+    async fn refresh_client(&self, update: Option<(&str, i32, bool)>) -> Result<()> {
+        // Fence settings mutations against in-flight quote commits, including
+        // commits whose original caller has already been cancelled.
+        let mut client = self.client.write().await;
+        if let Some((provider_id, priority, enabled)) = update {
+            self.provider_settings_store.update_provider(
+                provider_id,
+                super::UpdateMarketDataProviderSetting {
+                    priority: Some(priority),
+                    enabled: Some(enabled),
+                },
+            )?;
+        }
         let providers = self.provider_settings_store.get_all_providers()?;
         let enabled: Vec<ProviderConfig> = providers
             .iter()
@@ -893,24 +1008,19 @@ where
         } else {
             Vec::new()
         };
-        let new_client = MarketDataClient::new_with_extra_and_recorder(
+        let mut new_client = MarketDataClient::new_with_extra_and_recorder(
             self.secret_store.clone(),
             enabled.clone(),
             extra,
             self.request_recorder.clone(),
         )
         .await?;
-        *self.client.write().await = new_client;
-
-        // Refresh sync service with updated client
-        let new_sync = QuoteSyncService::new(
-            self.client.clone(),
-            self.quote_store.clone(),
-            self.sync_state_store.clone(),
-            self.asset_repo.clone(),
-            self.activity_repo.clone(),
-        );
-        *self.sync_service.write().await = Some(Arc::new(new_sync));
+        new_client
+            .set_history_configuration_fingerprint(history_provider_configuration(&providers));
+        // Keep the existing sync owner and its per-profile locks. The shared client
+        // pointer already makes new settings visible to all quote operations.
+        self.quote_store.invalidate_history_coverage(None).await?;
+        *client = new_client;
 
         Ok(())
     }
@@ -1782,11 +1892,18 @@ where
                 ..Default::default()
             };
 
+            let matching_assets: Vec<_> = self
+                .asset_repo
+                .list()?
+                .into_iter()
+                .filter(|asset| asset_matches_quote_resolution(asset, &temp_asset))
+                .collect();
+            let existing = (matching_assets.len() == 1).then(|| &matching_assets[0]);
+            let quote_asset = existing.unwrap_or(&temp_asset);
             match self
-                .client
-                .read()
-                .await
-                .fetch_latest_quote(&temp_asset)
+                .get_sync_service()
+                .await?
+                .fetch_local_first_latest(quote_asset, existing.is_none())
                 .await
             {
                 Ok(quote) => {
@@ -1843,25 +1960,19 @@ where
         end: NaiveDate,
     ) -> Result<Vec<Quote>> {
         let asset = self.asset_repo.get_by_id(asset_id)?;
-        let start_dt = Utc.from_utc_datetime(
-            &start
-                .and_hms_opt(0, 0, 0)
-                .expect("00:00:00 is a valid time"),
-        );
-        let end_dt = Utc.from_utc_datetime(
-            &end.and_hms_opt(23, 59, 59)
-                .expect("23:59:59 is a valid time"),
-        );
-
-        self.client
-            .read()
-            .await
-            .fetch_historical_quotes(&asset, start_dt, end_dt)
-            .await
+        let mut quotes = self
+            .get_sync_service()
+            .await?
+            .fetch_local_first_history(&asset, start, end, false)
+            .await?;
+        for quote in &mut quotes {
+            reconcile_quote_currency(quote, &asset);
+        }
+        Ok(quotes)
     }
 
-    /// Fetch quotes for an asset ID (canonical format like "SEC:^GSPC:INDEX")
-    /// that may not exist in the user's database.
+    /// Retrieve benchmark history without adding synthetic user assets. Existing
+    /// assets keep using the ordinary quote store and its manual-price precedence.
     async fn fetch_quotes_for_symbol(
         &self,
         asset_id: &str,
@@ -1869,42 +1980,12 @@ where
         start: NaiveDate,
         end: NaiveDate,
     ) -> Result<Vec<Quote>> {
-        // First try to find an existing asset by ID
-        if let Ok(asset) = self.asset_repo.get_by_id(asset_id) {
-            // Manual-mode assets have no provider symbol: asking a provider for them
-            // composes an instrument key that no provider knows and fails. Their prices
-            // only ever live in the quote store.
-            if asset.quote_mode == QuoteMode::Manual {
-                let mut quotes = self.quote_store.range(
-                    &AssetId::new(asset_id),
-                    Day::new(start),
-                    Day::new(end),
-                    None,
-                )?;
-                for quote in &mut quotes {
-                    reconcile_quote_currency(quote, &asset);
-                }
-                return Ok(quotes);
-            }
-
-            let start_dt = Utc.from_utc_datetime(
-                &start
-                    .and_hms_opt(0, 0, 0)
-                    .expect("00:00:00 is a valid time"),
-            );
-            let end_dt = Utc.from_utc_datetime(
-                &end.and_hms_opt(23, 59, 59)
-                    .expect("23:59:59 is a valid time"),
-            );
-            return self
-                .client
-                .read()
-                .await
-                .fetch_historical_quotes(&asset, start_dt, end_dt)
-                .await;
+        if self.asset_repo.get_by_id(asset_id).is_ok() {
+            return self.fetch_quotes_from_provider(asset_id, start, end).await;
         }
 
-        // Asset not found by ID — create a minimal temporary Asset for fetching
+        // Preserve provider resolution for benchmark identifiers, but keep their
+        // prices in isolated storage rather than inventing holdings/catalog rows.
         let temp_asset = Asset {
             id: asset_id.to_string(),
             instrument_symbol: Some(asset_id.to_string()),
@@ -1915,21 +1996,9 @@ where
             quote_mode: QuoteMode::Market,
             ..Default::default()
         };
-
-        let start_dt = Utc.from_utc_datetime(
-            &start
-                .and_hms_opt(0, 0, 0)
-                .expect("00:00:00 is a valid time"),
-        );
-        let end_dt = Utc.from_utc_datetime(
-            &end.and_hms_opt(23, 59, 59)
-                .expect("23:59:59 is a valid time"),
-        );
-
-        self.client
-            .read()
-            .await
-            .fetch_historical_quotes(&temp_asset, start_dt, end_dt)
+        self.get_sync_service()
+            .await?
+            .fetch_local_first_history(&temp_asset, start, end, true)
             .await
     }
 
@@ -2239,6 +2308,9 @@ where
     }
 
     async fn reset_sync_state_for_profile_change(&self, asset_id: &str) -> Result<()> {
+        self.quote_store
+            .invalidate_history_coverage(Some(asset_id))
+            .await?;
         if let Some(mut state) = self.sync_state_store.get_by_asset_id(asset_id)? {
             state.error_count = 0;
             state.last_error = None;
@@ -2373,14 +2445,55 @@ where
         Ok(infos)
     }
 
+    async fn handle_credential_change(&self, key: &str) -> Result<()> {
+        let normalized = crate::secrets::format_service_id(key);
+        let builtin = super::constants::MARKET_DATA_PROVIDER_IDS
+            .iter()
+            .any(|id| crate::secrets::format_service_id(id) == normalized);
+        let custom = if !builtin {
+            match self.custom_provider_repo.as_ref() {
+                Some(repo) => custom_provider_uses_credential(&repo.get_all()?, key),
+                None => false,
+            }
+        } else {
+            false
+        };
+        if !builtin && !custom {
+            return Ok(());
+        }
+        // Secret storage has already succeeded. Do not imply rollback if the
+        // client cannot be rebuilt, and never propagate credential-bearing errors.
+        let refreshed: Result<()> = async {
+            // Rebuild even when replacement credentials are invalid: retaining
+            // the old authenticated provider would use credentials the user changed.
+            self.refresh_client(None).await?;
+            if normalized == crate::secrets::format_service_id(super::constants::DATA_SOURCE_FUTU) {
+                if let Some(secret) = self
+                    .secret_store
+                    .get_secret(super::constants::DATA_SOURCE_FUTU)?
+                {
+                    let credentials =
+                        serde_json::from_str::<wealthfolio_market_data::FutuCredentials>(&secret)
+                            .map_err(|_| Error::Unexpected("Invalid market credentials".into()))?;
+                    credentials
+                        .validate()
+                        .map_err(|_| Error::Unexpected("Invalid market credentials".into()))?;
+                }
+            }
+            Ok(())
+        }
+        .await;
+        refreshed.map_err(|_| {
+            Error::Unexpected("Credential changed, but market data client refresh failed.".into())
+        })
+    }
+
     async fn update_provider_settings(
         &self,
         provider_id: &str,
         priority: i32,
         enabled: bool,
     ) -> Result<()> {
-        use super::provider_settings::UpdateMarketDataProviderSetting;
-
         // Invalid credentials must not prevent disabling the provider.
         if provider_id == super::constants::DATA_SOURCE_FUTU
             && (enabled
@@ -2405,16 +2518,8 @@ where
             }
         }
 
-        self.provider_settings_store.update_provider(
-            provider_id,
-            UpdateMarketDataProviderSetting {
-                priority: Some(priority),
-                enabled: Some(enabled),
-            },
-        )?;
-
-        // Refresh client with new settings
-        self.refresh_client().await?;
+        self.refresh_client(Some((provider_id, priority, enabled)))
+            .await?;
 
         Ok(())
     }
@@ -3537,10 +3642,39 @@ mod tests {
     struct RangeQuoteStore {
         quotes: Vec<Quote>,
         range_calls: Arc<AtomicUsize>,
+        covered: bool,
+        invalidations: Arc<AtomicUsize>,
     }
 
     #[async_trait]
     impl QuoteStore for RangeQuoteStore {
+        fn history_coverage(
+            &self,
+            identity: &str,
+        ) -> Result<Vec<super::super::history::HistoryCoverage>> {
+            Ok(if self.covered {
+                vec![super::super::history::HistoryCoverage {
+                    identity: identity.to_owned(),
+                    asset_id: self
+                        .quotes
+                        .first()
+                        .map(|quote| quote.asset_id.clone())
+                        .unwrap_or_default(),
+                    start: NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
+                    end: Utc::now().date_naive(),
+                    fetched_at: Utc::now(),
+                    outcome: super::super::history::HistoryOutcome::Complete,
+                }]
+            } else {
+                Vec::new()
+            })
+        }
+
+        async fn invalidate_history_coverage(&self, _asset_id: Option<&str>) -> Result<()> {
+            self.invalidations.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        }
+
         async fn save_quote(&self, _quote: &Quote) -> Result<Quote> {
             unimplemented!("unused in this test")
         }
@@ -3563,10 +3697,15 @@ mod tests {
 
         fn latest(
             &self,
-            _asset_id: &AssetId,
+            asset_id: &AssetId,
             _source: Option<&QuoteSource>,
         ) -> Result<Option<Quote>> {
-            unimplemented!("unused in this test")
+            Ok(self
+                .quotes
+                .iter()
+                .filter(|quote| quote.asset_id == asset_id.as_str())
+                .max_by_key(|quote| quote.timestamp)
+                .cloned())
         }
 
         fn range(
@@ -4197,7 +4336,7 @@ mod tests {
         )
         .await
         .unwrap();
-        service.refresh_client().await.unwrap();
+        service.refresh_client(None).await.unwrap();
         assert!(Arc::ptr_eq(&service.request_recorder, &recorder));
         assert!(service
             .client
@@ -4755,6 +4894,8 @@ mod tests {
                 ),
             ],
             range_calls: Arc::clone(&range_calls),
+            covered: false,
+            ..Default::default()
         });
         let service = quote_service_for_asset(asset, quote_store).await?;
 
@@ -4779,7 +4920,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fetch_quotes_for_symbol_keeps_provider_path_for_market_asset() -> Result<()> {
+    async fn fetch_quotes_for_symbol_does_not_infer_coverage_from_sparse_rows() -> Result<()> {
         let asset_id = "SEC:AAPL:XNAS";
         let asset = Asset {
             id: asset_id.to_string(),
@@ -4797,6 +4938,8 @@ mod tests {
                 dec!(101.5),
             )],
             range_calls: Arc::clone(&range_calls),
+            covered: false,
+            ..Default::default()
         });
         let service = quote_service_for_asset(asset, quote_store).await?;
 
@@ -4811,14 +4954,199 @@ mod tests {
 
         assert_eq!(
             range_calls.load(Ordering::Relaxed),
-            0,
-            "market assets must keep using the provider, not stored quotes"
+            1,
+            "a sparse row is not proof that the requested interval has been fetched"
         );
         assert!(
             result.is_err(),
             "no provider is enabled, so the provider path must surface its own error"
         );
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn resolution_and_history_reuse_covered_canonical_asset_without_providers() -> Result<()>
+    {
+        let asset = Asset {
+            id: "canonical-aapl".into(),
+            kind: AssetKind::Investment,
+            instrument_type: Some(InstrumentType::Equity),
+            instrument_symbol: Some("AAPL".into()),
+            instrument_exchange_mic: Some("XNAS".into()),
+            quote_mode: QuoteMode::Market,
+            quote_ccy: "USD".into(),
+            ..Default::default()
+        };
+        let today = time_utils::market_calendar_date(Utc::now(), Some("XNAS"), false);
+        let mut quote = stored_quote(&asset.id, today, dec!(123));
+        quote.currency = "USD".into();
+        quote.data_source = "YAHOO".into();
+        let store = Arc::new(RangeQuoteStore {
+            quotes: vec![quote],
+            covered: true,
+            ..Default::default()
+        });
+        let service = quote_service_for_asset(asset, store).await?;
+        let resolved = service
+            .resolve_symbol_quote(
+                "AAPL",
+                Some("XNAS"),
+                Some(&InstrumentType::Equity),
+                Some("USD"),
+                None,
+                None,
+            )
+            .await?;
+        assert_eq!(resolved.price, Some(dec!(123)));
+        assert_eq!(resolved.currency.as_deref(), Some("USD"));
+        let history = service
+            .fetch_quotes_for_symbol("canonical-aapl", "USD", today, today)
+            .await?;
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].close, dec!(123));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn cached_history_preserves_minor_units_and_adjusted_prices() -> Result<()> {
+        let asset = Asset {
+            id: "london-share".into(),
+            kind: AssetKind::Investment,
+            instrument_type: Some(InstrumentType::Equity),
+            instrument_symbol: Some("TEST".into()),
+            instrument_exchange_mic: Some("XLON".into()),
+            quote_mode: QuoteMode::Market,
+            quote_ccy: "GBp".into(),
+            ..Default::default()
+        };
+        let day = time_utils::market_calendar_date(Utc::now(), Some("XLON"), false);
+        let mut quote = stored_quote(&asset.id, day, dec!(12345));
+        quote.currency = "GBp".into();
+        quote.data_source = "YAHOO".into();
+        quote.open = dec!(12000);
+        quote.high = dec!(12500);
+        quote.low = dec!(11900);
+        quote.adjclose = dec!(12001.5);
+        quote.volume = dec!(456);
+        let store = Arc::new(RangeQuoteStore {
+            quotes: vec![quote.clone()],
+            covered: true,
+            ..Default::default()
+        });
+        let service = quote_service_for_asset(asset, store).await?;
+        for _ in 0..2 {
+            let rows = service
+                .fetch_quotes_for_symbol("london-share", "GBP", day, day)
+                .await?;
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].currency, "GBp");
+            assert_eq!(rows[0].close, quote.close);
+            assert_eq!(rows[0].adjclose, quote.adjclose);
+            assert_eq!(
+                (rows[0].open, rows[0].high, rows[0].low, rows[0].volume),
+                (quote.open, quote.high, quote.low, quote.volume)
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn credential_hook_invalidates_only_market_provider_keys() -> Result<()> {
+        let invalidations = Arc::new(AtomicUsize::new(0));
+        let service = quote_service_for_asset(
+            Asset::default(),
+            Arc::new(RangeQuoteStore {
+                invalidations: invalidations.clone(),
+                ..Default::default()
+            }),
+        )
+        .await?;
+        service.handle_credential_change("ai_openai").await?;
+        assert_eq!(invalidations.load(Ordering::Relaxed), 0);
+        service.handle_credential_change("alpha_vantage").await?;
+        assert_eq!(invalidations.load(Ordering::Relaxed), 1);
+        service.handle_credential_change("ALPHA_VANTAGE").await?;
+        assert_eq!(invalidations.load(Ordering::Relaxed), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn custom_credentials_match_only_actual_header_references() {
+        let provider: crate::custom_provider::CustomProviderWithSources = serde_json::from_value(
+            serde_json::json!({
+                "id": "fund", "name": "Fund", "description": "", "enabled": true,
+                "priority": 1, "useAsFallback": false,
+                "sources": [{ "id": "history", "providerId": "fund", "kind": "historical",
+                    "format": "json", "url": "https://example.invalid/{SYMBOL}",
+                    "pricePath": "$.price", "headers": "{\"Authorization\":\"__SECRET__custom-fund-key\"}" }]
+            })
+        ).unwrap();
+        assert!(custom_provider_uses_credential(
+            std::slice::from_ref(&provider),
+            "custom-fund-key"
+        ));
+        assert!(custom_provider_uses_credential(
+            std::slice::from_ref(&provider),
+            "CUSTOM-FUND-KEY"
+        ));
+        assert!(!custom_provider_uses_credential(&[provider], "ai_openai"));
+    }
+
+    #[test]
+    fn resolution_identity_does_not_cross_exchange_currency_or_provider() {
+        let requested = Asset {
+            instrument_type: Some(InstrumentType::Equity),
+            instrument_symbol: Some("ABC".into()),
+            instrument_exchange_mic: Some("XNAS".into()),
+            quote_ccy: "USD".into(),
+            ..Default::default()
+        };
+        assert!(asset_matches_quote_resolution(&requested, &requested));
+        let mut other = requested.clone();
+        other.instrument_exchange_mic = Some("XTSE".into());
+        assert!(!asset_matches_quote_resolution(&other, &requested));
+        other = requested.clone();
+        other.quote_ccy = "CAD".into();
+        assert!(!asset_matches_quote_resolution(&other, &requested));
+        other = requested.clone();
+        other.instrument_exchange_mic = None;
+        assert!(!asset_matches_quote_resolution(&requested, &other));
+        other = requested.clone();
+        other.provider_config = Some(serde_json::json!({"preferred_provider": "IFIND"}));
+        assert!(!asset_matches_quote_resolution(&requested, &other));
+    }
+
+    #[test]
+    fn provider_history_identity_ignores_bookkeeping_but_not_configuration() {
+        let mut provider = MarketDataProviderSetting {
+            id: "YAHOO".into(),
+            name: "Yahoo".into(),
+            description: String::new(),
+            url: None,
+            priority: 1,
+            enabled: true,
+            logo_filename: None,
+            last_synced_at: None,
+            last_sync_status: None,
+            last_sync_error: None,
+            capabilities: None,
+            provider_type: None,
+            config: None,
+        };
+        let original = history_provider_configuration(&[provider.clone()]);
+        provider.last_synced_at = Some("2026-01-01".into());
+        provider.name = "Renamed".into();
+        assert_eq!(
+            original,
+            history_provider_configuration(&[provider.clone()])
+        );
+        provider.config = Some("non-secret-provider-setting".into());
+        let changed = history_provider_configuration(&[provider.clone()]);
+        assert_ne!(original, changed);
+        assert_eq!(changed.len(), 64);
+        assert!(!changed.contains("non-secret-provider-setting"));
+        provider.enabled = false;
+        assert_ne!(changed, history_provider_configuration(&[provider]));
     }
 
     #[test]

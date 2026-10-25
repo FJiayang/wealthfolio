@@ -40,6 +40,7 @@ pub mod client;
 pub mod constants;
 pub mod custom_scraper_provider;
 pub mod errors;
+pub mod history;
 pub mod import;
 pub mod model;
 pub mod provider_settings;

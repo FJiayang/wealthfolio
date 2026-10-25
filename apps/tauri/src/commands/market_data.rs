@@ -129,17 +129,8 @@ pub async fn sync_market_data(
     state: ProfileAccess,
 ) -> Result<(), String> {
     let context = state.context()?;
-    // Determine the appropriate market sync mode based on refetch_all flag
-    let market_sync_mode = if let Some(days) = refetch_recent_days {
-        MarketSyncMode::RefetchRecent { asset_ids, days }
-    } else if refetch_all {
-        MarketSyncMode::BackfillHistory {
-            asset_ids,
-            days: 365 * 5, // 5 years of history as fallback
-        }
-    } else {
-        MarketSyncMode::Incremental { asset_ids }
-    };
+    let market_sync_mode =
+        MarketSyncMode::for_quote_refresh(asset_ids, refetch_all, refetch_recent_days);
 
     let payload = PortfolioRequestPayload::builder()
         .account_ids(None)

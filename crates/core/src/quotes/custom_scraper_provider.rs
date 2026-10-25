@@ -276,13 +276,30 @@ impl CustomScraperProvider {
         from: Option<&str>,
         to: Option<&str>,
     ) -> Result<Vec<MarketQuote>, MarketDataError> {
+        self.fetch_from_source_with_coverage(source, symbol, currency_hint, context, from, to)
+            .await
+            .map(|result| result.quotes)
+    }
+
+    async fn fetch_from_source_with_coverage(
+        &self,
+        source: &CustomProviderSource,
+        symbol: &str,
+        currency_hint: Option<&str>,
+        context: Option<&QuoteContext>,
+        from: Option<&str>,
+        to: Option<&str>,
+    ) -> Result<wealthfolio_market_data::HistoricalQuotes, MarketDataError> {
         // Default price fallback — if URL is empty, return static price
         if source.url.is_empty() {
             if let Some(price) = source.default_price {
                 let close = to_decimal(price);
                 let currency = currency_hint.unwrap_or("USD").to_string();
                 let src = format!("{}:{}", DATA_SOURCE_CUSTOM_SCRAPER, source.provider_id);
-                return Ok(vec![MarketQuote::new(Utc::now(), close, currency, src)]);
+                return Ok(wealthfolio_market_data::HistoricalQuotes {
+                    quotes: vec![MarketQuote::new(Utc::now(), close, currency, src)],
+                    complete: false,
+                });
             }
             return Err(MarketDataError::ProviderError {
                 provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
@@ -333,7 +350,10 @@ impl CustomScraperProvider {
                     let close = to_decimal(price);
                     let currency = currency_hint.unwrap_or("USD").to_string();
                     let src = format!("{}:{}", DATA_SOURCE_CUSTOM_SCRAPER, source.provider_id);
-                    return Ok(vec![MarketQuote::new(Utc::now(), close, currency, src)]);
+                    return Ok(wealthfolio_market_data::HistoricalQuotes {
+                        quotes: vec![MarketQuote::new(Utc::now(), close, currency, src)],
+                        complete: false,
+                    });
                 }
                 return Err(e);
             }
@@ -363,7 +383,10 @@ impl CustomScraperProvider {
                         ),
                     });
                 }
-                Ok(rows_to_quotes(rows, source, &currency))
+                Ok(wealthfolio_market_data::HistoricalQuotes {
+                    quotes: rows_to_quotes(rows, source, &currency),
+                    complete: false,
+                })
             }
             "csv" => {
                 let rows = extract_csv_rows(&body, source, locale_ref);
@@ -373,10 +396,14 @@ impl CustomScraperProvider {
                         message: format!("No rows extracted from CSV for symbol '{}'", symbol),
                     });
                 }
-                Ok(rows_to_quotes(rows, source, &currency))
+                Ok(wealthfolio_market_data::HistoricalQuotes {
+                    quotes: rows_to_quotes(rows, source, &currency),
+                    complete: false,
+                })
             }
             "json" => {
-                let rows = extract_json_rows(&body, source, &tctx, locale_ref)?;
+                let (rows, complete) =
+                    extract_json_rows_with_coverage(&body, source, &tctx, locale_ref)?;
                 if rows.is_empty() {
                     return Err(MarketDataError::ProviderError {
                         provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
@@ -386,7 +413,13 @@ impl CustomScraperProvider {
                         ),
                     });
                 }
-                Ok(rows_to_quotes(rows, source, &currency))
+                Ok(wealthfolio_market_data::HistoricalQuotes {
+                    quotes: rows_to_quotes(rows, source, &currency),
+                    complete: complete
+                        && historical_source_can_certify(source)
+                        && from.is_some()
+                        && to.is_some(),
+                })
             }
             "html" => {
                 let price =
@@ -424,7 +457,10 @@ impl CustomScraperProvider {
                 quote.high = high.map(to_decimal);
                 quote.low = low.map(to_decimal);
                 quote.volume = volume.map(to_decimal);
-                Ok(vec![quote])
+                Ok(wealthfolio_market_data::HistoricalQuotes {
+                    quotes: vec![quote],
+                    complete: false,
+                })
             }
             _ => Err(MarketDataError::ProviderError {
                 provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
@@ -551,6 +587,18 @@ impl MarketDataProvider for CustomScraperProvider {
         start: DateTime<Utc>,
         end: DateTime<Utc>,
     ) -> Result<Vec<MarketQuote>, MarketDataError> {
+        self.get_historical_quotes_with_coverage(context, instrument, start, end)
+            .await
+            .map(|result| result.quotes)
+    }
+
+    async fn get_historical_quotes_with_coverage(
+        &self,
+        context: &QuoteContext,
+        instrument: ProviderInstrument,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<wealthfolio_market_data::HistoricalQuotes, MarketDataError> {
         let symbol = match &instrument {
             ProviderInstrument::EquitySymbol { symbol } => symbol.to_string(),
             _ => {
@@ -572,7 +620,7 @@ impl MarketDataProvider for CustomScraperProvider {
             for source in &sources {
                 let sym = Self::resolve_symbol(context, source, &symbol);
                 match self
-                    .fetch_from_source_with_dates(
+                    .fetch_from_source_with_coverage(
                         source,
                         &sym,
                         currency_hint,
@@ -611,7 +659,12 @@ impl MarketDataProvider for CustomScraperProvider {
                 .fetch_from_source(source, &sym, currency_hint, Some(context))
                 .await
             {
-                Ok(quote) => return Ok(vec![quote]),
+                Ok(quote) => {
+                    return Ok(wealthfolio_market_data::HistoricalQuotes {
+                        quotes: vec![quote],
+                        complete: false,
+                    })
+                }
                 Err(e) => {
                     log::debug!(
                         "CustomScraper [{}]: latest fallback failed for '{}': {}",
@@ -1085,17 +1138,65 @@ fn extract_csv_rows(
 
 // ─── JSON multi-row extraction ───────────────────────────────────────────────
 
+/// A source explicitly configured with both range bounds may certify that
+/// request, but latest/default-price fallbacks and unbounded sources may not.
+fn historical_source_has_range(source: &CustomProviderSource) -> bool {
+    // Fragments are not sent over HTTP; GET bodies are not dispatched by the
+    // existing request builder. Neither can prove a bounded remote request.
+    let url = source.url.split('#').next().unwrap_or_default();
+    let body = if source.method == crate::custom_provider::HttpMethod::Post {
+        source.body.as_deref().unwrap_or_default()
+    } else {
+        ""
+    };
+    let template = format!("{url} {body}");
+    let from = template.contains("{FROM}") || template.contains("{FROM:");
+    let to = template.contains("{TO}") || template.contains("{TO:");
+    source.kind == "historical" && from && to
+}
+
+/// Credential values can change while a profile is not running. Do not retain
+/// an indefinitely settled query receipt for authenticated custom datasets.
+/// The normal credential-change hook still invalidates active profiles at once;
+/// a partial receipt bounds reuse to the existing refresh cadence otherwise.
+fn historical_source_can_certify(source: &CustomProviderSource) -> bool {
+    let uses_credential = source
+        .headers
+        .as_deref()
+        .and_then(|headers| {
+            serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(headers).ok()
+        })
+        .is_some_and(|headers| {
+            headers.values().any(|value| {
+                value
+                    .as_str()
+                    .is_some_and(|value| value.starts_with("__SECRET__"))
+            })
+        });
+    historical_source_has_range(source) && !uses_credential
+}
+
+#[cfg(test)]
 fn extract_json_rows(
     body: &str,
     source: &CustomProviderSource,
     tctx: &TemplateContext<'_>,
     locale: Option<&str>,
 ) -> Result<Vec<ExtractedRow>, MarketDataError> {
+    extract_json_rows_with_coverage(body, source, tctx, locale).map(|(rows, _)| rows)
+}
+
+fn extract_json_rows_with_coverage(
+    body: &str,
+    source: &CustomProviderSource,
+    tctx: &TemplateContext<'_>,
+    locale: Option<&str>,
+) -> Result<(Vec<ExtractedRow>, bool), MarketDataError> {
     use jsonpath_rust::JsonPathQuery;
 
     let json: serde_json::Value = match serde_json::from_str(body) {
         Ok(j) => j,
-        Err(_) => return Ok(Vec::new()),
+        Err(_) => return Ok((Vec::new(), false)),
     };
 
     let expand_path = |p: &str| {
@@ -1107,12 +1208,14 @@ fn extract_json_rows(
     const MAX_JSON_ROWS: usize = 10_000;
 
     let price_path = expand_path(&source.price_path)?;
-    let prices: Vec<serde_json::Value> = match json.clone().path(&price_path) {
-        Ok(serde_json::Value::Array(arr)) => arr.into_iter().take(MAX_JSON_ROWS).collect(),
+    let raw_prices: Vec<serde_json::Value> = match json.clone().path(&price_path) {
+        Ok(serde_json::Value::Array(arr)) => arr,
         Ok(val) => vec![val],
-        Err(_) => return Ok(Vec::new()),
+        Err(_) => return Ok((Vec::new(), false)),
     };
 
+    let raw_count = raw_prices.len();
+    let prices: Vec<_> = raw_prices.into_iter().take(MAX_JSON_ROWS).collect();
     let dates: Vec<Option<String>> = source
         .date_path
         .as_ref()
@@ -1154,7 +1257,17 @@ fn extract_json_rows(
         source.date_path,
     );
 
-    Ok(prices
+    let optional_fields_complete = [
+        (source.open_path.as_ref(), &opens),
+        (source.high_path.as_ref(), &highs),
+        (source.low_path.as_ref(), &lows),
+        (source.volume_path.as_ref(), &volumes),
+    ]
+    .iter()
+    .all(|(path, values)| {
+        path.is_none() || (values.len() == raw_count && values.iter().all(Option::is_some))
+    });
+    let rows = prices
         .into_iter()
         .enumerate()
         .filter_map(|(i, val)| {
@@ -1172,7 +1285,17 @@ fn extract_json_rows(
                 volume: volumes.get(i).copied().flatten(),
             })
         })
-        .collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    let complete = raw_count <= MAX_JSON_ROWS
+        && rows.len() == raw_count
+        && dates.len() == raw_count
+        && optional_fields_complete
+        && rows.iter().all(|row| {
+            row.date
+                .and_then(|date| parse_date_to_utc(date, source.date_timezone.as_deref()))
+                .is_some()
+        });
+    Ok((rows, complete))
 }
 
 fn extract_json_f64_array(
@@ -1274,6 +1397,129 @@ mod tests {
         source.kind = kind.to_string();
         source.url = url.to_string();
         source
+    }
+
+    #[test]
+    fn historical_json_coverage_requires_ranged_lossless_dated_rows() {
+        let mut source = json_source("$.rows[*].price");
+        source.date_path = Some("$.rows[*].date".into());
+        source.url = "https://example.test/history?from={FROM}&to={TO}".into();
+        let context = TemplateContext {
+            symbol: "TEST",
+            currency: "USD",
+            isin: None,
+            mic: None,
+            from: Some("2026-01-01"),
+            to: Some("2026-01-31"),
+        };
+        assert!(historical_source_has_range(&source));
+        let valid =
+            r#"{"rows":[{"price":10,"date":"2026-01-02"},{"price":11,"date":"2026-01-05"}]}"#;
+        let (rows, complete) =
+            extract_json_rows_with_coverage(valid, &source, &context, None).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert!(complete);
+        for partial in [
+            r#"{"rows":[{"price":10,"date":"2026-01-02"},{"price":"bad","date":"2026-01-05"}]}"#,
+            r#"{"rows":[{"price":10,"date":"invalid"}]}"#,
+        ] {
+            assert!(
+                !extract_json_rows_with_coverage(partial, &source, &context, None)
+                    .unwrap()
+                    .1
+            );
+        }
+        source.url = "https://example.test/latest".into();
+        assert!(!historical_source_has_range(&source));
+        source.body = Some("from={FROM}&to={TO}".into());
+        assert!(
+            !historical_source_has_range(&source),
+            "GET bodies are not transmitted"
+        );
+        source.method = HttpMethod::Post;
+        assert!(historical_source_has_range(&source));
+        source.method = HttpMethod::Get;
+        source.body = None;
+        source.url = "https://example.test/history#from={FROM}&to={TO}".into();
+        assert!(!historical_source_has_range(&source));
+        source.url = "https://example.test/history?from={FROM}&to={TO}".into();
+        source.kind = "latest".into();
+        assert!(!historical_source_has_range(&source));
+    }
+
+    #[test]
+    fn historical_authenticated_json_is_partial_but_public_json_can_certify() {
+        let mut source = json_source("$.rows[*].price");
+        source.date_path = Some("$.rows[*].date".into());
+        source.url = "https://example.test/history?from={FROM}&to={TO}".into();
+        let context = TemplateContext {
+            symbol: "TEST",
+            currency: "USD",
+            isin: None,
+            mic: None,
+            from: Some("2026-01-01"),
+            to: Some("2026-01-31"),
+        };
+        let (_, complete) = extract_json_rows_with_coverage(
+            r#"{"rows":[{"price":10,"date":"2026-01-02"}]}"#,
+            &source,
+            &context,
+            None,
+        )
+        .unwrap();
+        assert!(complete && historical_source_can_certify(&source));
+        source.headers = Some(r#"{"Authorization":"__SECRET__custom_token"}"#.into());
+        assert!(!(complete && historical_source_can_certify(&source)));
+        source.headers = Some(r#"{"Accept":"application/json"}"#.into());
+        assert!(complete && historical_source_can_certify(&source));
+        // Only values actually resolved as secret placeholders matter. A name
+        // or an embedded literal is not interpreted by the request builder.
+        source.headers =
+            Some(r#"{"__SECRET__label":"literal","X-Note":"prefix __SECRET__literal"}"#.into());
+        assert!(historical_source_can_certify(&source));
+    }
+
+    #[test]
+    fn historical_json_row_cap_is_partial_not_complete() {
+        let mut source = json_source("$.rows[*].price");
+        source.date_path = Some("$.rows[*].date".into());
+        let context = TemplateContext {
+            symbol: "TEST",
+            currency: "USD",
+            isin: None,
+            mic: None,
+            from: None,
+            to: None,
+        };
+        let body = serde_json::json!({"rows": vec![serde_json::json!({"price":10,"date":"2026-01-02"}); 10_001]}).to_string();
+        let (rows, complete) =
+            extract_json_rows_with_coverage(&body, &source, &context, None).unwrap();
+        assert_eq!(rows.len(), 10_000);
+        assert!(!complete);
+    }
+
+    #[tokio::test]
+    async fn historical_default_price_never_certifies_a_range() {
+        let provider = CustomScraperProvider::new(
+            Arc::new(MockCustomProviderRepository { providers: vec![] }),
+            Arc::new(MockSecretStore),
+        );
+        let mut source = json_source("$.price");
+        source.url.clear();
+        source.default_price = Some(12.0);
+        let result = provider
+            .fetch_from_source_with_coverage(
+                &source,
+                "TEST",
+                Some("USD"),
+                None,
+                Some("2026-01-01"),
+                Some("2026-01-31"),
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.quotes.len(), 1);
+        assert!(!result.complete);
     }
 
     struct MockCustomProviderRepository {

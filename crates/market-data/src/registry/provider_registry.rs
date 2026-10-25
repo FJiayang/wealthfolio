@@ -1009,6 +1009,7 @@ impl ProviderRegistry {
         // fallbacks failing must not replace it in the sync error.
         let mut first_error: Option<MarketDataError> = None;
         let mut saw_no_data = false;
+        let mut all_empty_responses_complete = true;
 
         for provider in providers {
             let provider_id: ProviderId = Cow::Borrowed(provider.id());
@@ -1045,12 +1046,15 @@ impl ProviderRegistry {
             self.rate_limiter.acquire(&provider_id).await;
 
             match provider
-                .get_historical_quotes(context, resolved.instrument, start, end)
+                .get_historical_quotes_with_coverage(context, resolved.instrument, start, end)
                 .await
             {
-                Ok(mut quotes) => {
+                Ok(response) => {
+                    let provider_complete = response.complete;
+                    let mut quotes = response.quotes;
                     let original_count = quotes.len();
                     if original_count == 0 {
+                        all_empty_responses_complete &= provider_complete;
                         diagnostics.record_error(
                             provider_id.clone(),
                             "No data returned for requested range".to_string(),
@@ -1090,11 +1094,15 @@ impl ProviderRegistry {
                     }
 
                     self.circuit_breaker.record_success(&provider_id);
+                    diagnostics.history_complete =
+                        provider_complete && valid_quotes.len() == original_count;
                     diagnostics.record_success(provider_id);
                     return (Ok(valid_quotes), diagnostics);
                 }
                 Err(MarketDataError::NotSupported { .. }) => continue,
                 Err(MarketDataError::NoDataForRange) => {
+                    // Legacy/bounded endpoints cannot certify an empty interval.
+                    all_empty_responses_complete = false;
                     diagnostics.record_error(
                         provider_id,
                         "No data returned for requested range".to_string(),
@@ -1131,6 +1139,15 @@ impl ProviderRegistry {
             "All providers failed. Diagnostics: {}",
             diagnostics.summary()
         );
+        diagnostics.history_complete = first_error.is_none()
+            && saw_no_data
+            && all_empty_responses_complete
+            && !diagnostics.attempts.iter().any(|attempt| {
+                matches!(
+                    attempt.skipped,
+                    Some(SkipReason::CircuitBreakerOpen | SkipReason::RateLimited)
+                )
+            });
         let error = first_error.unwrap_or_else(|| {
             if saw_no_data {
                 MarketDataError::NoDataForRange

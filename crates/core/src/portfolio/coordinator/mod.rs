@@ -85,6 +85,26 @@ pub struct PortfolioJobReport {
     pub plans: Vec<AccountPlan>,
 }
 
+impl PortfolioJobReport {
+    /// A failed run can already have committed earlier windows. Keep its
+    /// completion refresh conservative instead of claiming it made no changes.
+    fn persisted_changes(&self) -> Option<bool> {
+        let sync = self
+            .market_sync
+            .as_ref()
+            .and_then(|result| result.as_ref().ok());
+        if !self.failures.is_empty()
+            || matches!(self.market_sync, Some(Err(_)))
+            || sync.is_some_and(|result| result.failed > 0)
+        {
+            return None;
+        }
+        // Health bookkeeping alone does not change prices or projections.
+        let market_changed = sync.is_some_and(|result| result.quotes_synced > 0);
+        Some(!self.plans.is_empty() || market_changed)
+    }
+}
+
 /// Retry for in-process job failures (architecture §3.3): storage or engine errors
 /// are retried with backoff; per-account validation failures are not.
 #[derive(Debug, Clone)]
@@ -129,6 +149,11 @@ pub trait JobObserver: Send + Sync {
     fn update_started(&self) {}
     fn update_failed(&self, _failure: &AccountFailure) {}
     fn update_completed(&self) {}
+    /// `None` means a failed job may have written partial results. Hosts should
+    /// suppress refreshes only for a confirmed no-op (`Some(false)`).
+    fn update_completed_with_changes(&self, _changed: Option<bool>) {
+        self.update_completed();
+    }
 }
 
 /// Observer that reports nothing.
@@ -310,9 +335,9 @@ impl PortfolioCoordinator {
             }
         }
         self.report_failures(&report.failures, observer);
-        observer.update_completed();
         // Position status from the fresh holdings feeds quote-sync planning.
         self.reconcile_quote_sync().await;
+        observer.update_completed_with_changes(report.persisted_changes());
         Ok(report)
     }
 
@@ -618,8 +643,11 @@ pub async fn run_periodic_update(
     settings: Arc<dyn SettingsServiceTrait>,
     initial_delay: std::time::Duration,
 ) {
+    // Startup is already requested by the host/frontend. Start the periodic
+    // clock now rather than issuing another unconditional sync after the
+    // startup delay. Settings changes are still observed every minute.
+    let mut last_completed = Some(tokio::time::Instant::now());
     tokio::time::sleep(initial_delay).await;
-    let mut last_completed = None;
     loop {
         wait_for_periodic_update(settings.as_ref(), last_completed).await;
         let report = coordinator

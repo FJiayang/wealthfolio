@@ -79,6 +79,24 @@ impl MarketDataRepository {
     }
 }
 
+fn history_configuration_revision(conn: &mut SqliteConnection) -> Result<String> {
+    use crate::schema::market_data_custom_providers as custom;
+    use sha2::{Digest, Sha256};
+    let revisions = custom::table
+        .order(custom::id.asc())
+        .select((
+            custom::id,
+            custom::updated_at,
+            custom::enabled,
+            custom::priority,
+        ))
+        .load::<(String, String, bool, i32)>(conn)
+        .map_err(StorageError::QueryFailed)?;
+    let payload = serde_json::to_vec(&revisions)
+        .map_err(|err| wealthfolio_core::Error::Repository(err.to_string()))?;
+    Ok(hex::encode(Sha256::digest(payload)))
+}
+
 fn reset_context(conn: &mut SqliteConnection, id: &str) -> Result<ProviderHistoryResetContext> {
     use crate::schema::{assets, market_data_providers as providers};
     let asset: wealthfolio_core::assets::Asset = assets::table
@@ -129,12 +147,439 @@ fn reset_context(conn: &mut SqliteConnection, id: &str) -> Result<ProviderHistor
     })
 }
 
+/// Normal query guards include live custom configuration revisions. Explicit
+/// reset keeps its original, narrower eligibility/configuration semantics.
+fn history_context(
+    conn: &mut SqliteConnection,
+    asset_id: &str,
+) -> Result<ProviderHistoryResetContext> {
+    let mut context = reset_context(conn, asset_id)?;
+    context.fingerprint = serde_json::json!({
+        "assetAndProviders": context.fingerprint,
+        "customProviderRevision": history_configuration_revision(conn)?,
+    })
+    .to_string();
+    Ok(context)
+}
+
+fn upsert_quote_rows(
+    tx: &mut crate::db::write_actor::DbWriteTx<'_>,
+    db_rows: Vec<QuoteDB>,
+) -> Result<usize> {
+    // Skip provider quotes for days that already have a MANUAL override.
+    let db_rows = {
+        let provider_pairs: HashSet<(&str, &str)> = db_rows
+            .iter()
+            .filter(|r| r.source != "MANUAL")
+            .map(|r| (r.asset_id.as_str(), r.day.as_str()))
+            .collect();
+
+        if provider_pairs.is_empty() {
+            db_rows
+        } else {
+            let provider_pairs: Vec<_> = provider_pairs.into_iter().collect();
+            // Each pair can add two IN parameters; reserve one for source.
+            let pairs_per_chunk = (SQLITE_MAX_PARAMS_CHUNK - 1) / 2;
+            let mut manual_days = HashSet::new();
+            for chunk in provider_pairs.chunks(pairs_per_chunk) {
+                let asset_ids: HashSet<&str> = chunk.iter().map(|(a, _)| *a).collect();
+                let days: HashSet<&str> = chunk.iter().map(|(_, d)| *d).collect();
+                let rows = quotes_dsl::quotes
+                    .filter(quotes_dsl::source.eq("MANUAL"))
+                    .filter(quotes_dsl::asset_id.eq_any(asset_ids))
+                    .filter(quotes_dsl::day.eq_any(days))
+                    .select((quotes_dsl::asset_id, quotes_dsl::day))
+                    .load::<(String, String)>(tx.conn())
+                    .map_err(StorageError::QueryFailed)?;
+                manual_days.extend(rows);
+            }
+
+            if manual_days.is_empty() {
+                db_rows
+            } else {
+                db_rows
+                    .into_iter()
+                    .filter(|r| {
+                        r.source == "MANUAL"
+                            || !manual_days.contains(&(r.asset_id.clone(), r.day.clone()))
+                    })
+                    .collect()
+            }
+        }
+    };
+
+    let mut total_upserted: usize = 0;
+
+    let (manual_rows, provider_rows): (Vec<QuoteDB>, Vec<QuoteDB>) = db_rows
+        .into_iter()
+        .partition(|row| row.source.eq_ignore_ascii_case("MANUAL"));
+
+    for chunk in provider_rows.chunks(1_000) {
+        total_upserted += diesel::replace_into(quotes_dsl::quotes)
+            .values(chunk)
+            .execute(tx.conn())
+            .map_err(StorageError::QueryFailed)?;
+    }
+
+    for row in manual_rows {
+        let mut payload = row;
+        let existing = quotes_dsl::quotes
+            .filter(quotes_dsl::asset_id.eq(&payload.asset_id))
+            .filter(quotes_dsl::day.eq(&payload.day))
+            .filter(quotes_dsl::source.eq(&payload.source))
+            .select(QuoteDB::as_select())
+            .first::<QuoteDB>(tx.conn())
+            .optional()
+            .map_err(StorageError::QueryFailed)?;
+
+        let is_update = existing.is_some();
+        if let Some(existing_row) = existing {
+            payload.id = existing_row.id;
+        }
+
+        total_upserted += diesel::replace_into(quotes_dsl::quotes)
+            .values(&payload)
+            .execute(tx.conn())
+            .map_err(StorageError::QueryFailed)?;
+
+        if is_update {
+            tx.update(&payload)?;
+        } else {
+            tx.insert(&payload)?;
+        }
+    }
+    Ok(total_upserted)
+}
+
+fn invalidate_history(conn: &mut SqliteConnection, asset_id: &str) -> Result<()> {
+    sql_query("DELETE FROM market_history_queries WHERE asset_id = ?")
+        .bind::<Text, _>(asset_id)
+        .execute(conn)
+        .map_err(StorageError::QueryFailed)?;
+    Ok(())
+}
+
+#[derive(Clone, QueryableByName)]
+struct HistoryCoverageRow {
+    #[diesel(sql_type = Text)]
+    identity: String,
+    #[diesel(sql_type = Text)]
+    asset_id: String,
+    #[diesel(sql_type = Text)]
+    start_day: String,
+    #[diesel(sql_type = Text)]
+    end_day: String,
+    #[diesel(sql_type = Text)]
+    fetched_at: String,
+    #[diesel(sql_type = Text)]
+    outcome: String,
+}
+
+#[derive(QueryableByName)]
+struct BenchmarkQuoteRow {
+    #[diesel(sql_type = Text)]
+    quote_json: String,
+}
+
+fn insert_history_receipt(conn: &mut SqliteConnection, row: &HistoryCoverageRow) -> Result<()> {
+    sql_query(
+        "INSERT OR REPLACE INTO market_history_queries
+        (identity, asset_id, start_day, end_day, fetched_at, outcome) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind::<Text, _>(&row.identity)
+    .bind::<Text, _>(&row.asset_id)
+    .bind::<Text, _>(&row.start_day)
+    .bind::<Text, _>(&row.end_day)
+    .bind::<Text, _>(&row.fetched_at)
+    .bind::<Text, _>(&row.outcome)
+    .execute(conn)
+    .map_err(StorageError::QueryFailed)?;
+    Ok(())
+}
+
+/// The newest successful observation replaces only its queried interval.
+/// In particular, an empty/partial refresh must not leave an old Complete
+/// receipt underneath it that would become visible again after its TTL.
+fn replace_history_receipt(
+    conn: &mut SqliteConnection,
+    incoming: HistoryCoverageRow,
+) -> Result<()> {
+    let overlapping = sql_query(
+        "SELECT identity, asset_id, start_day, end_day, fetched_at, outcome
+        FROM market_history_queries WHERE identity = ? AND start_day <= ? AND end_day >= ?",
+    )
+    .bind::<Text, _>(&incoming.identity)
+    .bind::<Text, _>(&incoming.end_day)
+    .bind::<Text, _>(&incoming.start_day)
+    .load::<HistoryCoverageRow>(conn)
+    .map_err(StorageError::QueryFailed)?;
+    sql_query(
+        "DELETE FROM market_history_queries WHERE identity = ? AND start_day <= ? AND end_day >= ?",
+    )
+    .bind::<Text, _>(&incoming.identity)
+    .bind::<Text, _>(&incoming.end_day)
+    .bind::<Text, _>(&incoming.start_day)
+    .execute(conn)
+    .map_err(StorageError::QueryFailed)?;
+    let start = NaiveDate::parse_from_str(&incoming.start_day, "%Y-%m-%d")?;
+    let end = NaiveDate::parse_from_str(&incoming.end_day, "%Y-%m-%d")?;
+    for old in overlapping {
+        if old.start_day < incoming.start_day {
+            let mut left = old.clone();
+            left.end_day = start
+                .pred_opt()
+                .expect("an earlier stored day proves a predecessor")
+                .to_string();
+            insert_history_receipt(conn, &left)?;
+        }
+        if old.end_day > incoming.end_day {
+            let mut right = old;
+            right.start_day = end
+                .succ_opt()
+                .expect("a later stored day proves a successor")
+                .to_string();
+            insert_history_receipt(conn, &right)?;
+        }
+    }
+    insert_history_receipt(conn, &incoming)
+}
+
+fn same_quote_payload(left: &Quote, right: &Quote) -> bool {
+    left.asset_id == right.asset_id
+        && left.timestamp == right.timestamp
+        && left.data_source == right.data_source
+        && left.currency == right.currency
+        && left.open == right.open
+        && left.high == right.high
+        && left.low == right.low
+        && left.close == right.close
+        && left.adjclose == right.adjclose
+        && left.volume == right.volume
+        && left.notes == right.notes
+}
+
+fn changed_history_rows(
+    conn: &mut SqliteConnection,
+    asset_id: &str,
+    start: NaiveDate,
+    end: NaiveDate,
+    incoming: &[Quote],
+) -> Result<Vec<QuoteDB>> {
+    if incoming.is_empty() {
+        return Ok(Vec::new());
+    }
+    let existing = quotes_dsl::quotes
+        .filter(quotes_dsl::asset_id.eq(asset_id))
+        .filter(quotes_dsl::day.ge(start.to_string()))
+        .filter(quotes_dsl::day.le(end.to_string()))
+        .select(QuoteDB::as_select())
+        .load::<QuoteDB>(conn)
+        .map_err(StorageError::QueryFailed)?;
+    let existing: HashMap<_, _> = existing
+        .into_iter()
+        .map(|row| ((row.day.clone(), row.source.clone()), Quote::from(row)))
+        .collect();
+    Ok(incoming
+        .iter()
+        .filter(|quote| {
+            // Manual mutation behavior is deliberately unchanged; this optimization
+            // is only for provider data received by a market query.
+            quote.data_source == "MANUAL"
+                || !existing
+                    .get(&(
+                        quote.timestamp.date_naive().to_string(),
+                        quote.data_source.clone(),
+                    ))
+                    .is_some_and(|stored| same_quote_payload(stored, quote))
+        })
+        .map(QuoteDB::from)
+        .collect())
+}
+
+fn upsert_benchmark_rows(
+    conn: &mut SqliteConnection,
+    identity: &str,
+    quotes: &[Quote],
+) -> Result<usize> {
+    if quotes.is_empty() {
+        return Ok(0);
+    }
+    let mut count = 0;
+    let existing = sql_query("SELECT quote_json FROM benchmark_history WHERE identity = ?")
+        .bind::<Text, _>(identity)
+        .load::<BenchmarkQuoteRow>(conn)
+        .map_err(StorageError::QueryFailed)?;
+    let existing: HashMap<NaiveDate, Quote> = existing
+        .into_iter()
+        .map(|row| {
+            serde_json::from_str::<Quote>(&row.quote_json)
+                .map(|quote| (quote.timestamp.date_naive(), quote))
+                .map_err(|err| wealthfolio_core::Error::Repository(err.to_string()))
+        })
+        .collect::<Result<_>>()?;
+    for quote in quotes {
+        if existing
+            .get(&quote.timestamp.date_naive())
+            .is_some_and(|stored| same_quote_payload(stored, quote))
+        {
+            continue;
+        }
+        let payload = serde_json::to_string(quote)
+            .map_err(|err| wealthfolio_core::Error::Repository(err.to_string()))?;
+        count += sql_query(
+            "INSERT INTO benchmark_history(identity, day, quote_json) VALUES (?, ?, ?)
+            ON CONFLICT(identity, day) DO UPDATE SET quote_json=excluded.quote_json",
+        )
+        .bind::<Text, _>(identity)
+        .bind::<Text, _>(quote.timestamp.date_naive().to_string())
+        .bind::<Text, _>(payload)
+        .execute(conn)
+        .map_err(StorageError::QueryFailed)?;
+    }
+    Ok(count)
+}
+
 // =============================================================================
 // QuoteStore Implementation
 // =============================================================================
 
 #[async_trait]
 impl QuoteStore for MarketDataRepository {
+    fn history_configuration_revision(&self) -> Result<String> {
+        history_configuration_revision(&mut *get_connection(&self.pool)?)
+    }
+
+    fn history_coverage(
+        &self,
+        identity: &str,
+    ) -> Result<Vec<wealthfolio_core::quotes::history::HistoryCoverage>> {
+        use wealthfolio_core::quotes::history::{HistoryCoverage, HistoryOutcome};
+        let rows = sql_query(
+            "SELECT identity, asset_id, start_day, end_day, fetched_at, outcome
+            FROM market_history_queries WHERE identity = ? ORDER BY start_day, end_day",
+        )
+        .bind::<Text, _>(identity)
+        .load::<HistoryCoverageRow>(&mut *get_connection(&self.pool)?)
+        .map_err(StorageError::QueryFailed)?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(HistoryCoverage {
+                    identity: row.identity,
+                    asset_id: row.asset_id,
+                    start: NaiveDate::parse_from_str(&row.start_day, "%Y-%m-%d")?,
+                    end: NaiveDate::parse_from_str(&row.end_day, "%Y-%m-%d")?,
+                    fetched_at: chrono::DateTime::parse_from_rfc3339(&row.fetched_at)?
+                        .with_timezone(&chrono::Utc),
+                    outcome: match row.outcome.as_str() {
+                        "complete" => HistoryOutcome::Complete,
+                        "partial" => HistoryOutcome::Partial,
+                        _ => HistoryOutcome::Empty,
+                    },
+                })
+            })
+            .collect()
+    }
+
+    fn benchmark_history(
+        &self,
+        identity: &str,
+        start: NaiveDate,
+        end: NaiveDate,
+    ) -> Result<Vec<Quote>> {
+        let rows = sql_query(
+            "SELECT quote_json FROM benchmark_history
+            WHERE identity = ? AND day >= ? AND day <= ? ORDER BY day",
+        )
+        .bind::<Text, _>(identity)
+        .bind::<Text, _>(start.to_string())
+        .bind::<Text, _>(end.to_string())
+        .load::<BenchmarkQuoteRow>(&mut *get_connection(&self.pool)?)
+        .map_err(StorageError::QueryFailed)?;
+        rows.into_iter()
+            .map(|row| {
+                serde_json::from_str(&row.quote_json)
+                    .map_err(|err| wealthfolio_core::Error::Repository(err.to_string()))
+            })
+            .collect()
+    }
+
+    async fn invalidate_history_coverage(&self, asset_id: Option<&str>) -> Result<()> {
+        let asset_id = asset_id.map(str::to_owned);
+        self.writer
+            .exec(move |conn| {
+                if let Some(asset_id) = asset_id {
+                    invalidate_history(conn, &asset_id)
+                } else {
+                    sql_query("DELETE FROM market_history_queries")
+                        .execute(conn)
+                        .map_err(StorageError::QueryFailed)?;
+                    Ok(())
+                }
+            })
+            .await
+    }
+
+    async fn commit_history_query(
+        &self,
+        coverage: &wealthfolio_core::quotes::history::HistoryCoverage,
+        quotes: &[Quote],
+        benchmark: bool,
+        record_coverage: bool,
+        expected_context: Option<&ProviderHistoryResetContext>,
+    ) -> Result<usize> {
+        use wealthfolio_core::quotes::history::HistoryOutcome;
+        if coverage.start > coverage.end
+            || coverage.identity.is_empty()
+            || quotes.iter().any(|q| {
+                q.asset_id != coverage.asset_id
+                    || q.timestamp.date_naive() < coverage.start
+                    || q.timestamp.date_naive() > coverage.end
+            })
+            || (coverage.outcome == HistoryOutcome::Empty && !quotes.is_empty())
+            || (coverage.outcome == HistoryOutcome::Complete && quotes.is_empty())
+        {
+            return Err(wealthfolio_core::Error::Repository(
+                "Invalid history query result".into(),
+            ));
+        }
+        let coverage = coverage.clone();
+        let quotes = quotes.to_vec();
+        let expected_context = expected_context.cloned();
+        self.writer.exec_tx(move |tx| {
+            if let Some(expected) = &expected_context {
+                let current = history_context(tx.conn(), &coverage.asset_id)?;
+                if expected.asset.id != coverage.asset_id || current.fingerprint != expected.fingerprint {
+                    return Err(wealthfolio_core::Error::Asset(
+                        "Asset or provider settings changed during fetching; quotes were not written".into()));
+                }
+            }
+            let count = if benchmark {
+                upsert_benchmark_rows(tx.conn(), &coverage.identity, &quotes)?
+            } else {
+                let changed = changed_history_rows(tx.conn(), &coverage.asset_id,
+                    coverage.start, coverage.end, &quotes)?;
+                upsert_quote_rows(tx, changed)?
+            };
+            if !record_coverage {
+                return Ok(count);
+            }
+            let outcome = match coverage.outcome {
+                HistoryOutcome::Complete => "complete",
+                HistoryOutcome::Empty => "empty",
+                HistoryOutcome::Partial => "partial",
+            };
+            replace_history_receipt(tx.conn(), HistoryCoverageRow {
+                identity: coverage.identity,
+                asset_id: coverage.asset_id,
+                start_day: coverage.start.to_string(),
+                end_day: coverage.end.to_string(),
+                fetched_at: coverage.fetched_at.to_rfc3339(),
+                outcome: outcome.to_string(),
+            })?;
+            Ok(count)
+        }).await
+    }
+
     // =========================================================================
     // Mutations
     // =========================================================================
@@ -195,6 +640,7 @@ impl QuoteStore for MarketDataRepository {
                     .map_err(StorageError::QueryFailed)?;
 
                 if let Some(row) = existing {
+                    invalidate_history(tx.conn(), &row.asset_id)?;
                     tx.delete_model(&row);
                 }
                 Ok(())
@@ -210,93 +656,18 @@ impl QuoteStore for MarketDataRepository {
         let db_rows: Vec<QuoteDB> = input_quotes.iter().map(QuoteDB::from).collect();
 
         self.writer
-            .exec_tx(move |tx| -> Result<usize> {
-                // Skip provider quotes for days that already have a MANUAL override.
-                let db_rows = {
-                    let provider_pairs: HashSet<(&str, &str)> = db_rows
-                        .iter()
-                        .filter(|r| r.source != "MANUAL")
-                        .map(|r| (r.asset_id.as_str(), r.day.as_str()))
-                        .collect();
-
-                    if provider_pairs.is_empty() {
-                        db_rows
-                    } else {
-                        let provider_pairs: Vec<_> = provider_pairs.into_iter().collect();
-                        // Each pair can add two IN parameters; reserve one for source.
-                        let pairs_per_chunk = (SQLITE_MAX_PARAMS_CHUNK - 1) / 2;
-                        let mut manual_days = HashSet::new();
-                        for chunk in provider_pairs.chunks(pairs_per_chunk) {
-                            let asset_ids: HashSet<&str> = chunk.iter().map(|(a, _)| *a).collect();
-                            let days: HashSet<&str> = chunk.iter().map(|(_, d)| *d).collect();
-                            let rows = quotes_dsl::quotes
-                                .filter(quotes_dsl::source.eq("MANUAL"))
-                                .filter(quotes_dsl::asset_id.eq_any(asset_ids))
-                                .filter(quotes_dsl::day.eq_any(days))
-                                .select((quotes_dsl::asset_id, quotes_dsl::day))
-                                .load::<(String, String)>(tx.conn())
-                                .map_err(StorageError::QueryFailed)?;
-                            manual_days.extend(rows);
-                        }
-
-                        if manual_days.is_empty() {
-                            db_rows
-                        } else {
-                            db_rows
-                                .into_iter()
-                                .filter(|r| {
-                                    r.source == "MANUAL"
-                                        || !manual_days
-                                            .contains(&(r.asset_id.clone(), r.day.clone()))
-                                })
-                                .collect()
-                        }
-                    }
-                };
-
-                let mut total_upserted: usize = 0;
-
-                let (manual_rows, provider_rows): (Vec<QuoteDB>, Vec<QuoteDB>) = db_rows
-                    .into_iter()
-                    .partition(|row| row.source.eq_ignore_ascii_case("MANUAL"));
-
-                for chunk in provider_rows.chunks(1_000) {
-                    total_upserted += diesel::replace_into(quotes_dsl::quotes)
-                        .values(chunk)
-                        .execute(tx.conn())
-                        .map_err(StorageError::QueryFailed)?;
-                }
-
-                for row in manual_rows {
-                    let mut payload = row;
-                    let existing = quotes_dsl::quotes
-                        .filter(quotes_dsl::asset_id.eq(&payload.asset_id))
-                        .filter(quotes_dsl::day.eq(&payload.day))
-                        .filter(quotes_dsl::source.eq(&payload.source))
-                        .select(QuoteDB::as_select())
-                        .first::<QuoteDB>(tx.conn())
-                        .optional()
-                        .map_err(StorageError::QueryFailed)?;
-
-                    let is_update = existing.is_some();
-                    if let Some(existing_row) = existing {
-                        payload.id = existing_row.id;
-                    }
-
-                    total_upserted += diesel::replace_into(quotes_dsl::quotes)
-                        .values(&payload)
-                        .execute(tx.conn())
-                        .map_err(StorageError::QueryFailed)?;
-
-                    if is_update {
-                        tx.update(&payload)?;
-                    } else {
-                        tx.insert(&payload)?;
-                    }
-                }
-                Ok(total_upserted)
-            })
+            .exec_tx(move |tx| -> Result<usize> { upsert_quote_rows(tx, db_rows) })
             .await
+    }
+
+    fn history_write_context(&self, asset_id: &str) -> Result<Option<ProviderHistoryResetContext>> {
+        let mut conn = get_connection(&self.pool)?;
+        conn.transaction::<_, StorageError, _>(|conn| {
+            history_context(conn, asset_id)
+                .map(Some)
+                .map_err(StorageError::from)
+        })
+        .map_err(Into::into)
     }
 
     fn provider_history_reset_context(
@@ -366,6 +737,7 @@ impl QuoteStore for MarketDataRepository {
                 inserted_count += diesel::insert_into(quotes_dsl::quotes).values(chunk)
                     .execute(tx.conn()).map_err(StorageError::QueryFailed)?;
             }
+            invalidate_history(tx.conn(), &context.asset.id)?;
             let now = chrono::Utc::now().to_rfc3339();
             diesel::sql_query("INSERT INTO quote_sync_state
                 (asset_id, data_source, sync_priority, error_count, last_synced_at, created_at, updated_at)
@@ -400,6 +772,7 @@ impl QuoteStore for MarketDataRepository {
                 .execute(tx.conn())
                 .map_err(StorageError::QueryFailed)?;
 
+                invalidate_history(tx.conn(), &asset_id_str)?;
                 for row in &existing_rows {
                     tx.delete_model(row);
                 }
@@ -413,14 +786,15 @@ impl QuoteStore for MarketDataRepository {
         let asset_id_str = asset_id.as_str().to_string();
 
         self.writer
-            .exec(move |conn: &mut SqliteConnection| -> Result<usize> {
+            .exec_tx(move |tx| -> Result<usize> {
                 let count = diesel::delete(
                     quotes_dsl::quotes
-                        .filter(quotes_dsl::asset_id.eq(asset_id_str))
+                        .filter(quotes_dsl::asset_id.eq(&asset_id_str))
                         .filter(quotes_dsl::source.ne("MANUAL")),
                 )
-                .execute(conn)
+                .execute(tx.conn())
                 .map_err(StorageError::QueryFailed)?;
+                invalidate_history(tx.conn(), &asset_id_str)?;
                 Ok(count)
             })
             .await

@@ -83,6 +83,19 @@ async fn periodic_first_run_is_ready_but_later_runs_wait_from_completion() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn periodic_startup_baseline_does_not_repeat_the_startup_sync_after_two_minutes() {
+    let settings = TestSettings::new(6);
+    let started = Instant::now();
+    elapse(120).await;
+    let task = wait_task(settings, Some(started)).await;
+    assert!(!task.is_finished());
+    elapse(6 * 3600 - 120 - 60).await;
+    assert!(!task.is_finished());
+    elapse(60).await;
+    task.await.unwrap();
+}
+
+#[tokio::test(start_paused = true)]
 async fn periodic_interval_can_be_extended_then_shortened_without_restart() {
     let settings = TestSettings::new(1);
     let task = wait_task(settings.clone(), Some(Instant::now())).await;
@@ -140,4 +153,27 @@ async fn periodic_worker_preserves_startup_delay_and_stops_with_its_profile() {
     assert!(task.await.unwrap_err().is_cancelled());
     elapse(24 * 3600).await;
     assert_eq!(settings.reads.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test(start_paused = true)]
+async fn periodic_worker_does_not_issue_a_second_startup_market_request() {
+    struct Observer(AtomicU32);
+    impl JobObserver for Observer {
+        fn market_sync_started(&self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    let h = harness(scenario("NOM-TRADE-01").facts()).await;
+    let observer = Arc::new(Observer(AtomicU32::new(0)));
+    let task = tokio::spawn(run_periodic_update(
+        Arc::new(h.coordinator),
+        observer.clone(),
+        TestSettings::new(6),
+        Duration::from_secs(120),
+    ));
+    tokio::task::yield_now().await;
+    elapse(120).await;
+    assert_eq!(observer.0.load(Ordering::SeqCst), 0);
+    task.abort();
+    assert!(task.await.unwrap_err().is_cancelled());
 }

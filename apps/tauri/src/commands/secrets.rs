@@ -14,7 +14,15 @@ pub async fn set_secret(
     profile
         .secret_store
         .set_secret(&secret_key, &secret)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    if let Some(context) = profile.try_context() {
+        context
+            .quote_service
+            .handle_credential_change(&secret_key)
+            .await
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -35,7 +43,15 @@ pub async fn delete_secret(secret_key: String, profile: ProfileAccess) -> Result
     profile
         .secret_store
         .delete_secret(&secret_key)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    if let Some(context) = profile.try_context() {
+        context
+            .quote_service
+            .handle_credential_change(&secret_key)
+            .await
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]

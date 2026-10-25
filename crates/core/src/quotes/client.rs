@@ -59,6 +59,12 @@ pub enum MarketDataClientError {
 }
 
 #[derive(Debug)]
+pub struct HistoricalQuoteFetch {
+    pub quotes: Vec<Quote>,
+    pub complete: bool,
+}
+
+#[derive(Debug)]
 pub struct HistoricalQuoteFetchError {
     pub error: crate::Error,
     pub provider_id: Option<String>,
@@ -77,6 +83,73 @@ impl From<MarketDataClientError> for crate::Error {
             }
         }
     }
+}
+
+pub(super) fn credential_backed_provider(provider: &str) -> bool {
+    matches!(
+        provider,
+        DATA_SOURCE_FUTU
+            | DATA_SOURCE_IFIND
+            | DATA_SOURCE_ALPHA_VANTAGE
+            | DATA_SOURCE_MARKET_DATA_APP
+            | DATA_SOURCE_METAL_PRICE_API
+            | DATA_SOURCE_FINNHUB
+    ) || provider.starts_with(DATA_SOURCE_CUSTOM_SCRAPER)
+        || provider.starts_with("CUSTOM:")
+}
+
+/// A fallback response must not permanently mask recovery of the credential-backed
+/// provider actually attempted for this request. Unrelated capability/resolution
+/// skips are not failures and do not downgrade an otherwise complete public query.
+fn credential_fallback_observed(
+    diagnostics: &wealthfolio_market_data::registry::FetchDiagnostics,
+    preferred_provider: Option<&str>,
+    configuration: &[(String, i32)],
+) -> bool {
+    use wealthfolio_market_data::registry::SkipReason;
+    if preferred_provider.is_some_and(|preferred| {
+        credential_backed_provider(preferred)
+            && diagnostics.attempts.iter().any(|attempt| attempt.success)
+            && !diagnostics
+                .attempts
+                .iter()
+                .any(|attempt| attempt.provider_id == preferred)
+    }) {
+        // A missing credential can prevent construction of the explicitly
+        // preferred provider, leaving no attempt in the registry diagnostics.
+        return true;
+    }
+    let priority = |id: &str| {
+        configuration
+            .iter()
+            .find(|(provider, _)| provider == id)
+            .map(|(_, priority)| *priority)
+    };
+    let successful_priority = diagnostics
+        .attempts
+        .iter()
+        .find(|attempt| attempt.success)
+        .and_then(|attempt| priority(&attempt.provider_id));
+    diagnostics
+        .attempts
+        .iter()
+        .take_while(|attempt| !attempt.success)
+        .any(|attempt| {
+            let credential_provider = credential_backed_provider(&attempt.provider_id);
+            let skipped_primary = match preferred_provider {
+                Some(preferred) => preferred == attempt.provider_id.as_ref(),
+                None => priority(&attempt.provider_id)
+                    .zip(successful_priority)
+                    .is_some_and(|(candidate, successful)| candidate < successful),
+            };
+            credential_provider
+                && (attempt.error.is_some()
+                    || skipped_primary
+                        && matches!(
+                            attempt.skipped,
+                            Some(SkipReason::CircuitBreakerOpen | SkipReason::RateLimited)
+                        ))
+        })
 }
 
 /// Provider configuration for initialization.
@@ -98,6 +171,7 @@ pub struct ProviderConfig {
 pub struct MarketDataClient {
     registry: ProviderRegistry,
     provider_configuration: Vec<(String, i32)>,
+    history_configuration_fingerprint: String,
 }
 
 impl MarketDataClient {
@@ -215,6 +289,8 @@ impl MarketDataClient {
         provider_configuration.sort();
         Ok(Self {
             registry,
+            history_configuration_fingerprint: serde_json::to_string(&provider_configuration)
+                .unwrap_or_default(),
             provider_configuration,
         })
     }
@@ -222,6 +298,15 @@ impl MarketDataClient {
     /// Enabled provider settings used to construct this client, sorted by ID.
     pub fn provider_configuration(&self) -> &[(String, i32)] {
         &self.provider_configuration
+    }
+
+    /// Non-secret digest of provider settings, supplied by the service owning settings.
+    pub fn set_history_configuration_fingerprint(&mut self, fingerprint: String) {
+        self.history_configuration_fingerprint = fingerprint;
+    }
+
+    pub fn history_configuration_fingerprint(&self) -> &str {
+        &self.history_configuration_fingerprint
     }
 
     fn is_e2e_mode() -> bool {
@@ -441,6 +526,27 @@ impl MarketDataClient {
         start: DateTime<Utc>,
         end: DateTime<Utc>,
     ) -> std::result::Result<Vec<Quote>, HistoricalQuoteFetchError> {
+        self.fetch_historical_quotes_with_coverage(asset, start, end)
+            .await
+            .and_then(|result| {
+                if result.quotes.is_empty() {
+                    Err(HistoricalQuoteFetchError {
+                        error: crate::Error::MarketData(super::MarketDataError::NoData),
+                        provider_id: None,
+                    })
+                } else {
+                    Ok(result.quotes)
+                }
+            })
+    }
+
+    /// Preserve provider validation completeness for durable range bookkeeping.
+    pub async fn fetch_historical_quotes_with_coverage(
+        &self,
+        asset: &Asset,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> std::result::Result<HistoricalQuoteFetch, HistoricalQuoteFetchError> {
         // Convert Asset to QuoteContext
         let context =
             self.build_quote_context(asset)
@@ -464,6 +570,27 @@ impl MarketDataClient {
         let market_quotes = match market_result {
             Ok(quotes) => quotes,
             Err(error) => {
+                // An authoritative empty answer can be reused briefly. A circuit
+                // or rate-limit skip is not evidence that the range is empty.
+                if matches!(
+                    error,
+                    wealthfolio_market_data::errors::MarketDataError::NoDataForRange
+                ) && diagnostics.history_complete
+                    && !diagnostics.attempts.iter().any(|attempt| {
+                        matches!(
+                            attempt.skipped,
+                            Some(
+                                wealthfolio_market_data::registry::SkipReason::CircuitBreakerOpen
+                                    | wealthfolio_market_data::registry::SkipReason::RateLimited
+                            )
+                        )
+                    })
+                {
+                    return Ok(HistoricalQuoteFetch {
+                        quotes: Vec::new(),
+                        complete: true,
+                    });
+                }
                 let provider_id = diagnostics.error_provider.map(|id| id.to_string());
                 return Err(HistoricalQuoteFetchError {
                     error: MarketDataClientError::MarketData(error).into(),
@@ -484,7 +611,15 @@ impl MarketDataClient {
             asset.id
         );
 
-        Ok(core_quotes)
+        Ok(HistoricalQuoteFetch {
+            quotes: core_quotes,
+            complete: diagnostics.history_complete
+                && !credential_fallback_observed(
+                    &diagnostics,
+                    context.preferred_provider.as_deref(),
+                    &self.provider_configuration,
+                ),
+        })
     }
 
     /// Fetch validated provider history for an explicit atomic replacement.
@@ -1023,6 +1158,7 @@ mod tests {
     use chrono::TimeZone;
     use rust_decimal_macros::dec;
     use std::sync::Arc;
+    use wealthfolio_market_data::ProviderInstrument;
 
     // =========================================================================
     // Quote Conversion Tests
@@ -1332,6 +1468,7 @@ mod tests {
         MarketDataClient {
             registry,
             provider_configuration: Vec::new(),
+            history_configuration_fingerprint: String::new(),
         }
     }
 
@@ -1409,6 +1546,165 @@ mod tests {
         ) -> std::result::Result<Vec<MarketQuote>, wealthfolio_market_data::errors::MarketDataError>
         {
             Err(self.error())
+        }
+    }
+
+    struct HistoryProvider {
+        partial: bool,
+        empty: bool,
+    }
+
+    #[async_trait::async_trait]
+    impl wealthfolio_market_data::MarketDataProvider for HistoryProvider {
+        fn id(&self) -> &'static str {
+            "YAHOO"
+        }
+        fn capabilities(&self) -> wealthfolio_market_data::ProviderCapabilities {
+            FailingProvider {
+                id: "YAHOO",
+                priority: 1,
+            }
+            .capabilities()
+        }
+        fn rate_limit(&self) -> wealthfolio_market_data::RateLimit {
+            wealthfolio_market_data::RateLimit::default()
+        }
+        async fn get_historical_quotes_with_coverage(
+            &self,
+            context: &QuoteContext,
+            instrument: ProviderInstrument,
+            start: DateTime<Utc>,
+            end: DateTime<Utc>,
+        ) -> std::result::Result<
+            wealthfolio_market_data::HistoricalQuotes,
+            wealthfolio_market_data::errors::MarketDataError,
+        > {
+            Ok(wealthfolio_market_data::HistoricalQuotes {
+                quotes: self
+                    .get_historical_quotes(context, instrument, start, end)
+                    .await?,
+                complete: true,
+            })
+        }
+        async fn get_latest_quote(
+            &self,
+            _: &QuoteContext,
+            _: ProviderInstrument,
+        ) -> std::result::Result<MarketQuote, wealthfolio_market_data::errors::MarketDataError>
+        {
+            Err(wealthfolio_market_data::errors::MarketDataError::NoDataForRange)
+        }
+        async fn get_historical_quotes(
+            &self,
+            _: &QuoteContext,
+            _: ProviderInstrument,
+            start: DateTime<Utc>,
+            _: DateTime<Utc>,
+        ) -> std::result::Result<Vec<MarketQuote>, wealthfolio_market_data::errors::MarketDataError>
+        {
+            if self.empty {
+                return Ok(vec![]);
+            }
+            let mut quotes = vec![MarketQuote::new(
+                start,
+                dec!(10),
+                "USD".into(),
+                "YAHOO".into(),
+            )];
+            if self.partial {
+                quotes.push(MarketQuote::new(
+                    start,
+                    dec!(-1),
+                    "USD".into(),
+                    "YAHOO".into(),
+                ));
+            }
+            Ok(quotes)
+        }
+    }
+
+    #[test]
+    fn credential_fallback_does_not_downgrade_unrelated_public_queries() {
+        use wealthfolio_market_data::registry::{FetchDiagnostics, SkipReason};
+        let mut unrelated = FetchDiagnostics::new();
+        unrelated.record_skip(
+            Cow::Borrowed(DATA_SOURCE_FUTU),
+            SkipReason::InstrumentKindMismatch,
+        );
+        unrelated.record_skip(
+            Cow::Borrowed(DATA_SOURCE_IFIND),
+            SkipReason::ResolutionFailed {
+                message: "unsupported instrument".into(),
+            },
+        );
+        unrelated.record_success(Cow::Borrowed(DATA_SOURCE_EASTMONEY));
+        assert!(!credential_fallback_observed(&unrelated, None, &[]));
+
+        let mut absent_preferred = FetchDiagnostics::new();
+        absent_preferred.record_success(Cow::Borrowed(DATA_SOURCE_EASTMONEY));
+        assert!(credential_fallback_observed(
+            &absent_preferred,
+            Some(DATA_SOURCE_FUTU),
+            &[]
+        ));
+        assert!(!credential_fallback_observed(&absent_preferred, None, &[]));
+
+        let mut failed_primary = FetchDiagnostics::new();
+        failed_primary.record_error(
+            Cow::Borrowed(DATA_SOURCE_FUTU),
+            "authorization failed".into(),
+        );
+        failed_primary.record_success(Cow::Borrowed(DATA_SOURCE_EASTMONEY));
+        assert!(credential_fallback_observed(&failed_primary, None, &[]));
+
+        let mut circuit = FetchDiagnostics::new();
+        circuit.record_skip(
+            Cow::Borrowed(DATA_SOURCE_CUSTOM_SCRAPER),
+            SkipReason::CircuitBreakerOpen,
+        );
+        circuit.record_success(Cow::Borrowed(DATA_SOURCE_YAHOO));
+        assert!(credential_fallback_observed(
+            &circuit,
+            Some(DATA_SOURCE_CUSTOM_SCRAPER),
+            &[]
+        ));
+        assert!(!credential_fallback_observed(
+            &circuit,
+            Some(DATA_SOURCE_YAHOO),
+            &[]
+        ));
+        let priorities = vec![
+            (DATA_SOURCE_CUSTOM_SCRAPER.to_string(), 1),
+            (DATA_SOURCE_YAHOO.to_string(), 2),
+        ];
+        assert!(credential_fallback_observed(&circuit, None, &priorities));
+    }
+
+    #[tokio::test]
+    async fn history_coverage_distinguishes_valid_partial_and_empty_responses() {
+        let asset = create_test_asset(AssetKind::Investment, "AAPL", "USD");
+        let now = Utc::now();
+        for (partial, empty, expected_complete, count) in [
+            (false, false, true, 1),
+            (true, false, false, 1),
+            (false, true, true, 0),
+        ] {
+            let client = MarketDataClient::new_with_extra(
+                Arc::new(NoSecrets),
+                vec![ProviderConfig {
+                    id: "YAHOO".into(),
+                    priority: 1,
+                }],
+                vec![Arc::new(HistoryProvider { partial, empty })],
+            )
+            .await
+            .unwrap();
+            let result = client
+                .fetch_historical_quotes_with_coverage(&asset, now, now)
+                .await
+                .unwrap();
+            assert_eq!(result.complete, expected_complete);
+            assert_eq!(result.quotes.len(), count);
         }
     }
 

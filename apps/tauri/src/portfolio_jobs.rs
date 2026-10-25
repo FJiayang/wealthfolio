@@ -89,10 +89,14 @@ impl JobObserver for TauriJobObserver {
         }
     }
 
-    fn update_completed(&self) {
-        // Freshness verdicts and stale-projection issues are cached.
-        self.clear_health_cache();
-        self.emit(PORTFOLIO_UPDATE_COMPLETE, &());
+    fn update_completed_with_changes(&self, changed: Option<bool>) {
+        if changed != Some(false) {
+            self.clear_health_cache();
+        }
+        self.emit(
+            PORTFOLIO_UPDATE_COMPLETE,
+            &serde_json::json!({ "changed": changed }),
+        );
     }
 }
 

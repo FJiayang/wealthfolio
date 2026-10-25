@@ -26,13 +26,15 @@ use chrono::{DateTime, Duration, NaiveDate, TimeZone, Utc};
 use futures::stream::{self, StreamExt};
 use log::{debug, error, info, warn};
 use rust_decimal::Decimal;
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use tokio::sync::RwLock;
 
-use super::client::MarketDataClient;
+use super::client::{credential_backed_provider, HistoricalQuoteFetchError, MarketDataClient};
 use super::constants::*;
 use super::errors::MarketDataError;
+use super::history::{missing_history_ranges_with_freshness, HistoryCoverage, HistoryOutcome};
 use super::model::Quote;
 use super::store::QuoteStore;
 use super::sync_state::{
@@ -50,38 +52,114 @@ use crate::utils::time_utils;
 // Per-Asset Sync Locking (US-012)
 // =============================================================================
 
-/// Global lock for in-flight sync operations per asset_id.
-/// This prevents duplicate sync work when multiple sync triggers occur for the same asset.
-static SYNC_LOCKS: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+/// Locks belong to one profile's service, never to a process-global ticker map.
+/// Waiting callers re-read coverage after acquiring the lock, so overlapping work
+/// coalesces without discarding requests for different ranges or explicit refreshes.
+#[derive(Default)]
+struct HistoryLocks(Mutex<HashMap<String, Weak<tokio::sync::Mutex<()>>>>);
 
-/// RAII guard that releases the sync lock when dropped.
-struct SyncLockGuard {
-    asset_id: String,
-}
-
-impl SyncLockGuard {
-    /// Try to acquire sync lock for an asset. Returns Some(guard) if acquired, None if already locked.
-    fn try_acquire(asset_id: &str) -> Option<Self> {
-        let mut locks = SYNC_LOCKS
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if locks.contains(asset_id) {
-            None
-        } else {
-            locks.insert(asset_id.to_string());
-            Some(Self {
-                asset_id: asset_id.to_string(),
-            })
+impl HistoryLocks {
+    fn for_asset(&self, asset_id: &str) -> Arc<tokio::sync::Mutex<()>> {
+        let mut locks = self.0.lock().unwrap_or_else(|error| error.into_inner());
+        locks.retain(|_, lock| lock.strong_count() > 0);
+        if let Some(lock) = locks.get(asset_id).and_then(Weak::upgrade) {
+            return lock;
         }
+        let lock = Arc::new(tokio::sync::Mutex::new(()));
+        locks.insert(asset_id.to_owned(), Arc::downgrade(&lock));
+        lock
     }
 }
 
-impl Drop for SyncLockGuard {
-    fn drop(&mut self) {
-        let mut locks = SYNC_LOCKS
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        locks.remove(&self.asset_id);
+#[derive(Clone)]
+struct HistoryOwnership {
+    _asset: Arc<tokio::sync::OwnedMutexGuard<()>>,
+    _client: Arc<tokio::sync::OwnedRwLockReadGuard<MarketDataClient>>,
+}
+
+struct LocalHistoryError {
+    _ownership: HistoryOwnership,
+    fetch_error: Box<HistoricalQuoteFetchError>,
+    written: usize,
+}
+
+struct LocalHistoryResult {
+    _ownership: HistoryOwnership,
+    quotes: Vec<Quote>,
+    written: usize,
+    fetched_nonempty: bool,
+    provider_id: Option<String>,
+}
+
+fn latest_history_outcome(asset: &Asset, source: &str) -> HistoryOutcome {
+    if credential_backed_provider(source)
+        || asset
+            .preferred_provider()
+            .is_some_and(|provider| credential_backed_provider(&provider))
+    {
+        HistoryOutcome::Partial
+    } else {
+        HistoryOutcome::Complete
+    }
+}
+
+fn quote_matches_currency(quote: &Quote, asset: &Asset) -> bool {
+    quote.data_source == DATA_SOURCE_MANUAL
+        || asset.quote_ccy.is_empty()
+        || crate::fx::currency::normalize_currency_code(&quote.currency)
+            == crate::fx::currency::normalize_currency_code(&asset.quote_ccy)
+}
+
+fn history_identity(
+    asset: &Asset,
+    client: &MarketDataClient,
+    operation: &str,
+    revision: &str,
+    benchmark: bool,
+) -> String {
+    // Persist only a digest. Provider configurations can contain private URLs.
+    let identity = serde_json::json!({
+        "operation": operation, "benchmark": benchmark, "asset": asset.id, "kind": asset.kind,
+        "mode": asset.quote_mode, "currency": asset.quote_ccy,
+        "type": asset.instrument_type, "symbol": asset.instrument_symbol,
+        "exchange": asset.instrument_exchange_mic, "preferredProvider": asset.preferred_provider(),
+        "overrides": asset.provider_overrides(),
+        "customProviderCode": asset.provider_config.as_ref().and_then(|config| config.get("custom_provider_code")),
+        "isin": asset.metadata.as_ref().and_then(|metadata| metadata.get("identifiers")).and_then(|identifiers| identifiers.get("isin")),
+        "bond": asset.bond_spec(), "providers": client.history_configuration_fingerprint(), "configurationRevision": revision,
+    });
+    format!("{:x}", Sha256::digest(identity.to_string().as_bytes()))
+}
+
+fn history_range_settled(
+    asset: &Asset,
+    record: &HistoryCoverage,
+    now: DateTime<Utc>,
+    latest: Option<NaiveDate>,
+) -> Option<bool> {
+    // Unknown exchanges and continuous markets have no reliable daily close.
+    let mic = asset.instrument_exchange_mic.as_deref()?;
+    if is_continuous_market(asset.instrument_type.as_ref())
+        || wealthfolio_market_data::resolver::exchange_metadata::mic_to_market_close(mic).is_none()
+    {
+        return None;
+    }
+    let expected = effective_market_today(now, Some(mic), asset.instrument_type.as_ref());
+    let fetched_expected =
+        effective_market_today(record.fetched_at, Some(mic), asset.instrument_type.as_ref());
+    if expected > fetched_expected {
+        // A newly completed session also reopens the correction overlap of
+        // previously settled receipts. The range helper retains the old prefix,
+        // rather than allowing Friday's receipt to hide corrections forever.
+        return Some(false);
+    }
+    if record.end <= expected
+        && record.end <= fetched_expected
+        && latest.is_some_and(|latest| latest >= record.end.min(expected))
+    {
+        Some(true)
+    } else {
+        None
     }
 }
 
@@ -227,7 +305,9 @@ fn should_allow_inactive_assets(mode: SyncMode, targeted_sync: bool) -> bool {
     targeted_sync
         || matches!(
             mode,
-            SyncMode::RefetchRecent { .. } | SyncMode::BackfillHistory { .. }
+            SyncMode::RefetchRecent { .. }
+                | SyncMode::BackfillHistory { .. }
+                | SyncMode::RefreshAllHistory { .. }
         )
 }
 
@@ -235,13 +315,18 @@ fn should_include_closed_positions(mode: SyncMode, targeted_sync: bool) -> bool 
     targeted_sync
         || matches!(
             mode,
-            SyncMode::RefetchRecent { .. } | SyncMode::BackfillHistory { .. }
+            SyncMode::RefetchRecent { .. }
+                | SyncMode::BackfillHistory { .. }
+                | SyncMode::RefreshAllHistory { .. }
         )
 }
 
 fn should_skip_for_error_limit(mode: SyncMode, targeted_sync: bool, error_count: i32) -> bool {
     !targeted_sync
-        && !matches!(mode, SyncMode::BackfillHistory { .. })
+        && !matches!(
+            mode,
+            SyncMode::BackfillHistory { .. } | SyncMode::RefreshAllHistory { .. }
+        )
         && error_count >= MAX_SYNC_ERRORS
 }
 
@@ -327,20 +412,6 @@ fn calculate_targeted_closed_incremental_window(
     } else {
         Some((start_date, end_date))
     }
-}
-
-// Test helpers - expose lock functions for testing
-#[cfg(test)]
-fn try_acquire_sync_lock(asset_id: &str) -> bool {
-    SyncLockGuard::try_acquire(asset_id)
-        .map(std::mem::forget)
-        .is_some()
-}
-
-#[cfg(test)]
-fn release_sync_lock(asset_id: &str) {
-    let mut locks = SYNC_LOCKS.lock().unwrap();
-    locks.remove(asset_id);
 }
 
 // =============================================================================
@@ -462,10 +533,11 @@ impl SyncResult {
 
     /// Add a result for a single asset.
     fn add_result(&mut self, result: AssetSyncResult) {
+        // A later disjoint range can fail after an earlier transaction committed.
+        self.quotes_synced += result.quotes_added;
         match result.status {
             SyncStatus::Success => {
                 self.synced += 1;
-                self.quotes_synced += result.quotes_added;
             }
             SyncStatus::Skipped => {
                 self.skipped += 1;
@@ -572,6 +644,8 @@ where
     asset_repo: Arc<A>,
     /// Activity repository for activity bounds.
     activity_repo: Arc<R>,
+    history_locks: HistoryLocks,
+    settings_service: Option<Arc<dyn crate::settings::SettingsServiceTrait>>,
 }
 
 impl<Q, S, A, R> QuoteSyncService<Q, S, A, R>
@@ -595,7 +669,27 @@ where
             sync_state_store,
             asset_repo,
             activity_repo,
+            history_locks: HistoryLocks::default(),
+            settings_service: None,
         }
+    }
+
+    pub fn with_settings_service(
+        mut self,
+        settings: Arc<dyn crate::settings::SettingsServiceTrait>,
+    ) -> Self {
+        self.settings_service = Some(settings);
+        self
+    }
+
+    fn retry_interval(&self) -> Duration {
+        let hours = self
+            .settings_service
+            .as_ref()
+            .and_then(|settings| settings.get_settings().ok())
+            .map(|settings| settings.market_data_sync_interval_hours)
+            .unwrap_or(crate::settings::DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS);
+        Duration::hours(i64::from(hours.max(1)))
     }
 
     /// Explicit replacement is the only synchronization operation allowed to remove history.
@@ -603,9 +697,13 @@ where
         &self,
         asset_id: &str,
     ) -> Result<super::ResetProviderHistoryResult> {
-        let _guard = SyncLockGuard::try_acquire(asset_id).ok_or_else(|| {
-            Error::Asset("Already refreshing this asset; try again when it finishes".into())
-        })?;
+        let _guard = self
+            .history_locks
+            .for_asset(asset_id)
+            .try_lock_owned()
+            .map_err(|_| {
+                Error::Asset("Already refreshing this asset; try again when it finishes".into())
+            })?;
         let context = self.quote_store.provider_history_reset_context(asset_id)?;
         let asset = &context.asset;
         context.ensure_eligible()?;
@@ -644,7 +742,7 @@ where
         let start = context
             .earliest_provider_date
             .map_or(normal_start, |date| date.min(normal_start));
-        let client = self.client.read().await;
+        let client = Arc::new(self.client.clone().read_owned().await);
         if client.provider_configuration() != context.provider_configuration.as_slice() {
             return Err(Error::Asset(
                 "Provider settings are being updated; please try again".into(),
@@ -665,12 +763,14 @@ where
             )
             .await?;
         // Hold the client read lock through commit, keeping in-memory provider configuration stable.
-        let result = self
-            .quote_store
-            .replace_provider_history(context, quotes)
-            .await;
-        drop(client);
-        result
+        let store = self.quote_store.clone();
+        tokio::spawn(async move {
+            let _guard = _guard;
+            let _client = client;
+            store.replace_provider_history(context, quotes).await
+        })
+        .await
+        .map_err(|error| Error::Unexpected(error.to_string()))?
     }
 
     /// Reset independently per asset; failures never undo successful replacements.
@@ -710,19 +810,19 @@ where
     /// in health checks. If the bond has never been successfully synced, we write
     /// a single quote at par (1.0 as fraction-of-par) dated at maturity and reset
     /// the error counter.
-    async fn ensure_matured_bond_par_quote(&self, asset: &Asset) {
+    async fn ensure_matured_bond_par_quote(&self, asset: &Asset) -> usize {
         let spec = match asset.bond_spec() {
             Some(s) => s,
-            None => return,
+            None => return 0,
         };
         let maturity = match spec.maturity_date {
             Some(d) => d,
-            None => return,
+            None => return 0,
         };
 
         // Check if any quote already exists for this asset
         if let Ok(Some(_)) = self.quote_store.latest(&AssetId(asset.id.clone()), None) {
-            return;
+            return 0;
         }
 
         // No quote exists — write a par-value quote at the maturity date
@@ -749,7 +849,7 @@ where
         };
 
         match self.quote_store.upsert_quotes(&[quote]).await {
-            Ok(_) => {
+            Ok(count) => {
                 info!(
                     "Wrote par-value quote for matured bond {} (matured {})",
                     asset.id, maturity
@@ -758,12 +858,14 @@ where
                 if let Err(e) = self.sync_state_store.update_after_sync(&asset.id).await {
                     warn!("Failed to reset sync state for {}: {:?}", asset.id, e);
                 }
+                count
             }
             Err(e) => {
                 warn!(
                     "Failed to write par-value quote for matured bond {}: {:?}",
                     asset.id, e
                 );
+                0
             }
         }
     }
@@ -814,7 +916,7 @@ where
                 let start = fetch_end_date - Duration::days(days);
                 (start, fetch_end_date)
             }
-            SyncMode::BackfillHistory { days } => {
+            SyncMode::BackfillHistory { days } | SyncMode::RefreshAllHistory { days } => {
                 // For FX assets in BackfillHistory mode, use global earliest activity date
                 // FX assets have no activities, so activity_min is always NULL
                 if asset.kind == AssetKind::Fx {
@@ -955,212 +1057,563 @@ where
         }
     }
 
-    /// Sync a single asset according to its sync plan.
-    ///
-    /// Uses per-asset locking (US-012) to prevent duplicate sync work when multiple
-    /// sync triggers occur for the same asset. If a sync is already in progress for
-    /// this asset, the call is skipped (not blocked) to keep the system responsive.
-    async fn sync_asset(&self, asset: &Asset, plan: &SymbolSyncPlan) -> AssetSyncResult {
-        let asset_id_str = &asset.id;
-        let asset_id = AssetId::new(asset_id_str);
-
-        // Try to acquire per-asset lock (US-012)
-        // Guard automatically releases lock when dropped (on success, failure, or panic)
-        let _lock_guard = match SyncLockGuard::try_acquire(asset_id_str) {
-            Some(guard) => Arc::new(guard),
-            None => {
-                debug!("Skipping sync for {} - already in progress", asset_id_str);
-                return AssetSyncResult {
-                    asset_id,
-                    quotes_added: 0,
-                    status: SyncStatus::Skipped,
-                    error: None,
-                    skip_reason: Some(AssetSkipReason::SyncInProgress),
-                };
-            }
-        };
-
-        debug!(
-            "Fetching quotes for {} from {} to {}",
-            asset.id, plan.start_date, plan.end_date
-        );
-
-        // Convert dates to DateTime<Utc>
-        let start_dt = Utc.from_utc_datetime(
-            &plan
-                .start_date
-                .and_hms_opt(0, 0, 0)
-                .expect("00:00:00 is a valid time"),
-        );
-        let end_dt = Utc.from_utc_datetime(
-            &plan
-                .end_date
-                .and_hms_opt(23, 59, 59)
-                .expect("23:59:59 is a valid time"),
-        );
-
-        // Fetch quotes via MarketDataClient
-        let client = self.client.read().await;
-        match client
-            .fetch_historical_quotes_with_context(asset, start_dt, end_dt)
+    /// Fetch through the same profile-scoped owner as background synchronization.
+    pub async fn fetch_local_first_history(
+        &self,
+        asset: &Asset,
+        start: NaiveDate,
+        end: NaiveDate,
+        benchmark: bool,
+    ) -> Result<Vec<Quote>> {
+        self.local_history(asset, start, end, benchmark, false)
             .await
-        {
-            Ok(mut quotes) => {
-                // Sort quotes by timestamp to ensure correct ordering
-                // This is important because we use first()/last() to determine date ranges
-                quotes.sort_by_key(|q| q.timestamp);
+            .map(|result| result.quotes)
+            .map_err(|error| error.fetch_error.error)
+    }
 
-                let quotes_count = quotes.len();
-
-                if quotes_count > 0 {
-                    // Preserve history on every refresh. An owned write retains the guard
-                    // even if the caller is cancelled after enqueueing the SQLite operation.
-                    let store = self.quote_store.clone();
-                    let actual_source = quotes.first().map(|quote| quote.data_source.clone());
-                    let write_quotes = quotes;
-                    let write_guard = _lock_guard.clone();
-                    let saved = tokio::spawn(async move {
-                        let _guard = write_guard;
-                        store.upsert_quotes(&write_quotes).await
-                    })
-                    .await
-                    .unwrap_or_else(|error| Err(Error::Unexpected(error.to_string())));
-                    match saved {
-                        Ok(_) => {
-                            debug!("Saved {} quotes for {}", quotes_count, asset.id);
-
-                            // Sync splits for this asset over the same date range. Disabled for Now Yahoo Returns weired splits for some assets
-                            // self.sync_splits(asset, plan.start_date, plan.end_date)
-                            //     .await;
-
-                            // Update sync state after a successful sync attempt.
-                            if let Err(e) = self.sync_state_store.update_after_sync(&asset.id).await
-                            {
-                                warn!("Failed to update sync state for {}: {:?}", asset.id, e);
-                            }
-
-                            // Persist the actual provider used so future planning reads correct quote bounds.
-                            if let Some(actual_source) = actual_source {
-                                match self.sync_state_store.get_by_asset_id(&asset.id) {
-                                    Ok(Some(mut state)) if state.data_source != actual_source => {
-                                        state.data_source = actual_source;
-                                        if let Err(e) = self.sync_state_store.upsert(&state).await {
-                                            warn!(
-                                                "Failed to persist actual source for {}: {:?}",
-                                                asset.id, e
-                                            );
-                                        }
-                                    }
-                                    Ok(_) => {}
-                                    Err(e) => {
-                                        warn!(
-                                            "Failed to load sync state for {}: {:?}",
-                                            asset.id, e
-                                        );
-                                    }
-                                }
-                            }
-
-                            AssetSyncResult {
-                                asset_id,
-                                quotes_added: quotes_count,
-                                status: SyncStatus::Success,
-                                error: None,
-                                skip_reason: None,
-                            }
-                        }
-                        Err(e) => {
-                            error!("Failed to save quotes for {}: {:?}", asset.id, e);
-                            if let Err(state_err) = self
-                                .sync_state_store
-                                .update_after_failure(&asset.id, &format!("Storage error: {}", e))
-                                .await
-                            {
-                                warn!(
-                                    "Failed to update sync state for {}: {:?}",
-                                    asset.id, state_err
-                                );
-                            }
-                            AssetSyncResult {
-                                asset_id,
-                                quotes_added: 0,
-                                status: SyncStatus::Failed,
-                                error: Some(format!("Storage error: {}", e)),
-                                skip_reason: None,
-                            }
-                        }
-                    }
+    async fn local_history(
+        &self,
+        requested_asset: &Asset,
+        start: NaiveDate,
+        end: NaiveDate,
+        benchmark: bool,
+        force: bool,
+    ) -> std::result::Result<LocalHistoryResult, LocalHistoryError> {
+        let guard = Arc::new(
+            self.history_locks
+                .for_asset(&requested_asset.id)
+                .lock_owned()
+                .await,
+        );
+        let client = Arc::new(self.client.clone().read_owned().await);
+        let ownership = HistoryOwnership {
+            _asset: guard.clone(),
+            _client: client.clone(),
+        };
+        let wrap = |error| LocalHistoryError {
+            _ownership: ownership.clone(),
+            fetch_error: Box::new(HistoricalQuoteFetchError {
+                error,
+                provider_id: None,
+            }),
+            written: 0,
+        };
+        let asset = if benchmark {
+            requested_asset.clone()
+        } else {
+            self.asset_repo
+                .get_by_id(&requested_asset.id)
+                .map_err(wrap)?
+        };
+        if asset.quote_mode == QuoteMode::Manual {
+            return Ok(LocalHistoryResult {
+                _ownership: ownership.clone(),
+                quotes: self
+                    .quote_store
+                    .range(
+                        &AssetId::new(&asset.id),
+                        Day::new(start),
+                        Day::new(end),
+                        None,
+                    )
+                    .map_err(wrap)?,
+                written: 0,
+                fetched_nonempty: false,
+                provider_id: None,
+            });
+        }
+        let revision = self
+            .quote_store
+            .history_configuration_revision()
+            .map_err(wrap)?;
+        let identity = history_identity(&asset, &client, "history", &revision, benchmark);
+        // This is deliberately after the lock. A preceding queued request may
+        // already have filled some or all of this caller's requested interval.
+        let coverage = self.quote_store.history_coverage(&identity).map_err(wrap)?;
+        let now = Utc::now();
+        let fetch_end = end.min(market_fetch_end_date(
+            now,
+            asset.instrument_exchange_mic.as_deref(),
+            asset.instrument_type.as_ref(),
+        ));
+        let local = if benchmark {
+            self.quote_store
+                .benchmark_history(&identity, start, fetch_end)
+                .map_err(wrap)?
+        } else {
+            self.quote_store
+                .range(
+                    &AssetId::new(&asset.id),
+                    Day::new(start),
+                    Day::new(fetch_end),
+                    None,
+                )
+                .map_err(wrap)?
+        };
+        let latest_provider_date = local
+            .iter()
+            .filter(|quote| quote.data_source != DATA_SOURCE_MANUAL)
+            .map(|quote| quote.timestamp.date_naive())
+            .max();
+        let ranges = if start > fetch_end {
+            Vec::new()
+        } else if force {
+            vec![(start, fetch_end)]
+        } else {
+            missing_history_ranges_with_freshness(
+                start,
+                fetch_end,
+                &coverage,
+                now,
+                self.retry_interval(),
+                |record| history_range_settled(&asset, record, now, latest_provider_date),
+            )
+        };
+        let mut written = 0;
+        let mut fetched_nonempty = false;
+        let mut provider_id = None;
+        if asset.quote_mode != QuoteMode::Manual {
+            for (range_start, range_end) in ranges {
+                let expected_context = if benchmark {
+                    None
                 } else {
-                    debug!("No quotes returned for {}", asset.id);
-                    AssetSyncResult {
-                        asset_id,
-                        quotes_added: 0,
-                        status: SyncStatus::Skipped,
-                        error: None,
-                        skip_reason: Some(AssetSkipReason::NoDataForRange),
+                    self.quote_store
+                        .history_write_context(&asset.id)
+                        .map_err(wrap)?
+                };
+                if expected_context.as_ref().is_some_and(|context| {
+                    history_identity(&context.asset, &client, "history", &revision, benchmark)
+                        != identity
+                }) {
+                    return Err(LocalHistoryError {
+                        _ownership: ownership.clone(),
+                        fetch_error: Box::new(HistoricalQuoteFetchError {
+                            error: Error::Asset(
+                                "Asset settings changed before quote fetch; retry".into(),
+                            ),
+                            provider_id: None,
+                        }),
+                        written,
+                    });
+                }
+                let start_dt = Utc
+                    .from_utc_datetime(&range_start.and_hms_opt(0, 0, 0).expect("valid midnight"));
+                let end_dt = Utc
+                    .from_utc_datetime(&range_end.and_hms_opt(23, 59, 59).expect("valid day end"));
+                let fetched = client
+                    .fetch_historical_quotes_with_coverage(&asset, start_dt, end_dt)
+                    .await;
+                let (mut quotes, complete) = match fetched {
+                    Ok(result) => (result.quotes, result.complete),
+                    Err(error) => {
+                        return Err(LocalHistoryError {
+                            _ownership: ownership.clone(),
+                            fetch_error: Box::new(error),
+                            written,
+                        })
+                    }
+                };
+                // Do not let out-of-request rows establish requested coverage.
+                let original_count = quotes.len();
+                quotes.retain(|quote| {
+                    quote.timestamp.date_naive() >= range_start
+                        && quote.timestamp.date_naive() <= range_end
+                        && quote_matches_currency(quote, &asset)
+                });
+                let complete = complete && original_count == quotes.len();
+                fetched_nonempty |= !quotes.is_empty();
+                provider_id = quotes
+                    .first()
+                    .map(|quote| quote.data_source.clone())
+                    .or(provider_id);
+                if !benchmark {
+                    let current = self.asset_repo.get_by_id(&asset.id).map_err(wrap)?;
+                    if history_identity(&current, &client, "history", &revision, benchmark)
+                        != identity
+                    {
+                        return Err(LocalHistoryError { _ownership: ownership.clone(), fetch_error: Box::new(HistoricalQuoteFetchError {
+                            error: Error::Asset("Asset settings changed during quote fetch; retry with current settings".into()), provider_id: None,
+                        }), written });
                     }
                 }
+                let record = HistoryCoverage {
+                    identity: identity.clone(),
+                    asset_id: asset.id.clone(),
+                    start: range_start,
+                    end: range_end,
+                    fetched_at: Utc::now(),
+                    outcome: if !complete {
+                        HistoryOutcome::Partial
+                    } else if quotes.is_empty() {
+                        HistoryOutcome::Empty
+                    } else {
+                        HistoryOutcome::Complete
+                    },
+                };
+                let store = self.quote_store.clone();
+                let write_guard = guard.clone();
+                let write_client = client.clone();
+                // Keep both ownership and provider configuration stable even if
+                // the caller is cancelled while SQLite's queued write completes.
+                written += tokio::spawn(async move {
+                    let _guard = write_guard;
+                    let _client = write_client;
+                    store
+                        .commit_history_query(
+                            &record,
+                            &quotes,
+                            benchmark,
+                            true,
+                            expected_context.as_ref(),
+                        )
+                        .await
+                })
+                .await
+                .map_err(|error| LocalHistoryError {
+                    _ownership: ownership.clone(),
+                    fetch_error: Box::new(HistoricalQuoteFetchError {
+                        error: Error::Unexpected(error.to_string()),
+                        provider_id: None,
+                    }),
+                    written,
+                })?
+                .map_err(|error| LocalHistoryError {
+                    _ownership: ownership.clone(),
+                    fetch_error: Box::new(HistoricalQuoteFetchError {
+                        error,
+                        provider_id: None,
+                    }),
+                    written,
+                })?;
             }
-            Err(fetch_error) => {
+        }
+        let mut quotes = if benchmark {
+            self.quote_store.benchmark_history(&identity, start, end)
+        } else {
+            self.quote_store.range(
+                &AssetId::new(&asset.id),
+                Day::new(start),
+                Day::new(end),
+                None,
+            )
+        }
+        .map_err(|error| LocalHistoryError {
+            _ownership: ownership.clone(),
+            fetch_error: Box::new(HistoricalQuoteFetchError {
+                error,
+                provider_id: None,
+            }),
+            written,
+        })?;
+        quotes.retain(|quote| quote_matches_currency(quote, &asset));
+        Ok(LocalHistoryResult {
+            _ownership: ownership.clone(),
+            quotes,
+            written,
+            fetched_nonempty,
+            provider_id,
+        })
+    }
+
+    fn local_latest(
+        &self,
+        asset: &Asset,
+        identity: &str,
+        benchmark: bool,
+    ) -> Result<Option<Quote>> {
+        if benchmark {
+            return Ok(self
+                .quote_store
+                .benchmark_history(identity, NaiveDate::MIN, NaiveDate::MAX)?
+                .into_iter()
+                .filter(|quote| quote_matches_currency(quote, asset))
+                .max_by_key(|quote| quote.timestamp));
+        }
+        let latest = self.quote_store.latest(&AssetId::new(&asset.id), None)?;
+        if latest
+            .as_ref()
+            .is_none_or(|quote| quote_matches_currency(quote, asset))
+        {
+            return Ok(latest);
+        }
+        // Currency changes can leave older provider rows in the same canonical
+        // asset history. Do not let those shadow a compatible new quote.
+        Ok(self
+            .quote_store
+            .range(
+                &AssetId::new(&asset.id),
+                Day::new(NaiveDate::MIN),
+                Day::new(NaiveDate::MAX),
+                None,
+            )?
+            .into_iter()
+            .filter(|quote| quote_matches_currency(quote, asset))
+            .max_by_key(|quote| quote.timestamp))
+    }
+
+    /// Latest-price resolution uses latest capability, not a historical substitute.
+    pub async fn fetch_local_first_latest(
+        &self,
+        requested_asset: &Asset,
+        benchmark: bool,
+    ) -> Result<Quote> {
+        let guard = Arc::new(
+            self.history_locks
+                .for_asset(&requested_asset.id)
+                .lock_owned()
+                .await,
+        );
+        let asset = if benchmark {
+            requested_asset.clone()
+        } else {
+            self.asset_repo.get_by_id(&requested_asset.id)?
+        };
+        let client = Arc::new(self.client.clone().read_owned().await);
+        let revision = self.quote_store.history_configuration_revision()?;
+        let identity = history_identity(&asset, &client, "latest", &revision, benchmark);
+        let now = Utc::now();
+        let today = market_fetch_end_date(
+            now,
+            asset.instrument_exchange_mic.as_deref(),
+            asset.instrument_type.as_ref(),
+        );
+        let records = self.quote_store.history_coverage(&identity)?;
+        let local = self.local_latest(&asset, &identity, benchmark)?;
+        if asset.quote_mode == QuoteMode::Manual {
+            return local.ok_or_else(|| Error::MarketData(MarketDataError::NoData));
+        }
+        // A completed history query can already prove the latest market day.
+        // Reuse that proof rather than making a second request with latest capability.
+        let history_key = history_identity(&asset, &client, "history", &revision, benchmark);
+        let history_records: Vec<_> = self
+            .quote_store
+            .history_coverage(&history_key)?
+            .into_iter()
+            .filter(|record| record.outcome == HistoryOutcome::Complete)
+            .collect();
+        let history_local = if benchmark {
+            self.local_latest(&asset, &history_key, true)?
+        } else {
+            local.clone()
+        };
+        if let Some(quote) = history_local {
+            if missing_history_ranges_with_freshness(
+                today,
+                today,
+                &history_records,
+                now,
+                self.retry_interval(),
+                |record| {
+                    history_range_settled(
+                        &asset,
+                        record,
+                        now,
+                        (quote.data_source != DATA_SOURCE_MANUAL)
+                            .then(|| quote.timestamp.date_naive()),
+                    )
+                },
+            )
+            .is_empty()
+            {
+                return Ok(quote);
+            }
+        }
+        if missing_history_ranges_with_freshness(
+            today,
+            today,
+            &records,
+            now,
+            self.retry_interval(),
+            |record| {
+                history_range_settled(
+                    &asset,
+                    record,
+                    now,
+                    local
+                        .as_ref()
+                        .filter(|quote| quote.data_source != DATA_SOURCE_MANUAL)
+                        .map(|quote| quote.timestamp.date_naive()),
+                )
+            },
+        )
+        .is_empty()
+        {
+            if let Some(quote) = local {
+                return Ok(quote);
+            }
+        }
+        let expected_context = if benchmark {
+            None
+        } else {
+            self.quote_store.history_write_context(&asset.id)?
+        };
+        if expected_context.as_ref().is_some_and(|context| {
+            history_identity(&context.asset, &client, "latest", &revision, benchmark) != identity
+        }) {
+            return Err(Error::Asset(
+                "Asset settings changed before quote fetch; retry".into(),
+            ));
+        }
+        let quote = client.fetch_latest_quote(&asset).await?;
+        if !quote_matches_currency(&quote, &asset) {
+            return Err(Error::MarketData(MarketDataError::InvalidData(
+                "Provider quote currency does not match the asset".into(),
+            )));
+        }
+        if !benchmark
+            && history_identity(
+                &self.asset_repo.get_by_id(&asset.id)?,
+                &client,
+                "latest",
+                &revision,
+                benchmark,
+            ) != identity
+        {
+            return Err(Error::Asset(
+                "Asset settings changed during quote fetch; retry with current settings".into(),
+            ));
+        }
+        let quote_day = quote.timestamp.date_naive();
+        if quote_day > today {
+            return Err(Error::MarketData(MarketDataError::InvalidData(
+                "Provider returned a future quote date".into(),
+            )));
+        }
+        let coverage = HistoryCoverage {
+            identity: identity.clone(),
+            asset_id: asset.id.clone(),
+            start: quote_day.min(today),
+            end: today,
+            fetched_at: now,
+            outcome: latest_history_outcome(&asset, &quote.data_source),
+        };
+        let store = self.quote_store.clone();
+        let persisted_quote = quote.clone();
+        let write_client = client.clone();
+        tokio::spawn(async move {
+            let _guard = guard;
+            let _client = write_client;
+            store
+                .commit_history_query(
+                    &coverage,
+                    &[persisted_quote],
+                    benchmark,
+                    true,
+                    expected_context.as_ref(),
+                )
+                .await
+        })
+        .await
+        .map_err(|error| Error::Unexpected(error.to_string()))??;
+        self.local_latest(&asset, &identity, benchmark)?
+            .ok_or_else(|| Error::MarketData(MarketDataError::NoData))
+    }
+
+    async fn sync_asset(
+        &self,
+        asset: &Asset,
+        plan: &SymbolSyncPlan,
+        force: bool,
+    ) -> AssetSyncResult {
+        let asset_id = AssetId::new(&asset.id);
+        match self
+            .local_history(asset, plan.start_date, plan.end_date, false, force)
+            .await
+        {
+            Ok(result) => {
+                if result.fetched_nonempty {
+                    if let Err(error) = self.sync_state_store.update_after_sync(&asset.id).await {
+                        warn!("Failed to update sync state for {}: {:?}", asset.id, error);
+                    }
+                    if let Some(source) = result.provider_id {
+                        if let Ok(Some(mut state)) =
+                            self.sync_state_store.get_by_asset_id(&asset.id)
+                        {
+                            if state.data_source != source {
+                                state.data_source = source;
+                                if let Err(error) = self.sync_state_store.upsert(&state).await {
+                                    warn!(
+                                        "Failed to persist actual source for {}: {:?}",
+                                        asset.id, error
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                AssetSyncResult {
+                    asset_id,
+                    quotes_added: result.written,
+                    status: if result.fetched_nonempty {
+                        SyncStatus::Success
+                    } else {
+                        SyncStatus::Skipped
+                    },
+                    error: None,
+                    skip_reason: if result.fetched_nonempty {
+                        None
+                    } else if result.quotes.is_empty() {
+                        Some(AssetSkipReason::NoDataForRange)
+                    } else {
+                        Some(AssetSkipReason::NoQuoteWindow)
+                    },
+                }
+            }
+            Err(local_error) => {
+                let _ownership = local_error._ownership;
+                let written = local_error.written;
+                let fetch_error = *local_error.fetch_error;
                 let error = fetch_error.error;
                 if let Some(skip_reason) = fetch_error_skip_reason(&error) {
-                    debug!(
-                        "No quotes available for {} in the requested range",
-                        asset.id
-                    );
                     return AssetSyncResult {
                         asset_id,
-                        quotes_added: 0,
+                        quotes_added: written,
                         status: SyncStatus::Skipped,
                         error: None,
                         skip_reason: Some(skip_reason),
                     };
                 }
-
-                let sync_failure_message =
-                    format_sync_failure_message(&error, fetch_error.provider_id.as_deref());
-
                 if should_treat_fetch_error_as_non_fatal(
                     &plan.category,
                     &error,
                     plan.suppress_closed_fetch_errors,
                 ) {
-                    if let Err(state_err) = self.sync_state_store.update_after_sync(&asset.id).await
+                    if let Err(state_error) =
+                        self.sync_state_store.update_after_sync(&asset.id).await
                     {
                         warn!(
                             "Failed to update sync state for {}: {:?}",
-                            asset.id, state_err
+                            asset.id, state_error
                         );
                     }
-
                     return AssetSyncResult {
                         asset_id,
-                        quotes_added: 0,
+                        quotes_added: written,
                         status: SyncStatus::Success,
                         error: None,
                         skip_reason: None,
                     };
                 }
-
-                error!("Failed to fetch quotes for {}: {:?}", asset.id, error);
-
-                // Update sync state with failure
-                if let Err(state_err) = self
-                    .sync_state_store
-                    .update_after_failure(&asset.id, &sync_failure_message)
-                    .await
-                {
-                    warn!(
-                        "Failed to update sync state for {}: {:?}",
-                        asset.id, state_err
-                    );
+                let changed_context = matches!(error, Error::Asset(_));
+                let message =
+                    format_sync_failure_message(&error, fetch_error.provider_id.as_deref());
+                if !changed_context {
+                    if let Err(state_error) = self
+                        .sync_state_store
+                        .update_after_failure(&asset.id, &message)
+                        .await
+                    {
+                        warn!(
+                            "Failed to update sync state for {}: {:?}",
+                            asset.id, state_error
+                        );
+                    }
                 }
-
                 AssetSyncResult {
                     asset_id,
-                    quotes_added: 0,
+                    quotes_added: written,
                     status: SyncStatus::Failed,
-                    error: Some(sync_failure_message),
+                    error: Some(message),
                     skip_reason: None,
                 }
             }
@@ -1175,6 +1628,7 @@ where
     fn execute_sync_plans(
         &self,
         plans: Vec<SymbolSyncPlan>,
+        force: bool,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = SyncResult> + Send + '_>> {
         Box::pin(async move {
             if plans.is_empty() {
@@ -1206,7 +1660,7 @@ where
                     let asset = asset_map.get(&plan.asset_id).cloned();
                     async move {
                         if let Some(asset) = asset {
-                            self.sync_asset(&asset, &plan).await
+                            self.sync_asset(&asset, &plan, force).await
                         } else {
                             warn!("Asset not found for asset_id: {}", plan.asset_id);
                             AssetSyncResult {
@@ -1542,7 +1996,7 @@ where
             if let Some(reason) = self.get_skip_reason(asset, allow_inactive_asset) {
                 debug!("Skipping asset {} for sync: {}", asset.id, reason);
                 if matches!(reason, AssetSkipReason::MaturedBond) {
-                    self.ensure_matured_bond_par_quote(asset).await;
+                    result.quotes_synced += self.ensure_matured_bond_par_quote(asset).await;
                 }
                 if matches!(reason, AssetSkipReason::ExpiredOption) {
                     // Clear any lingering sync errors so expired options
@@ -1778,7 +2232,9 @@ where
         );
 
         // Execute sync and merge with skipped results
-        let mut exec_result = self.execute_sync_plans(plans).await;
+        let mut exec_result = self
+            .execute_sync_plans(plans, matches!(mode, SyncMode::RefreshAllHistory { .. }))
+            .await;
         exec_result.skipped += result.skipped;
         exec_result.skipped_reasons.extend(result.skipped_reasons);
         Ok(exec_result)
@@ -2431,63 +2887,161 @@ mod tests {
     // =========================================================================
 
     #[test]
-    fn test_sync_lock_acquire_and_release() {
-        let asset_id = "TEST_LOCK_ACQUIRE";
-
-        // First acquire should succeed
-        assert!(try_acquire_sync_lock(asset_id));
-
-        // Second acquire for same asset should fail
-        assert!(!try_acquire_sync_lock(asset_id));
-
-        // Release the lock
-        release_sync_lock(asset_id);
-
-        // Now acquire should succeed again
-        assert!(try_acquire_sync_lock(asset_id));
-
-        // Cleanup
-        release_sync_lock(asset_id);
+    fn freshness_distinguishes_intraday_closed_weekend_and_unknown_market() {
+        let asset = Asset {
+            instrument_type: Some(InstrumentType::Equity),
+            instrument_exchange_mic: Some("XNAS".into()),
+            ..Default::default()
+        };
+        let friday = NaiveDate::from_ymd_opt(2026, 10, 23).unwrap();
+        let monday = NaiveDate::from_ymd_opt(2026, 10, 26).unwrap();
+        let record = HistoryCoverage {
+            identity: "digest".into(),
+            asset_id: "AAPL".into(),
+            start: friday,
+            end: friday,
+            fetched_at: friday.and_hms_opt(22, 0, 0).unwrap().and_utc(),
+            outcome: HistoryOutcome::Complete,
+        };
+        let sunday = NaiveDate::from_ymd_opt(2026, 10, 25)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        assert_eq!(
+            history_range_settled(&asset, &record, sunday, Some(friday)),
+            Some(true)
+        );
+        let intraday = HistoryCoverage {
+            end: monday,
+            fetched_at: monday.and_hms_opt(15, 0, 0).unwrap().and_utc(),
+            ..record.clone()
+        };
+        assert_eq!(
+            history_range_settled(
+                &asset,
+                &intraday,
+                monday.and_hms_opt(16, 0, 0).unwrap().and_utc(),
+                Some(monday)
+            ),
+            None
+        );
+        assert_eq!(
+            history_range_settled(
+                &asset,
+                &intraday,
+                monday.and_hms_opt(22, 0, 0).unwrap().and_utc(),
+                Some(monday)
+            ),
+            Some(false)
+        );
+        let unknown = Asset {
+            instrument_exchange_mic: None,
+            ..asset
+        };
+        assert_eq!(
+            history_range_settled(&unknown, &record, sunday, Some(friday)),
+            None
+        );
     }
 
     #[test]
-    fn test_sync_lock_different_assets_independent() {
-        let asset_a = "TEST_LOCK_ASSET_A";
-        let asset_b = "TEST_LOCK_ASSET_B";
-
-        // Acquire lock for asset A
-        assert!(try_acquire_sync_lock(asset_a));
-
-        // Acquire lock for asset B should also succeed (independent)
-        assert!(try_acquire_sync_lock(asset_b));
-
-        // Both should be locked
-        assert!(!try_acquire_sync_lock(asset_a));
-        assert!(!try_acquire_sync_lock(asset_b));
-
-        // Release both
-        release_sync_lock(asset_a);
-        release_sync_lock(asset_b);
+    fn new_market_session_refreshes_overlap_but_weekend_reuses_settled_history() {
+        let asset = Asset {
+            instrument_type: Some(InstrumentType::Equity),
+            instrument_exchange_mic: Some("XNAS".into()),
+            ..Default::default()
+        };
+        let start = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
+        let friday = NaiveDate::from_ymd_opt(2026, 10, 23).unwrap();
+        let monday = NaiveDate::from_ymd_opt(2026, 10, 26).unwrap();
+        let record = HistoryCoverage {
+            identity: "digest".into(),
+            asset_id: "AAPL".into(),
+            start,
+            end: friday,
+            fetched_at: friday.and_hms_opt(22, 0, 0).unwrap().and_utc(),
+            outcome: HistoryOutcome::Complete,
+        };
+        let sunday = NaiveDate::from_ymd_opt(2026, 10, 25)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap()
+            .and_utc();
+        let missing = |end, now| {
+            missing_history_ranges_with_freshness(
+                start,
+                end,
+                std::slice::from_ref(&record),
+                now,
+                Duration::hours(6),
+                |receipt| history_range_settled(&asset, receipt, now, Some(friday)),
+            )
+        };
+        assert!(missing(friday, sunday).is_empty());
+        assert_eq!(
+            missing(monday, monday.and_hms_opt(22, 0, 0).unwrap().and_utc()),
+            vec![(
+                (friday - Duration::days(OVERLAP_DAYS)).succ_opt().unwrap(),
+                monday
+            )]
+        );
     }
 
     #[test]
-    fn test_sync_lock_release_idempotent() {
-        let asset_id = "TEST_LOCK_IDEMPOTENT";
+    fn latest_credential_responses_and_explicit_fallbacks_only_have_bounded_coverage() {
+        let public = Asset::default();
+        assert_eq!(
+            latest_history_outcome(&public, DATA_SOURCE_YAHOO),
+            HistoryOutcome::Complete
+        );
+        assert_eq!(
+            latest_history_outcome(&public, DATA_SOURCE_EASTMONEY),
+            HistoryOutcome::Complete
+        );
+        assert_eq!(
+            latest_history_outcome(&public, DATA_SOURCE_FUTU),
+            HistoryOutcome::Partial
+        );
+        assert_eq!(
+            latest_history_outcome(&public, "CUSTOM_SCRAPER:fund"),
+            HistoryOutcome::Partial
+        );
+        let preferred = Asset {
+            provider_config: Some(serde_json::json!({"preferred_provider": DATA_SOURCE_FUTU})),
+            ..Default::default()
+        };
+        assert_eq!(
+            latest_history_outcome(&preferred, DATA_SOURCE_YAHOO),
+            HistoryOutcome::Partial
+        );
+    }
 
-        // Acquire the lock
-        assert!(try_acquire_sync_lock(asset_id));
+    #[test]
+    fn sync_result_keeps_writes_when_later_range_fails() {
+        let mut result = SyncResult::default();
+        result.add_result(AssetSyncResult {
+            asset_id: AssetId::new("AAPL"),
+            quotes_added: 2,
+            status: SyncStatus::Failed,
+            error: Some("later range failed".into()),
+            skip_reason: None,
+        });
+        assert_eq!(result.quotes_synced, 2);
+        assert_eq!(result.failed, 1);
+    }
 
-        // Release it
-        release_sync_lock(asset_id);
-
-        // Release again (should be idempotent, no panic)
-        release_sync_lock(asset_id);
-
-        // Lock should be available
-        assert!(try_acquire_sync_lock(asset_id));
-
-        // Cleanup
-        release_sync_lock(asset_id);
+    #[tokio::test]
+    async fn history_locks_wait_and_are_profile_scoped() {
+        let profile_a = HistoryLocks::default();
+        let profile_b = HistoryLocks::default();
+        let first = profile_a.for_asset("same-id");
+        let guard = first.clone().lock_owned().await;
+        assert!(profile_a.for_asset("same-id").try_lock().is_err());
+        assert!(profile_a.for_asset("other-id").try_lock().is_ok());
+        assert!(profile_b.for_asset("same-id").try_lock().is_ok());
+        drop(guard);
+        assert!(profile_a.for_asset("same-id").try_lock().is_ok());
     }
 
     #[test]

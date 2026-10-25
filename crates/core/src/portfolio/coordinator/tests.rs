@@ -3026,3 +3026,43 @@ quotes:
 
 #[path = "periodic_tests.rs"]
 mod periodic_tests;
+
+#[test]
+fn completion_change_verdict_only_suppresses_confirmed_no_ops() {
+    let mut report = PortfolioJobReport::default();
+    assert_eq!(report.persisted_changes(), Some(false));
+    report.market_sync = Some(Ok(SyncResult::default()));
+    assert_eq!(report.persisted_changes(), Some(false));
+    report.market_sync = Some(Ok(SyncResult {
+        synced: 1,
+        ..SyncResult::default()
+    }));
+    assert_eq!(report.persisted_changes(), Some(false));
+    report.market_sync = Some(Ok(SyncResult {
+        failed: 1,
+        ..SyncResult::default()
+    }));
+    assert_eq!(report.persisted_changes(), None);
+    report.market_sync = Some(Ok(SyncResult {
+        quotes_synced: 1,
+        ..SyncResult::default()
+    }));
+    assert_eq!(report.persisted_changes(), Some(true));
+    report.market_sync = None;
+    report.plans.push(AccountPlan {
+        account_id: "account".into(),
+        plan: RebuildPlan::Refold { from: GENESIS },
+    });
+    assert_eq!(report.persisted_changes(), Some(true));
+    report.failures.push(AccountFailure {
+        account_id: "account".into(),
+        code: "PROJECTION_FAILED".into(),
+        message: "a previous window may have committed".into(),
+    });
+    assert_eq!(report.persisted_changes(), None);
+    report = PortfolioJobReport {
+        market_sync: Some(Err("write outcome unknown".into())),
+        ..PortfolioJobReport::default()
+    };
+    assert_eq!(report.persisted_changes(), None);
+}

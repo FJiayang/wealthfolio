@@ -98,7 +98,7 @@ pub use provider::sina::SinaProvider;
 pub use provider::tencent::TencentProvider;
 pub use provider::us_treasury_calc::UsTreasuryCalcProvider;
 pub use provider::yahoo::YahooProvider;
-pub use provider::{MarketDataProvider, ProviderCapabilities, RateLimit};
+pub use provider::{HistoricalQuotes, MarketDataProvider, ProviderCapabilities, RateLimit};
 
 // Re-export registry types
 pub use registry::{

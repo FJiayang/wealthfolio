@@ -27,8 +27,7 @@ pub enum SyncMode {
     #[default]
     Incremental,
 
-    /// Refetch recent window regardless of existing quotes.
-    /// Useful for forcing a refresh of recent data without full history rebuild.
+    /// Ensure a recent history window, reusing fresh local coverage.
     /// - Start: today - days
     /// - End: today
     RefetchRecent {
@@ -36,12 +35,19 @@ pub enum SyncMode {
         days: i64,
     },
 
-    /// Refetch and merge full history from activity start.
-    /// Used for manual resync or when history needs to be rebuilt.
+    /// Ensure full history from activity start, reusing fresh local coverage.
+    /// Rebuilding portfolio projections does not force provider requests.
     /// - Start: first_activity_date - BUFFER_DAYS (or today - days as fallback)
     /// - End: today
     BackfillHistory {
         /// Fallback days if no activity date exists
+        days: i64,
+    },
+
+    /// Explicit user action to refresh and merge all provider history.
+    /// Unlike a backfill range request, this bypasses fresh local coverage.
+    RefreshAllHistory {
+        /// Fallback days if no activity date exists.
         days: i64,
     },
 }
@@ -74,8 +80,7 @@ pub enum MarketSyncMode {
         asset_ids: Option<Vec<String>>,
     },
 
-    /// Refetch recent history window.
-    /// Use for forcing a refresh of recent data without full history rebuild.
+    /// Ensure the recent history window, reusing fresh local coverage.
     RefetchRecent {
         /// Optional list of asset IDs to sync. None means sync all relevant assets.
         #[serde(default)]
@@ -84,8 +89,8 @@ pub enum MarketSyncMode {
         days: i64,
     },
 
-    /// Full history rebuild from activity start.
-    /// Use for manual resync when history needs to be rebuilt.
+    /// Ensure full history from activity start for portfolio rebuilds.
+    /// This range intent does not bypass fresh local coverage.
     BackfillHistory {
         /// Optional list of asset IDs to sync. None means sync all relevant assets.
         #[serde(default)]
@@ -93,9 +98,36 @@ pub enum MarketSyncMode {
         /// Fallback days if no activity date exists.
         days: i64,
     },
+
+    /// Explicit refresh-all-history action; merge fetched prices without
+    /// replacing manual prices or using provider-history reset semantics.
+    RefreshAllHistory {
+        #[serde(default)]
+        asset_ids: Option<Vec<String>>,
+        days: i64,
+    },
 }
 
 impl MarketSyncMode {
+    /// Map the existing quote-refresh command identically in both runtimes.
+    /// Only the explicit full-history flag grants the local-coverage bypass.
+    pub fn for_quote_refresh(
+        asset_ids: Option<Vec<String>>,
+        refetch_all: bool,
+        refetch_recent_days: Option<i64>,
+    ) -> Self {
+        if let Some(days) = refetch_recent_days {
+            Self::RefetchRecent { asset_ids, days }
+        } else if refetch_all {
+            Self::RefreshAllHistory {
+                asset_ids,
+                days: 365 * 5,
+            }
+        } else {
+            Self::Incremental { asset_ids }
+        }
+    }
+
     /// Returns true if this mode requires market data synchronization.
     pub fn requires_sync(&self) -> bool {
         !matches!(self, MarketSyncMode::None)
@@ -107,7 +139,8 @@ impl MarketSyncMode {
             MarketSyncMode::None => None,
             MarketSyncMode::Incremental { asset_ids } => asset_ids.as_ref(),
             MarketSyncMode::RefetchRecent { asset_ids, .. } => asset_ids.as_ref(),
-            MarketSyncMode::BackfillHistory { asset_ids, .. } => asset_ids.as_ref(),
+            MarketSyncMode::BackfillHistory { asset_ids, .. }
+            | MarketSyncMode::RefreshAllHistory { asset_ids, .. } => asset_ids.as_ref(),
         }
     }
 
@@ -123,6 +156,9 @@ impl MarketSyncMode {
             MarketSyncMode::BackfillHistory { days, .. } => {
                 Some(SyncMode::BackfillHistory { days: *days })
             }
+            MarketSyncMode::RefreshAllHistory { days, .. } => {
+                Some(SyncMode::RefreshAllHistory { days: *days })
+            }
         }
     }
 }
@@ -133,6 +169,7 @@ impl std::fmt::Display for SyncMode {
             SyncMode::Incremental => write!(f, "Incremental"),
             SyncMode::RefetchRecent { days } => write!(f, "RefetchRecent({}d)", days),
             SyncMode::BackfillHistory { days } => write!(f, "BackfillHistory({}d)", days),
+            SyncMode::RefreshAllHistory { days } => write!(f, "RefreshAllHistory({}d)", days),
         }
     }
 }
@@ -546,6 +583,45 @@ pub trait SyncStateStore: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_history_refresh_is_distinct_from_automatic_backfill() {
+        let assets = Some(vec!["SEC:AAPL:XNAS".to_string()]);
+        let explicit = MarketSyncMode::for_quote_refresh(assets.clone(), true, None);
+        assert_eq!(explicit.asset_ids(), assets.as_ref());
+        assert_eq!(
+            explicit.to_sync_mode(),
+            Some(SyncMode::RefreshAllHistory { days: 1825 })
+        );
+        assert_eq!(
+            MarketSyncMode::BackfillHistory {
+                asset_ids: assets.clone(),
+                days: 1825
+            }
+            .to_sync_mode(),
+            Some(SyncMode::BackfillHistory { days: 1825 })
+        );
+        assert_eq!(
+            MarketSyncMode::for_quote_refresh(assets.clone(), false, None),
+            MarketSyncMode::Incremental {
+                asset_ids: assets.clone()
+            }
+        );
+        // Preserve the existing command's recent-window precedence.
+        assert_eq!(
+            MarketSyncMode::for_quote_refresh(assets.clone(), true, Some(7)),
+            MarketSyncMode::RefetchRecent {
+                asset_ids: assets,
+                days: 7
+            }
+        );
+        let serialized = serde_json::to_value(&explicit).unwrap();
+        assert_eq!(serialized["type"], "refresh_all_history");
+        assert_eq!(
+            serde_json::from_value::<MarketSyncMode>(serialized).unwrap(),
+            explicit
+        );
+    }
 
     fn create_inputs(
         is_active: bool,

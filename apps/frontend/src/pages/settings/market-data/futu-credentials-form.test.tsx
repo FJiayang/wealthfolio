@@ -54,11 +54,7 @@ describe("Futu credentials", () => {
       "FUTU",
       JSON.stringify({ ...credentials, appKeyId: "replacement" }),
     );
-    expect(adapters.updateMarketDataProviderSettings).toHaveBeenCalledWith({
-      providerId: "FUTU",
-      enabled: true,
-      priority: 8,
-    });
+    expect(adapters.updateMarketDataProviderSettings).not.toHaveBeenCalled();
     expect(client.getMutationCache().getAll()).toHaveLength(0);
     expect(client.getQueryCache().getAll()).toHaveLength(0);
     expect(screen.queryByLabelText("Private key (PEM)")).not.toBeInTheDocument();
@@ -79,13 +75,12 @@ describe("Futu credentials", () => {
       [QueryKeys.MARKET_DATA_PROVIDER_SETTINGS],
       [{ ...provider, enabled: false, priority: 3 }],
     );
-    await act(async () => finishWrite());
-    await screen.findByText("Credentials saved.");
-    expect(adapters.updateMarketDataProviderSettings).toHaveBeenCalledWith({
-      providerId: "FUTU",
-      enabled: false,
-      priority: 3,
+    await act(async () => {
+      finishWrite();
+      await Promise.resolve();
     });
+    await screen.findByText("Credentials saved.");
+    expect(adapters.updateMarketDataProviderSettings).not.toHaveBeenCalled();
   });
   it("deletes without reading the private key and refreshes the client", async () => {
     setup();
@@ -93,10 +88,12 @@ describe("Futu credentials", () => {
     await screen.findByText("Credentials deleted.");
     expect(adapters.deleteSecret).toHaveBeenCalledWith("FUTU");
     expect(adapters.getSecret).not.toHaveBeenCalled();
-    expect(adapters.updateMarketDataProviderSettings).toHaveBeenCalledOnce();
+    expect(adapters.updateMarketDataProviderSettings).not.toHaveBeenCalled();
   });
   it("reports a refresh failure without exposing server error text or success", async () => {
-    adapters.updateMarketDataProviderSettings.mockRejectedValue(new Error(credentials.privateKey));
+    adapters.setSecret.mockRejectedValue(
+      new Error("Credential changed, but market data client refresh failed."),
+    );
     setup();
     await reveal();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));

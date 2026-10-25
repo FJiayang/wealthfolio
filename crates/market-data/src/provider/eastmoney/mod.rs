@@ -43,7 +43,12 @@ impl EastmoneyProvider {
     ) -> Result<Value, MarketDataError> {
         #[cfg(test)]
         if let Some(responses) = &self.responses {
-            assert_eq!(url, "https://push2his.eastmoney.com/api/qt/stock/kline/get");
+            assert!(matches!(
+                url,
+                "https://push2his.eastmoney.com/api/qt/stock/kline/get"
+                    | "https://fundmobapi.eastmoney.com/FundMNewApi/FundMNNBasicInformation"
+                    | "https://api.fund.eastmoney.com/f10/lsjz"
+            ));
             return Ok(responses
                 .lock()
                 .expect("test response lock")
@@ -108,6 +113,18 @@ impl EastmoneyProvider {
         end: DateTime<Utc>,
         latest: bool,
     ) -> Result<Vec<Quote>, MarketDataError> {
+        self.fund_history_with_coverage(code, start, end, latest)
+            .await
+            .map(|result| result.quotes)
+    }
+
+    async fn fund_history_with_coverage(
+        &self,
+        code: &str,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+        latest: bool,
+    ) -> Result<crate::HistoricalQuotes, MarketDataError> {
         // Verify the share class before interpreting DWJZ (money-market funds use income).
         let currency = self
             .fund_search(code)
@@ -119,6 +136,8 @@ impl EastmoneyProvider {
         let mut quotes = Vec::new();
         let page_size = if latest { 1 } else { 20 };
         let mut page = 1;
+        let mut expected_total = None;
+        let mut consistent_total = true;
         loop {
             let value = self
                 .request(
@@ -139,6 +158,10 @@ impl EastmoneyProvider {
             let total = value["TotalCount"]
                 .as_u64()
                 .ok_or_else(|| invalid("Fund history count missing"))?;
+            if expected_total.is_some_and(|expected| expected != total) {
+                consistent_total = false;
+            }
+            expected_total.get_or_insert(total);
             for row in rows {
                 let day = date(
                     row["FSRQ"]
@@ -168,7 +191,14 @@ impl EastmoneyProvider {
             }
             page += 1;
         }
-        finish_history(quotes, start, end)
+        let raw_count = quotes.len();
+        let quotes = finish_history(quotes, start, end)?;
+        // Page counters alone do not prove every promised row arrived.
+        let complete = !latest
+            && consistent_total
+            && expected_total == Some(raw_count as u64)
+            && quotes.len() == raw_count;
+        Ok(crate::HistoricalQuotes { quotes, complete })
     }
     async fn corporate_actions(
         &self,
@@ -646,10 +676,24 @@ impl MarketDataProvider for EastmoneyProvider {
         start: DateTime<Utc>,
         end: DateTime<Utc>,
     ) -> Result<Vec<Quote>, MarketDataError> {
+        self.get_historical_quotes_with_coverage(context, instrument, start, end)
+            .await
+            .map(|result| result.quotes)
+    }
+
+    async fn get_historical_quotes_with_coverage(
+        &self,
+        context: &QuoteContext,
+        instrument: ProviderInstrument,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<crate::HistoricalQuotes, MarketDataError> {
         let result: Result<_, MarketDataError> = async {
             let symbol = instrument.to_symbol_string();
             if let Some(code) = symbol.strip_prefix("FUND:") {
-                return self.fund_history(code, start, end, false).await;
+                return self
+                    .fund_history_with_coverage(code, start, end, false)
+                    .await;
             }
             let currency = context
                 .currency_hint
@@ -679,7 +723,10 @@ impl MarketDataProvider for EastmoneyProvider {
                 }
                 quotes.extend(rows);
             }
-            finish_history(quotes, start, end)
+            finish_history(quotes, start, end).map(|quotes| crate::HistoricalQuotes {
+                quotes,
+                complete: true,
+            })
         }
         .await;
         result.map_err(|error| response_error(self.id(), error))
@@ -882,6 +929,77 @@ mod tests {
             .lock()
             .unwrap()
             .is_empty());
+    }
+
+    #[tokio::test]
+    async fn completed_year_history_certifies_empty_and_sparse_sessions() {
+        use chrono::TimeZone;
+        for response in [
+            json!({"rc":0,"data":null}),
+            json!({"rc":0,"data":{"code":"600519","klines":["2026-01-05,10,12,13,9,5"]}}),
+        ] {
+            let provider = EastmoneyProvider {
+                request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+                client: client().unwrap(),
+                responses: Some(std::sync::Mutex::new(std::collections::VecDeque::from([
+                    response,
+                ]))),
+            };
+            let context = QuoteContext {
+                instrument: InstrumentId::Equity {
+                    ticker: "600519".into(),
+                    mic: Some("XSHG".into()),
+                },
+                identifiers: Default::default(),
+                overrides: None,
+                currency_hint: Some("CNY".into()),
+                preferred_provider: None,
+                bond_metadata: None,
+                custom_provider_code: None,
+            };
+            let result = provider
+                .get_historical_quotes_with_coverage(
+                    &context,
+                    ProviderInstrument::EquitySymbol {
+                        symbol: "1.600519".into(),
+                    },
+                    Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+                    Utc.with_ymd_and_hms(2026, 1, 31, 23, 59, 59).unwrap(),
+                )
+                .await
+                .unwrap();
+            assert!(result.complete);
+        }
+    }
+
+    #[tokio::test]
+    async fn fund_coverage_checks_received_rows_not_only_page_counters() {
+        use chrono::TimeZone;
+        for (total, expected_complete) in [(1, true), (2, false)] {
+            let provider = EastmoneyProvider {
+                request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
+                client: client().unwrap(),
+                responses: Some(std::sync::Mutex::new(std::collections::VecDeque::from([
+                    json!({"Datas":{"FCODE":"005827","SHORTNAME":"人民币基金A","FTYPE":"股票型"}}),
+                    json!({"TotalCount":total,"Data":{"LSJZList":[{"FSRQ":"2026-01-05","DWJZ":"1.2"}]}}),
+                ]))),
+            };
+            let result = provider
+                .fund_history_with_coverage(
+                    "005827",
+                    Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap(),
+                    Utc.with_ymd_and_hms(2026, 1, 31, 23, 59, 59).unwrap(),
+                    false,
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                result.quotes.len(),
+                1,
+                "legacy partial payload remains available"
+            );
+            assert_eq!(result.complete, expected_complete);
+        }
     }
 
     #[test]

@@ -3,16 +3,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { updatePortfolio, recalculatePortfolio } from "@/adapters";
 import { logger } from "@/adapters";
-import { invalidatePerformanceCaches } from "@/lib/performance-cache";
 
 export function useUpdatePortfolioMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: updatePortfolio,
-    onSuccess: () => {
-      invalidatePerformanceCaches(queryClient);
-    },
+    // Completion events, not command admission, refresh portfolio queries.
     onError: (error) => {
       queryClient.invalidateQueries();
       toast({
@@ -29,9 +26,7 @@ export function useRecalculatePortfolioMutation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: recalculatePortfolio,
-    onSuccess: () => {
-      invalidatePerformanceCaches(queryClient);
-    },
+    // Completion events, not command admission, refresh portfolio queries.
     onError: (error) => {
       queryClient.invalidateQueries();
       toast({

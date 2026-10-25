@@ -13,6 +13,15 @@ use crate::models::{
 
 use super::capabilities::{ProviderCapabilities, RateLimit};
 
+/// Quotes plus an explicit provider guarantee that the requested range was
+/// completely queried and parsed. Partial data remains useful, but must not
+/// permanently certify dates the provider may have truncated or dropped.
+#[derive(Debug)]
+pub struct HistoricalQuotes {
+    pub quotes: Vec<Quote>,
+    pub complete: bool,
+}
+
 /// Trait for market data providers.
 ///
 /// Implement this trait to add support for a new market data source.
@@ -144,6 +153,23 @@ pub trait MarketDataProvider: Send + Sync {
         start: DateTime<Utc>,
         end: DateTime<Utc>,
     ) -> Result<Vec<Quote>, MarketDataError>;
+
+    /// Conservative default for providers whose endpoint/parser completeness
+    /// has not been audited. This does not change their legacy quote behavior.
+    async fn get_historical_quotes_with_coverage(
+        &self,
+        context: &QuoteContext,
+        instrument: ProviderInstrument,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<HistoricalQuotes, MarketDataError> {
+        self.get_historical_quotes(context, instrument, start, end)
+            .await
+            .map(|quotes| HistoricalQuotes {
+                quotes,
+                complete: false,
+            })
+    }
 
     /// Search for symbols matching the query.
     ///

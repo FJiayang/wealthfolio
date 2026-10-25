@@ -26,7 +26,7 @@ describe("market data credentials", () => {
     expect(adapters.deleteSecret).toHaveBeenCalledWith("ALPHA_VANTAGE");
   });
 
-  it("trims and reloads IFIND after saving or replacing its key", async () => {
+  it("trims IFIND and relies on the backend credential reload", async () => {
     adapters.getMarketDataProviderSettings.mockResolvedValue([
       { id: "IFIND", priority: 13, enabled: true },
     ]);
@@ -34,26 +34,18 @@ describe("market data credentials", () => {
     for (const apiKey of [" first ", " replacement "]) {
       await act(() => result.current.mutateAsync({ providerId: "IFIND", apiKey }));
       expect(adapters.setSecret).toHaveBeenLastCalledWith("IFIND", apiKey.trim());
-      expect(adapters.updateMarketDataProviderSettings).toHaveBeenLastCalledWith({
-        providerId: "IFIND",
-        priority: 13,
-        enabled: true,
-      });
+      expect(adapters.updateMarketDataProviderSettings).not.toHaveBeenCalled();
     }
   });
 
-  it("reloads IFIND after deleting its key", async () => {
+  it("does not duplicate the backend reload after deleting IFIND", async () => {
     adapters.getMarketDataProviderSettings.mockResolvedValue([
       { id: "IFIND", priority: 13, enabled: false },
     ]);
     const { result } = renderHook(() => useDeleteApiKey(), { wrapper });
     await act(() => result.current.mutateAsync({ providerId: "IFIND" }));
     expect(adapters.deleteSecret).toHaveBeenCalledWith("IFIND");
-    expect(adapters.updateMarketDataProviderSettings).toHaveBeenCalledWith({
-      providerId: "IFIND",
-      priority: 13,
-      enabled: false,
-    });
+    expect(adapters.updateMarketDataProviderSettings).not.toHaveBeenCalled();
   });
 
   it("preserves the existing credential flow for other providers", async () => {

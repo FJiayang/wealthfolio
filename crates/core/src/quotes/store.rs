@@ -45,6 +45,61 @@ use crate::errors::Result;
 /// - `*_batch` - Operate on multiple assets efficiently
 #[async_trait]
 pub trait QuoteStore: Send + Sync {
+    /// Non-secret revision of live custom-provider settings used for cache identity.
+    fn history_configuration_revision(&self) -> Result<String> {
+        Ok(String::new())
+    }
+
+    /// Successful query coverage. Legacy/test stores safely default to no coverage.
+    fn history_coverage(&self, _identity: &str) -> Result<Vec<super::history::HistoryCoverage>> {
+        Ok(Vec::new())
+    }
+
+    /// Benchmark-only history, isolated from the user's asset quote catalog.
+    fn benchmark_history(
+        &self,
+        _identity: &str,
+        _start: NaiveDate,
+        _end: NaiveDate,
+    ) -> Result<Vec<Quote>> {
+        Ok(Vec::new())
+    }
+
+    async fn invalidate_history_coverage(&self, _asset_id: Option<&str>) -> Result<()> {
+        Ok(())
+    }
+
+    /// Atomically persist provider prices, with a receipt only when
+    /// `record_coverage` is true. Complete responses establish coverage; empty
+    /// and partial outcomes only establish bounded retry receipts. Failed
+    /// requests must never be committed.
+    /// The default intentionally records no coverage, so alternative stores
+    /// cannot incorrectly claim durable query coverage.
+    async fn commit_history_query(
+        &self,
+        _coverage: &super::history::HistoryCoverage,
+        quotes: &[Quote],
+        benchmark: bool,
+        _record_coverage: bool,
+        _expected_context: Option<&super::model::ProviderHistoryResetContext>,
+    ) -> Result<usize> {
+        if benchmark {
+            return Err(crate::errors::Error::Repository(
+                "Benchmark history is not supported by this store".into(),
+            ));
+        }
+        self.upsert_quotes(quotes).await
+    }
+
+    /// Transient optimistic-write guard for provider responses. Alternative
+    /// stores can opt in without making reset support a requirement for reads.
+    fn history_write_context(
+        &self,
+        _asset_id: &str,
+    ) -> Result<Option<super::model::ProviderHistoryResetContext>> {
+        Ok(None)
+    }
+
     fn provider_history_reset_context(
         &self,
         _asset_id: &str,

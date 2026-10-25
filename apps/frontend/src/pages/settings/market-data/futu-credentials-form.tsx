@@ -8,13 +8,7 @@ import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { Label } from "@wealthfolio/ui/components/ui/label";
-import {
-  deleteSecret,
-  getSecret,
-  setSecret,
-  updateMarketDataProviderSettings,
-  type MarketDataProviderSetting,
-} from "@/adapters";
+import { deleteSecret, getSecret, setSecret, type MarketDataProviderSetting } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
 
 const schema = z.object({
@@ -77,21 +71,15 @@ export function FutuCredentialsForm({ provider }: { provider: MarketDataProvider
         await deleteSecret(provider.id);
       }
       saved = true;
-      const currentProvider =
-        queryClient
-          .getQueryData<MarketDataProviderSetting[]>([QueryKeys.MARKET_DATA_PROVIDER_SETTINGS])
-          ?.find((current) => current.id === provider.id) ?? provider;
-      await updateMarketDataProviderSettings({
-        providerId: provider.id,
-        enabled: currentProvider.enabled,
-        priority: currentProvider.priority,
-      });
       form.reset({ appKeyId: "", privateKey: "" });
       setVisible(false);
       setLoaded(false);
       setMessage(label(credentials ? "saved" : "deleted"));
-    } catch {
-      setMessage(label(saved ? "refresh_error" : "save_error"));
+    } catch (error) {
+      const refreshFailed =
+        error instanceof Error &&
+        error.message.includes("Credential changed, but market data client refresh failed.");
+      setMessage(label(saved || refreshFailed ? "refresh_error" : "save_error"));
     } finally {
       setBusy(false);
       await queryClient.invalidateQueries({ queryKey: [QueryKeys.MARKET_DATA_PROVIDER_SETTINGS] });

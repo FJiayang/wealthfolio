@@ -206,11 +206,16 @@ impl JobObserver for ServerJobObserver {
             .publish(ServerEvent::with_payload(PORTFOLIO_UPDATE_ERROR, payload));
     }
 
-    fn update_completed(&self) {
-        // Freshness verdicts and stale-projection issues are cached.
-        self.clear_health_cache();
-        self.event_bus
-            .publish(ServerEvent::new(PORTFOLIO_UPDATE_COMPLETE));
+    fn update_completed_with_changes(&self, changed: Option<bool>) {
+        // Keep lifecycle completion even for no-op jobs, but do not force
+        // another frontend read cycle when no prices or projections changed.
+        if changed != Some(false) {
+            self.clear_health_cache();
+        }
+        self.event_bus.publish(ServerEvent::with_payload(
+            PORTFOLIO_UPDATE_COMPLETE,
+            json!({ "changed": changed }),
+        ));
     }
 }
 

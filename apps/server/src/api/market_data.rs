@@ -296,22 +296,11 @@ async fn sync_market_data(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     Json(body): Json<SyncBody>,
 ) -> ApiResult<StatusCode> {
-    // Determine the appropriate market sync mode based on refetch flags
-    let market_sync_mode = if let Some(days) = body.refetch_recent_days {
-        MarketSyncMode::RefetchRecent {
-            asset_ids: body.asset_ids,
-            days,
-        }
-    } else if body.refetch_all {
-        MarketSyncMode::BackfillHistory {
-            asset_ids: body.asset_ids,
-            days: 365 * 5, // 5 years of history as fallback
-        }
-    } else {
-        MarketSyncMode::Incremental {
-            asset_ids: body.asset_ids,
-        }
-    };
+    let market_sync_mode = MarketSyncMode::for_quote_refresh(
+        body.asset_ids,
+        body.refetch_all,
+        body.refetch_recent_days,
+    );
 
     enqueue_portfolio_job(
         state,

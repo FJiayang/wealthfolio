@@ -78,6 +78,17 @@ lazy_static! {
 // Yahoo Provider
 // ============================================================================
 
+fn history_raw_count(response: &yahoo::YResponse) -> Option<usize> {
+    if response.chart.error.is_some() {
+        return None;
+    }
+    let blocks = response.chart.result.as_ref()?;
+    if blocks.len() != 1 {
+        return None;
+    }
+    blocks.first()?.timestamp.as_ref().map(Vec::len)
+}
+
 /// Yahoo Finance market data provider.
 ///
 /// Provides access to market data for equities, ETFs, cryptocurrencies,
@@ -996,6 +1007,23 @@ impl MarketDataProvider for YahooProvider {
         start: DateTime<Utc>,
         end: DateTime<Utc>,
     ) -> Result<Vec<Quote>, MarketDataError> {
+        let cash = instrument.to_symbol_string().starts_with("CASH:");
+        let result = self
+            .get_historical_quotes_with_coverage(context, instrument, start, end)
+            .await?;
+        if result.quotes.is_empty() && !cash {
+            return Err(MarketDataError::NoDataForRange);
+        }
+        Ok(result.quotes)
+    }
+
+    async fn get_historical_quotes_with_coverage(
+        &self,
+        context: &QuoteContext,
+        instrument: ProviderInstrument,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> Result<crate::HistoricalQuotes, MarketDataError> {
         let symbol = self.extract_symbol(&instrument)?;
 
         debug!(
@@ -1007,7 +1035,10 @@ impl MarketDataProvider for YahooProvider {
 
         // Skip cash symbols
         if symbol.starts_with("CASH:") {
-            return Ok(vec![]);
+            return Ok(crate::HistoricalQuotes {
+                quotes: vec![],
+                complete: true,
+            });
         }
 
         let start_time = Self::chrono_to_offset_datetime(start);
@@ -1025,6 +1056,9 @@ impl MarketDataProvider for YahooProvider {
             .and_then(|m| m.currency)
             .unwrap_or_else(|| self.get_currency(context));
 
+        // yahoo_finance_api silently skips bars with missing closes. Count raw
+        // timestamps before conversion so those rows cannot certify coverage.
+        let raw_count = history_raw_count(&response);
         match response.quotes() {
             Ok(yahoo_quotes) => {
                 let quotes: Vec<Quote> = yahoo_quotes
@@ -1042,7 +1076,8 @@ impl MarketDataProvider for YahooProvider {
                     return Err(MarketDataError::NoDataForRange);
                 }
 
-                Ok(quotes)
+                let complete = raw_count == Some(quotes.len());
+                Ok(crate::HistoricalQuotes { quotes, complete })
             }
             Err(yahoo::YahooError::NoQuotes) => {
                 warn!(
@@ -1051,7 +1086,14 @@ impl MarketDataProvider for YahooProvider {
                     start.format("%Y-%m-%d"),
                     end.format("%Y-%m-%d")
                 );
-                Err(MarketDataError::NoDataForRange)
+                if raw_count == Some(0) && response.chart.error.is_none() {
+                    Ok(crate::HistoricalQuotes {
+                        quotes: vec![],
+                        complete: true,
+                    })
+                } else {
+                    Err(MarketDataError::NoDataForRange)
+                }
             }
             Err(e) => Err(self.convert_yahoo_error(e, &symbol)),
         }
@@ -1281,6 +1323,33 @@ fn allocation_position(name: &str, detail: Option<&YahooPriceDetail>) -> Option<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn missing_yahoo_close_cannot_certify_the_full_query() {
+        let response = yahoo::YResponse {
+            chart: yahoo::YChart {
+                result: Some(vec![yahoo::YQuoteBlock {
+                    timestamp: Some(vec![1767398400, 1767657600]),
+                    indicators: serde_json::from_value(serde_json::json!({
+                        "quote": [{"open": [10.0, 11.0], "high": [10.0, 11.0],
+                            "low": [10.0, 11.0], "close": [10.0, null], "volume": [1, 1]}]
+                    }))
+                    .unwrap(),
+                    ..Default::default()
+                }]),
+                error: None,
+            },
+        };
+        let parsed = response.quotes().unwrap();
+        assert_eq!(
+            parsed.len(),
+            1,
+            "SDK intentionally drops the malformed close"
+        );
+        assert_eq!(history_raw_count(&response), Some(2));
+        assert_ne!(history_raw_count(&response), Some(parsed.len()));
+    }
+
     use std::borrow::Cow;
     use std::sync::Arc;
 
