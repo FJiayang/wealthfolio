@@ -1813,7 +1813,7 @@
   "provider_request_counts": {
     "title": "プロバイダーへのリクエスト",
     "description": "下流 API への呼び出し試行を記録します。再試行や失敗したリクエストも含まれます。請求用の集計ではありません。",
-    "today": "今日の現在までの件数：{{value}}",
+    "today": "今日のリクエスト回数：{{value}}",
     "history": "日別履歴",
     "provider": "プロバイダー",
     "range": "履歴の期間",

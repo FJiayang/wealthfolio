@@ -1813,7 +1813,7 @@
   "provider_request_counts": {
     "title": "공급자 요청",
     "description": "재시도 및 실패한 요청을 포함하여 기록된 하위 API 호출 시도입니다. 청구용 합계가 아닙니다.",
-    "today": "오늘 현재까지: {{value}}",
+    "today": "오늘 요청 횟수: {{value}}",
     "history": "일별 기록",
     "provider": "공급자",
     "range": "기록 범위",

@@ -1814,7 +1814,7 @@
   "provider_request_counts": {
     "title": "供應商請求統計",
     "description": "記錄對下游 API 的呼叫嘗試，包括重試和失敗的請求。這不是計費總量。",
-    "today": "今日截至目前：{{value}}",
+    "today": "今日呼叫次數：{{value}}",
     "history": "每日歷史",
     "provider": "供應商",
     "range": "歷史範圍",

@@ -1,6 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@/test/render";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { FormattingProvider } from "@wealthfolio/ui";
+import { createInstance } from "i18next";
+import { I18nextProvider } from "react-i18next";
+import enSettings from "@/i18n/locales/en/settings.json";
+import zhSettings from "@/i18n/locales/zh/settings.json";
+import zhHantSettings from "@/i18n/locales/zh-Hant/settings.json";
 import { ProviderRequestCountsPanel, ProviderTodayRequests } from "./provider-request-counts";
 import type { useProviderRequestCounts } from "./use-provider-request-counts";
 
@@ -87,6 +92,20 @@ describe("provider request counts panel", () => {
   it("labels retained data as stale after a refresh failure", () => {
     panel({ isError: true });
     expect(screen.getByRole("alert")).toHaveTextContent("out of date");
+  });
+  it.each([
+    ["en", enSettings, "Today’s request count: 1,234"],
+    ["zh", zhSettings, "今日调用次数：1,234"],
+    ["zh-Hant", zhHantSettings, "今日呼叫次數：1,234"],
+  ])("explicitly labels today's request count in %s", async (locale, settings, expected) => {
+    const i18n = createInstance();
+    await i18n.init({ lng: locale, resources: { [locale]: { settings } } });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ProviderTodayRequests count={1234} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(expected)).toBeInTheDocument();
   });
   it("formats today counts and never substitutes zero for unavailable", () => {
     const { rerender } = render(

@@ -1865,7 +1865,7 @@
   "provider_request_counts": {
     "title": "Requêtes aux fournisseurs",
     "description": "Tentatives d’appels aux API des fournisseurs enregistrées, y compris les nouvelles tentatives et les requêtes ayant échoué. Il ne s’agit pas d’un total de facturation.",
-    "today": "Aujourd’hui jusqu’à présent : {{value}}",
+    "today": "Nombre de requêtes aujourd’hui : {{value}}",
     "history": "Historique quotidien",
     "provider": "Fournisseur",
     "range": "Période de l’historique",

@@ -1813,7 +1813,7 @@
   "provider_request_counts": {
     "title": "供应商请求统计",
     "description": "记录对下游 API 的调用尝试，包括重试和失败的请求。这不是计费总量。",
-    "today": "今日截至目前：{{value}}",
+    "today": "今日调用次数：{{value}}",
     "history": "每日历史",
     "provider": "供应商",
     "range": "历史范围",

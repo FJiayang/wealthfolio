@@ -1865,7 +1865,7 @@
   "provider_request_counts": {
     "title": "Richieste ai provider",
     "description": "Tentativi registrati di chiamata alle API dei provider, inclusi i nuovi tentativi e le richieste non riuscite. Non si tratta di un totale di fatturazione.",
-    "today": "Oggi finora: {{value}}",
+    "today": "Numero di richieste di oggi: {{value}}",
     "history": "Cronologia giornaliera",
     "provider": "Provider",
     "range": "Intervallo della cronologia",

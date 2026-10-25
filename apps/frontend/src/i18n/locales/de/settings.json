@@ -1814,7 +1814,7 @@
   "provider_request_counts": {
     "title": "Anbieteranfragen",
     "description": "Erfasste Aufrufversuche an nachgelagerte APIs, einschließlich Wiederholungen und fehlgeschlagener Anfragen. Dies ist keine Abrechnungssumme.",
-    "today": "Heute bisher: {{value}}",
+    "today": "Heutige Anzahl der Anfragen: {{value}}",
     "history": "Tagesverlauf",
     "provider": "Anbieter",
     "range": "Zeitraum",

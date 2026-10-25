@@ -1814,7 +1814,7 @@
   "provider_request_counts": {
     "title": "Provider requests",
     "description": "Recorded downstream API attempts, including retries and failed requests. This is not a billing total.",
-    "today": "Today so far: {{value}}",
+    "today": "Today’s request count: {{value}}",
     "history": "Daily history",
     "provider": "Provider",
     "range": "History range",
