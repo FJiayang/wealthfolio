@@ -125,6 +125,26 @@ fn quote_matches_currency(quote: &Quote, asset: &Asset) -> bool {
             == crate::fx::currency::normalize_currency_code(&asset.quote_ccy)
 }
 
+/// Unknown benchmarks may discover their actual quote currency, but a single
+/// returned series must never mix units across provider responses/cache fills.
+fn validate_history_currency(quotes: &[Quote], currency: &mut Option<String>) -> Result<()> {
+    for quote in quotes {
+        let Some(current) = crate::assets::normalize_quote_ccy_code(Some(&quote.currency)) else {
+            continue;
+        };
+        if currency
+            .as_ref()
+            .is_some_and(|expected| expected != &current)
+        {
+            return Err(Error::MarketData(MarketDataError::InvalidData(
+                "Provider history contains inconsistent quote currencies".into(),
+            )));
+        }
+        *currency = Some(current);
+    }
+    Ok(())
+}
+
 fn history_identity(
     asset: &Asset,
     client: &MarketDataClient,
@@ -1190,6 +1210,10 @@ where
                 )
                 .map_err(wrap)?
         };
+        let mut observed_currency = None;
+        if benchmark && asset.quote_ccy.is_empty() {
+            validate_history_currency(&local, &mut observed_currency).map_err(wrap)?;
+        }
         let latest_provider_date = local
             .iter()
             .filter(|quote| quote.data_source != DATA_SOURCE_MANUAL)
@@ -1219,7 +1243,10 @@ where
                 } else {
                     self.quote_store
                         .history_write_context(&asset.id)
-                        .map_err(wrap)?
+                        .map_err(|error| LocalHistoryError {
+                            written,
+                            ..wrap(error)
+                        })?
                 };
                 if expected_context.as_ref().is_some_and(|context| {
                     history_identity(&context.asset, &client, "history", &revision, benchmark)
@@ -1260,6 +1287,14 @@ where
                         && quote.timestamp.date_naive() <= range_end
                         && quote_matches_currency(quote, &asset)
                 });
+                if benchmark && asset.quote_ccy.is_empty() {
+                    validate_history_currency(&quotes, &mut observed_currency).map_err(
+                        |error| LocalHistoryError {
+                            written,
+                            ..wrap(error)
+                        },
+                    )?;
+                }
                 let complete = complete && original_count == quotes.len();
                 fetched_nonempty |= !quotes.is_empty();
                 provider_id = quotes
@@ -1267,7 +1302,12 @@ where
                     .map(|quote| quote.data_source.clone())
                     .or(provider_id);
                 if !benchmark {
-                    let current = self.asset_repo.get_by_id(&asset.id).map_err(wrap)?;
+                    let current = self.asset_repo.get_by_id(&asset.id).map_err(|error| {
+                        LocalHistoryError {
+                            written,
+                            ..wrap(error)
+                        }
+                    })?;
                     if history_identity(&current, &client, "history", &revision, benchmark)
                         != identity
                     {
@@ -3189,6 +3229,24 @@ mod tests {
             ),
             vec![(friday, friday)]
         );
+    }
+
+    #[test]
+    fn unknown_history_currency_cannot_mix_cached_and_new_provider_units() {
+        let mut quote = Quote {
+            currency: "HKD".into(),
+            ..Default::default()
+        };
+        let mut currency = None;
+        validate_history_currency(&[quote.clone()], &mut currency).unwrap();
+        validate_history_currency(&[quote.clone()], &mut currency).unwrap();
+        quote.currency = "CNY".into();
+        assert!(validate_history_currency(&[quote.clone()], &mut currency).is_err());
+        currency = None;
+        quote.currency = "GBP".into();
+        validate_history_currency(&[quote.clone()], &mut currency).unwrap();
+        quote.currency = "GBp".into();
+        assert!(validate_history_currency(&[quote], &mut currency).is_err());
     }
 
     #[test]

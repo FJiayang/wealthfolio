@@ -985,8 +985,11 @@ deleted merely because preferences change.
 A benchmark that is absent from the user's asset catalog uses isolated
 `benchmark_history` rows in the same profile database. It never creates a fake
 asset or appears in normal quote lists. Prices for existing assets continue to
-use the original quotes table. Benchmark and ordinary history both survive a
-service restart; changing canonical identity, currency or provider configuration
+use the original quotes table. A reporting-currency fallback (such as USD) is
+not an authoritative quote currency for an unknown benchmark: provider currency
+and units remain unchanged, and conflicting currency/unit series are rejected
+rather than combined. Benchmark and ordinary history both survive a service
+restart; changing canonical identity, currency or provider configuration
 invalidates reuse assumptions. Destructive quote changes invalidate receipts.
 Only digests of non-secret fetch configuration are stored in query identity;
 credentials and raw request URLs are not persisted there. Explicit receipt

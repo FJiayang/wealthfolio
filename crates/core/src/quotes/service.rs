@@ -2011,12 +2011,16 @@ where
     async fn fetch_quotes_for_symbol(
         &self,
         asset_id: &str,
-        currency: &str,
+        _currency: &str,
         start: NaiveDate,
         end: NaiveDate,
     ) -> Result<Vec<Quote>> {
         if self.asset_repo.get_by_id(asset_id).is_ok() {
             return self.fetch_quotes_from_provider(asset_id, start, end).await;
+        }
+
+        if let Some(asset) = self.asset_repo.find_by_instrument_key(asset_id)? {
+            return self.fetch_quotes_from_provider(&asset.id, start, end).await;
         }
 
         // Preserve provider resolution for benchmark identifiers, but keep their
@@ -2027,7 +2031,10 @@ where
             display_code: Some(asset_id.to_string()),
             kind: AssetKind::Investment,
             instrument_type: Some(InstrumentType::Equity),
-            quote_ccy: currency.to_string(),
+            // The performance API supplies a fallback reporting currency, not
+            // the unknown instrument's quote currency. Keep provider currency
+            // authoritative instead of filtering or relabelling foreign prices.
+            quote_ccy: String::new(),
             quote_mode: QuoteMode::Market,
             ..Default::default()
         };
@@ -3681,6 +3688,8 @@ mod tests {
         receipts: Mutex<HashMap<String, super::super::history::HistoryCoverage>>,
         range_calls: Arc<AtomicUsize>,
         covered: bool,
+        covered_day: Option<NaiveDate>,
+        fail_context_after_write: bool,
         invalidations: Arc<AtomicUsize>,
     }
 
@@ -3693,7 +3702,7 @@ mod tests {
             if let Some(record) = self.receipts.lock().unwrap().get(identity) {
                 return Ok(vec![record.clone()]);
             }
-            Ok(if self.covered {
+            Ok(if self.covered || self.covered_day.is_some() {
                 vec![super::super::history::HistoryCoverage {
                     identity: identity.to_owned(),
                     asset_id: self
@@ -3701,8 +3710,10 @@ mod tests {
                         .first()
                         .map(|quote| quote.asset_id.clone())
                         .unwrap_or_default(),
-                    start: NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
-                    end: Utc::now().date_naive(),
+                    start: self
+                        .covered_day
+                        .unwrap_or_else(|| NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()),
+                    end: self.covered_day.unwrap_or_else(|| Utc::now().date_naive()),
                     fetched_at: Utc::now() - Duration::seconds(1),
                     outcome: super::super::history::HistoryOutcome::Complete,
                 }]
@@ -3729,6 +3740,18 @@ mod tests {
                 })
                 .cloned()
                 .collect())
+        }
+
+        fn history_write_context(
+            &self,
+            _asset_id: &str,
+        ) -> Result<Option<super::super::model::ProviderHistoryResetContext>> {
+            if self.fail_context_after_write && !self.written.lock().unwrap().is_empty() {
+                return Err(Error::Repository(
+                    "injected later-range context failure".into(),
+                ));
+            }
+            Ok(None)
         }
 
         async fn commit_history_query(
@@ -4077,7 +4100,7 @@ mod tests {
         }
 
         fn find_by_instrument_key(&self, _instrument_key: &str) -> Result<Option<Asset>> {
-            unimplemented!("unused in this test")
+            Ok(None)
         }
 
         async fn cleanup_legacy_metadata(&self, _asset_id: &str) -> Result<()> {
@@ -4157,8 +4180,12 @@ mod tests {
             unimplemented!("unused in this test")
         }
 
-        fn find_by_instrument_key(&self, _instrument_key: &str) -> Result<Option<Asset>> {
-            unimplemented!("unused in this test")
+        fn find_by_instrument_key(&self, instrument_key: &str) -> Result<Option<Asset>> {
+            Ok(self
+                .assets
+                .values()
+                .find(|asset| asset.instrument_key.as_deref() == Some(instrument_key))
+                .cloned())
         }
 
         async fn cleanup_legacy_metadata(&self, _asset_id: &str) -> Result<()> {
@@ -5119,7 +5146,7 @@ mod tests {
         async fn get_historical_quotes(
             &self,
             _context: &wealthfolio_market_data::QuoteContext,
-            _instrument: ProviderInstrument,
+            instrument: ProviderInstrument,
             start: chrono::DateTime<Utc>,
             _end: chrono::DateTime<Utc>,
         ) -> std::result::Result<
@@ -5130,7 +5157,14 @@ mod tests {
             Ok(vec![wealthfolio_market_data::Quote::new(
                 start,
                 dec!(120),
-                "USD".into(),
+                if instrument.to_symbol_string().ends_with(".HK") {
+                    "HKD"
+                } else if instrument.to_symbol_string().ends_with(".SS") {
+                    "CNY"
+                } else {
+                    "USD"
+                }
+                .into(),
                 "YAHOO".into(),
             )])
         }
@@ -5153,6 +5187,135 @@ mod tests {
             ),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn benchmark_canonical_key_reuses_existing_asset_quotes() -> Result<()> {
+        let mut asset = resolution_asset(None);
+        asset.instrument_key = Some("EQUITY:AAPL@XNAS".into());
+        asset.quote_mode = QuoteMode::Manual;
+        asset.quote_ccy = "EUR".into();
+        let day = NaiveDate::from_ymd_opt(2025, 1, 2).unwrap();
+        let store = Arc::new(RangeQuoteStore {
+            quotes: vec![stored_quote(&asset.id, day, dec!(123))],
+            ..Default::default()
+        });
+        let service = quote_service_for_asset(asset, store.clone()).await?;
+        let quotes = service
+            .fetch_quotes_for_symbol("EQUITY:AAPL@XNAS", "USD", day, day)
+            .await?;
+        assert_eq!(quotes.len(), 1);
+        assert_eq!(quotes[0].asset_id, "canonical-aapl");
+        assert_eq!(quotes[0].currency, "EUR");
+        assert_eq!(quotes[0].close, dec!(123));
+        assert!(store.derived.lock().unwrap().is_empty());
+        assert!(store.written.lock().unwrap().is_empty());
+        assert_eq!(service.asset_repo.list()?.len(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn unknown_benchmark_preserves_provider_currency_despite_usd_fallback() -> Result<()> {
+        let store = Arc::new(RangeQuoteStore::default());
+        let sink = Arc::new(crate::events::MockDomainEventSink::new());
+        let service = quote_service_for_asset(resolution_asset(Some("VERIFIED")), store.clone())
+            .await?
+            .with_event_sink(sink.clone());
+        let calls = Arc::new(AtomicUsize::new(0));
+        *service.client.write().await = MarketDataClient::new_with_extra(
+            Arc::new(MockSecretStore),
+            vec![ProviderConfig {
+                id: "YAHOO".into(),
+                priority: 1,
+            }],
+            vec![Arc::new(VerificationProvider {
+                calls: calls.clone(),
+            })],
+        )
+        .await?;
+        let day = NaiveDate::from_ymd_opt(2025, 1, 2).unwrap();
+        for (symbol, currency) in [("0005.HK", "HKD"), ("600000.SS", "CNY")] {
+            for _ in 0..2 {
+                let quotes = service
+                    .fetch_quotes_for_symbol(symbol, "USD", day, day)
+                    .await?;
+                assert_eq!(quotes.len(), 1);
+                assert_eq!(quotes[0].currency, currency);
+                assert_eq!(quotes[0].close, dec!(120));
+            }
+        }
+        let restarted = quote_service_for_asset(resolution_asset(Some("VERIFIED")), store.clone())
+            .await?
+            .with_event_sink(sink.clone());
+        *restarted.client.write().await = MarketDataClient::new_with_extra(
+            Arc::new(MockSecretStore),
+            vec![ProviderConfig {
+                id: "YAHOO".into(),
+                priority: 1,
+            }],
+            vec![Arc::new(VerificationProvider {
+                calls: calls.clone(),
+            })],
+        )
+        .await?;
+        for (symbol, currency) in [("0005.HK", "HKD"), ("600000.SS", "CNY")] {
+            let quotes = restarted
+                .fetch_quotes_for_symbol(symbol, "USD", day, day)
+                .await?;
+            assert_eq!(quotes.len(), 1);
+            assert_eq!(quotes[0].currency, currency);
+            assert_eq!(quotes[0].close, dec!(120));
+        }
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
+        assert_eq!(service.asset_repo.list()?.len(), 1);
+        assert!(store.written.lock().unwrap().is_empty());
+        assert_eq!(store.derived.lock().unwrap().len(), 2);
+        assert!(sink.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn direct_history_fill_emits_for_committed_range_before_later_context_failure(
+    ) -> Result<()> {
+        let store = Arc::new(RangeQuoteStore {
+            covered_day: Some(NaiveDate::from_ymd_opt(2025, 1, 2).unwrap()),
+            fail_context_after_write: true,
+            ..Default::default()
+        });
+        let sink = Arc::new(crate::events::MockDomainEventSink::new());
+        let service = quote_service_for_asset(resolution_asset(Some("VERIFIED")), store.clone())
+            .await?
+            .with_event_sink(sink.clone());
+        let calls = Arc::new(AtomicUsize::new(0));
+        *service.client.write().await = MarketDataClient::new_with_extra(
+            Arc::new(MockSecretStore),
+            vec![ProviderConfig {
+                id: "YAHOO".into(),
+                priority: 1,
+            }],
+            vec![Arc::new(VerificationProvider {
+                calls: calls.clone(),
+            })],
+        )
+        .await?;
+        let result = service
+            .fetch_quotes_for_symbol(
+                "canonical-aapl",
+                "USD",
+                NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
+                NaiveDate::from_ymd_opt(2025, 1, 3).unwrap(),
+            )
+            .await;
+        assert!(matches!(result, Err(Error::Repository(_))));
+        assert_eq!(store.written.lock().unwrap().len(), 1);
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            sink.len(),
+            1,
+            "a later read failure must not hide already committed prices"
+        );
+        assert!(matches!(sink.events()[0], DomainEvent::PriceHistoryChanged));
+        Ok(())
     }
 
     #[tokio::test]
