@@ -1675,3 +1675,60 @@ async fn cancelling_queued_commit_waiter_preserves_atomic_price_and_receipt_writ
         vec![record]
     );
 }
+
+#[tokio::test]
+async fn canonical_context_captures_current_identity_not_stale_callers_asset() {
+    let f = fixture().await;
+    create_custom(&f, "a", false, "historical", 1).await;
+    create_custom(&f, "b", false, "historical", 2).await;
+    let old_profile =
+        serde_json::json!({"preferred_provider":"CUSTOM_SCRAPER","custom_provider_code":"a"});
+    diesel::sql_query("UPDATE assets SET provider_config=? WHERE id='asset'")
+        .bind::<diesel::sql_types::Text, _>(old_profile.to_string())
+        .execute(&mut *db::get_connection(&f.pool).unwrap())
+        .unwrap();
+    let stale_asset = AssetRepository::new(f.pool.clone(), f.writer.clone())
+        .get_by_id("asset")
+        .unwrap();
+    // This mutation precedes context capture, unlike the post-capture guard test.
+    let new_profile =
+        serde_json::json!({"preferred_provider":"CUSTOM_SCRAPER","custom_provider_code":"b"});
+    diesel::sql_query("UPDATE assets SET instrument_symbol='NEW', quote_ccy='EUR', provider_config=? WHERE id='asset'")
+        .bind::<diesel::sql_types::Text,_>(new_profile.to_string())
+        .execute(&mut *db::get_connection(&f.pool).unwrap()).unwrap();
+    let context = f
+        .store
+        .history_write_context(&stale_asset, HistoryQueryKind::History, true)
+        .unwrap()
+        .unwrap();
+    assert_eq!(context.asset.instrument_symbol.as_deref(), Some("NEW"));
+    assert_eq!(context.asset.quote_ccy, "EUR");
+    assert_eq!(context.asset.provider_config, Some(new_profile));
+    assert_eq!(
+        context.custom_revision,
+        f.store
+            .history_configuration_revision(&context.asset, HistoryQueryKind::History)
+            .unwrap()
+    );
+    assert_ne!(
+        context.custom_revision,
+        f.store
+            .history_configuration_revision(&stale_asset, HistoryQueryKind::History)
+            .unwrap()
+    );
+    assert_eq!(
+        context.canonical_context.unwrap().asset.instrument_symbol,
+        context.asset.instrument_symbol
+    );
+    // Synthetic/derived assets deliberately retain their requested identity.
+    let derived = f
+        .store
+        .history_write_context(&stale_asset, HistoryQueryKind::History, false)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        derived.asset.instrument_symbol,
+        stale_asset.instrument_symbol
+    );
+    assert!(derived.canonical_context.is_none());
+}

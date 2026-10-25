@@ -769,10 +769,15 @@ impl QuoteStore for MarketDataRepository {
             } else {
                 None
             };
-            let custom_revision =
-                history_configuration_revision(conn, asset, kind).map_err(StorageError::from)?;
+            // Canonical identity and its optimistic guard must describe the same
+            // database snapshot, not the caller's possibly older asset profile.
+            let current_asset = canonical_context
+                .as_ref()
+                .map_or(asset, |context| &context.asset);
+            let custom_revision = history_configuration_revision(conn, current_asset, kind)
+                .map_err(StorageError::from)?;
             Ok(Some(HistoryWriteContext {
-                asset: asset.clone(),
+                asset: current_asset.clone(),
                 kind,
                 custom_revision,
                 canonical_context,

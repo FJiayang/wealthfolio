@@ -3152,6 +3152,7 @@ mod tests {
         let service = QuoteService::new(
             Arc::new(NoopQuoteStore),
             Arc::new(MockSyncStateStore {
+                health_pause: Mutex::new(None),
                 provider_sync_stats: vec![],
                 with_errors: vec![],
                 states: Arc::new(Mutex::new(HashMap::new())),
@@ -3895,7 +3896,7 @@ mod tests {
             _asset_ids: &[String],
             _source: &str,
         ) -> Result<HashMap<String, (NaiveDate, NaiveDate)>> {
-            unimplemented!("unused in this test")
+            Ok(HashMap::new())
         }
 
         fn get_latest_quote(&self, _symbol: &str) -> Result<Quote> {
@@ -3943,7 +3944,13 @@ mod tests {
         }
     }
 
+    struct HealthUpdatePause {
+        entered: Arc<tokio::sync::Notify>,
+        release: Arc<tokio::sync::Notify>,
+    }
+
     struct MockSyncStateStore {
+        health_pause: Mutex<Option<HealthUpdatePause>>,
         provider_sync_stats: Vec<ProviderSyncStats>,
         with_errors: Vec<QuoteSyncState>,
         states: Arc<Mutex<HashMap<String, QuoteSyncState>>>,
@@ -4004,7 +4011,12 @@ mod tests {
         }
 
         async fn update_after_sync(&self, _asset_id: &str) -> Result<()> {
-            unimplemented!("unused in this test")
+            let pause = self.health_pause.lock().unwrap().take();
+            if let Some(pause) = pause {
+                pause.entered.notify_one();
+                pause.release.notified().await;
+            }
+            Ok(())
         }
 
         async fn update_after_failure(&self, _asset_id: &str, _error: &str) -> Result<()> {
@@ -4414,14 +4426,14 @@ mod tests {
             &self,
             _asset_ids: &[String],
         ) -> Result<HashMap<String, (Option<NaiveDate>, Option<NaiveDate>)>> {
-            unimplemented!("unused in this test")
+            Ok(HashMap::new())
         }
 
         fn get_holdings_snapshot_bounds_for_assets(
             &self,
             _asset_ids: &[String],
         ) -> Result<HashMap<String, (Option<NaiveDate>, Option<NaiveDate>)>> {
-            unimplemented!("unused in this test")
+            Ok(HashMap::new())
         }
 
         fn check_existing_duplicates(
@@ -4474,6 +4486,7 @@ mod tests {
         let service = QuoteService::new_with_custom_provider_and_recorder(
             Arc::new(NoopQuoteStore),
             Arc::new(MockSyncStateStore {
+                health_pause: Mutex::new(None),
                 provider_sync_stats: vec![],
                 with_errors: vec![],
                 states: Arc::new(Mutex::new(HashMap::new())),
@@ -4538,6 +4551,7 @@ mod tests {
         });
 
         let sync_state_store = Arc::new(MockSyncStateStore {
+            health_pause: Mutex::new(None),
             provider_sync_stats: vec![ProviderSyncStats {
                 provider_id: "YAHOO".to_string(),
                 asset_count: 1,
@@ -4614,6 +4628,7 @@ mod tests {
             state.clone(),
         )])));
         let sync_state_store = Arc::new(MockSyncStateStore {
+            health_pause: Mutex::new(None),
             provider_sync_stats: vec![],
             with_errors: vec![],
             states: Arc::clone(&states),
@@ -4662,6 +4677,7 @@ mod tests {
         let service = QuoteService::new(
             Arc::new(NoopQuoteStore),
             Arc::new(MockSyncStateStore {
+                health_pause: Mutex::new(None),
                 provider_sync_stats: vec![],
                 with_errors: vec![],
                 states: Arc::new(Mutex::new(HashMap::new())),
@@ -4710,6 +4726,7 @@ mod tests {
         };
         let states = Arc::new(Mutex::new(HashMap::new()));
         let sync_state_store = Arc::new(MockSyncStateStore {
+            health_pause: Mutex::new(None),
             provider_sync_stats: vec![],
             with_errors: vec![],
             states: Arc::clone(&states),
@@ -4764,6 +4781,7 @@ mod tests {
         let service = QuoteService::new(
             Arc::new(NoopQuoteStore),
             Arc::new(MockSyncStateStore {
+                health_pause: Mutex::new(None),
                 provider_sync_stats: vec![],
                 with_errors: vec![],
                 states: Arc::clone(&states),
@@ -4825,6 +4843,7 @@ mod tests {
         let service = QuoteService::new(
             Arc::new(NoopQuoteStore),
             Arc::new(MockSyncStateStore {
+                health_pause: Mutex::new(None),
                 provider_sync_stats: vec![],
                 with_errors: vec![],
                 states: Arc::clone(&states),
@@ -4890,6 +4909,7 @@ mod tests {
         let service = QuoteService::new(
             Arc::new(NoopQuoteStore),
             Arc::new(MockSyncStateStore {
+                health_pause: Mutex::new(None),
                 provider_sync_stats: vec![],
                 with_errors: vec![],
                 states: Arc::clone(&states),
@@ -4938,6 +4958,7 @@ mod tests {
                 requested_latest_quotes: requested_latest_quotes.clone(),
             }),
             Arc::new(MockSyncStateStore {
+                health_pause: Mutex::new(None),
                 provider_sync_stats: vec![],
                 with_errors: vec![],
                 states: Arc::new(Mutex::new(HashMap::new())),
@@ -5007,6 +5028,7 @@ mod tests {
         QuoteService::new(
             quote_store,
             Arc::new(MockSyncStateStore {
+                health_pause: Mutex::new(None),
                 provider_sync_stats: vec![],
                 with_errors: vec![],
                 states: Arc::new(Mutex::new(HashMap::new())),
@@ -5205,6 +5227,82 @@ mod tests {
             ),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn same_asset_sync_waits_for_success_health_bookkeeping() -> Result<()> {
+        let mut asset = resolution_asset(Some("VERIFIED"));
+        asset.is_active = true;
+        let service = quote_service_for_asset(asset, Arc::new(RangeQuoteStore::default())).await?;
+        let calls = Arc::new(AtomicUsize::new(0));
+        *service.client.write().await = MarketDataClient::new_with_extra(
+            Arc::new(MockSecretStore),
+            vec![ProviderConfig {
+                id: "YAHOO".into(),
+                priority: 1,
+            }],
+            vec![Arc::new(VerificationProvider {
+                calls: calls.clone(),
+            })],
+        )
+        .await?;
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let release = Arc::new(tokio::sync::Notify::new());
+        *service.sync_state_store.health_pause.lock().unwrap() = Some(HealthUpdatePause {
+            entered: entered.clone(),
+            release: release.clone(),
+        });
+        let sync = service.get_sync_service().await?;
+        let first_sync = sync.clone();
+        let first = tokio::spawn(async move {
+            first_sync
+                .sync(
+                    SyncMode::RefreshAllHistory { days: 2 },
+                    Some(vec!["canonical-aapl".into()]),
+                )
+                .await
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(2), entered.notified())
+            .await
+            .expect("first sync reaches health update");
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        let mut second = tokio::spawn(async move {
+            sync.sync(
+                SyncMode::RefreshAllHistory { days: 2 },
+                Some(vec!["canonical-aapl".into()]),
+            )
+            .await
+        });
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(50), &mut second)
+                .await
+                .is_err(),
+            "second sync must remain queued while prior health update is paused"
+        );
+        assert_eq!(
+            calls.load(Ordering::Relaxed),
+            1,
+            "queued sync cannot fetch before health bookkeeping completes"
+        );
+        release.notify_one();
+        assert_eq!(
+            tokio::time::timeout(std::time::Duration::from_secs(2), first)
+                .await
+                .unwrap()
+                .unwrap()?
+                .failed,
+            0
+        );
+        assert_eq!(
+            tokio::time::timeout(std::time::Duration::from_secs(2), second)
+                .await
+                .unwrap()
+                .unwrap()?
+                .failed,
+            0
+        );
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
+        Ok(())
     }
 
     #[tokio::test]
