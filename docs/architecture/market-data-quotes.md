@@ -889,8 +889,10 @@ Range intent is separate from permission to bypass local coverage:
   `RefreshAllHistory` through the shared `MarketSyncMode::for_quote_refresh`
   mapping in both Tauri and Axum. This explicit action bypasses local coverage
   and keeps ordinary provider upsert/revision behavior with manual-price
-  precedence. The existing recent-window flag still takes precedence if both
-  command flags are supplied.
+  precedence. The legacy explicit `resync` / `synch_quotes` /
+  `/market-data/sync/history` / addon `syncHistory` aliases select the same
+  refresh-all intent; no automatic caller uses that alias. The existing
+  recent-window flag still takes precedence if both command flags are supplied.
 - Reset Provider History is the other explicit bypass. Its separate command,
   confirmation, validation, and atomic provider-history replacement remain
   unchanged. A refresh-all operation is not a reset, and a projection's
@@ -945,10 +947,14 @@ SQLite stores small query receipts in `market_history_queries`, separate from
 `QuoteSyncState.last_synced_at`. Receipts contain a digested
 canonical/configuration identity, asset ID, inclusive query window, outcome and
 fetch time. Neither quote min/max bounds nor missing calendar days establish
-complete coverage. Provider authentication, fallback, parsing and disable rules
-remain in the existing registry. Providers explicitly attest complete range
-results; bounded or otherwise uncertified successful replies are partial
-observations:
+complete coverage. Existing prices from an older application version have no
+receipts: the first ordinary sync may conservatively validate its existing
+incremental window once. It does not infer complete history from old rows,
+expand that incremental request to all history, or erase the stored prices.
+Persisted receipts then allow repeated views and restarts to reuse that work.
+Provider authentication, fallback, parsing and disable rules remain in the
+existing registry. Providers explicitly attest complete range results; bounded
+or otherwise uncertified successful replies are partial observations:
 
 - Complete historical prefixes can be reused durably. The existing five-day
   correction overlap remains mutable when its market session is not settled.

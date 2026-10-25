@@ -644,16 +644,18 @@ pub trait QuoteServiceTrait: Send + Sync {
     /// Perform quote synchronization with the specified mode and optional asset filter.
     ///
     /// # Arguments
-    /// * `mode` - The sync mode determining how date ranges are calculated
+    /// * `mode` - Requested date range and, only for explicit full refresh, local-coverage bypass
     /// * `asset_ids` - Optional list of specific assets to sync. If None, syncs all relevant assets.
     ///
     /// # Sync Modes
     /// * `Incremental` - Default mode. Continues from last_quote_date with overlap to heal corrections.
-    /// * `RefetchRecent { days }` - Refetches the last N days regardless of existing quotes.
-    /// * `BackfillHistory { days }` - Rebuilds full history from activity start (or N days fallback).
+    /// * `RefetchRecent { days }` - Ensures the last N days using fresh local coverage first.
+    /// * `BackfillHistory { days }` - Ensures history from activity start (or N days fallback), local-first.
+    /// * `RefreshAllHistory { days }` - Explicit full-history refresh; bypasses coverage and merges prices.
     async fn sync(&self, mode: SyncMode, asset_ids: Option<Vec<String>>) -> Result<SyncResult>;
 
-    /// Force resync for specific asset IDs (or all if None) using BackfillHistory mode.
+    /// Legacy explicit full-history refresh alias, using RefreshAllHistory mode.
+    /// This shares the refresh-all exemption; automatic rebuilds must use BackfillHistory.
     /// An empty asset ID list is treated as sync nothing.
     async fn resync(&self, asset_ids: Option<Vec<String>>) -> Result<SyncResult>;
 
@@ -1907,6 +1909,17 @@ where
                 .await
             {
                 Ok((mut quote, fetched_provider_quote)) => {
+                    if preferred_provider.is_some_and(|provider| !provider.trim().is_empty()) {
+                        if let Some(fetched) = fetched_provider_quote {
+                            if !resolved_provider_matches_requested(
+                                &fetched.data_source,
+                                preferred_provider,
+                            ) {
+                                continue;
+                            }
+                            quote = fetched;
+                        }
+                    }
                     if quote.data_source == DATA_SOURCE_MANUAL
                         && preferred_provider.is_some_and(|provider| !provider.trim().is_empty())
                     {
@@ -1920,15 +1933,7 @@ where
                             .strip_prefix("CUSTOM:")
                             .map(|code| format!("{DATA_SOURCE_CUSTOM_SCRAPER}:{code}"))
                             .unwrap_or_else(|| requested.to_string());
-                        let provider_quote = if let Some(fetched) = fetched_provider_quote {
-                            if !resolved_provider_matches_requested(
-                                &fetched.data_source,
-                                preferred_provider,
-                            ) {
-                                continue;
-                            }
-                            Some(fetched)
-                        } else if let Some(asset) =
+                        let provider_quote = if let Some(asset) =
                             existing.filter(|asset| asset.quote_mode == QuoteMode::Market)
                         {
                             let current_day = time_utils::market_calendar_date(

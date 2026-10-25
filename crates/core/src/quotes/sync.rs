@@ -601,18 +601,20 @@ pub trait QuoteSyncServiceTrait: Send + Sync {
     /// Perform quote synchronization with the specified mode and optional asset filter.
     ///
     /// # Arguments
-    /// * `mode` - The sync mode determining how date ranges are calculated
+    /// * `mode` - Requested date range and, only for explicit full refresh, local-coverage bypass
     /// * `asset_ids` - Optional list of specific assets to sync. If None, syncs all relevant assets.
     ///
     /// # Sync Modes
     /// * `Incremental` - Default mode. Continues from last_quote_date with overlap to heal corrections.
-    /// * `RefetchRecent { days }` - Refetches the last N days regardless of existing quotes.
-    /// * `BackfillHistory { days }` - Rebuilds full history from activity start (or N days fallback).
+    /// * `RefetchRecent { days }` - Ensures the last N days using fresh local coverage first.
+    /// * `BackfillHistory { days }` - Ensures history from activity start (or N days fallback), local-first.
+    /// * `RefreshAllHistory { days }` - Explicit full-history refresh; bypasses coverage and merges prices.
     async fn sync(&self, mode: SyncMode, asset_ids: Option<Vec<String>>) -> Result<SyncResult>;
 
-    /// Force resync of quotes for specific assets using BackfillHistory mode.
+    /// Legacy explicit full-history refresh alias, using RefreshAllHistory mode.
     ///
-    /// This is a convenience wrapper that calls `sync(SyncMode::BackfillHistory { days: DEFAULT_HISTORY_DAYS }, asset_ids)`.
+    /// Calls `sync(SyncMode::RefreshAllHistory { days: DEFAULT_HISTORY_DAYS }, asset_ids)`.
+    /// Automatic rebuilds use BackfillHistory directly and remain local-first.
     /// If asset_ids is None, resync all syncable assets. If asset_ids is empty, sync nothing.
     async fn resync(&self, asset_ids: Option<Vec<String>>) -> Result<SyncResult>;
 
@@ -925,7 +927,7 @@ where
                 )
             }
             SyncMode::RefetchRecent { days } => {
-                // Simply fetch the last N days, ignoring existing quotes
+                // Select the last N days; execution still reuses fresh local coverage.
                 let start = fetch_end_date - Duration::days(days);
                 (start, fetch_end_date)
             }
@@ -2276,9 +2278,9 @@ where
     }
 
     async fn resync(&self, asset_ids: Option<Vec<String>>) -> Result<SyncResult> {
-        // resync is a convenience wrapper for BackfillHistory mode
+        // Preserve the legacy explicit full-history refresh action, not an automatic backfill.
         self.sync(
-            SyncMode::BackfillHistory {
+            SyncMode::RefreshAllHistory {
                 days: DEFAULT_HISTORY_DAYS,
             },
             asset_ids,

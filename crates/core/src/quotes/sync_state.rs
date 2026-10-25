@@ -14,10 +14,11 @@ use crate::errors::Result;
 // Sync Mode
 // =============================================================================
 
-/// Mode for quote synchronization - determines date window calculation.
+/// Quote sync range intent, plus an explicit full-history refresh exemption.
 ///
 /// This is a per-request parameter, NOT a persisted setting. Each sync call
-/// can specify a different mode based on the caller's needs.
+/// can specify a different range based on the caller's needs. Incremental, recent
+/// and backfill ranges all check local coverage; only RefreshAllHistory bypasses it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SyncMode {
     /// Continue from last_quote_date with overlap, fill gaps to activity_min_date.

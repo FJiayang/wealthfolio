@@ -568,10 +568,15 @@ async fn automatic_backfill_is_local_first_but_explicit_history_refresh_bypasses
         .await
         .unwrap();
     service
-        .sync(SyncMode::RefreshAllHistory { days: 30 }, targets)
+        .sync(SyncMode::RefreshAllHistory { days: 30 }, targets.clone())
         .await
         .unwrap();
     assert_eq!(provider.ranges.lock().unwrap().len(), first_count + 2);
+    // The legacy endpoint/addon alias is the same explicit full-history action,
+    // not an automatic backfill. Even its second, already-covered call refetches.
+    service.resync(targets.clone()).await.unwrap();
+    service.resync(targets).await.unwrap();
+    assert_eq!(provider.ranges.lock().unwrap().len(), first_count + 4);
 }
 
 #[tokio::test]
