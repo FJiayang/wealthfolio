@@ -1623,7 +1623,8 @@ async fn cancelling_provider_wait_writes_nothing_and_releases_same_asset_lock() 
     assert_eq!(provider.ranges.lock().unwrap().len(), 2);
 }
 
-#[tokio::test]
+// The deliberately synchronous actor gate needs another runtime worker to release it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancelling_queued_commit_waiter_preserves_atomic_price_and_receipt_write() {
     let f = fixture().await;
     let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
