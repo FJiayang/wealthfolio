@@ -149,8 +149,15 @@ fn history_configuration_revision(
     if revisions.is_empty() {
         return Ok(String::new());
     }
-    let payload = serde_json::to_vec(&revisions)
-        .map_err(|err| wealthfolio_core::Error::Repository(err.to_string()))?;
+    // Older custom JSON receipts could mistake a truncated page for complete
+    // history. Version only custom-history identities so those proofs cannot
+    // survive this policy correction; latest and unrelated scopes stay stable.
+    let payload = if kind == HistoryQueryKind::History {
+        serde_json::to_vec(&("custom-history-partial-v2", &revisions))
+    } else {
+        serde_json::to_vec(&revisions)
+    }
+    .map_err(|err| wealthfolio_core::Error::Repository(err.to_string()))?;
     Ok(hex::encode(Sha256::digest(payload)))
 }
 

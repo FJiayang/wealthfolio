@@ -942,6 +942,12 @@ or otherwise uncertified successful replies are partial observations:
 - Empty and partial observations are reused only for the configured interval.
   Partial observations never become durable historical coverage or settled
   session proof. Newly requested, unqueried ranges are still fetched.
+- Custom history, including JSON with date placeholders and fully parsed rows,
+  is always Partial: the current custom-source contract cannot prove pagination
+  ended or that a server did not truncate its response. Custom-history query
+  identities include a coverage-policy version, so old custom Complete receipts
+  are not reused after this correction. Actual stored prices are preserved, and
+  scopes with no eligible custom sources keep their identities.
 - Errors and authentication failures do not create receipts. Future dates are
   not certified; unobservable latest responses are returned without cache proof.
 
@@ -994,13 +1000,12 @@ reported as occurring after the credential changed. The frontend does not issue
 a duplicate settings refresh for the same credential write. Tauri preserves
 generic secret writes while the profile database is unavailable; reopening
 constructs a new client from current secrets. Immediate receipt invalidation
-cannot run without that database. Credential-backed provider responses,
-secret-header custom history, and a public fallback after the request's
-credential-dependent primary fails therefore remain bounded Partial
-observations, not indefinitely reusable authenticated history. Public Yahoo,
-Eastmoney and unauthenticated custom history retain durable restart reuse;
-unrelated enabled credential providers do not downgrade those public requests.
-Normal market settings require an available profile context.
+cannot run without that database. Credential-backed provider responses, all
+custom history, and a public fallback after the request's credential-dependent
+primary fails therefore remain bounded Partial observations, not indefinitely
+reusable authenticated history. Public Yahoo and Eastmoney retain durable
+restart reuse; unrelated enabled credential providers do not downgrade those
+public requests. Normal market settings require an available profile context.
 
 Explicit source verification retains the original provider validation behavior;
 its responses are not stored in the benchmark cache. Ordinary resolution,

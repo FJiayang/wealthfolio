@@ -326,7 +326,7 @@ impl wealthfolio_market_data::MarketDataProvider for FakeProvider {
             .await
             .map(|quotes| wealthfolio_market_data::HistoricalQuotes {
                 quotes,
-                complete: true,
+                complete: self.response_mode.load(std::sync::atomic::Ordering::SeqCst) != 6,
             })
     }
 
@@ -379,7 +379,13 @@ impl wealthfolio_market_data::MarketDataProvider for FakeProvider {
                 },
             );
         }
-        let mut day = start.date_naive();
+        let mut day = if mode == 6 {
+            start
+                .date_naive()
+                .max(end.date_naive() - Duration::days(99))
+        } else {
+            start.date_naive()
+        };
         let mut quotes = Vec::new();
         while day <= end.date_naive() {
             quotes.push(wealthfolio_market_data::Quote::new(
@@ -418,7 +424,7 @@ type SyncService = wealthfolio_core::quotes::QuoteSyncService<
 >;
 
 async fn sync_service(f: &Fixture, provider: Arc<FakeProvider>) -> SyncService {
-    use wealthfolio_core::quotes::{MarketDataClient, ProviderConfig, QuoteSyncService};
+    use wealthfolio_core::quotes::{MarketDataClient, ProviderConfig};
     let client = MarketDataClient::new_with_extra(
         Arc::new(NoSecrets),
         vec![ProviderConfig {
@@ -429,7 +435,14 @@ async fn sync_service(f: &Fixture, provider: Arc<FakeProvider>) -> SyncService {
     )
     .await
     .unwrap();
-    QuoteSyncService::new(
+    sync_service_with_client(f, client)
+}
+
+fn sync_service_with_client(
+    f: &Fixture,
+    client: wealthfolio_core::quotes::MarketDataClient,
+) -> SyncService {
+    wealthfolio_core::quotes::QuoteSyncService::new(
         Arc::new(tokio::sync::RwLock::new(client)),
         Arc::new(MarketDataRepository::new(f.pool.clone(), f.writer.clone())),
         Arc::new(
@@ -1732,4 +1745,184 @@ async fn canonical_context_captures_current_identity_not_stale_callers_asset() {
         stale_asset.instrument_symbol
     );
     assert!(derived.canonical_context.is_none());
+}
+
+// Exact pre-policy-bump serialization, deliberately confined to this upgrade test.
+fn legacy_custom_revision(f: &Fixture, code: &str, kind: &str) -> String {
+    use sha2::{Digest, Sha256};
+    #[derive(diesel::QueryableByName)]
+    struct Revision {
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        updated_at: String,
+        #[diesel(sql_type = diesel::sql_types::Bool)]
+        enabled: bool,
+        #[diesel(sql_type = diesel::sql_types::Integer)]
+        priority: i32,
+    }
+    let row = diesel::sql_query(
+        "SELECT updated_at,enabled,priority FROM market_data_custom_providers WHERE code=?",
+    )
+    .bind::<diesel::sql_types::Text, _>(code)
+    .get_result::<Revision>(&mut *db::get_connection(&f.pool).unwrap())
+    .unwrap();
+    hex::encode(Sha256::digest(
+        serde_json::to_vec(&vec![(
+            code,
+            kind,
+            row.updated_at,
+            row.enabled,
+            row.priority,
+        )])
+        .unwrap(),
+    ))
+}
+
+#[tokio::test]
+async fn custom_history_policy_upgrade_retries_legacy_complete_then_bounds_partial_reuse() {
+    use sha2::{Digest, Sha256};
+    use wealthfolio_core::quotes::{MarketDataClient, ProviderConfig};
+    let f = fixture().await;
+    create_custom(&f, "custom-history", true, "historical", 1).await;
+    let asset = AssetRepository::new(f.pool.clone(), f.writer.clone())
+        .get_by_id("asset")
+        .unwrap();
+    let legacy_revision = legacy_custom_revision(&f, "custom-history", "historical");
+    assert_ne!(
+        legacy_revision,
+        f.store
+            .history_configuration_revision(&asset, HistoryQueryKind::History)
+            .unwrap()
+    );
+    let provider = Arc::new(FakeProvider::default());
+    provider
+        .response_mode
+        .store(6, std::sync::atomic::Ordering::SeqCst);
+    let client = MarketDataClient::new_with_extra(
+        Arc::new(NoSecrets),
+        vec![ProviderConfig {
+            id: "YAHOO".into(),
+            priority: 1,
+        }],
+        vec![provider.clone()],
+    )
+    .await
+    .unwrap();
+    // Exact old owner identity: no public API is added solely for migration tests.
+    let old_identity = serde_json::json!({
+        "operation":"history", "benchmark":false, "asset":asset.id, "kind":asset.kind,
+        "mode":asset.quote_mode,"currency":asset.quote_ccy,"type":asset.instrument_type,
+        "symbol":asset.instrument_symbol,"exchange":asset.instrument_exchange_mic,
+        "preferredProvider":asset.preferred_provider(),"overrides":asset.provider_overrides(),
+        "customProviderCode":asset.provider_config.as_ref().and_then(|config|config.get("custom_provider_code")),
+        "isin":asset.metadata.as_ref().and_then(|metadata|metadata.get("identifiers")).and_then(|identifiers|identifiers.get("isin")),
+        "bond":asset.bond_spec(),"providers":client.history_configuration_fingerprint(),"configurationRevision":legacy_revision,
+    });
+    let legacy_identity = format!("{:x}", Sha256::digest(old_identity.to_string().as_bytes()));
+    let mut legacy = coverage(&legacy_identity, &asset.id);
+    legacy.end = NaiveDate::from_ymd_opt(2025, 12, 31).unwrap();
+    let mut last_price = quote(&asset.id, "YAHOO", 100);
+    last_price.timestamp = legacy.end.and_hms_opt(12, 0, 0).unwrap().and_utc();
+    let manual = quote(&asset.id, "MANUAL", 999);
+    f.store
+        .upsert_quotes(std::slice::from_ref(&manual))
+        .await
+        .unwrap();
+    f.store
+        .commit_history_query(
+            &legacy,
+            std::slice::from_ref(&last_price),
+            HistoryWriteMode::Canonical,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+    let owner = sync_service_with_client(&f, client);
+    owner
+        .fetch_local_first_history(&asset, legacy.start, legacy.end, false)
+        .await
+        .unwrap();
+    assert_eq!(
+        *provider.ranges.lock().unwrap(),
+        vec![(legacy.start, legacy.end)]
+    );
+    #[derive(diesel::QueryableByName)]
+    struct Receipt {
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        identity: String,
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        outcome: String,
+    }
+    let current = diesel::sql_query(
+        "SELECT identity,outcome FROM market_history_queries WHERE identity != ?",
+    )
+    .bind::<diesel::sql_types::Text, _>(&legacy_identity)
+    .get_result::<Receipt>(&mut *db::get_connection(&f.pool).unwrap())
+    .unwrap();
+    assert_eq!(current.outcome, "partial");
+    owner
+        .fetch_local_first_history(&asset, legacy.start, legacy.end, false)
+        .await
+        .unwrap();
+    assert_eq!(provider.ranges.lock().unwrap().len(), 1);
+    diesel::sql_query("UPDATE market_history_queries SET fetched_at=? WHERE identity=?")
+        .bind::<diesel::sql_types::Text, _>((Utc::now() - Duration::days(2)).to_rfc3339())
+        .bind::<diesel::sql_types::Text, _>(&current.identity)
+        .execute(&mut *db::get_connection(&f.pool).unwrap())
+        .unwrap();
+    owner
+        .fetch_local_first_history(&asset, legacy.start, legacy.end, false)
+        .await
+        .unwrap();
+    assert_eq!(
+        *provider.ranges.lock().unwrap(),
+        vec![(legacy.start, legacy.end), (legacy.start, legacy.end)]
+    );
+    let prices = f.store.get_historical_quotes(&asset.id).unwrap();
+    assert!(prices
+        .iter()
+        .any(|q| q.data_source == "MANUAL" && q.close == manual.close));
+    assert!(prices
+        .iter()
+        .any(|q| q.timestamp == last_price.timestamp && q.close == last_price.close));
+    assert_eq!(
+        f.store.history_coverage(&legacy_identity).unwrap(),
+        vec![legacy]
+    );
+}
+
+#[tokio::test]
+async fn custom_history_policy_salt_leaves_latest_and_unrelated_revisions_unchanged() {
+    let f = fixture().await;
+    let asset = AssetRepository::new(f.pool.clone(), f.writer.clone())
+        .get_by_id("asset")
+        .unwrap();
+    assert_eq!(
+        f.store
+            .history_configuration_revision(&asset, HistoryQueryKind::History)
+            .unwrap(),
+        ""
+    );
+    create_custom(&f, "private", false, "historical", 1).await;
+    assert_eq!(
+        f.store
+            .history_configuration_revision(&asset, HistoryQueryKind::History)
+            .unwrap(),
+        ""
+    );
+    create_custom(&f, "latest", true, "latest", 2).await;
+    let legacy_latest = legacy_custom_revision(&f, "latest", "latest");
+    assert_eq!(
+        f.store
+            .history_configuration_revision(&asset, HistoryQueryKind::Latest)
+            .unwrap(),
+        legacy_latest
+    );
+    // History falling back to that same latest source also needs the policy bump.
+    assert_ne!(
+        f.store
+            .history_configuration_revision(&asset, HistoryQueryKind::History)
+            .unwrap(),
+        legacy_latest
+    );
 }
