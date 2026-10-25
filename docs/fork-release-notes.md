@@ -12,7 +12,7 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
-## Unreleased
+## v3.11.0.6 — 2026-10-25
 
 - Replace automatic interval-based market updates with one daily attempt,
   defaulting to 22:00 Asia/Shanghai. Configure hours, minutes and an independent
