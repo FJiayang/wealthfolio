@@ -956,6 +956,8 @@ export interface Settings {
   menuBarVisible: boolean;
   syncEnabled: boolean;
   marketDataSyncIntervalHours: number;
+  marketDataSyncTime: string;
+  marketDataSyncTimezone: string;
 }
 
 export interface SettingsContextType {

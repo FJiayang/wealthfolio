@@ -58,7 +58,9 @@ export const COMMANDS: CommandMap = {
   save_manual_holdings: { method: "POST", path: "/snapshots" },
   import_holdings_csv: { method: "POST", path: "/snapshots/import" },
   check_holdings_import: { method: "POST", path: "/snapshots/import/check" },
+  check_market_data_update: { method: "POST", path: "/portfolio/check-market-data" },
   update_portfolio: { method: "POST", path: "/portfolio/update" },
+  recalculate_portfolio_local: { method: "POST", path: "/portfolio/recalculate-local" },
   recalculate_portfolio: { method: "POST", path: "/portfolio/recalculate" },
   // Performance
   calculate_accounts_simple_performance: { method: "POST", path: "/performance/accounts/simple" },
@@ -143,6 +145,7 @@ export const COMMANDS: CommandMap = {
   calculate_deposits_for_contribution_limit: { method: "GET", path: "/limits" },
   // Asset profile
   get_assets: { method: "GET", path: "/assets" },
+  register_benchmark: { method: "POST", path: "/assets/benchmark" },
   create_asset: { method: "POST", path: "/assets" },
   delete_asset: { method: "DELETE", path: "/assets" },
   get_asset_profile: { method: "GET", path: "/assets/profile" },
@@ -999,6 +1002,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       url += `/${encodeURIComponent(id)}`;
       break;
     }
+    case "register_benchmark":
     case "create_asset": {
       const { payload: assetPayload } = payload as { payload: Record<string, unknown> };
       body = JSON.stringify(assetPayload);

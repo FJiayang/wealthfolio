@@ -1159,6 +1159,8 @@ impl LotRepositoryTrait for InMemoryLotRepository {
 /// valuation path uses (in-range keyframes plus one pre-range seed per asset)
 /// and the latest-on-or-before lookups; provider/sync methods are not needed.
 pub struct InMemoryQuoteService {
+    pub daily_sync_calls: std::sync::atomic::AtomicUsize,
+    pub fail_daily_sync: std::sync::atomic::AtomicBool,
     quotes_by_asset: RwLock<HashMap<String, Vec<Quote>>>,
     assets: HashMap<String, Asset>,
 }
@@ -1191,6 +1193,8 @@ impl InMemoryQuoteService {
 
     pub fn new(quotes: Vec<Quote>, assets: Vec<Asset>) -> Self {
         let service = Self {
+            daily_sync_calls: Default::default(),
+            fail_daily_sync: Default::default(),
             quotes_by_asset: RwLock::new(HashMap::new()),
             assets: assets
                 .into_iter()
@@ -1491,8 +1495,19 @@ impl QuoteServiceTrait for InMemoryQuoteService {
         not_needed!("QuoteServiceTrait::resync")
     }
 
+    async fn sync_daily(&self, _benchmark_ids: &[String]) -> Result<SyncResult> {
+        self.daily_sync_calls
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if self
+            .fail_daily_sync
+            .load(std::sync::atomic::Ordering::SeqCst)
+        {
+            return Err(Error::Unexpected("Test provider failure".into()));
+        }
+        Ok(SyncResult::default())
+    }
     async fn refresh_sync_state(&self) -> Result<()> {
-        not_needed!("QuoteServiceTrait::refresh_sync_state")
+        Ok(())
     }
 
     fn get_sync_plan(&self) -> Result<Vec<SymbolSyncPlan>> {
@@ -1528,7 +1543,7 @@ impl QuoteServiceTrait for InMemoryQuoteService {
     }
 
     fn get_assets_needing_profile_enrichment(&self) -> Result<Vec<QuoteSyncState>> {
-        not_needed!("QuoteServiceTrait::get_assets_needing_profile_enrichment")
+        Ok(vec![])
     }
 
     fn get_sync_states_with_errors(&self) -> Result<Vec<QuoteSyncState>> {

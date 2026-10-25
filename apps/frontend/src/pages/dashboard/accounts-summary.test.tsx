@@ -110,6 +110,8 @@ const mockSettings: Settings = {
   menuBarVisible: true,
   syncEnabled: false,
   marketDataSyncIntervalHours: 6,
+  marketDataSyncTime: "22:00",
+  marketDataSyncTimezone: "Asia/Shanghai",
 };
 
 function createAccount(overrides: Partial<Account>): Account {

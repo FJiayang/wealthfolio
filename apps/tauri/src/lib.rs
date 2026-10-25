@@ -419,7 +419,9 @@ pub fn run() {
             commands::portfolio::get_current_valuation,
             commands::portfolio::calculate_accounts_simple_performance,
             commands::portfolio::update_portfolio,
+            commands::portfolio::check_market_data_update,
             commands::portfolio::recalculate_portfolio,
+            commands::portfolio::recalculate_portfolio_local,
             commands::portfolio::calculate_performance_summary,
             commands::portfolio::calculate_performance_history,
             commands::portfolio::get_performance_summaries,
@@ -472,6 +474,7 @@ pub fn run() {
             commands::asset::update_quote_mode,
             commands::asset::delete_asset,
             commands::asset::create_asset,
+            commands::asset::register_benchmark,
             // Asset logo commands
             commands::asset_logo::get_asset_logo,
             commands::asset_logo::list_asset_logos,

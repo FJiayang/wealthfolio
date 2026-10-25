@@ -12,7 +12,7 @@ import {
   listenPortfolioUpdateError,
   listenPortfolioUpdateStart,
   logger,
-  updatePortfolio,
+  checkMarketDataUpdate,
 } from "@/adapters";
 import { usePortfolioSyncOptional } from "@/context/portfolio-sync-context";
 import { useIsMobileViewport } from "@/hooks/use-platform";
@@ -433,10 +433,8 @@ const useGlobalEventListener = () => {
         Array.from(POST_LOGIN_REQUIRED_LISTENERS).every((name) => readyListeners.has(name)),
       );
 
-      // Listeners are live: request the start-up portfolio update (market sync
-      // plus a rebuild of whatever is stale). Its progress arrives through the
-      // events registered above, so nothing is missed.
-      updatePortfolio().catch((error) => {
+      // Listeners are live: check the daily schedule, then rebuild using saved prices.
+      checkMarketDataUpdate().catch((error) => {
         logger.error("Failed to request the portfolio update: " + String(error));
       });
       // Note: Update check is handled by useCheckUpdateOnStartup query in UpdateDialog
@@ -471,7 +469,7 @@ export function usePortfolioResumeCheck() {
       const hiddenFor = hiddenAt === null ? 0 : Date.now() - hiddenAt;
       hiddenAt = null;
       if (hiddenFor >= RESUME_CHECK_AFTER_MS) {
-        updatePortfolio().catch((error) => {
+        checkMarketDataUpdate().catch((error) => {
           logger.error("Failed to request the portfolio update: " + String(error));
         });
       }

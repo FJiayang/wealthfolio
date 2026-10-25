@@ -199,14 +199,17 @@ export {
   importHoldingsCsv,
   performanceSummaryScopeKey,
   recalculatePortfolio,
+  recalculatePortfolioLocal,
   saveManualHoldings,
   updatePortfolio,
+  checkMarketDataUpdate,
 } from "../shared/portfolio";
 
 // Market Data Commands
 export {
   checkQuotesImport,
   createAsset,
+  registerBenchmark,
   deleteAsset,
   deleteQuote,
   fetchDividends,

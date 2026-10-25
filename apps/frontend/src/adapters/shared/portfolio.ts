@@ -362,3 +362,8 @@ export const deleteSnapshot = async (
 ): Promise<void> => {
   return invoke<void>("delete_snapshot", { accountId, date, snapshotId });
 };
+
+export const checkMarketDataUpdate = (): Promise<void> => invoke<void>("check_market_data_update");
+
+export const recalculatePortfolioLocal = (): Promise<void> =>
+  invoke<void>("recalculate_portfolio_local");

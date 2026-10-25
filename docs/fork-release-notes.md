@@ -12,6 +12,32 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## Unreleased
+
+- Replace automatic interval-based market updates with one daily attempt,
+  defaulting to 22:00 Asia/Shanghai. Configure hours, minutes and an independent
+  timezone in market-data settings. Old interval values remain stored but are no
+  longer used.
+- Startup and resume check today's schedule; missed runs are caught up only
+  later the same day. Failed/interrupted batches need a manual retry that day.
+- Activity, account and device-sync changes calculate from saved prices.
+  Automatic metadata enrichment runs in the daily batch. Explicit refresh,
+  search and data source testing remain available immediately.
+- Save selected benchmarks in the securities catalog and update them daily
+  without requiring holdings. Performance reads saved history and offers an
+  explicit history fetch. Removing a chart comparison keeps the security;
+  disable or delete it to stop updates. Unrecognized old selections must be
+  selected again.
+- Add a local-only recalculation action beside the existing history refresh
+  actions.
+
+Architecture impact: network scheduling moves to the shared core coordinator;
+profile-local settings store the schedule, last automatic attempt and benchmark
+IDs, without a schema migration or device-sync expansion. Existing provider
+routing, credential storage, request counting and rate limiting remain in use.
+This does not add exchange holiday calendars, system wakeups or daily quota
+caps; multiple devices still consume shared provider quotas independently.
+
 ## v3.11.0.5 — 2026-10-24
 
 - Add per-provider API request-attempt statistics, including custom sources,

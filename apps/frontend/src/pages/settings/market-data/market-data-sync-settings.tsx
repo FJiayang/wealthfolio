@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { usePlatform } from "@/hooks/use-platform";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import {
@@ -10,64 +9,81 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@wealthfolio/ui/components/ui/select";
+import { TimezoneInput } from "../general/timezone-input";
+import { getSupportedTimezones } from "../general/timezone-settings";
 
 export function MarketDataSyncSettings() {
   const { t } = useTranslation();
   const { settings, updateSettings } = useSettingsContext();
-  const { isMobile, isWeb, loading } = usePlatform();
   const [saving, setSaving] = useState(false);
-
-  if (!settings || loading || (isMobile && !isWeb)) return null;
-
-  const items = [1, 6, 12, 24].map((hours) => ({
-    value: hours,
-    label: t("settings:market_data_page.sync_interval_hours", { count: hours }),
-  }));
-
-  const save = async (hours: number) => {
+  const timezones = useMemo(
+    () => Array.from(new Set(["Asia/Shanghai", ...getSupportedTimezones()])),
+    [],
+  );
+  if (!settings) return null;
+  const [hour, minute] = (settings.marketDataSyncTime ?? "22:00").split(":");
+  const save = async (change: { marketDataSyncTime?: string; marketDataSyncTimezone?: string }) => {
     setSaving(true);
     try {
-      await updateSettings({ marketDataSyncIntervalHours: hours });
+      await updateSettings(change);
     } catch {
-      // The settings mutation already reports the failure.
+      /* The settings mutation displays the save error. */
     } finally {
       setSaving(false);
     }
   };
-
   return (
-    <div className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="space-y-1">
-        <Label htmlFor="market-data-sync-interval">
-          {t("settings:market_data_page.sync_interval_label")}
-        </Label>
-        <p id="market-data-sync-interval-description" className="text-muted-foreground text-sm">
-          {t("settings:market_data_page.sync_interval_description")}
-        </p>
+    <div className="flex flex-col gap-3 rounded-lg border p-4">
+      <Label>{t("settings:market_data_page.daily_sync_label")}</Label>
+      <p className="text-muted-foreground text-sm">
+        {t("settings:market_data_page.daily_sync_description")}
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        {(["hour", "minute"] as const).map((part) => {
+          const items = Array.from({ length: part === "hour" ? 24 : 60 }, (_, i) => ({
+            value: String(i).padStart(2, "0"),
+            label: String(i).padStart(2, "0"),
+          }));
+          const label = t(`settings:market_data_page.sync_${part}`);
+          return (
+            <div key={part} className="flex flex-col gap-2">
+              <Label htmlFor={`sync-${part}`}>{label}</Label>
+              <Select
+                items={items}
+                value={part === "hour" ? hour : minute}
+                disabled={saving}
+                onValueChange={(value) => {
+                  if (value !== null)
+                    void save({
+                      marketDataSyncTime:
+                        part === "hour" ? `${value}:${minute}` : `${hour}:${value}`,
+                    });
+                }}
+              >
+                <SelectTrigger id={`sync-${part}`} className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {items.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          );
+        })}
+        <div className="flex min-w-48 flex-col gap-2">
+          <Label>{t("settings:provider_request_counts.timezone")}</Label>
+          <TimezoneInput
+            value={settings.marketDataSyncTimezone ?? "Asia/Shanghai"}
+            timezones={timezones}
+            disabled={saving}
+            onChange={(timezone) => void save({ marketDataSyncTimezone: timezone })}
+          />
+        </div>
       </div>
-      <Select
-        items={items}
-        value={settings.marketDataSyncIntervalHours}
-        onValueChange={(hours) => {
-          if (hours !== null) void save(hours);
-        }}
-        disabled={saving}
-      >
-        <SelectTrigger
-          id="market-data-sync-interval"
-          aria-describedby="market-data-sync-interval-description"
-          className="w-full sm:w-44 sm:shrink-0"
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {items.map((item) => (
-            <SelectItem key={item.value} value={item.value}>
-              {item.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
     </div>
   );
 }

@@ -1,3 +1,5 @@
+import { registerBenchmarkSelection, type BenchmarkSelection } from "@/components/benchmark-assets";
+import { useSyncMarketDataMutation } from "@/hooks/use-sync-market-data";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { useSettingsContext } from "@/lib/settings-provider";
 import { AccountScopeSelector } from "@/components/account-filter-selector";
@@ -73,7 +75,7 @@ import {
   EmptyDescription,
 } from "@wealthfolio/ui/components/ui/empty";
 import { isSameDay, subDays, subMonths } from "date-fns";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AccountSelector } from "../../components/account-selector";
 import { AccountSelectorMobile } from "../../components/account-selector-mobile";
@@ -347,7 +349,14 @@ function presentWarning(
   text: string,
   namesById: Map<string, string>,
   formatting: Pick<FormattingApi, "formatDecimal">,
+  t: TFunction,
 ): string {
+  if (
+    text ===
+    "Saved benchmark history does not cover this period; fetch missing prices manually or wait for the daily update."
+  ) {
+    return t("settings:market_data_page.benchmark_history_missing");
+  }
   return formatWarningNumbers(humanizeAccountIds(text, namesById), formatting);
 }
 
@@ -363,7 +372,7 @@ function presentMoneyWeightedWarning(
   ) {
     return t("performance:exclusion.holdings_not_mwr");
   }
-  return presentWarning(text, namesById, formatting)
+  return presentWarning(text, namesById, formatting, t)
     .replace(/\bXIRR\b/gi, t("performance:metric.annualized_mwr"))
     .replace(/\bIRR\b/g, "MWR");
 }
@@ -1320,7 +1329,7 @@ export default function PerformancePage() {
     const rawMoneyWeightedWarnings = rawWarnings.filter(isMoneyWeightedMessage);
     const visibleWarnings = rawWarnings
       .filter((warning) => !isMoneyWeightedMessage(warning))
-      .map((warning) => presentWarning(warning, accountNamesById, numberFormatting));
+      .map((warning) => presentWarning(warning, accountNamesById, numberFormatting, t));
     const moneyWeightedWarnings = rawMoneyWeightedWarnings.map((warning) =>
       presentMoneyWeightedWarning(warning, accountNamesById, t, numberFormatting),
     );
@@ -1396,7 +1405,7 @@ export default function PerformancePage() {
       chartMetric: selectedMetric,
       selectedMetricValue,
       selectedMetricReason: rawReason
-        ? presentWarning(rawReason, accountNamesById, numberFormatting)
+        ? presentWarning(rawReason, accountNamesById, numberFormatting, t)
         : undefined,
       warningTerms: Array.from(accountNamesById.values()),
       annualizedReturn: annualizedDisplayMetricValue(found, selectedMetric),
@@ -1485,20 +1494,83 @@ export default function PerformancePage() {
     preserveCurrentChartAnchor(portfolioId);
   };
 
-  const handleSymbolSelect = (symbol: { id: string; name: string }) => {
-    const symbolId = String(symbol.id);
-    const exists = selectedItems.some((item) => item.id === symbolId);
-    if (exists) return;
-
-    const newSymbol: TrackedItem = {
-      id: symbolId,
-      type: "symbol",
-      name: symbol.name,
-    };
-
-    setSelectedItems(sortComparisonItems([...selectedItems, newSymbol]));
-    preserveCurrentChartAnchor(symbolId);
+  const [benchmarkError, setBenchmarkError] = useState(false);
+  const [registeringBenchmarks, setRegisteringBenchmarks] = useState(false);
+  const registeredBenchmarks = useRef(new Set<string>());
+  const benchmarkStart =
+    dateRange?.from?.getTime() ??
+    Math.min(
+      Date.now(),
+      ...performanceData.flatMap((item) =>
+        item?.type === "account" && item.series[0] ? [Date.parse(item.series[0].date)] : [],
+      ),
+    );
+  const benchmarkHistoryDays = Math.max(
+    365 * 5,
+    Math.ceil((Date.now() - benchmarkStart) / 86_400_000) + 7,
+  );
+  const refreshBenchmarks = useSyncMarketDataMutation(false, benchmarkHistoryDays);
+  const handleSymbolSelect = async (symbol: BenchmarkSelection) => {
+    try {
+      const asset = await registerBenchmarkSelection(symbol);
+      registeredBenchmarks.current.add(asset.id);
+      setSelectedItems((items) =>
+        items.some((item) => item.id === asset.id)
+          ? items
+          : sortComparisonItems([
+              ...items,
+              { id: asset.id, type: "symbol", name: asset.name || symbol.name },
+            ]),
+      );
+      preserveCurrentChartAnchor(asset.id);
+      setBenchmarkError(false);
+    } catch {
+      setBenchmarkError(true);
+    }
   };
+  useEffect(() => {
+    const pending = selectedItems.filter(
+      (item) => item.type === "symbol" && !registeredBenchmarks.current.has(item.id),
+    );
+    if (!pending.length) {
+      setRegisteringBenchmarks(false);
+      return;
+    }
+    let cancelled = false;
+    setRegisteringBenchmarks(true);
+    const migrate = async () => {
+      for (const item of pending) {
+        try {
+          const asset = await registerBenchmarkSelection(item);
+          if (cancelled) return;
+          registeredBenchmarks.current.add(item.id);
+          registeredBenchmarks.current.add(asset.id);
+          if (asset.id !== item.id) {
+            setSelectedItems((items) =>
+              items
+                .map((current) => (current.id === item.id ? { ...current, id: asset.id } : current))
+                .filter(
+                  (current, index, values) =>
+                    values.findIndex((value) => value.id === current.id) === index,
+                ),
+            );
+            setSelectedItemId((current) => (current === item.id ? asset.id : current));
+          }
+        } catch {
+          if (!cancelled) {
+            registeredBenchmarks.current.add(item.id);
+            setBenchmarkError(true);
+          }
+        }
+      }
+    };
+    void migrate().finally(() => {
+      if (!cancelled) setRegisteringBenchmarks(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedItems, setSelectedItems, setSelectedItemId]);
 
   const handleBadgeSelect = (item: TrackedItem) => {
     setSelectedItemId(item.id);
@@ -1530,6 +1602,31 @@ export default function PerformancePage() {
       </div>
 
       <div className="flex h-full flex-col space-y-4">
+        {selectedItems.some((item) => item.type === "symbol") && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm">
+            <p className="text-muted-foreground">
+              {t("settings:market_data_page.benchmark_local_notice")}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={refreshBenchmarks.isPending || benchmarkError || registeringBenchmarks}
+              onClick={() =>
+                refreshBenchmarks.mutate(
+                  selectedItems.filter((item) => item.type === "symbol").map((item) => item.id),
+                )
+              }
+            >
+              {t("settings:market_data_page.benchmark_fetch")}
+            </Button>
+          </div>
+        )}
+        {benchmarkError && (
+          <p role="alert" className="text-destructive text-sm">
+            {t("settings:market_data_page.benchmark_reselect")}
+          </p>
+        )}
+
         <div className="flex items-center justify-end gap-2 md:hidden">
           <AccountScopeSelector value={accountScope} onChange={setAccountScope} />
           <DateRangeSelector

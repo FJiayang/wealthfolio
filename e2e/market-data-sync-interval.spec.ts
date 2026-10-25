@@ -1,33 +1,49 @@
 import { expect, test } from "@playwright/test";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
-test("scheduled market sync interval persists in LTR and RTL", async ({ page }) => {
+test("daily market sync time and timezone persist in LTR and RTL", async ({ page }) => {
   test.setTimeout(120000);
   await completeOnboardingIfNeeded(page);
-
-  for (const [direction, hours] of [
-    ["ltr", 12],
-    ["rtl", 24],
+  for (const [direction, hour, minute] of [
+    ["ltr", "21", "35"],
+    ["rtl", "23", "45"],
   ] as const) {
     await gotoAppPath(page, `/settings/market-data?dir=${direction}`);
     await expect(page.locator("html")).toHaveAttribute("dir", direction);
-    const select = page.getByRole("combobox", { name: "Automatic sync interval" });
-    await select.click();
+    for (const [label, value] of [
+      ["Hour", hour],
+      ["Minute", minute],
+    ]) {
+      const select = page.getByRole("combobox", { name: label, exact: true });
+      await select.click();
+      const saved = page.waitForResponse(
+        (response) =>
+          response.request().method() === "PUT" &&
+          new URL(response.url()).pathname.endsWith("/settings"),
+      );
+      await page.getByRole("option", { name: value, exact: true }).click();
+      expect((await saved).status()).toBe(200);
+      await expect(select).toHaveText(value);
+    }
+    await page.reload();
+    await expect(page.getByRole("combobox", { name: "Hour", exact: true })).toHaveText(hour);
+    await expect(page.getByRole("combobox", { name: "Minute", exact: true })).toHaveText(minute);
+    const timezone = page.getByRole("combobox", { name: "Timezone", exact: true }).first();
+    await timezone.click();
     const saved = page.waitForResponse(
       (response) =>
         response.request().method() === "PUT" &&
         new URL(response.url()).pathname.endsWith("/settings"),
     );
-    await page.getByRole("option", { name: `Every ${hours} hours`, exact: true }).click();
-    const response = await saved;
-    expect(response.request().postDataJSON()).toEqual({ marketDataSyncIntervalHours: hours });
-    expect(response.status(), await response.text()).toBe(200);
-    expect(await response.json()).toMatchObject({ marketDataSyncIntervalHours: hours });
-    await expect(select).toHaveText(`Every ${hours} hours`);
+    const target = direction === "ltr" ? "Asia/Tokyo" : "Asia/Shanghai";
+    await page.getByRole("option", { name: target, exact: true }).click();
+    expect(await (await saved).json()).toMatchObject({
+      marketDataSyncTime: `${hour}:${minute}`,
+      marketDataSyncTimezone: target,
+    });
     await page.reload();
-    await expect(select).toHaveText(`Every ${hours} hours`);
-    const bounds = await select.boundingBox();
-    expect(bounds).not.toBeNull();
+    await expect(timezone).toHaveText(target);
+    const bounds = await timezone.boundingBox();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   }

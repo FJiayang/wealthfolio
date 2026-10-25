@@ -432,10 +432,53 @@ impl PerformanceService {
                 start_date, end_date
             ))));
         }
-        let quotes = self
-            .quotes
-            .fetch_quotes_for_symbol(asset_id, "USD", start_date, end_date)
-            .await?;
+        let service = self.quotes.clone();
+        let id = asset_id.to_string();
+        let mut stored =
+            crate::portfolio::coordinator::blocking(move || service.get_historical_quotes(&id))
+                .await?;
+        stored.sort_by_key(|quote| quote.timestamp);
+        let asset = self.sources.assets.get_by_id(asset_id)?;
+        let continuous = asset.instrument_type == Some(crate::assets::InstrumentType::Crypto);
+        let mut expected_end = crate::utils::time_utils::market_effective_date(
+            chrono::Utc::now(),
+            asset.instrument_exchange_mic.as_deref(),
+            continuous,
+        )
+        .min(end_date);
+        let mut expected_start = start_date;
+        if !continuous {
+            while matches!(
+                chrono::Datelike::weekday(&expected_end),
+                chrono::Weekday::Sat | chrono::Weekday::Sun
+            ) {
+                expected_end -= Duration::days(1);
+            }
+            while matches!(
+                chrono::Datelike::weekday(&expected_start),
+                chrono::Weekday::Sat | chrono::Weekday::Sun
+            ) {
+                expected_start += Duration::days(1);
+            }
+        }
+        let coverage_missing = stored
+            .first()
+            .is_none_or(|quote| quote.timestamp.date_naive() > expected_start)
+            || stored
+                .last()
+                .is_none_or(|quote| quote.timestamp.date_naive() < expected_end);
+        if coverage_missing {
+            return Ok(unavailable_performance_metrics(asset_id,
+                stored.first().map(|quote| quote.currency.clone()).unwrap_or_default(),
+                Some(start_date), Some(end_date), "Saved benchmark history does not cover this period; fetch missing prices manually or wait for the daily update."));
+        }
+        let quotes: Vec<_> = stored
+            .into_iter()
+            .filter(|quote| {
+                let day = quote.timestamp.date_naive();
+                day >= start_date && day <= end_date
+            })
+            .collect();
         if quotes.is_empty() {
             warn!(
                 "Asset '{}': No quote data found between {} and {}.",

@@ -2,7 +2,6 @@
 //! turns its callbacks into the window events the frontend listens to.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use log::error;
 use tauri::async_runtime::JoinHandle;
@@ -50,6 +49,25 @@ impl TauriJobObserver {
 }
 
 impl JobObserver for TauriJobObserver {
+    fn enrichment_started(&self, total: usize) {
+        self.emit(
+            crate::events::ASSET_ENRICHMENT_START,
+            &serde_json::json!({ "total": total }),
+        );
+    }
+    fn enrichment_progress(&self, completed: usize, total: usize) {
+        self.emit(
+            crate::events::ASSET_ENRICHMENT_PROGRESS,
+            &serde_json::json!({ "completed": completed, "total": total }),
+        );
+    }
+    fn enrichment_completed(&self, enriched: usize, skipped: usize, failed: usize) {
+        self.emit(
+            crate::events::ASSET_ENRICHMENT_COMPLETE,
+            &serde_json::json!({ "enriched": enriched, "skipped": skipped, "failed": failed }),
+        );
+    }
+
     fn market_sync_started(&self) {
         self.emit(MARKET_SYNC_START, &());
     }
@@ -121,7 +139,7 @@ pub async fn run_portfolio_request(
     }
 }
 
-/// The app's periodic market sync plus portfolio update (configured interval, after a 2min delay).
+/// Check the daily market-data schedule while this profile is active.
 pub fn spawn_periodic_update(
     app_handle: AppHandle,
     context: Arc<ServiceContext>,
@@ -132,6 +150,42 @@ pub fn spawn_periodic_update(
         context.portfolio_coordinator(),
         observer,
         context.settings_service(),
-        Duration::from_secs(120),
+        context.asset_service(),
     ))
+}
+
+/// Startup and resume use the same persisted daily admission as the worker.
+pub async fn check_market_data_update(
+    handle: AppHandle,
+    context: Arc<ServiceContext>,
+) -> Result<(), String> {
+    let observer = TauriJobObserver::new(handle, context.clone());
+    let coordinator = context.portfolio_coordinator();
+    let report = coordinator
+        .update_if_due(
+            context.settings_service().as_ref(),
+            context.asset_service().as_ref(),
+            &observer,
+        )
+        .await
+        .map_err(|error| {
+            observer.market_sync_failed(&error.to_string());
+            error.to_string()
+        })?;
+    if report.is_none() {
+        coordinator
+            .update_all(wealthfolio_core::quotes::MarketSyncMode::None, &observer)
+            .await;
+    }
+    Ok(())
+}
+
+pub fn request_scheduled_update(handle: AppHandle, context: Arc<ServiceContext>) {
+    if !context.is_active() {
+        return;
+    }
+    let task_context = context.clone();
+    context.portfolio_tasks.spawn(false, async move {
+        check_market_data_update(handle, task_context).await.is_ok()
+    });
 }
