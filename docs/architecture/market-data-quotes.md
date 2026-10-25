@@ -909,9 +909,9 @@ might cover another asset, another range, or an explicit refresh.
 
 The sync, update, and recalculate commands acknowledge background-job admission,
 not completed writes. Their frontend mutation hooks therefore do not invalidate
-queries on success. The shared completion listener refreshes data after the job's
-persistence and reconciliation have finished. Both hosts include an optional
-`changed` verdict on the portfolio completion event:
+queries on success. The shared completion listener refreshes data after the
+job's persistence and reconciliation have finished. Both hosts include an
+optional `changed` verdict on the portfolio completion event:
 
 - `false`: confirmed no price or projection changes; clear the progress
   indicator and refresh only database-backed health/provider status. Performance
@@ -919,8 +919,8 @@ persistence and reconciliation have finished. Both hosts include an optional
   market-fetch feedback cycle.
 - `true`: completed price writes or a successful nonempty projection plan;
   refresh the affected portfolio queries.
-- `null` or an absent field: an uncertain partial-write outcome or an older host;
-  retain the conservative refresh behavior.
+- `null` or an absent field: an uncertain partial-write outcome or an older
+  host; retain the conservative refresh behavior.
 
 Failed jobs still report errors, and a job that wrote prices before a later
 projection failure is never reported as a confirmed no-op. The observer's
@@ -942,20 +942,21 @@ query outcomes, while different assets retain existing concurrent fetching.
 Waiting does not discard another requested range or an explicit force action.
 
 SQLite stores small query receipts in `market_history_queries`, separate from
-`QuoteSyncState.last_synced_at`. Receipts contain a digested canonical/configuration
-identity, asset ID, inclusive query window, outcome and fetch time. Neither
-quote min/max bounds nor missing calendar days establish complete coverage.
-Provider authentication, fallback, parsing and disable rules remain in the
-existing registry. Providers explicitly attest complete range results; bounded
-or otherwise uncertified successful replies are partial observations:
+`QuoteSyncState.last_synced_at`. Receipts contain a digested
+canonical/configuration identity, asset ID, inclusive query window, outcome and
+fetch time. Neither quote min/max bounds nor missing calendar days establish
+complete coverage. Provider authentication, fallback, parsing and disable rules
+remain in the existing registry. Providers explicitly attest complete range
+results; bounded or otherwise uncertified successful replies are partial
+observations:
 
 - Complete historical prefixes can be reused durably. The existing five-day
   correction overlap remains mutable when its market session is not settled.
 - An open/current session rechecks using the existing configured market sync
   interval (default six hours), not a new polling timer. The existing market
   timezone/close-grace helpers distinguish settled sessions from intraday data.
-  A session closing after an intraday fetch makes that mutable tail due again;
-  a settled Friday does not repeatedly expire over the weekend.
+  A session closing after an intraday fetch makes that mutable tail due again; a
+  settled Friday does not repeatedly expire over the weekend.
 - Empty and partial observations are reused only for the configured interval.
   Partial observations never become durable historical coverage or settled
   session proof. Newly requested, unqueried ranges are still fetched.
@@ -977,25 +978,39 @@ use the original quotes table. Benchmark and ordinary history both survive a
 service restart; changing canonical identity, currency or provider configuration
 invalidates reuse assumptions. Destructive quote changes invalidate receipts.
 Only digests of non-secret fetch configuration are stored in query identity;
-credentials and raw request URLs are not persisted there.
+credentials and raw request URLs are not persisted there. Explicit receipt
+invalidation also clears the associated derived benchmark rows atomically, never
+user quotes. Custom-provider mutations invalidate these derived caches through
+SQLite triggers, including device-sync writes, matching the conservative global
+custom-configuration revision. Asset deletion removes associated derived rows
+before discarding their receipt mapping.
 
 With an available profile context, both hosts notify the quote service after
-successful writes/deletions of a known
-market-provider credential or a credential referenced by a custom source header.
-The service rebuilds the existing client and invalidates query receipts without
-hashing secret values; unrelated application secrets do not trigger market work.
-Credential storage and client reload are not one transaction: a reload/validation
-failure is explicitly reported as occurring after the credential changed. The
-frontend does not issue a duplicate settings refresh for the same credential write.
-Tauri preserves generic secret writes while the profile database is unavailable;
-reopening constructs a new client from current secrets. Immediate receipt
-invalidation cannot run without that database. Credential-backed provider
-responses, secret-header custom history, and a public fallback after the
-request's credential-dependent primary fails therefore remain bounded Partial
+successful writes/deletions of a known market-provider credential or a
+credential referenced by a custom source header. The service rebuilds the
+existing client and invalidates query receipts without hashing secret values;
+unrelated application secrets do not trigger market work. Credential storage and
+client reload are not one transaction: a reload/validation failure is explicitly
+reported as occurring after the credential changed. The frontend does not issue
+a duplicate settings refresh for the same credential write. Tauri preserves
+generic secret writes while the profile database is unavailable; reopening
+constructs a new client from current secrets. Immediate receipt invalidation
+cannot run without that database. Credential-backed provider responses,
+secret-header custom history, and a public fallback after the request's
+credential-dependent primary fails therefore remain bounded Partial
 observations, not indefinitely reusable authenticated history. Public Yahoo,
 Eastmoney and unauthenticated custom history retain durable restart reuse;
 unrelated enabled credential providers do not downgrade those public requests.
 Normal market settings require an available profile context.
+
+Explicit provider verification remains distinct from the manual-priority display
+price: it reuses compatible local provider proof or the actual response of one
+necessary latest fetch, never relabeling a manual price as provider-supplied.
+Current weekend observations can use bounded latest-only Partial receipts. An
+observation whose timestamp cannot safely establish an observable range is
+returned without caching, including conservatively handled market-local
+date-only values ahead of UTC; it cannot create future or durable historical
+coverage.
 
 ### Sync Categories
 

@@ -1903,10 +1903,77 @@ where
             match self
                 .get_sync_service()
                 .await?
-                .fetch_local_first_latest(quote_asset, existing.is_none())
+                .fetch_local_first_latest_with_provenance(quote_asset, existing.is_none())
                 .await
             {
-                Ok(quote) => {
+                Ok((mut quote, fetched_provider_quote)) => {
+                    if quote.data_source == DATA_SOURCE_MANUAL
+                        && preferred_provider.is_some_and(|provider| !provider.trim().is_empty())
+                    {
+                        // Manual precedence is correct for displayed prices, but it
+                        // is not proof that the requested provider can resolve this
+                        // exact symbol/override. Keep the two contracts separate.
+                        let requested = preferred_provider
+                            .expect("checked nonempty preference")
+                            .trim();
+                        let source = requested
+                            .strip_prefix("CUSTOM:")
+                            .map(|code| format!("{DATA_SOURCE_CUSTOM_SCRAPER}:{code}"))
+                            .unwrap_or_else(|| requested.to_string());
+                        let provider_quote = if let Some(fetched) = fetched_provider_quote {
+                            if !resolved_provider_matches_requested(
+                                &fetched.data_source,
+                                preferred_provider,
+                            ) {
+                                continue;
+                            }
+                            Some(fetched)
+                        } else if let Some(asset) =
+                            existing.filter(|asset| asset.quote_mode == QuoteMode::Market)
+                        {
+                            let current_day = time_utils::market_calendar_date(
+                                Utc::now(),
+                                asset.instrument_exchange_mic.as_deref(),
+                                matches!(asset.instrument_type, Some(InstrumentType::Crypto)),
+                            );
+                            self.quote_store
+                                .latest(
+                                    &AssetId::new(&asset.id),
+                                    Some(&QuoteSource::from_storage_string(&source)),
+                                )?
+                                .filter(|candidate| {
+                                    candidate.data_source != DATA_SOURCE_MANUAL
+                                        && resolved_provider_matches_requested(
+                                            &candidate.data_source,
+                                            preferred_provider,
+                                        )
+                                        && candidate.timestamp.date_naive() >= current_day
+                                        && candidate.timestamp <= Utc::now()
+                                        && candidate.created_at.naive_utc() >= asset.updated_at
+                                        && (asset.quote_ccy.is_empty()
+                                            || normalize_currency_code(&candidate.currency)
+                                                == normalize_currency_code(&asset.quote_ccy))
+                                })
+                        } else {
+                            None
+                        };
+                        quote = match provider_quote {
+                            Some(provider_quote) => provider_quote,
+                            None => match self
+                                .client
+                                .read()
+                                .await
+                                .fetch_latest_quote(&temp_asset)
+                                .await
+                            {
+                                Ok(provider_quote) => provider_quote,
+                                Err(error) => {
+                                    debug!("resolve_symbol_quote: explicit provider verification failed for symbol='{}': {}", attempt_symbol, error);
+                                    continue;
+                                }
+                            },
+                        };
+                    }
                     let currency = {
                         let c = quote.currency.trim();
                         if c.is_empty() {
@@ -3641,6 +3708,7 @@ mod tests {
     #[derive(Default)]
     struct RangeQuoteStore {
         quotes: Vec<Quote>,
+        written: Mutex<Vec<Quote>>,
         range_calls: Arc<AtomicUsize>,
         covered: bool,
         invalidations: Arc<AtomicUsize>,
@@ -3662,7 +3730,7 @@ mod tests {
                         .unwrap_or_default(),
                     start: NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
                     end: Utc::now().date_naive(),
-                    fetched_at: Utc::now(),
+                    fetched_at: Utc::now() - Duration::seconds(1),
                     outcome: super::super::history::HistoryOutcome::Complete,
                 }]
             } else {
@@ -3683,8 +3751,9 @@ mod tests {
             unimplemented!("unused in this test")
         }
 
-        async fn upsert_quotes(&self, _quotes: &[Quote]) -> Result<usize> {
-            unimplemented!("unused in this test")
+        async fn upsert_quotes(&self, quotes: &[Quote]) -> Result<usize> {
+            self.written.lock().unwrap().extend_from_slice(quotes);
+            Ok(quotes.len())
         }
 
         async fn delete_quotes_for_asset(&self, _asset_id: &AssetId) -> Result<usize> {
@@ -3698,13 +3767,25 @@ mod tests {
         fn latest(
             &self,
             asset_id: &AssetId,
-            _source: Option<&QuoteSource>,
+            source: Option<&QuoteSource>,
         ) -> Result<Option<Quote>> {
+            let written = self.written.lock().unwrap();
             Ok(self
                 .quotes
                 .iter()
-                .filter(|quote| quote.asset_id == asset_id.as_str())
-                .max_by_key(|quote| quote.timestamp)
+                .chain(written.iter())
+                .filter(|quote| {
+                    quote.asset_id == asset_id.as_str()
+                        && source
+                            .is_none_or(|source| quote.data_source == source.to_storage_string())
+                })
+                .max_by_key(|quote| {
+                    (
+                        quote.timestamp.date_naive(),
+                        quote.data_source == DATA_SOURCE_MANUAL,
+                        quote.timestamp,
+                    )
+                })
                 .cloned())
         }
 
@@ -4960,6 +5041,220 @@ mod tests {
         assert!(
             result.is_err(),
             "no provider is enabled, so the provider path must surface its own error"
+        );
+        Ok(())
+    }
+
+    struct VerificationProvider {
+        calls: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl wealthfolio_market_data::MarketDataProvider for VerificationProvider {
+        fn id(&self) -> &'static str {
+            "YAHOO"
+        }
+        fn capabilities(&self) -> wealthfolio_market_data::ProviderCapabilities {
+            wealthfolio_market_data::ProviderCapabilities {
+                instrument_kinds: &[wealthfolio_market_data::InstrumentKind::Equity],
+                coverage: wealthfolio_market_data::Coverage::global_best_effort(),
+                supports_latest: true,
+                supports_historical: true,
+                supports_search: false,
+                supports_profile: false,
+                supports_dividends: false,
+            }
+        }
+        fn rate_limit(&self) -> wealthfolio_market_data::RateLimit {
+            wealthfolio_market_data::RateLimit::default()
+        }
+        async fn get_latest_quote(
+            &self,
+            _context: &wealthfolio_market_data::QuoteContext,
+            instrument: ProviderInstrument,
+        ) -> std::result::Result<
+            wealthfolio_market_data::Quote,
+            wealthfolio_market_data::errors::MarketDataError,
+        > {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            if instrument.to_symbol_string() != "VERIFIED" {
+                return Err(
+                    wealthfolio_market_data::errors::MarketDataError::SymbolNotFound(
+                        instrument.to_symbol_string(),
+                    ),
+                );
+            }
+            Ok(wealthfolio_market_data::Quote::new(
+                Utc::now(),
+                dec!(120),
+                "USD".into(),
+                "YAHOO".into(),
+            ))
+        }
+        async fn get_historical_quotes(
+            &self,
+            _context: &wealthfolio_market_data::QuoteContext,
+            _instrument: ProviderInstrument,
+            _start: chrono::DateTime<Utc>,
+            _end: chrono::DateTime<Utc>,
+        ) -> std::result::Result<
+            Vec<wealthfolio_market_data::Quote>,
+            wealthfolio_market_data::errors::MarketDataError,
+        > {
+            unreachable!("explicit verification uses latest capability")
+        }
+    }
+
+    fn resolution_asset(provider_symbol: Option<&str>) -> Asset {
+        Asset {
+            id: "canonical-aapl".into(),
+            kind: AssetKind::Investment,
+            instrument_type: Some(InstrumentType::Equity),
+            instrument_symbol: Some("AAPL".into()),
+            instrument_exchange_mic: Some("XNAS".into()),
+            quote_mode: QuoteMode::Market,
+            quote_ccy: "USD".into(),
+            provider_config: provider_config_for_symbol_resolution(
+                Some("YAHOO"),
+                provider_symbol,
+                Some(&InstrumentType::Equity),
+                Some("USD"),
+            ),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn explicit_provider_resolution_uses_provider_price_not_manual_override() -> Result<()> {
+        let asset = resolution_asset(None);
+        let today = time_utils::market_calendar_date(Utc::now(), Some("XNAS"), false);
+        let mut manual = stored_quote(&asset.id, today, dec!(999));
+        manual.currency = "USD".into();
+        let mut provider = manual.clone();
+        provider.data_source = "YAHOO".into();
+        provider.close = dec!(123);
+        let store = Arc::new(RangeQuoteStore {
+            quotes: vec![provider, manual],
+            covered: true,
+            ..Default::default()
+        });
+        let service = quote_service_for_asset(asset, store.clone()).await?;
+        let resolved = service
+            .resolve_symbol_quote(
+                "AAPL",
+                Some("XNAS"),
+                Some(&InstrumentType::Equity),
+                Some("USD"),
+                Some("YAHOO"),
+                None,
+            )
+            .await?;
+        assert_eq!(resolved.price, Some(dec!(123)));
+        assert_eq!(resolved.resolved_provider_id.as_deref(), Some("YAHOO"));
+        assert_eq!(
+            store
+                .latest(&AssetId::new("canonical-aapl"), None)?
+                .unwrap()
+                .close,
+            dec!(999)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn manual_price_never_proves_an_explicit_provider_override() -> Result<()> {
+        for (symbol, expected) in [("VERIFIED", Some(dec!(120))), ("INVALID", None)] {
+            let asset = resolution_asset(Some(symbol));
+            let today = time_utils::market_calendar_date(Utc::now(), Some("XNAS"), false);
+            let mut manual = stored_quote(&asset.id, today, dec!(999));
+            manual.currency = "USD".into();
+            let store = Arc::new(RangeQuoteStore {
+                quotes: vec![manual],
+                covered: true,
+                ..Default::default()
+            });
+            let service = quote_service_for_asset(asset, store.clone()).await?;
+            let calls = Arc::new(AtomicUsize::new(0));
+            *service.client.write().await = MarketDataClient::new_with_extra(
+                Arc::new(MockSecretStore),
+                vec![ProviderConfig {
+                    id: "YAHOO".into(),
+                    priority: 1,
+                }],
+                vec![Arc::new(VerificationProvider {
+                    calls: calls.clone(),
+                })],
+            )
+            .await?;
+            let resolved = service
+                .resolve_symbol_quote(
+                    "AAPL",
+                    Some("XNAS"),
+                    Some(&InstrumentType::Equity),
+                    Some("USD"),
+                    Some("YAHOO"),
+                    Some(symbol),
+                )
+                .await?;
+            assert_eq!(resolved.price, expected);
+            assert_eq!(
+                resolved.resolved_provider_id.as_deref(),
+                expected.map(|_| "YAHOO")
+            );
+            assert_eq!(calls.load(Ordering::Relaxed), 1);
+            assert_eq!(
+                store
+                    .latest(&AssetId::new("canonical-aapl"), None)?
+                    .unwrap()
+                    .close,
+                dec!(999)
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stale_manual_overlay_requires_only_one_provider_verification_request() -> Result<()> {
+        let asset = resolution_asset(Some("VERIFIED"));
+        let mut manual = stored_quote(&asset.id, Utc::now().date_naive(), dec!(999));
+        manual.currency = "USD".into();
+        let store = Arc::new(RangeQuoteStore {
+            quotes: vec![manual],
+            covered: false,
+            ..Default::default()
+        });
+        let service = quote_service_for_asset(asset, store.clone()).await?;
+        let calls = Arc::new(AtomicUsize::new(0));
+        *service.client.write().await = MarketDataClient::new_with_extra(
+            Arc::new(MockSecretStore),
+            vec![ProviderConfig {
+                id: "YAHOO".into(),
+                priority: 1,
+            }],
+            vec![Arc::new(VerificationProvider {
+                calls: calls.clone(),
+            })],
+        )
+        .await?;
+        let resolved = service
+            .resolve_symbol_quote(
+                "AAPL",
+                Some("XNAS"),
+                Some(&InstrumentType::Equity),
+                Some("USD"),
+                Some("YAHOO"),
+                Some("VERIFIED"),
+            )
+            .await?;
+        assert_eq!(resolved.price, Some(dec!(120)));
+        assert_eq!(resolved.resolved_provider_id.as_deref(), Some("YAHOO"));
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            store
+                .latest(&AssetId::new("canonical-aapl"), None)?
+                .unwrap()
+                .close,
+            dec!(999)
         );
         Ok(())
     }

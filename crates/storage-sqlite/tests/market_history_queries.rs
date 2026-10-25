@@ -833,10 +833,12 @@ async fn future_latest_response_writes_neither_quotes_nor_receipts() {
     let asset = AssetRepository::new(f.pool.clone(), f.writer.clone())
         .get_by_id("asset")
         .unwrap();
+    // Preserve the provider response contract, but do not certify or persist
+    // an observation beyond the current observable time.
     assert!(service
         .fetch_local_first_latest(&asset, false)
         .await
-        .is_err());
+        .is_ok());
     assert_eq!(
         provider
             .latest_calls
@@ -911,4 +913,138 @@ async fn successful_unchanged_refresh_clears_health_error_without_price_changes(
     let state = states.get_by_asset_id("asset").unwrap().unwrap();
     assert_eq!(state.error_count, 0);
     assert!(state.last_error.is_none());
+}
+
+#[tokio::test]
+async fn explicit_invalidation_clears_derived_benchmark_rows_before_partial_refill() {
+    let f = fixture().await;
+    let record = coverage("benchmark", "BENCH");
+    let original = quote("BENCH", "YAHOO", 100);
+    let mut old_extra = original.clone();
+    old_extra.timestamp += Duration::days(1);
+    old_extra.id = "old-extra-day".into();
+    f.store
+        .commit_history_query(&record, &[original.clone(), old_extra], true, true, None)
+        .await
+        .unwrap();
+    f.store
+        .upsert_quotes(&[quote("asset", "MANUAL", 999)])
+        .await
+        .unwrap();
+    f.store.invalidate_history_coverage(None).await.unwrap();
+    assert!(f
+        .store
+        .benchmark_history("benchmark", record.start, record.end)
+        .unwrap()
+        .is_empty());
+    assert!(f.store.history_coverage("benchmark").unwrap().is_empty());
+    let partial = HistoryCoverage {
+        outcome: HistoryOutcome::Partial,
+        ..record.clone()
+    };
+    let mut replacement = original;
+    replacement.close = Decimal::new(101, 0);
+    f.store
+        .commit_history_query(
+            &partial,
+            std::slice::from_ref(&replacement),
+            true,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        f.store
+            .benchmark_history("benchmark", record.start, record.end)
+            .unwrap(),
+        vec![replacement]
+    );
+    assert_eq!(
+        f.store.get_historical_quotes("asset").unwrap()[0].close,
+        Decimal::new(999, 0)
+    );
+}
+
+#[tokio::test]
+async fn asset_invalidation_preserves_unrelated_benchmarks_and_user_quotes() {
+    let f = fixture().await;
+    for (identity, asset) in [("one", "BENCH-A"), ("two", "BENCH-B")] {
+        f.store
+            .commit_history_query(
+                &coverage(identity, asset),
+                &[quote(asset, "YAHOO", 100)],
+                true,
+                true,
+                None,
+            )
+            .await
+            .unwrap();
+    }
+    f.store
+        .upsert_quotes(&[quote("asset", "MANUAL", 999)])
+        .await
+        .unwrap();
+    f.store
+        .invalidate_history_coverage(Some("BENCH-A"))
+        .await
+        .unwrap();
+    let bounds = coverage("unused", "unused");
+    assert!(f
+        .store
+        .benchmark_history("one", bounds.start, bounds.end)
+        .unwrap()
+        .is_empty());
+    assert!(f.store.history_coverage("one").unwrap().is_empty());
+    assert_eq!(
+        f.store
+            .benchmark_history("two", bounds.start, bounds.end)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(f.store.history_coverage("two").unwrap().len(), 1);
+    assert_eq!(f.store.get_historical_quotes("asset").unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn direct_custom_provider_mutations_clear_only_derived_cache_tables() {
+    let f = fixture().await;
+    let mut provider_quote = quote("asset", "YAHOO", 100);
+    provider_quote.timestamp += Duration::days(1);
+    provider_quote.id = "real-provider-price".into();
+    f.store
+        .upsert_quotes(&[quote("asset", "MANUAL", 999), provider_quote])
+        .await
+        .unwrap();
+    let bounds = coverage("benchmark", "BENCH");
+    for mutation in [
+        "INSERT INTO market_data_custom_providers
+            (id,code,name,description,enabled,priority,config,created_at,updated_at)
+            VALUES ('lifecycle','lifecycle','Custom','test',1,1,NULL,'v1','v1')",
+        "UPDATE market_data_custom_providers SET updated_at='v2' WHERE id='lifecycle'",
+        "DELETE FROM market_data_custom_providers WHERE id='lifecycle'",
+    ] {
+        f.store
+            .commit_history_query(&bounds, &[quote("BENCH", "YAHOO", 100)], true, true, None)
+            .await
+            .unwrap();
+        diesel::sql_query(mutation)
+            .execute(&mut *db::get_connection(&f.pool).unwrap())
+            .unwrap();
+        assert!(f
+            .store
+            .benchmark_history("benchmark", bounds.start, bounds.end)
+            .unwrap()
+            .is_empty());
+        assert!(f.store.history_coverage("benchmark").unwrap().is_empty());
+        let actual = f.store.get_historical_quotes("asset").unwrap();
+        assert_eq!(actual.len(), 2);
+        assert!(actual
+            .iter()
+            .any(|q| q.data_source == "MANUAL" && q.close == Decimal::new(999, 0)));
+        assert!(actual
+            .iter()
+            .any(|q| q.data_source == "YAHOO" && q.close == Decimal::new(100, 0)));
+    }
 }

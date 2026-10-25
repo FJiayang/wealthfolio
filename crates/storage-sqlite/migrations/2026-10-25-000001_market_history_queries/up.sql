@@ -23,5 +23,26 @@ CREATE TABLE benchmark_history (
 -- Catalog deletion may cascade prices without going through QuoteStore.
 CREATE TRIGGER invalidate_asset_history_queries AFTER DELETE ON assets
 BEGIN
+    DELETE FROM benchmark_history WHERE identity IN
+        (SELECT identity FROM market_history_queries WHERE asset_id = OLD.id);
     DELETE FROM market_history_queries WHERE asset_id = OLD.id;
+END;
+
+-- Custom configuration participates in every query identity. Invalidate these
+-- derived caches conservatively on every mutation, including device-sync writes.
+-- Never delete user/provider prices from the normal quotes table.
+CREATE TRIGGER invalidate_custom_history_insert AFTER INSERT ON market_data_custom_providers
+BEGIN
+    DELETE FROM benchmark_history;
+    DELETE FROM market_history_queries;
+END;
+CREATE TRIGGER invalidate_custom_history_update AFTER UPDATE ON market_data_custom_providers
+BEGIN
+    DELETE FROM benchmark_history;
+    DELETE FROM market_history_queries;
+END;
+CREATE TRIGGER invalidate_custom_history_delete AFTER DELETE ON market_data_custom_providers
+BEGIN
+    DELETE FROM benchmark_history;
+    DELETE FROM market_history_queries;
 END;

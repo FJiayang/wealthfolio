@@ -91,6 +91,19 @@ struct LocalHistoryResult {
     provider_id: Option<String>,
 }
 
+fn latest_observation_range(
+    timestamp: DateTime<Utc>,
+    market_day: NaiveDate,
+    observed_at: DateTime<Utc>,
+) -> Option<(NaiveDate, NaiveDate)> {
+    (timestamp <= observed_at).then(|| {
+        (
+            timestamp.date_naive().min(market_day),
+            timestamp.date_naive().max(market_day),
+        )
+    })
+}
+
 fn latest_history_outcome(asset: &Asset, source: &str) -> HistoryOutcome {
     if credential_backed_provider(source)
         || asset
@@ -1351,12 +1364,24 @@ where
             .max_by_key(|quote| quote.timestamp))
     }
 
-    /// Latest-price resolution uses latest capability, not a historical substitute.
+    /// Reuse compatible local history proof first; misses use latest capability.
     pub async fn fetch_local_first_latest(
         &self,
         requested_asset: &Asset,
         benchmark: bool,
     ) -> Result<Quote> {
+        self.fetch_local_first_latest_with_provenance(requested_asset, benchmark)
+            .await
+            .map(|(quote, _)| quote)
+    }
+
+    /// Retain the actual fetched provider response for explicit symbol validation,
+    /// while ordinary callers continue to receive the merged/manual-priority quote.
+    pub(crate) async fn fetch_local_first_latest_with_provenance(
+        &self,
+        requested_asset: &Asset,
+        benchmark: bool,
+    ) -> Result<(Quote, Option<Quote>)> {
         let guard = Arc::new(
             self.history_locks
                 .for_asset(&requested_asset.id)
@@ -1380,7 +1405,9 @@ where
         let records = self.quote_store.history_coverage(&identity)?;
         let local = self.local_latest(&asset, &identity, benchmark)?;
         if asset.quote_mode == QuoteMode::Manual {
-            return local.ok_or_else(|| Error::MarketData(MarketDataError::NoData));
+            return local
+                .map(|quote| (quote, None))
+                .ok_or_else(|| Error::MarketData(MarketDataError::NoData));
         }
         // A completed history query can already prove the latest market day.
         // Reuse that proof rather than making a second request with latest capability.
@@ -1415,7 +1442,7 @@ where
             )
             .is_empty()
             {
-                return Ok(quote);
+                return Ok((quote, None));
             }
         }
         if missing_history_ranges_with_freshness(
@@ -1439,7 +1466,7 @@ where
         .is_empty()
         {
             if let Some(quote) = local {
-                return Ok(quote);
+                return Ok((quote, None));
             }
         }
         let expected_context = if benchmark {
@@ -1473,19 +1500,26 @@ where
                 "Asset settings changed during quote fetch; retry with current settings".into(),
             ));
         }
-        let quote_day = quote.timestamp.date_naive();
-        if quote_day > today {
-            return Err(Error::MarketData(MarketDataError::InvalidData(
-                "Provider returned a future quote date".into(),
-            )));
-        }
+        let observed_at = Utc::now();
+        let Some((coverage_start, coverage_end)) =
+            latest_observation_range(quote.timestamp, today, observed_at)
+        else {
+            // Date-only providers may label a market-local day ahead of UTC.
+            // Preserve their response, but do not persist an unobservable price
+            // or a receipt that could certify a future query interval.
+            return Ok((quote.clone(), Some(quote)));
+        };
         let coverage = HistoryCoverage {
             identity: identity.clone(),
             asset_id: asset.id.clone(),
-            start: quote_day.min(today),
-            end: today,
-            fetched_at: now,
-            outcome: latest_history_outcome(&asset, &quote.data_source),
+            start: coverage_start,
+            end: coverage_end,
+            fetched_at: observed_at,
+            outcome: if coverage_end > today {
+                HistoryOutcome::Partial
+            } else {
+                latest_history_outcome(&asset, &quote.data_source)
+            },
         };
         let store = self.quote_store.clone();
         let persisted_quote = quote.clone();
@@ -1506,6 +1540,7 @@ where
         .await
         .map_err(|error| Error::Unexpected(error.to_string()))??;
         self.local_latest(&asset, &identity, benchmark)?
+            .map(|merged| (merged, Some(quote)))
             .ok_or_else(|| Error::MarketData(MarketDataError::NoData))
     }
 
@@ -3014,6 +3049,49 @@ mod tests {
         assert_eq!(
             latest_history_outcome(&preferred, DATA_SOURCE_YAHOO),
             HistoryOutcome::Partial
+        );
+    }
+
+    #[test]
+    fn latest_current_weekend_observation_is_bounded_and_future_is_uncached() {
+        let friday = NaiveDate::from_ymd_opt(2026, 10, 23).unwrap();
+        let sunday = NaiveDate::from_ymd_opt(2026, 10, 25).unwrap();
+        let observed = sunday.and_hms_opt(12, 0, 0).unwrap().and_utc();
+        assert_eq!(
+            latest_observation_range(observed - Duration::seconds(1), friday, observed),
+            Some((friday, sunday))
+        );
+        assert_eq!(
+            latest_observation_range(observed + Duration::hours(1), friday, observed),
+            None
+        );
+        let receipt = HistoryCoverage {
+            identity: "latest-only".into(),
+            asset_id: "asset".into(),
+            start: friday,
+            end: sunday,
+            fetched_at: observed,
+            outcome: HistoryOutcome::Partial,
+        };
+        assert!(missing_history_ranges_with_freshness(
+            friday,
+            friday,
+            std::slice::from_ref(&receipt),
+            observed + Duration::hours(1),
+            Duration::hours(6),
+            |_| Some(true)
+        )
+        .is_empty());
+        assert_eq!(
+            missing_history_ranges_with_freshness(
+                friday,
+                friday,
+                &[receipt],
+                observed + Duration::hours(7),
+                Duration::hours(6),
+                |_| Some(true)
+            ),
+            vec![(friday, friday)]
         );
     }
 

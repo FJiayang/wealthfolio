@@ -1,3 +1,6 @@
+DROP TRIGGER invalidate_custom_history_delete;
+DROP TRIGGER invalidate_custom_history_update;
+DROP TRIGGER invalidate_custom_history_insert;
 DROP TRIGGER invalidate_asset_history_queries;
 DROP TABLE benchmark_history;
 DROP TABLE market_history_queries;

@@ -84,12 +84,16 @@ describe("portfolio job completion", () => {
     const predicate = invalidate.mock.calls[0][0]?.predicate;
     expect(predicate).toBeDefined();
     for (const key of [QueryKeys.HEALTH_STATUS, QueryKeys.MARKET_DATA_PROVIDER_SETTINGS]) {
-      expect(predicate?.(client.getQueryCache().build(client, { queryKey: [key] }))).toBe(true);
+      expect(
+        predicate?.(
+          client.getQueryCache().build(client, { queryKey: [key] as readonly unknown[] }),
+        ),
+      ).toBe(true);
     }
     expect(
       predicate?.(
         client.getQueryCache().build(client, {
-          queryKey: [QueryKeys.PERFORMANCE_HISTORY],
+          queryKey: [QueryKeys.PERFORMANCE_HISTORY] as readonly unknown[],
         }),
       ),
     ).toBe(false);
@@ -104,12 +108,16 @@ describe("portfolio job completion", () => {
     const predicate = invalidate.mock.calls[0][0]?.predicate;
     expect(predicate).toBeDefined();
     for (const key of [QueryKeys.HEALTH_STATUS, QueryKeys.MARKET_DATA_PROVIDER_SETTINGS]) {
-      expect(predicate?.(client.getQueryCache().build(client, { queryKey: [key] }))).toBe(true);
+      expect(
+        predicate?.(
+          client.getQueryCache().build(client, { queryKey: [key] as readonly unknown[] }),
+        ),
+      ).toBe(true);
     }
     expect(
       predicate?.(
         client.getQueryCache().build(client, {
-          queryKey: [QueryKeys.PERFORMANCE_HISTORY],
+          queryKey: [QueryKeys.PERFORMANCE_HISTORY] as readonly unknown[],
         }),
       ),
     ).toBe(false);

@@ -252,6 +252,14 @@ fn upsert_quote_rows(
 }
 
 fn invalidate_history(conn: &mut SqliteConnection, asset_id: &str) -> Result<()> {
+    // Remove derived rows before deleting the only asset-to-identity mapping.
+    sql_query(
+        "DELETE FROM benchmark_history WHERE identity IN
+        (SELECT identity FROM market_history_queries WHERE asset_id = ?)",
+    )
+    .bind::<Text, _>(asset_id)
+    .execute(conn)
+    .map_err(StorageError::QueryFailed)?;
     sql_query("DELETE FROM market_history_queries WHERE asset_id = ?")
         .bind::<Text, _>(asset_id)
         .execute(conn)
@@ -506,12 +514,15 @@ impl QuoteStore for MarketDataRepository {
     async fn invalidate_history_coverage(&self, asset_id: Option<&str>) -> Result<()> {
         let asset_id = asset_id.map(str::to_owned);
         self.writer
-            .exec(move |conn| {
+            .exec_tx(move |tx| {
                 if let Some(asset_id) = asset_id {
-                    invalidate_history(conn, &asset_id)
+                    invalidate_history(tx.conn(), &asset_id)
                 } else {
+                    sql_query("DELETE FROM benchmark_history")
+                        .execute(tx.conn())
+                        .map_err(StorageError::QueryFailed)?;
                     sql_query("DELETE FROM market_history_queries")
-                        .execute(conn)
+                        .execute(tx.conn())
                         .map_err(StorageError::QueryFailed)?;
                     Ok(())
                 }
