@@ -112,18 +112,6 @@ pub fn trigger_full_portfolio_recalc(state: Arc<AppState>) {
     );
 }
 
-/// Recalculate saved prices after adding an FX pair; the daily batch fetches it.
-pub fn trigger_portfolio_recalc_with_asset_sync(state: Arc<AppState>, _asset_ids: Vec<String>) {
-    enqueue_portfolio_job(
-        state,
-        PortfolioJobConfig {
-            account_ids: None,
-            market_sync_mode: MarketSyncMode::None,
-            ..PortfolioJobConfig::default()
-        },
-    );
-}
-
 /// Server side of a portfolio job: the coordinator does the work, the
 /// observer turns its callbacks into SSE events.
 pub struct ServerJobObserver {

@@ -206,7 +206,40 @@ async fn benchmark_performance_uses_saved_quotes_without_provider_calls() {
         )
         .await
         .unwrap();
-    assert!(missing.series.is_empty());
+    assert_eq!(missing.series, result.series);
+    assert!(!missing.data_quality.warnings.is_empty());
+    assert_eq!(missing.summary.quality, missing.data_quality.status);
+    assert!(missing
+        .data_quality
+        .warnings
+        .iter()
+        .all(|warning| missing.summary.reasons.contains(warning)));
+    // A holiday or an unfinished trading day must not erase saved returns.
+    let trailing_gap = service
+        .calculate_performance_history(
+            "symbol",
+            &asset_id,
+            dates.first().copied(),
+            Some(*dates.last().unwrap() + chrono::Duration::days(7)),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(trailing_gap.series, result.series);
+    assert!(!trailing_gap.data_quality.warnings.is_empty());
+    let empty = service
+        .calculate_performance_history(
+            "symbol",
+            &asset_id,
+            Some(dates[0] - chrono::Duration::days(365)),
+            Some(dates[0] - chrono::Duration::days(30)),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert!(empty.series.is_empty());
 }
 
 #[tokio::test]

@@ -189,6 +189,35 @@ describe("PerformancePage shared scope", () => {
     );
   });
 
+  it("allows fetching valid benchmarks after removing a failed legacy selection", async () => {
+    localStorage.setItem(
+      "performance:selectedItems",
+      JSON.stringify([
+        ALL_PORTFOLIO_ITEM,
+        { id: "unknown", type: "symbol", name: "Unknown benchmark" },
+        { id: "asset-hsi", type: "symbol", name: "Hang Seng" },
+      ]),
+    );
+    mocks.registerBenchmark.mockImplementation((item: TrackedItem) =>
+      item.id === "unknown"
+        ? Promise.reject(new Error("Unknown legacy symbol"))
+        : Promise.resolve({ id: item.id, name: item.name }),
+    );
+    mocks.syncMarketData.mockResolvedValue(undefined);
+    renderPage();
+    await screen.findByRole("alert");
+    const fetch = screen.getByRole("button", { name: "Fetch / fill benchmark history" });
+    expect(fetch).toBeDisabled();
+    await userEvent.click(screen.getAllByRole("button", { name: "Remove Unknown benchmark" })[0]);
+    await waitFor(() => expect(fetch).not.toBeDisabled());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(mocks.syncMarketData).not.toHaveBeenCalled();
+    await userEvent.click(fetch);
+    await waitFor(() =>
+      expect(mocks.syncMarketData).toHaveBeenCalledWith(["asset-hsi"], false, expect.any(Number)),
+    );
+  });
+
   it("updates the default range when settings arrive after the initial render", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-12-31T16:30:00Z"));

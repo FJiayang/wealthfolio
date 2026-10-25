@@ -467,11 +467,6 @@ impl PerformanceService {
             || stored
                 .last()
                 .is_none_or(|quote| quote.timestamp.date_naive() < expected_end);
-        if coverage_missing {
-            return Ok(unavailable_performance_metrics(asset_id,
-                stored.first().map(|quote| quote.currency.clone()).unwrap_or_default(),
-                Some(start_date), Some(end_date), "Saved benchmark history does not cover this period; fetch missing prices manually or wait for the daily update."));
-        }
         let quotes: Vec<_> = stored
             .into_iter()
             .filter(|quote| {
@@ -506,9 +501,13 @@ impl PerformanceService {
         points.dedup_by_key(|(date, _)| *date);
         let currency = Currency::parse(&currency)
             .unwrap_or_else(|| Currency::parse("USD").expect("valid currency"));
-        Ok(from_kernel(engine::measure_price_series(
-            asset_id, &currency, &points,
-        )))
+        let mut result = from_kernel(engine::measure_price_series(asset_id, &currency, &points));
+        if coverage_missing && !result.series.is_empty() {
+            result.data_quality.status = DataQualityStatus::Partial;
+            result.data_quality.warnings.push("Saved benchmark history does not cover this period; fetch missing prices manually or wait for the daily update.".into());
+            sync_performance_summary_quality(&mut result);
+        }
+        Ok(result)
     }
 
     /// Legacy `calculate_simple_performance`: latest-row gain and weight.

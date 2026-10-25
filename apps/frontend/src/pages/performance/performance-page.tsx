@@ -1494,7 +1494,9 @@ export default function PerformancePage() {
     preserveCurrentChartAnchor(portfolioId);
   };
 
-  const [benchmarkError, setBenchmarkError] = useState(false);
+  const [failedBenchmarks, setFailedBenchmarks] = useState<Set<string>>(new Set());
+  const [selectionError, setSelectionError] = useState(false);
+  const benchmarkError = selectedItems.some((item) => failedBenchmarks.has(item.id));
   const [registeringBenchmarks, setRegisteringBenchmarks] = useState(false);
   const registeredBenchmarks = useRef(new Set<string>());
   const benchmarkStart =
@@ -1523,14 +1525,23 @@ export default function PerformancePage() {
             ]),
       );
       preserveCurrentChartAnchor(asset.id);
-      setBenchmarkError(false);
+      setSelectionError(false);
+      setFailedBenchmarks((failed) => {
+        const next = new Set(failed);
+        next.delete(symbol.id);
+        next.delete(asset.id);
+        return next;
+      });
     } catch {
-      setBenchmarkError(true);
+      setSelectionError(true);
     }
   };
   useEffect(() => {
     const pending = selectedItems.filter(
-      (item) => item.type === "symbol" && !registeredBenchmarks.current.has(item.id),
+      (item) =>
+        item.type === "symbol" &&
+        !registeredBenchmarks.current.has(item.id) &&
+        !failedBenchmarks.has(item.id),
     );
     if (!pending.length) {
       setRegisteringBenchmarks(false);
@@ -1558,8 +1569,7 @@ export default function PerformancePage() {
           }
         } catch {
           if (!cancelled) {
-            registeredBenchmarks.current.add(item.id);
-            setBenchmarkError(true);
+            setFailedBenchmarks((failed) => new Set(failed).add(item.id));
           }
         }
       }
@@ -1570,7 +1580,7 @@ export default function PerformancePage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedItems, setSelectedItems, setSelectedItemId]);
+  }, [selectedItems, setSelectedItems, setSelectedItemId, failedBenchmarks]);
 
   const handleBadgeSelect = (item: TrackedItem) => {
     setSelectedItemId(item.id);
@@ -1621,7 +1631,7 @@ export default function PerformancePage() {
             </Button>
           </div>
         )}
-        {benchmarkError && (
+        {(benchmarkError || selectionError) && (
           <p role="alert" className="text-destructive text-sm">
             {t("settings:market_data_page.benchmark_reselect")}
           </p>
