@@ -224,6 +224,11 @@ fn reset_restored_sync_state(conn: &Connection) -> anyhow::Result<()> {
     ] {
         conn.execute(&format!("DELETE FROM \"{table}\""), [])?;
     }
+    // Automatic attempts belong to this installation, not the restored source.
+    conn.execute(
+        "DELETE FROM app_settings WHERE setting_key=?1",
+        [wealthfolio_core::settings::MARKET_DATA_AUTO_SYNC_RECORD_KEY],
+    )?;
     conn.execute_batch(
         "INSERT INTO sync_cursor(id, cursor, updated_at)
             VALUES (1, 0, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
@@ -815,7 +820,11 @@ mod tests {
                 ('spending.excluded_category_ids','["excluded"]'),
                 ('ai_provider_settings','{"providers":{"test":{"toolsAllowlist":[]}}}'),
                 ('insights_overview_layout','{"custom":true}'),
-                ('future.preference','keep');
+                ('future.preference','keep'),
+                ('market_data_sync_mode','daily'),
+                ('market_data_sync_time','18:00'),
+                ('market_data_sync_timezone','Asia/Shanghai'),
+                ('market_data_auto_sync_record','{"attempt":"source-installation"}');
             UPDATE sync_cursor SET cursor=123;
             UPDATE sync_engine_state SET lock_version=12, last_error='old error';
             INSERT INTO sync_outbox(event_id,entity,entity_id,op,client_timestamp,payload,payload_key_version,created_at)
@@ -867,8 +876,9 @@ mod tests {
                 "restore changed {table}"
             );
         }
-        let settings: Vec<(String, String)> = original.prepare("SELECT setting_key,setting_value FROM app_settings WHERE setting_key NOT IN ('instance_id','restore_reconnect_required')")
+        let settings: Vec<(String, String)> = original.prepare("SELECT setting_key,setting_value FROM app_settings WHERE setting_key NOT IN ('instance_id','restore_reconnect_required','market_data_auto_sync_record')")
             .unwrap().query_map([], |r| Ok((r.get(0)?,r.get(1)?))).unwrap().collect::<rusqlite::Result<_>>().unwrap();
+        assert_eq!(restored.query_row("SELECT COUNT(*) FROM app_settings WHERE setting_key='market_data_auto_sync_record'", [], |r| r.get::<_, i64>(0)).unwrap(), 0);
         for (key, value) in settings {
             assert_eq!(
                 restored

@@ -214,11 +214,10 @@ pub async fn execute_health_fix(
             account_ids
         );
 
-        // Incremental market sync (prices/valuations were already fixed by the
-        // user); the coordinator performs the full rebuild in the background.
+        // Prices were already fixed by the user; rebuild from stored data only.
         let payload = PortfolioRequestPayload::builder()
             .account_ids(Some(account_ids))
-            .market_sync_mode(MarketSyncMode::Incremental { asset_ids: None })
+            .market_sync_mode(MarketSyncMode::None)
             .force_full(true)
             .build();
         emit_portfolio_trigger_recalculate(&app_handle, payload, &context);

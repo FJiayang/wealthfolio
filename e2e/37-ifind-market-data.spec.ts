@@ -28,7 +28,8 @@ for (const direction of ["ltr", "rtl"]) {
         ["FUND:005827", "FUND:005827", null, "CNY"],
         ["000300", "000300", "XSHG", "CNY"],
         ["XHKG:00700", "00700", "XHKG", "HKD"],
-        ["XNAS:AAPL", "AAPL", "XNAS", "USD"],
+        // Keep provider creation independent of AAPL already owned by earlier suites.
+        ["XNAS:INTU", "INTU", "XNAS", "USD"],
       ] as const) {
         await page.goto(`${BASE_URL}/settings/securities?dir=${direction}`);
         await page.getByRole("button", { name: "Add Security", exact: true }).click();

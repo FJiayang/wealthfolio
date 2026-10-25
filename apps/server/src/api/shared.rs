@@ -52,6 +52,8 @@ pub fn holdings_account_ids(state: &AppState, account_ids: &[String]) -> ApiResu
 #[derive(Debug, Default, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PortfolioRequestBody {
+    /// Manual callers default to syncing; automatic rebuilds explicitly opt out.
+    pub sync_market_data: Option<bool>,
     pub account_ids: Option<Vec<String>>,
     #[serde(default)]
     pub market_sync_mode: MarketSyncMode,
@@ -61,6 +63,15 @@ pub struct PortfolioRequestBody {
 }
 
 impl PortfolioRequestBody {
+    pub fn into_update_config(mut self) -> PortfolioJobConfig {
+        if !self.sync_market_data.unwrap_or(true) {
+            self.market_sync_mode = MarketSyncMode::None;
+        } else if matches!(self.market_sync_mode, MarketSyncMode::None) {
+            self.market_sync_mode = MarketSyncMode::Incremental { asset_ids: None };
+        }
+        self.into_config()
+    }
+
     pub fn into_config(self) -> PortfolioJobConfig {
         PortfolioJobConfig {
             account_ids: self.account_ids,
@@ -241,14 +252,13 @@ pub async fn process_portfolio_job(
     Ok(())
 }
 
-/// Portfolio update at server start (architecture §3.3): sync market data,
-/// then bring whatever is stale up to date, so a web client finds it current.
+/// Rebuild stale local projections at server start. The periodic task owns market sync.
 pub fn spawn_portfolio_update(state: Arc<AppState>) {
     tokio::spawn(async move {
         let observer = ServerJobObserver::new(&state);
         state
             .portfolio_coordinator
-            .update_all(MarketSyncMode::Incremental { asset_ids: None }, &observer)
+            .update_all(MarketSyncMode::None, &observer)
             .await;
     });
 }
@@ -264,4 +274,42 @@ pub fn spawn_periodic_update(state: Arc<AppState>) -> tokio::task::JoinHandle<()
         state.settings_service.clone(),
         std::time::Duration::from_secs(120),
     ))
+}
+
+#[cfg(test)]
+mod update_request_tests {
+    use super::*;
+
+    #[test]
+    fn omitted_sync_flag_preserves_manual_incremental_refresh() {
+        for json in [
+            serde_json::json!({}),
+            serde_json::json!({"syncMarketData": true}),
+        ] {
+            let request: PortfolioRequestBody = serde_json::from_value(json).unwrap();
+            assert!(matches!(
+                request.into_update_config().market_sync_mode,
+                MarketSyncMode::Incremental { asset_ids: None }
+            ));
+        }
+    }
+
+    #[test]
+    fn automatic_update_explicitly_disables_network_sync() {
+        let request: PortfolioRequestBody =
+            serde_json::from_value(serde_json::json!({"syncMarketData": false})).unwrap();
+        assert!(matches!(
+            request.into_update_config().market_sync_mode,
+            MarketSyncMode::None
+        ));
+        let request = PortfolioRequestBody {
+            sync_market_data: Some(false),
+            market_sync_mode: MarketSyncMode::Incremental { asset_ids: None },
+            ..Default::default()
+        };
+        assert!(matches!(
+            request.into_update_config().market_sync_mode,
+            MarketSyncMode::None
+        ));
+    }
 }

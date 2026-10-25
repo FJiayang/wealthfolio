@@ -48,8 +48,6 @@ pub struct ProviderAttempt {
 /// Detailed result of a fetch operation with skip diagnostics.
 #[derive(Clone, Debug, Default)]
 pub struct FetchDiagnostics {
-    /// Whether every returned history row passed validation. Not proof of calendar coverage.
-    pub history_complete: bool,
     pub attempts: Vec<ProviderAttempt>,
     /// Provider whose error the fetch returned, when a provider's error was returned.
     pub error_provider: Option<ProviderId>,
@@ -59,7 +57,6 @@ impl FetchDiagnostics {
     pub fn new() -> Self {
         Self {
             attempts: Vec::new(),
-            history_complete: false,
             error_provider: None,
         }
     }

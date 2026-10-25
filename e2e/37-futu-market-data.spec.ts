@@ -14,6 +14,9 @@ for (const direction of ["ltr", "rtl"]) {
     expect(original).toBeTruthy();
     expect(original.enabled).toBe(false);
     await page.goto(`${BASE_URL}/settings/market-data?dir=${direction}`);
+    const credentialForm = page.locator("form").filter({
+      has: page.getByLabel("AppKeyId", { exact: true }),
+    });
     await page.getByRole("button", { name: "Futu settings", exact: true }).click();
     await expect(page.getByLabel("Private key (PEM)")).toHaveCount(0);
     await page.getByRole("button", { name: "Show / edit credentials" }).click();
@@ -22,7 +25,7 @@ for (const direction of ["ltr", "rtl"]) {
       .toString();
     await page.getByLabel("AppKeyId", { exact: true }).fill("synthetic-e2e-app");
     await page.getByLabel("Private key (PEM)", { exact: true }).fill(privateKey);
-    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await credentialForm.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("Credentials saved.");
     await page.getByRole("switch", { name: "Futu", exact: true }).click();
     await expect
@@ -113,7 +116,7 @@ for (const direction of ["ltr", "rtl"]) {
       expect((await page.request.delete(`${api}/assets/${asset.id}`)).ok()).toBeTruthy();
       await page.getByRole("button", { name: "Show / edit credentials" }).click();
       await page.getByLabel("Private key (PEM)", { exact: true }).fill("invalid-pem");
-      await page.getByRole("button", { name: "Save", exact: true }).click();
+      await credentialForm.getByRole("button", { name: "Save", exact: true }).click();
       await expect(page.getByRole("status")).toContainText("validation or client refresh failed");
       await page.getByRole("switch", { name: "Futu", exact: true }).click();
       await expect

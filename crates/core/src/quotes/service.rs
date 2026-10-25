@@ -10,7 +10,6 @@
 use async_trait::async_trait;
 use chrono::{Duration, NaiveDate, TimeZone, Utc};
 use log::{debug, info};
-use sha2::{Digest, Sha256};
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -85,26 +84,6 @@ pub struct FetchDividendsParams {
     pub preferred_provider: Option<String>,
     pub start: Option<NaiveDate>,
     pub end: Option<NaiveDate>,
-}
-
-/// Only a digest of non-secret settings participates in persisted query identity.
-/// Bookkeeping (last sync, labels) must not invalidate reusable history.
-fn history_provider_configuration(providers: &[super::MarketDataProviderSetting]) -> String {
-    let mut settings: Vec<_> = providers
-        .iter()
-        .map(|provider| {
-            (
-                &provider.id,
-                provider.enabled,
-                provider.priority,
-                &provider.config,
-            )
-        })
-        .collect();
-    settings.sort_by(|left, right| left.0.cmp(right.0));
-    let serialized = serde_json::to_vec(&settings)
-        .expect("provider configuration consists only of JSON-serializable fields");
-    hex::encode(Sha256::digest(serialized))
 }
 
 /// Match every supplied market identity component, never just a bare ticker.
@@ -644,14 +623,14 @@ pub trait QuoteServiceTrait: Send + Sync {
     /// Perform quote synchronization with the specified mode and optional asset filter.
     ///
     /// # Arguments
-    /// * `mode` - Requested date range and, only for explicit full refresh, local-coverage bypass
+    /// * `mode` - Requested date range; explicit synchronization always fetches.
     /// * `asset_ids` - Optional list of specific assets to sync. If None, syncs all relevant assets.
     ///
     /// # Sync Modes
     /// * `Incremental` - Default mode. Continues from last_quote_date with overlap to heal corrections.
-    /// * `RefetchRecent { days }` - Ensures the last N days using fresh local coverage first.
+    /// * `RefetchRecent { days }` - Fetches the last N days directly.
     /// * `BackfillHistory { days }` - Ensures history from activity start (or N days fallback), local-first.
-    /// * `RefreshAllHistory { days }` - Explicit full-history refresh; bypasses coverage and merges prices.
+    /// * `RefreshAllHistory { days }` - Explicit full-history refresh; fetches and merges prices.
     async fn sync(&self, mode: SyncMode, asset_ids: Option<Vec<String>>) -> Result<SyncResult>;
 
     /// Legacy explicit full-history refresh alias, using RefreshAllHistory mode.
@@ -866,33 +845,6 @@ where
         custom_provider_repo: Option<Arc<dyn crate::custom_provider::CustomProviderRepository>>,
         request_recorder: Arc<dyn wealthfolio_market_data::RequestRecorder>,
     ) -> Result<Self> {
-        Self::new_with_custom_provider_and_settings(
-            quote_store,
-            sync_state_store,
-            provider_settings_store,
-            asset_repo,
-            activity_repo,
-            secret_store,
-            custom_provider_repo,
-            request_recorder,
-            None,
-        )
-        .await
-    }
-
-    /// Construct with the existing profile settings reader for query freshness.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn new_with_custom_provider_and_settings(
-        quote_store: Arc<Q>,
-        sync_state_store: Arc<S>,
-        provider_settings_store: Arc<PS>,
-        asset_repo: Arc<A>,
-        activity_repo: Arc<R>,
-        secret_store: Arc<dyn SecretStore>,
-        custom_provider_repo: Option<Arc<dyn crate::custom_provider::CustomProviderRepository>>,
-        request_recorder: Arc<dyn wealthfolio_market_data::RequestRecorder>,
-        settings_service: Option<Arc<dyn crate::settings::SettingsServiceTrait>>,
-    ) -> Result<Self> {
         let providers = provider_settings_store.get_all_providers()?;
         let enabled: Vec<ProviderConfig> = providers
             .iter()
@@ -913,14 +865,13 @@ where
             Vec::new()
         };
 
-        let mut client = MarketDataClient::new_with_extra_and_recorder(
+        let client = MarketDataClient::new_with_extra_and_recorder(
             secret_store.clone(),
             enabled.clone(),
             extra,
             request_recorder.clone(),
         )
         .await?;
-        client.set_history_configuration_fingerprint(history_provider_configuration(&providers));
         let client_arc = Arc::new(RwLock::new(client));
 
         let sync_service = QuoteSyncService::new(
@@ -930,10 +881,6 @@ where
             asset_repo.clone(),
             activity_repo.clone(),
         );
-        let sync_service = match settings_service {
-            Some(settings) => sync_service.with_settings_service(settings),
-            None => sync_service,
-        };
 
         Ok(Self {
             quote_store,
@@ -1010,18 +957,15 @@ where
         } else {
             Vec::new()
         };
-        let mut new_client = MarketDataClient::new_with_extra_and_recorder(
+        let new_client = MarketDataClient::new_with_extra_and_recorder(
             self.secret_store.clone(),
             enabled.clone(),
             extra,
             self.request_recorder.clone(),
         )
         .await?;
-        new_client
-            .set_history_configuration_fingerprint(history_provider_configuration(&providers));
         // Keep the existing sync owner and its per-profile locks. The shared client
         // pointer already makes new settings visible to all quote operations.
-        self.quote_store.invalidate_history_coverage(None).await?;
         *client = new_client;
 
         Ok(())
@@ -2366,9 +2310,6 @@ where
     }
 
     async fn reset_sync_state_for_profile_change(&self, asset_id: &str) -> Result<()> {
-        self.quote_store
-            .invalidate_history_coverage(Some(asset_id))
-            .await?;
         if let Some(mut state) = self.sync_state_store.get_by_asset_id(asset_id)? {
             state.error_count = 0;
             state.last_error = None;
@@ -3702,43 +3643,12 @@ mod tests {
         quotes: Vec<Quote>,
         written: Mutex<Vec<Quote>>,
         derived: Mutex<HashMap<String, Vec<Quote>>>,
-        receipts: Mutex<HashMap<String, super::super::history::HistoryCoverage>>,
         range_calls: Arc<AtomicUsize>,
-        covered: bool,
-        covered_day: Option<NaiveDate>,
         fail_context_after_write: bool,
-        invalidations: Arc<AtomicUsize>,
     }
 
     #[async_trait]
     impl QuoteStore for RangeQuoteStore {
-        fn history_coverage(
-            &self,
-            identity: &str,
-        ) -> Result<Vec<super::super::history::HistoryCoverage>> {
-            if let Some(record) = self.receipts.lock().unwrap().get(identity) {
-                return Ok(vec![record.clone()]);
-            }
-            Ok(if self.covered || self.covered_day.is_some() {
-                vec![super::super::history::HistoryCoverage {
-                    identity: identity.to_owned(),
-                    asset_id: self
-                        .quotes
-                        .first()
-                        .map(|quote| quote.asset_id.clone())
-                        .unwrap_or_default(),
-                    start: self
-                        .covered_day
-                        .unwrap_or_else(|| NaiveDate::from_ymd_opt(2020, 1, 1).unwrap()),
-                    end: self.covered_day.unwrap_or_else(|| Utc::now().date_naive()),
-                    fetched_at: Utc::now() - Duration::seconds(1),
-                    outcome: super::super::history::HistoryOutcome::Complete,
-                }]
-            } else {
-                Vec::new()
-            })
-        }
-
         fn benchmark_history(
             &self,
             identity: &str,
@@ -3773,39 +3683,27 @@ mod tests {
             Ok(None)
         }
 
-        async fn commit_history_query(
+        async fn commit_history_prices(
             &self,
-            coverage: &super::super::history::HistoryCoverage,
+            scope: &super::super::history::HistoryWrite,
             quotes: &[Quote],
             mode: super::super::history::HistoryWriteMode,
-            record_coverage: bool,
             _expected_context: Option<&super::super::history::HistoryWriteContext>,
         ) -> Result<usize> {
             if mode != super::super::history::HistoryWriteMode::Canonical {
                 if mode == super::super::history::HistoryWriteMode::DerivedLatest {
-                    self.derived.lock().unwrap().remove(&coverage.identity);
+                    self.derived.lock().unwrap().remove(&scope.identity);
                 }
                 self.derived
                     .lock()
                     .unwrap()
-                    .entry(coverage.identity.clone())
+                    .entry(scope.identity.clone())
                     .or_default()
                     .extend_from_slice(quotes);
             } else {
                 self.written.lock().unwrap().extend_from_slice(quotes);
             }
-            if record_coverage {
-                self.receipts
-                    .lock()
-                    .unwrap()
-                    .insert(coverage.identity.clone(), coverage.clone());
-            }
             Ok(quotes.len())
-        }
-
-        async fn invalidate_history_coverage(&self, _asset_id: Option<&str>) -> Result<()> {
-            self.invalidations.fetch_add(1, Ordering::Relaxed);
-            Ok(())
         }
 
         async fn save_quote(&self, _quote: &Quote) -> Result<Quote> {
@@ -5067,7 +4965,7 @@ mod tests {
                 ),
             ],
             range_calls: Arc::clone(&range_calls),
-            covered: false,
+
             ..Default::default()
         });
         let service = quote_service_for_asset(asset, quote_store).await?;
@@ -5093,7 +4991,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn fetch_quotes_for_symbol_does_not_infer_coverage_from_sparse_rows() -> Result<()> {
+    async fn fetch_quotes_for_symbol_fetches_outside_local_boundaries() -> Result<()> {
         let asset_id = "SEC:AAPL:XNAS";
         let asset = Asset {
             id: asset_id.to_string(),
@@ -5111,7 +5009,7 @@ mod tests {
                 dec!(101.5),
             )],
             range_calls: Arc::clone(&range_calls),
-            covered: false,
+
             ..Default::default()
         });
         let service = quote_service_for_asset(asset, quote_store).await?;
@@ -5128,7 +5026,7 @@ mod tests {
         assert_eq!(
             range_calls.load(Ordering::Relaxed),
             1,
-            "a sparse row is not proof that the requested interval has been fetched"
+            "the requested range extends outside local price boundaries"
         );
         assert!(
             result.is_err(),
@@ -5394,7 +5292,14 @@ mod tests {
     async fn direct_history_fill_emits_for_committed_range_before_later_context_failure(
     ) -> Result<()> {
         let store = Arc::new(RangeQuoteStore {
-            covered_day: Some(NaiveDate::from_ymd_opt(2025, 1, 2).unwrap()),
+            quotes: vec![Quote {
+                currency: "USD".into(),
+                ..stored_quote(
+                    "canonical-aapl",
+                    NaiveDate::from_ymd_opt(2025, 1, 2).unwrap(),
+                    dec!(100),
+                )
+            }],
             fail_context_after_write: true,
             ..Default::default()
         });
@@ -5590,7 +5495,7 @@ mod tests {
             manual.currency = "USD".into();
             let store = Arc::new(RangeQuoteStore {
                 quotes: vec![manual],
-                covered: true,
+
                 ..Default::default()
             });
             let service = quote_service_for_asset(asset, store.clone()).await?;
@@ -5688,7 +5593,7 @@ mod tests {
         manual.currency = "USD".into();
         let store = Arc::new(RangeQuoteStore {
             quotes: vec![manual],
-            covered: false,
+
             ..Default::default()
         });
         let sink = Arc::new(crate::events::MockDomainEventSink::new());
@@ -5729,16 +5634,11 @@ mod tests {
         assert_eq!(resolved.price, Some(dec!(120)));
         assert_eq!(resolved.resolved_provider_id.as_deref(), Some("YAHOO"));
         assert_eq!(calls.load(Ordering::Relaxed), 3);
-        service
-            .client
-            .write()
-            .await
-            .set_history_configuration_fingerprint("changed-settings".into());
         assert_eq!(resolve().await?.price, Some(dec!(120)));
         assert_eq!(
             calls.load(Ordering::Relaxed),
             4,
-            "changed provider configuration needs fresh validation"
+            "repeated explicit validation is never cached"
         );
         let changed_code = service
             .resolve_symbol_quote(
@@ -5773,8 +5673,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn resolution_and_history_reuse_covered_canonical_asset_without_providers() -> Result<()>
-    {
+    async fn resolution_and_history_reuse_todays_canonical_price_without_providers() -> Result<()> {
         let asset = Asset {
             id: "canonical-aapl".into(),
             kind: AssetKind::Investment,
@@ -5785,13 +5684,18 @@ mod tests {
             quote_ccy: "USD".into(),
             ..Default::default()
         };
-        let today = time_utils::market_calendar_date(Utc::now(), Some("XNAS"), false);
+        // This is an ordinary quote-read cache hit, not a settled valuation day.
+        // The shared valuation helper rolls weekends back and is intentionally
+        // unsuitable for this fixture's "today" price.
+        let today = Utc::now()
+            .with_timezone(&chrono_tz::America::New_York)
+            .date_naive();
         let mut quote = stored_quote(&asset.id, today, dec!(123));
         quote.currency = "USD".into();
         quote.data_source = "YAHOO".into();
         let store = Arc::new(RangeQuoteStore {
             quotes: vec![quote],
-            covered: true,
+
             ..Default::default()
         });
         let service = quote_service_for_asset(asset, store).await?;
@@ -5838,7 +5742,7 @@ mod tests {
         quote.volume = dec!(456);
         let store = Arc::new(RangeQuoteStore {
             quotes: vec![quote.clone()],
-            covered: true,
+
             ..Default::default()
         });
         let service = quote_service_for_asset(asset, store).await?;
@@ -5859,22 +5763,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn credential_hook_invalidates_only_market_provider_keys() -> Result<()> {
-        let invalidations = Arc::new(AtomicUsize::new(0));
-        let service = quote_service_for_asset(
-            Asset::default(),
-            Arc::new(RangeQuoteStore {
-                invalidations: invalidations.clone(),
-                ..Default::default()
-            }),
+    async fn credential_hook_refreshes_only_market_provider_keys() -> Result<()> {
+        let service =
+            quote_service_for_asset(Asset::default(), Arc::new(RangeQuoteStore::default())).await?;
+        let original_owner = service.get_sync_service().await?;
+        let guard = service.client.write().await;
+        // Non-market credentials never need the market client write lock.
+        tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            service.handle_credential_change("ai_openai"),
         )
-        .await?;
-        service.handle_credential_change("ai_openai").await?;
-        assert_eq!(invalidations.load(Ordering::Relaxed), 0);
-        service.handle_credential_change("alpha_vantage").await?;
-        assert_eq!(invalidations.load(Ordering::Relaxed), 1);
+        .await
+        .unwrap()?;
+        assert!(tokio::time::timeout(
+            std::time::Duration::from_millis(20),
+            service.handle_credential_change("alpha_vantage")
+        )
+        .await
+        .is_err());
+        drop(guard);
         service.handle_credential_change("ALPHA_VANTAGE").await?;
-        assert_eq!(invalidations.load(Ordering::Relaxed), 2);
+        assert!(Arc::ptr_eq(
+            &original_owner,
+            &service.get_sync_service().await?
+        ));
         Ok(())
     }
 
@@ -5922,39 +5834,6 @@ mod tests {
         other = requested.clone();
         other.provider_config = Some(serde_json::json!({"preferred_provider": "IFIND"}));
         assert!(!asset_matches_quote_resolution(&requested, &other));
-    }
-
-    #[test]
-    fn provider_history_identity_ignores_bookkeeping_but_not_configuration() {
-        let mut provider = MarketDataProviderSetting {
-            id: "YAHOO".into(),
-            name: "Yahoo".into(),
-            description: String::new(),
-            url: None,
-            priority: 1,
-            enabled: true,
-            logo_filename: None,
-            last_synced_at: None,
-            last_sync_status: None,
-            last_sync_error: None,
-            capabilities: None,
-            provider_type: None,
-            config: None,
-        };
-        let original = history_provider_configuration(&[provider.clone()]);
-        provider.last_synced_at = Some("2026-01-01".into());
-        provider.name = "Renamed".into();
-        assert_eq!(
-            original,
-            history_provider_configuration(&[provider.clone()])
-        );
-        provider.config = Some("non-secret-provider-setting".into());
-        let changed = history_provider_configuration(&[provider.clone()]);
-        assert_ne!(original, changed);
-        assert_eq!(changed.len(), 64);
-        assert!(!changed.contains("non-secret-provider-setting"));
-        provider.enabled = false;
-        assert_ne!(changed, history_provider_configuration(&[provider]));
     }
 
     #[test]

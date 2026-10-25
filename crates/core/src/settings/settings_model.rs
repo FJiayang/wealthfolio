@@ -13,6 +13,19 @@ fn default_gain_loss_color_scheme() -> String {
 pub const INSIGHTS_OVERVIEW_LAYOUT_KEY: &str = "insights_overview_layout";
 pub const MARKET_DATA_SYNC_INTERVAL_HOURS_KEY: &str = "market_data_sync_interval_hours";
 pub const DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS: u32 = 6;
+pub const MARKET_DATA_SYNC_MODE_KEY: &str = "market_data_sync_mode";
+pub const MARKET_DATA_SYNC_TIME_KEY: &str = "market_data_sync_time";
+pub const MARKET_DATA_SYNC_TIMEZONE_KEY: &str = "market_data_sync_timezone";
+/// Installation/profile-local task state; never a synced application preference.
+pub const MARKET_DATA_AUTO_SYNC_RECORD_KEY: &str = "market_data_auto_sync_record";
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum MarketDataSyncMode {
+    #[default]
+    Interval,
+    Daily,
+}
 
 fn default_market_data_sync_interval_hours() -> u32 {
     DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS
@@ -57,6 +70,12 @@ pub struct Settings {
     pub sync_enabled: bool,
     #[serde(default = "default_market_data_sync_interval_hours")]
     pub market_data_sync_interval_hours: u32,
+    #[serde(default)]
+    pub market_data_sync_mode: MarketDataSyncMode,
+    #[serde(default)]
+    pub market_data_sync_time: Option<String>,
+    #[serde(default)]
+    pub market_data_sync_timezone: Option<String>,
     /// Read-only restore state; clearing UI feedback must not authorize sync.
     #[serde(default)]
     pub restore_reconnect_required: bool,
@@ -83,6 +102,9 @@ impl Default for Settings {
             menu_bar_visible: true,
             sync_enabled: true,
             market_data_sync_interval_hours: DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS,
+            market_data_sync_mode: MarketDataSyncMode::Interval,
+            market_data_sync_time: None,
+            market_data_sync_timezone: None,
             restore_reconnect_required: false,
             default_return_metric: "twr".to_string(),
             insights_overview_layout: None,
@@ -108,6 +130,9 @@ pub struct SettingsUpdate {
     pub menu_bar_visible: Option<bool>,
     pub sync_enabled: Option<bool>,
     pub market_data_sync_interval_hours: Option<u32>,
+    pub market_data_sync_mode: Option<MarketDataSyncMode>,
+    pub market_data_sync_time: Option<String>,
+    pub market_data_sync_timezone: Option<String>,
     pub default_return_metric: Option<String>,
     pub insights_overview_layout: Option<serde_json::Map<String, serde_json::Value>>,
 }

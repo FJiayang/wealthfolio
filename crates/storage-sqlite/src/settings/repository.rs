@@ -10,10 +10,12 @@ use crate::schema::{accounts, assets};
 use wealthfolio_core::assets::AssetKind;
 use wealthfolio_core::errors::{Error, Result};
 use wealthfolio_core::settings::{
-    validate_provider_request_timezone, Settings, SettingsRepositoryTrait, SettingsUpdate,
+    validate_provider_request_timezone, MarketDataAutoSyncRecord, MarketDataSyncMode,
+    MarketDataSyncSchedule, Settings, SettingsRepositoryTrait, SettingsUpdate,
     CURRENCY_FORMATTING_REGIONS_KEY, DEFAULT_PROVIDER_REQUEST_TIMEZONE, GAIN_LOSS_COLOR_SCHEME_KEY,
-    INSIGHTS_OVERVIEW_LAYOUT_KEY, MARKET_DATA_SYNC_INTERVAL_HOURS_KEY,
-    PROVIDER_REQUEST_TIMEZONE_KEY,
+    INSIGHTS_OVERVIEW_LAYOUT_KEY, MARKET_DATA_AUTO_SYNC_RECORD_KEY,
+    MARKET_DATA_SYNC_INTERVAL_HOURS_KEY, MARKET_DATA_SYNC_MODE_KEY, MARKET_DATA_SYNC_TIMEZONE_KEY,
+    MARKET_DATA_SYNC_TIME_KEY, PROVIDER_REQUEST_TIMEZONE_KEY,
 };
 
 pub struct SettingsRepository {
@@ -27,61 +29,147 @@ impl SettingsRepository {
     }
 }
 
+fn read_settings(conn: &mut SqliteConnection) -> Result<Settings> {
+    let all_settings: Vec<(String, String)> = app_settings
+        .select((setting_key, setting_value))
+        .load::<(String, String)>(conn)
+        .map_err(StorageError::from)?;
+
+    let mut settings = Settings::default(); // Use default implementation
+
+    for (key, value) in all_settings {
+        match key.as_str() {
+            "theme" => settings.theme = value,
+            "font" => settings.font = value,
+            GAIN_LOSS_COLOR_SCHEME_KEY => settings.gain_loss_color_scheme = value,
+            "language" => settings.language = value,
+            "formatting_region" => settings.formatting_region = value,
+            CURRENCY_FORMATTING_REGIONS_KEY => {
+                settings.currency_formatting_regions =
+                    serde_json::from_str(&value).unwrap_or_default();
+            }
+            "base_currency" => settings.base_currency = value,
+            "timezone" => settings.timezone = value,
+            PROVIDER_REQUEST_TIMEZONE_KEY => settings.provider_request_timezone = value,
+            "onboarding_completed" => {
+                settings.onboarding_completed = value.parse().unwrap_or(false);
+            }
+            "auto_update_check_enabled" => {
+                settings.auto_update_check_enabled = value.parse().unwrap_or(true);
+            }
+            "menu_bar_visible" => {
+                settings.menu_bar_visible = value.parse().unwrap_or(true);
+            }
+            "sync_enabled" => {
+                settings.sync_enabled = value.parse().unwrap_or(true);
+            }
+            MARKET_DATA_SYNC_INTERVAL_HOURS_KEY => {
+                settings.market_data_sync_interval_hours = value.parse().map_err(|_| {
+                    Error::InvalidConfigValue("Invalid market data sync interval".to_string())
+                })?;
+            }
+            MARKET_DATA_SYNC_MODE_KEY => {
+                settings.market_data_sync_mode = match value.as_str() {
+                    "interval" => MarketDataSyncMode::Interval,
+                    "daily" => MarketDataSyncMode::Daily,
+                    _ => {
+                        return Err(Error::InvalidConfigValue(
+                            "Invalid market data sync mode".to_string(),
+                        ))
+                    }
+                };
+            }
+            MARKET_DATA_SYNC_TIME_KEY => settings.market_data_sync_time = Some(value),
+            MARKET_DATA_SYNC_TIMEZONE_KEY => settings.market_data_sync_timezone = Some(value),
+            "restore_reconnect_required" => {
+                settings.restore_reconnect_required = value == "true";
+            }
+            "default_return_metric" => settings.default_return_metric = value,
+            INSIGHTS_OVERVIEW_LAYOUT_KEY => {
+                settings.insights_overview_layout = serde_json::from_str(&value).ok();
+            }
+            _ => {} // Ignore unknown settings
+        }
+    }
+
+    Ok(settings)
+}
+
+fn read_auto_sync_record(conn: &mut SqliteConnection) -> Result<Option<MarketDataAutoSyncRecord>> {
+    let stored: Option<String> = app_settings
+        .filter(setting_key.eq(MARKET_DATA_AUTO_SYNC_RECORD_KEY))
+        .select(setting_value)
+        .first(conn)
+        .optional()
+        .map_err(StorageError::from)?;
+    stored
+        .map(|value| {
+            serde_json::from_str(&value).map_err(|err| {
+                Error::InvalidConfigValue(format!("Invalid automatic market sync state: {err}"))
+            })
+        })
+        .transpose()
+}
+
+fn write_auto_sync_record(
+    conn: &mut SqliteConnection,
+    record: &MarketDataAutoSyncRecord,
+) -> Result<()> {
+    let value =
+        serde_json::to_string(record).map_err(|err| Error::InvalidConfigValue(err.to_string()))?;
+    diesel::replace_into(app_settings)
+        .values(&AppSettingDB {
+            setting_key: MARKET_DATA_AUTO_SYNC_RECORD_KEY.to_string(),
+            setting_value: value,
+        })
+        .execute(conn)
+        .map_err(StorageError::from)?;
+    Ok(())
+}
+
 // Implement the trait for SettingsRepository
 #[async_trait]
 impl SettingsRepositoryTrait for SettingsRepository {
+    async fn claim_market_data_sync_attempt(
+        &self,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool> {
+        self.writer
+            .exec_tx(move |tx| {
+                let schedule = MarketDataSyncSchedule::from_settings(&read_settings(tx.conn())?)?;
+                let mut record = match read_auto_sync_record(tx.conn())? {
+                    Some(record) => record,
+                    None => {
+                        let mut record =
+                            MarketDataAutoSyncRecord::configured(schedule.clone(), now);
+                        // Legacy interval setup keeps the existing delayed first run.
+                        let due = matches!(schedule, MarketDataSyncSchedule::Interval { .. });
+                        if due {
+                            record.last_attempt_started_at = Some(now);
+                        }
+                        write_auto_sync_record(tx.conn(), &record)?;
+                        return Ok(due);
+                    }
+                };
+                if record.schedule != schedule {
+                    record.schedule = schedule;
+                    record.effective_since = now;
+                    write_auto_sync_record(tx.conn(), &record)?;
+                    return Ok(false);
+                }
+                if !record.is_due(now)? {
+                    return Ok(false);
+                }
+                record.last_attempt_started_at = Some(now);
+                write_auto_sync_record(tx.conn(), &record)?;
+                Ok(true)
+            })
+            .await
+    }
+
     fn get_settings(&self) -> Result<Settings> {
         let mut conn = get_connection(&self.pool)?;
-        let all_settings: Vec<(String, String)> = app_settings
-            .select((setting_key, setting_value))
-            .load::<(String, String)>(&mut conn)
-            .map_err(StorageError::from)?;
-
-        let mut settings = Settings::default(); // Use default implementation
-
-        for (key, value) in all_settings {
-            match key.as_str() {
-                "theme" => settings.theme = value,
-                "font" => settings.font = value,
-                GAIN_LOSS_COLOR_SCHEME_KEY => settings.gain_loss_color_scheme = value,
-                "language" => settings.language = value,
-                "formatting_region" => settings.formatting_region = value,
-                CURRENCY_FORMATTING_REGIONS_KEY => {
-                    settings.currency_formatting_regions =
-                        serde_json::from_str(&value).unwrap_or_default();
-                }
-                "base_currency" => settings.base_currency = value,
-                "timezone" => settings.timezone = value,
-                PROVIDER_REQUEST_TIMEZONE_KEY => settings.provider_request_timezone = value,
-                "onboarding_completed" => {
-                    settings.onboarding_completed = value.parse().unwrap_or(false);
-                }
-                "auto_update_check_enabled" => {
-                    settings.auto_update_check_enabled = value.parse().unwrap_or(true);
-                }
-                "menu_bar_visible" => {
-                    settings.menu_bar_visible = value.parse().unwrap_or(true);
-                }
-                "sync_enabled" => {
-                    settings.sync_enabled = value.parse().unwrap_or(true);
-                }
-                MARKET_DATA_SYNC_INTERVAL_HOURS_KEY => {
-                    settings.market_data_sync_interval_hours = value.parse().map_err(|_| {
-                        Error::InvalidConfigValue("Invalid market data sync interval".to_string())
-                    })?;
-                }
-                "restore_reconnect_required" => {
-                    settings.restore_reconnect_required = value == "true";
-                }
-                "default_return_metric" => settings.default_return_metric = value,
-                INSIGHTS_OVERVIEW_LAYOUT_KEY => {
-                    settings.insights_overview_layout = serde_json::from_str(&value).ok();
-                }
-                _ => {} // Ignore unknown settings
-            }
-        }
-
-        Ok(settings)
+        read_settings(&mut conn)
     }
 
     async fn update_settings(&self, new_settings: &SettingsUpdate) -> Result<()> {
@@ -91,6 +179,8 @@ impl SettingsRepositoryTrait for SettingsRepository {
         let settings = new_settings.clone();
         self.writer
             .exec_tx(move |tx| {
+                let previous_schedule =
+                    MarketDataSyncSchedule::from_settings(&read_settings(tx.conn())?)?;
                 if let Some(ref theme) = settings.theme {
                     diesel::replace_into(app_settings)
                         .values(&AppSettingDB {
@@ -235,6 +325,44 @@ impl SettingsRepositoryTrait for SettingsRepository {
                         })
                         .execute(tx.conn())
                         .map_err(StorageError::from)?;
+                }
+
+                for (key, value) in [
+                    (
+                        MARKET_DATA_SYNC_MODE_KEY,
+                        settings.market_data_sync_mode.map(|mode| match mode {
+                            MarketDataSyncMode::Interval => "interval".to_string(),
+                            MarketDataSyncMode::Daily => "daily".to_string(),
+                        }),
+                    ),
+                    (
+                        MARKET_DATA_SYNC_TIME_KEY,
+                        settings.market_data_sync_time.clone(),
+                    ),
+                    (
+                        MARKET_DATA_SYNC_TIMEZONE_KEY,
+                        settings.market_data_sync_timezone.clone(),
+                    ),
+                ] {
+                    if let Some(value) = value {
+                        diesel::replace_into(app_settings)
+                            .values(&AppSettingDB {
+                                setting_key: key.to_string(),
+                                setting_value: value,
+                            })
+                            .execute(tx.conn())
+                            .map_err(StorageError::from)?;
+                    }
+                }
+                let next_schedule =
+                    MarketDataSyncSchedule::from_settings(&read_settings(tx.conn())?)?;
+                if next_schedule != previous_schedule {
+                    let previous_attempt = read_auto_sync_record(tx.conn())?
+                        .and_then(|record| record.last_attempt_started_at);
+                    let mut record =
+                        MarketDataAutoSyncRecord::configured(next_schedule, chrono::Utc::now());
+                    record.last_attempt_started_at = previous_attempt;
+                    write_auto_sync_record(tx.conn(), &record)?;
                 }
 
                 if let Some(ref default_return_metric) = settings.default_return_metric {
@@ -545,6 +673,170 @@ mod tests {
         assert_eq!(
             repo.get_setting(INSIGHTS_OVERVIEW_LAYOUT_KEY).unwrap(),
             r#"{"version":6}"#
+        );
+    }
+    fn record(repo: &SettingsRepository) -> MarketDataAutoSyncRecord {
+        serde_json::from_str(&repo.get_setting(MARKET_DATA_AUTO_SYNC_RECORD_KEY).unwrap()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn automatic_interval_first_attempt_restart_and_failed_attempt_are_deduplicated() {
+        let (repo, _dir) = setup().await;
+        let now = chrono::Utc::now();
+        assert!(repo.claim_market_data_sync_attempt(now).await.unwrap());
+        assert!(!repo.claim_market_data_sync_attempt(now).await.unwrap());
+        let restarted = SettingsRepository::new(repo.pool.clone(), repo.writer.clone());
+        assert!(!restarted
+            .claim_market_data_sync_attempt(now + chrono::Duration::hours(5))
+            .await
+            .unwrap());
+        assert!(restarted
+            .claim_market_data_sync_attempt(now + chrono::Duration::hours(6))
+            .await
+            .unwrap());
+        // Recording an attempt is independent of its success/failure.
+        assert!(!restarted
+            .claim_market_data_sync_attempt(
+                now + chrono::Duration::hours(6) + chrono::Duration::minutes(1)
+            )
+            .await
+            .unwrap());
+        assert!(restarted
+            .claim_market_data_sync_attempt(now + chrono::Duration::days(4))
+            .await
+            .unwrap());
+        assert!(!restarted
+            .claim_market_data_sync_attempt(now + chrono::Duration::days(4))
+            .await
+            .unwrap());
+    }
+
+    #[tokio::test]
+    async fn automatic_attempt_claims_are_serialized_and_persistence_failure_prevents_start() {
+        let (repo, _dir) = setup().await;
+        let now = chrono::Utc::now();
+        let (a, b) = tokio::join!(
+            repo.claim_market_data_sync_attempt(now),
+            repo.claim_market_data_sync_attempt(now)
+        );
+        assert_ne!(a.unwrap(), b.unwrap());
+        let mut conn = get_connection(&repo.pool).unwrap();
+        diesel::sql_query("CREATE TRIGGER fail_auto_state BEFORE INSERT ON app_settings WHEN NEW.setting_key = 'market_data_auto_sync_record' BEGIN SELECT RAISE(ABORT, 'unavailable'); END").execute(&mut conn).unwrap();
+        assert!(repo
+            .claim_market_data_sync_attempt(now + chrono::Duration::hours(6))
+            .await
+            .is_err());
+        assert_eq!(record(&repo).last_attempt_started_at, Some(now));
+    }
+
+    #[tokio::test]
+    async fn daily_configuration_is_atomic_validated_and_local_only() {
+        use crate::schema::sync_outbox;
+        let (repo, _dir) = setup().await;
+        for invalid in [
+            json!({"theme": "dark", "marketDataSyncMode": "daily"}),
+            json!({"marketDataSyncMode": "daily", "marketDataSyncTime": "25:00", "marketDataSyncTimezone": "UTC"}),
+            json!({"marketDataSyncMode": "daily", "marketDataSyncTime": "18:00", "marketDataSyncTimezone": "Not/AZone"}),
+        ] {
+            assert!(repo
+                .update_settings(&serde_json::from_value(invalid).unwrap())
+                .await
+                .is_err());
+            assert_eq!(repo.get_settings().unwrap().theme, "light");
+            assert_eq!(
+                repo.get_settings().unwrap().market_data_sync_mode,
+                MarketDataSyncMode::Interval
+            );
+        }
+        let daily = serde_json::from_value(json!({"marketDataSyncMode":"daily", "marketDataSyncTime":"18:00", "marketDataSyncTimezone":"Asia/Shanghai"})).unwrap();
+        repo.update_settings(&daily).await.unwrap();
+        let configured = record(&repo);
+        assert!(configured.last_attempt_started_at.is_none());
+        assert!(!repo
+            .claim_market_data_sync_attempt(configured.effective_since)
+            .await
+            .unwrap());
+        let due = configured
+            .schedule
+            .next_after(configured.effective_since)
+            .unwrap();
+        assert!(repo.claim_market_data_sync_attempt(due).await.unwrap());
+        assert!(!repo
+            .claim_market_data_sync_attempt(due + chrono::Duration::minutes(1))
+            .await
+            .unwrap());
+        let resumed = due + chrono::Duration::days(4) - chrono::Duration::hours(2);
+        assert!(repo.claim_market_data_sync_attempt(resumed).await.unwrap());
+        assert!(!repo
+            .claim_market_data_sync_attempt(due + chrono::Duration::days(4))
+            .await
+            .unwrap());
+        assert!(repo
+            .claim_market_data_sync_attempt(due + chrono::Duration::days(5))
+            .await
+            .unwrap());
+        let mut conn = get_connection(&repo.pool).unwrap();
+        let outbox: i64 = sync_outbox::table.count().get_result(&mut conn).unwrap();
+        assert_eq!(
+            outbox, 0,
+            "Automatic task state stays on this installation/profile"
+        );
+        let before = repo.get_setting(MARKET_DATA_AUTO_SYNC_RECORD_KEY).unwrap();
+        let receiver =
+            crate::sync::app_sync::AppSyncRepository::new(repo.pool.clone(), repo.writer.clone());
+        assert!(!receiver
+            .apply_remote_event_lww(
+                wealthfolio_core::sync::SyncEntity::AppPreference,
+                MARKET_DATA_AUTO_SYNC_RECORD_KEY.to_string(),
+                wealthfolio_core::sync::SyncOperation::Update,
+                "remote-auto-attempt".to_string(),
+                "2026-10-25T00:00:00Z".to_string(),
+                1,
+                json!({"settingKey": MARKET_DATA_AUTO_SYNC_RECORD_KEY, "settingValue": "remote"}),
+            )
+            .await
+            .unwrap());
+        assert_eq!(
+            repo.get_setting(MARKET_DATA_AUTO_SYNC_RECORD_KEY).unwrap(),
+            before
+        );
+    }
+
+    #[tokio::test]
+    async fn mode_changes_preserve_inactive_configuration_and_only_future_schedule() {
+        let (repo, _dir) = setup().await;
+        repo.update_settings(&serde_json::from_value(json!({"marketDataSyncIntervalHours": 12, "marketDataSyncMode":"daily", "marketDataSyncTime":"18:00", "marketDataSyncTimezone":"Asia/Shanghai"})).unwrap()).await.unwrap();
+        repo.update_settings(
+            &serde_json::from_value(json!({"marketDataSyncMode":"interval"})).unwrap(),
+        )
+        .await
+        .unwrap();
+        let current = repo.get_settings().unwrap();
+        assert_eq!(current.market_data_sync_interval_hours, 12);
+        assert_eq!(current.market_data_sync_time.as_deref(), Some("18:00"));
+        assert_eq!(
+            current.market_data_sync_timezone.as_deref(),
+            Some("Asia/Shanghai")
+        );
+        let changed = record(&repo);
+        assert!(!repo
+            .claim_market_data_sync_attempt(changed.effective_since)
+            .await
+            .unwrap());
+        assert!(repo
+            .claim_market_data_sync_attempt(changed.effective_since + chrono::Duration::hours(12))
+            .await
+            .unwrap());
+        let before = repo.get_setting(MARKET_DATA_AUTO_SYNC_RECORD_KEY).unwrap();
+        repo.update_settings(
+            &serde_json::from_value(json!({"theme":"dark", "marketDataSyncTime":"20:00"})).unwrap(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            repo.get_setting(MARKET_DATA_AUTO_SYNC_RECORD_KEY).unwrap(),
+            before,
+            "Inactive settings and local/manual activity must not change the active plan"
         );
     }
 }

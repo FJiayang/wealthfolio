@@ -15,7 +15,9 @@ use crate::errors::{IntoCore, StorageError};
 use crate::schema::market_data_providers::dsl as market_data_providers_dsl;
 use crate::schema::quotes::dsl as quotes_dsl;
 use crate::utils::{chunk_for_sqlite, SQLITE_MAX_PARAMS_CHUNK};
-use wealthfolio_core::quotes::history::{HistoryQueryKind, HistoryWriteContext};
+use wealthfolio_core::quotes::history::{
+    CustomProviderSnapshot, HistoryQueryKind, HistoryWriteContext,
+};
 use wealthfolio_core::quotes::store::{ProviderSettingsStore, QuoteStore};
 use wealthfolio_core::quotes::types::{AssetId, Day, QuoteSource};
 use wealthfolio_core::quotes::{
@@ -80,13 +82,12 @@ impl MarketDataRepository {
     }
 }
 
-fn history_configuration_revision(
+fn custom_provider_snapshot(
     conn: &mut SqliteConnection,
     asset: &wealthfolio_core::assets::Asset,
     kind: HistoryQueryKind,
-) -> Result<String> {
+) -> Result<CustomProviderSnapshot> {
     use crate::schema::market_data_custom_providers as custom;
-    use sha2::{Digest, Sha256};
     use wealthfolio_core::quotes::custom_scraper_provider::CustomScraperProvider;
     let custom_enabled = market_data_providers_dsl::market_data_providers
         .filter(market_data_providers_dsl::id.eq("CUSTOM_SCRAPER"))
@@ -95,7 +96,7 @@ fn history_configuration_revision(
         .optional()
         .map_err(StorageError::QueryFailed)?;
     if custom_enabled == Some(false) {
-        return Ok(String::new());
+        return Ok(Vec::new());
     }
     let rows = custom::table
         .order(custom::priority.asc())
@@ -137,28 +138,16 @@ fn history_configuration_revision(
                 .find(|row| row.code == source.provider_id)
                 .map(|row| {
                     (
-                        &row.code,
-                        &source.kind,
-                        &row.updated_at,
+                        row.code.clone(),
+                        source.kind.clone(),
+                        row.updated_at.clone(),
                         row.enabled,
                         row.priority,
                     )
                 })
         })
         .collect();
-    if revisions.is_empty() {
-        return Ok(String::new());
-    }
-    // Older custom JSON receipts could mistake a truncated page for complete
-    // history. Version only custom-history identities so those proofs cannot
-    // survive this policy correction; latest and unrelated scopes stay stable.
-    let payload = if kind == HistoryQueryKind::History {
-        serde_json::to_vec(&("custom-history-partial-v2", &revisions))
-    } else {
-        serde_json::to_vec(&revisions)
-    }
-    .map_err(|err| wealthfolio_core::Error::Repository(err.to_string()))?;
-    Ok(hex::encode(Sha256::digest(payload)))
+    Ok(revisions)
 }
 
 fn reset_context(conn: &mut SqliteConnection, id: &str) -> Result<ProviderHistoryResetContext> {
@@ -300,105 +289,10 @@ fn upsert_quote_rows(
     Ok(total_upserted)
 }
 
-fn invalidate_history(conn: &mut SqliteConnection, asset_id: &str) -> Result<()> {
-    // Remove derived rows before deleting the only asset-to-identity mapping.
-    sql_query(
-        "DELETE FROM benchmark_history WHERE identity IN
-        (SELECT identity FROM market_history_queries WHERE asset_id = ?)",
-    )
-    .bind::<Text, _>(asset_id)
-    .execute(conn)
-    .map_err(StorageError::QueryFailed)?;
-    sql_query("DELETE FROM market_history_queries WHERE asset_id = ?")
-        .bind::<Text, _>(asset_id)
-        .execute(conn)
-        .map_err(StorageError::QueryFailed)?;
-    Ok(())
-}
-
-#[derive(Clone, QueryableByName)]
-struct HistoryCoverageRow {
-    #[diesel(sql_type = Text)]
-    identity: String,
-    #[diesel(sql_type = Text)]
-    asset_id: String,
-    #[diesel(sql_type = Text)]
-    start_day: String,
-    #[diesel(sql_type = Text)]
-    end_day: String,
-    #[diesel(sql_type = Text)]
-    fetched_at: String,
-    #[diesel(sql_type = Text)]
-    outcome: String,
-}
-
 #[derive(QueryableByName)]
 struct BenchmarkQuoteRow {
     #[diesel(sql_type = Text)]
     quote_json: String,
-}
-
-fn insert_history_receipt(conn: &mut SqliteConnection, row: &HistoryCoverageRow) -> Result<()> {
-    sql_query(
-        "INSERT OR REPLACE INTO market_history_queries
-        (identity, asset_id, start_day, end_day, fetched_at, outcome) VALUES (?, ?, ?, ?, ?, ?)",
-    )
-    .bind::<Text, _>(&row.identity)
-    .bind::<Text, _>(&row.asset_id)
-    .bind::<Text, _>(&row.start_day)
-    .bind::<Text, _>(&row.end_day)
-    .bind::<Text, _>(&row.fetched_at)
-    .bind::<Text, _>(&row.outcome)
-    .execute(conn)
-    .map_err(StorageError::QueryFailed)?;
-    Ok(())
-}
-
-/// The newest successful observation replaces only its queried interval.
-/// In particular, an empty/partial refresh must not leave an old Complete
-/// receipt underneath it that would become visible again after its TTL.
-fn replace_history_receipt(
-    conn: &mut SqliteConnection,
-    incoming: HistoryCoverageRow,
-) -> Result<()> {
-    let overlapping = sql_query(
-        "SELECT identity, asset_id, start_day, end_day, fetched_at, outcome
-        FROM market_history_queries WHERE identity = ? AND start_day <= ? AND end_day >= ?",
-    )
-    .bind::<Text, _>(&incoming.identity)
-    .bind::<Text, _>(&incoming.end_day)
-    .bind::<Text, _>(&incoming.start_day)
-    .load::<HistoryCoverageRow>(conn)
-    .map_err(StorageError::QueryFailed)?;
-    sql_query(
-        "DELETE FROM market_history_queries WHERE identity = ? AND start_day <= ? AND end_day >= ?",
-    )
-    .bind::<Text, _>(&incoming.identity)
-    .bind::<Text, _>(&incoming.end_day)
-    .bind::<Text, _>(&incoming.start_day)
-    .execute(conn)
-    .map_err(StorageError::QueryFailed)?;
-    let start = NaiveDate::parse_from_str(&incoming.start_day, "%Y-%m-%d")?;
-    let end = NaiveDate::parse_from_str(&incoming.end_day, "%Y-%m-%d")?;
-    for old in overlapping {
-        if old.start_day < incoming.start_day {
-            let mut left = old.clone();
-            left.end_day = start
-                .pred_opt()
-                .expect("an earlier stored day proves a predecessor")
-                .to_string();
-            insert_history_receipt(conn, &left)?;
-        }
-        if old.end_day > incoming.end_day {
-            let mut right = old;
-            right.start_day = end
-                .succ_opt()
-                .expect("a later stored day proves a successor")
-                .to_string();
-            insert_history_receipt(conn, &right)?;
-        }
-    }
-    insert_history_receipt(conn, &incoming)
 }
 
 fn same_quote_payload(left: &Quote, right: &Quote) -> bool {
@@ -453,28 +347,22 @@ fn changed_history_rows(
         .collect())
 }
 
-fn replace_benchmark_interval(
+fn merge_benchmark_prices(
     conn: &mut SqliteConnection,
     identity: &str,
-    interval: Option<(NaiveDate, NaiveDate)>,
+    start: NaiveDate,
+    end: NaiveDate,
     quotes: &[Quote],
 ) -> Result<usize> {
     let mut count = 0;
-    let existing = if let Some((start, end)) = interval {
-        sql_query(
-            "SELECT quote_json FROM benchmark_history WHERE identity = ? AND day >= ? AND day <= ?",
-        )
-        .bind::<Text, _>(identity)
-        .bind::<Text, _>(start.to_string())
-        .bind::<Text, _>(end.to_string())
-        .load::<BenchmarkQuoteRow>(conn)
-        .map_err(StorageError::QueryFailed)?
-    } else {
-        sql_query("SELECT quote_json FROM benchmark_history WHERE identity = ?")
-            .bind::<Text, _>(identity)
-            .load::<BenchmarkQuoteRow>(conn)
-            .map_err(StorageError::QueryFailed)?
-    };
+    let existing = sql_query(
+        "SELECT quote_json FROM benchmark_history WHERE identity = ? AND day >= ? AND day <= ?",
+    )
+    .bind::<Text, _>(identity)
+    .bind::<Text, _>(start.to_string())
+    .bind::<Text, _>(end.to_string())
+    .load::<BenchmarkQuoteRow>(conn)
+    .map_err(StorageError::QueryFailed)?;
     let existing: HashMap<NaiveDate, Quote> = existing
         .into_iter()
         .map(|row| {
@@ -483,20 +371,6 @@ fn replace_benchmark_interval(
                 .map_err(|err| wealthfolio_core::Error::Repository(err.to_string()))
         })
         .collect::<Result<_>>()?;
-    // This is a derived verification cache, not canonical quote history. A
-    // successful response supersedes exactly its queried interval, including
-    // omitted days in partial responses and authoritative empty results.
-    let returned_days: HashSet<_> = quotes
-        .iter()
-        .map(|quote| quote.timestamp.date_naive())
-        .collect();
-    for day in existing.keys().filter(|day| !returned_days.contains(*day)) {
-        count += sql_query("DELETE FROM benchmark_history WHERE identity = ? AND day = ?")
-            .bind::<Text, _>(identity)
-            .bind::<Text, _>(day.to_string())
-            .execute(conn)
-            .map_err(StorageError::QueryFailed)?;
-    }
     for quote in quotes {
         if existing
             .get(&quote.timestamp.date_naive())
@@ -525,45 +399,6 @@ fn replace_benchmark_interval(
 
 #[async_trait]
 impl QuoteStore for MarketDataRepository {
-    fn history_configuration_revision(
-        &self,
-        asset: &wealthfolio_core::assets::Asset,
-        kind: HistoryQueryKind,
-    ) -> Result<String> {
-        history_configuration_revision(&mut *get_connection(&self.pool)?, asset, kind)
-    }
-
-    fn history_coverage(
-        &self,
-        identity: &str,
-    ) -> Result<Vec<wealthfolio_core::quotes::history::HistoryCoverage>> {
-        use wealthfolio_core::quotes::history::{HistoryCoverage, HistoryOutcome};
-        let rows = sql_query(
-            "SELECT identity, asset_id, start_day, end_day, fetched_at, outcome
-            FROM market_history_queries WHERE identity = ? ORDER BY start_day, end_day",
-        )
-        .bind::<Text, _>(identity)
-        .load::<HistoryCoverageRow>(&mut *get_connection(&self.pool)?)
-        .map_err(StorageError::QueryFailed)?;
-        rows.into_iter()
-            .map(|row| {
-                Ok(HistoryCoverage {
-                    identity: row.identity,
-                    asset_id: row.asset_id,
-                    start: NaiveDate::parse_from_str(&row.start_day, "%Y-%m-%d")?,
-                    end: NaiveDate::parse_from_str(&row.end_day, "%Y-%m-%d")?,
-                    fetched_at: chrono::DateTime::parse_from_rfc3339(&row.fetched_at)?
-                        .with_timezone(&chrono::Utc),
-                    outcome: match row.outcome.as_str() {
-                        "complete" => HistoryOutcome::Complete,
-                        "partial" => HistoryOutcome::Partial,
-                        _ => HistoryOutcome::Empty,
-                    },
-                })
-            })
-            .collect()
-    }
-
     fn benchmark_history(
         &self,
         identity: &str,
@@ -572,10 +407,12 @@ impl QuoteStore for MarketDataRepository {
     ) -> Result<Vec<Quote>> {
         let rows = sql_query(
             "SELECT quote_json FROM benchmark_history
-            WHERE identity = ? AND day >= ? AND day <= ? ORDER BY day",
+            WHERE identity = ? AND (? OR day >= ?) AND (? OR day <= ?) ORDER BY day",
         )
         .bind::<Text, _>(identity)
+        .bind::<Integer, _>(i32::from(start == NaiveDate::MIN))
         .bind::<Text, _>(start.to_string())
+        .bind::<Integer, _>(i32::from(end == NaiveDate::MAX))
         .bind::<Text, _>(end.to_string())
         .load::<BenchmarkQuoteRow>(&mut *get_connection(&self.pool)?)
         .map_err(StorageError::QueryFailed)?;
@@ -587,99 +424,47 @@ impl QuoteStore for MarketDataRepository {
             .collect()
     }
 
-    async fn invalidate_history_coverage(&self, asset_id: Option<&str>) -> Result<()> {
-        let asset_id = asset_id.map(str::to_owned);
-        self.writer
-            .exec_tx(move |tx| {
-                if let Some(asset_id) = asset_id {
-                    invalidate_history(tx.conn(), &asset_id)
-                } else {
-                    sql_query("DELETE FROM benchmark_history")
-                        .execute(tx.conn())
-                        .map_err(StorageError::QueryFailed)?;
-                    sql_query("DELETE FROM market_history_queries")
-                        .execute(tx.conn())
-                        .map_err(StorageError::QueryFailed)?;
-                    Ok(())
-                }
-            })
-            .await
-    }
-
-    async fn commit_history_query(
+    async fn commit_history_prices(
         &self,
-        coverage: &wealthfolio_core::quotes::history::HistoryCoverage,
+        write: &wealthfolio_core::quotes::history::HistoryWrite,
         quotes: &[Quote],
         mode: wealthfolio_core::quotes::history::HistoryWriteMode,
-        record_coverage: bool,
         expected_context: Option<&HistoryWriteContext>,
     ) -> Result<usize> {
-        use wealthfolio_core::quotes::history::{HistoryOutcome, HistoryWriteMode};
-        if coverage.start > coverage.end
-            || coverage.identity.is_empty()
+        use wealthfolio_core::quotes::history::HistoryWriteMode;
+        if write.start > write.end
+            || write.identity.is_empty()
             || quotes.iter().any(|q| {
-                q.asset_id != coverage.asset_id
-                    || q.timestamp.date_naive() < coverage.start
-                    || q.timestamp.date_naive() > coverage.end
+                q.asset_id != write.asset_id
+                    || q.timestamp.date_naive() < write.start
+                    || q.timestamp.date_naive() > write.end
             })
-            || (coverage.outcome == HistoryOutcome::Empty && !quotes.is_empty())
-            || (coverage.outcome == HistoryOutcome::Complete && quotes.is_empty())
         {
             return Err(wealthfolio_core::Error::Repository(
                 "Invalid history query result".into(),
             ));
         }
-        let coverage = coverage.clone();
+        let write = write.clone();
         let quotes = quotes.to_vec();
         let expected_context = expected_context.cloned();
         self.writer.exec_tx(move |tx| {
             if let Some(expected) = &expected_context {
                 let canonical_matches = if let Some(canonical) = &expected.canonical_context {
-                    reset_context(tx.conn(), &coverage.asset_id)?.fingerprint == canonical.fingerprint
+                    reset_context(tx.conn(), &write.asset_id)?.fingerprint == canonical.fingerprint
                 } else { true };
-                if expected.asset.id != coverage.asset_id || !canonical_matches
-                    || history_configuration_revision(tx.conn(), &expected.asset, expected.kind)? != expected.custom_revision {
+                if expected.asset.id != write.asset_id || !canonical_matches
+                    || custom_provider_snapshot(tx.conn(), &expected.asset, expected.kind)? != expected.custom_providers {
                     return Err(wealthfolio_core::Error::Asset(
                         "Asset or provider settings changed during fetching; quotes were not written".into()));
                 }
             }
-            let count = if mode != HistoryWriteMode::Canonical {
-                let interval = if mode == HistoryWriteMode::DerivedLatest {
-                    None
-                } else {
-                    Some((coverage.start, coverage.end))
-                };
-                replace_benchmark_interval(tx.conn(), &coverage.identity, interval, &quotes)?
+            if mode != HistoryWriteMode::Canonical {
+                merge_benchmark_prices(tx.conn(), &write.identity, write.start, write.end, &quotes)
             } else {
-                let changed = changed_history_rows(tx.conn(), &coverage.asset_id,
-                    coverage.start, coverage.end, &quotes)?;
-                upsert_quote_rows(tx, changed)?
-            };
-            if mode == HistoryWriteMode::DerivedLatest {
-                // Latest verification is one response/proof snapshot, even when
-                // the newest observation moves back to an earlier market day.
-                sql_query("DELETE FROM market_history_queries WHERE identity = ?")
-                    .bind::<Text, _>(&coverage.identity)
-                    .execute(tx.conn())
-                    .map_err(StorageError::QueryFailed)?;
+                let changed = changed_history_rows(tx.conn(), &write.asset_id,
+                    write.start, write.end, &quotes)?;
+                upsert_quote_rows(tx, changed)
             }
-            if !record_coverage {
-                return Ok(count);
-            }
-            let outcome = match coverage.outcome {
-                HistoryOutcome::Complete => "complete",
-                HistoryOutcome::Empty => "empty",
-                HistoryOutcome::Partial => "partial",
-            };
-            replace_history_receipt(tx.conn(), HistoryCoverageRow {
-                identity: coverage.identity,
-                asset_id: coverage.asset_id,
-                start_day: coverage.start.to_string(),
-                end_day: coverage.end.to_string(),
-                fetched_at: coverage.fetched_at.to_rfc3339(),
-                outcome: outcome.to_string(),
-            })?;
-            Ok(count)
         }).await
     }
 
@@ -743,7 +528,6 @@ impl QuoteStore for MarketDataRepository {
                     .map_err(StorageError::QueryFailed)?;
 
                 if let Some(row) = existing {
-                    invalidate_history(tx.conn(), &row.asset_id)?;
                     tx.delete_model(&row);
                 }
                 Ok(())
@@ -781,12 +565,12 @@ impl QuoteStore for MarketDataRepository {
             let current_asset = canonical_context
                 .as_ref()
                 .map_or(asset, |context| &context.asset);
-            let custom_revision = history_configuration_revision(conn, current_asset, kind)
-                .map_err(StorageError::from)?;
+            let custom_providers =
+                custom_provider_snapshot(conn, current_asset, kind).map_err(StorageError::from)?;
             Ok(Some(HistoryWriteContext {
                 asset: current_asset.clone(),
                 kind,
-                custom_revision,
+                custom_providers,
                 canonical_context,
             }))
         })
@@ -860,7 +644,6 @@ impl QuoteStore for MarketDataRepository {
                 inserted_count += diesel::insert_into(quotes_dsl::quotes).values(chunk)
                     .execute(tx.conn()).map_err(StorageError::QueryFailed)?;
             }
-            invalidate_history(tx.conn(), &context.asset.id)?;
             let now = chrono::Utc::now().to_rfc3339();
             diesel::sql_query("INSERT INTO quote_sync_state
                 (asset_id, data_source, sync_priority, error_count, last_synced_at, created_at, updated_at)
@@ -895,7 +678,6 @@ impl QuoteStore for MarketDataRepository {
                 .execute(tx.conn())
                 .map_err(StorageError::QueryFailed)?;
 
-                invalidate_history(tx.conn(), &asset_id_str)?;
                 for row in &existing_rows {
                     tx.delete_model(row);
                 }
@@ -917,7 +699,6 @@ impl QuoteStore for MarketDataRepository {
                 )
                 .execute(tx.conn())
                 .map_err(StorageError::QueryFailed)?;
-                invalidate_history(tx.conn(), &asset_id_str)?;
                 Ok(count)
             })
             .await
@@ -945,6 +726,39 @@ impl QuoteStore for MarketDataRepository {
         let result = query.first::<QuoteDB>(&mut conn).optional().into_core()?;
 
         Ok(result.map(Quote::from))
+    }
+
+    fn range_compatible(
+        &self,
+        asset: &wealthfolio_core::assets::Asset,
+        start: Day,
+        end: Day,
+    ) -> Result<Vec<Quote>> {
+        let mut conn = get_connection(&self.pool)?;
+        let mut query = quotes_dsl::quotes
+            .filter(quotes_dsl::asset_id.eq(&asset.id))
+            .order(quotes_dsl::day.asc())
+            .into_boxed();
+        if start.date() != NaiveDate::MIN {
+            query = query.filter(quotes_dsl::day.ge(start.date().to_string()));
+        }
+        if end.date() != NaiveDate::MAX {
+            query = query.filter(quotes_dsl::day.le(end.date().to_string()));
+        }
+        let rows = query.load::<QuoteDB>(&mut conn).into_core()?;
+        // Filter before choosing a day's preferred source: a stale currency
+        // must not hide a compatible quote from a lower-priority source.
+        let currency = wealthfolio_core::fx::currency::normalize_currency_code(&asset.quote_ccy);
+        let rows = rows
+            .into_iter()
+            .filter(|row| {
+                row.source == "MANUAL"
+                    || asset.quote_ccy.is_empty()
+                    || wealthfolio_core::fx::currency::normalize_currency_code(&row.currency)
+                        == currency
+            })
+            .collect();
+        Ok(best_per_day(rows).into_iter().map(Quote::from).collect())
     }
 
     fn range(

@@ -186,6 +186,12 @@ test("Spending preserves scroll during selection and mobile tab switching", asyn
   expect(paneOffset).toBe(500);
   await page.getByRole("button", { name: "Investments", exact: true }).click();
   await expect(page).toHaveURL(/tab=investments/);
+  // The URL can update before React commits the mobile navigation state.
+  // Wait for Investments to become active before asking to switch back.
+  await expect(page.getByRole("button", { name: "Investments", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
   await page.getByRole("button", { name: "Spending", exact: true }).click();
   await expect(page).toHaveURL(/tab=spending/);
   await expectScrollPreserved(spendingPane, paneOffset);

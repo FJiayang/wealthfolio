@@ -45,20 +45,6 @@ use crate::errors::Result;
 /// - `*_batch` - Operate on multiple assets efficiently
 #[async_trait]
 pub trait QuoteStore: Send + Sync {
-    /// Non-secret revision of live custom-provider settings used for cache identity.
-    fn history_configuration_revision(
-        &self,
-        _asset: &crate::assets::Asset,
-        _kind: super::history::HistoryQueryKind,
-    ) -> Result<String> {
-        Ok(String::new())
-    }
-
-    /// Successful query coverage. Legacy/test stores safely default to no coverage.
-    fn history_coverage(&self, _identity: &str) -> Result<Vec<super::history::HistoryCoverage>> {
-        Ok(Vec::new())
-    }
-
     /// Benchmark-only history, isolated from the user's asset quote catalog.
     fn benchmark_history(
         &self,
@@ -69,22 +55,31 @@ pub trait QuoteStore: Send + Sync {
         Ok(Vec::new())
     }
 
-    async fn invalidate_history_coverage(&self, _asset_id: Option<&str>) -> Result<()> {
-        Ok(())
+    /// Read compatible currency rows before selecting the preferred observation per day.
+    fn range_compatible(
+        &self,
+        asset: &crate::assets::Asset,
+        start: Day,
+        end: Day,
+    ) -> Result<Vec<Quote>> {
+        Ok(self
+            .range(&AssetId::new(&asset.id), start, end, None)?
+            .into_iter()
+            .filter(|quote| {
+                quote.data_source == super::constants::DATA_SOURCE_MANUAL
+                    || asset.quote_ccy.is_empty()
+                    || crate::fx::currency::normalize_currency_code(&quote.currency)
+                        == crate::fx::currency::normalize_currency_code(&asset.quote_ccy)
+            })
+            .collect())
     }
 
-    /// Atomically persist provider prices, with a receipt only when
-    /// `record_coverage` is true. Complete responses establish coverage; empty
-    /// and partial outcomes only establish bounded retry receipts. Failed
-    /// requests must never be committed.
-    /// The default intentionally records no coverage, so alternative stores
-    /// cannot incorrectly claim durable query coverage.
-    async fn commit_history_query(
+    /// Atomically merge fetched prices while verifying the transient configuration guard.
+    async fn commit_history_prices(
         &self,
-        _coverage: &super::history::HistoryCoverage,
+        _scope: &super::history::HistoryWrite,
         quotes: &[Quote],
         mode: super::history::HistoryWriteMode,
-        _record_coverage: bool,
         _expected_context: Option<&super::history::HistoryWriteContext>,
     ) -> Result<usize> {
         if mode != super::history::HistoryWriteMode::Canonical {

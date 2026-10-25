@@ -276,30 +276,13 @@ impl CustomScraperProvider {
         from: Option<&str>,
         to: Option<&str>,
     ) -> Result<Vec<MarketQuote>, MarketDataError> {
-        self.fetch_from_source_with_coverage(source, symbol, currency_hint, context, from, to)
-            .await
-            .map(|result| result.quotes)
-    }
-
-    async fn fetch_from_source_with_coverage(
-        &self,
-        source: &CustomProviderSource,
-        symbol: &str,
-        currency_hint: Option<&str>,
-        context: Option<&QuoteContext>,
-        from: Option<&str>,
-        to: Option<&str>,
-    ) -> Result<wealthfolio_market_data::HistoricalQuotes, MarketDataError> {
         // Default price fallback — if URL is empty, return static price
         if source.url.is_empty() {
             if let Some(price) = source.default_price {
                 let close = to_decimal(price);
                 let currency = currency_hint.unwrap_or("USD").to_string();
                 let src = format!("{}:{}", DATA_SOURCE_CUSTOM_SCRAPER, source.provider_id);
-                return Ok(wealthfolio_market_data::HistoricalQuotes {
-                    quotes: vec![MarketQuote::new(Utc::now(), close, currency, src)],
-                    complete: false,
-                });
+                return Ok(vec![MarketQuote::new(Utc::now(), close, currency, src)]);
             }
             return Err(MarketDataError::ProviderError {
                 provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
@@ -350,10 +333,7 @@ impl CustomScraperProvider {
                     let close = to_decimal(price);
                     let currency = currency_hint.unwrap_or("USD").to_string();
                     let src = format!("{}:{}", DATA_SOURCE_CUSTOM_SCRAPER, source.provider_id);
-                    return Ok(wealthfolio_market_data::HistoricalQuotes {
-                        quotes: vec![MarketQuote::new(Utc::now(), close, currency, src)],
-                        complete: false,
-                    });
+                    return Ok(vec![MarketQuote::new(Utc::now(), close, currency, src)]);
                 }
                 return Err(e);
             }
@@ -383,10 +363,7 @@ impl CustomScraperProvider {
                         ),
                     });
                 }
-                Ok(wealthfolio_market_data::HistoricalQuotes {
-                    quotes: rows_to_quotes(rows, source, &currency),
-                    complete: false,
-                })
+                Ok(rows_to_quotes(rows, source, &currency))
             }
             "csv" => {
                 let rows = extract_csv_rows(&body, source, locale_ref);
@@ -396,10 +373,7 @@ impl CustomScraperProvider {
                         message: format!("No rows extracted from CSV for symbol '{}'", symbol),
                     });
                 }
-                Ok(wealthfolio_market_data::HistoricalQuotes {
-                    quotes: rows_to_quotes(rows, source, &currency),
-                    complete: false,
-                })
+                Ok(rows_to_quotes(rows, source, &currency))
             }
             "json" => {
                 let rows = extract_json_rows(&body, source, &tctx, locale_ref)?;
@@ -412,12 +386,7 @@ impl CustomScraperProvider {
                         ),
                     });
                 }
-                Ok(wealthfolio_market_data::HistoricalQuotes {
-                    quotes: rows_to_quotes(rows, source, &currency),
-                    // Date bounds and lossless parsing do not prove that a custom
-                    // server exhausted pagination or avoided truncating its response.
-                    complete: false,
-                })
+                Ok(rows_to_quotes(rows, source, &currency))
             }
             "html" => {
                 let price =
@@ -455,10 +424,7 @@ impl CustomScraperProvider {
                 quote.high = high.map(to_decimal);
                 quote.low = low.map(to_decimal);
                 quote.volume = volume.map(to_decimal);
-                Ok(wealthfolio_market_data::HistoricalQuotes {
-                    quotes: vec![quote],
-                    complete: false,
-                })
+                Ok(vec![quote])
             }
             _ => Err(MarketDataError::ProviderError {
                 provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
@@ -585,18 +551,6 @@ impl MarketDataProvider for CustomScraperProvider {
         start: DateTime<Utc>,
         end: DateTime<Utc>,
     ) -> Result<Vec<MarketQuote>, MarketDataError> {
-        self.get_historical_quotes_with_coverage(context, instrument, start, end)
-            .await
-            .map(|result| result.quotes)
-    }
-
-    async fn get_historical_quotes_with_coverage(
-        &self,
-        context: &QuoteContext,
-        instrument: ProviderInstrument,
-        start: DateTime<Utc>,
-        end: DateTime<Utc>,
-    ) -> Result<wealthfolio_market_data::HistoricalQuotes, MarketDataError> {
         let symbol = match &instrument {
             ProviderInstrument::EquitySymbol { symbol } => symbol.to_string(),
             _ => {
@@ -618,7 +572,7 @@ impl MarketDataProvider for CustomScraperProvider {
             for source in &sources {
                 let sym = Self::resolve_symbol(context, source, &symbol);
                 match self
-                    .fetch_from_source_with_coverage(
+                    .fetch_from_source_with_dates(
                         source,
                         &sym,
                         currency_hint,
@@ -657,12 +611,7 @@ impl MarketDataProvider for CustomScraperProvider {
                 .fetch_from_source(source, &sym, currency_hint, Some(context))
                 .await
             {
-                Ok(quote) => {
-                    return Ok(wealthfolio_market_data::HistoricalQuotes {
-                        quotes: vec![quote],
-                        complete: false,
-                    })
-                }
+                Ok(quote) => return Ok(vec![quote]),
                 Err(e) => {
                     log::debug!(
                         "CustomScraper [{}]: latest fallback failed for '{}': {}",
@@ -1357,7 +1306,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn historical_json_http_responses_never_certify_server_completeness() {
+    async fn historical_json_http_responses_preserve_valid_rows() {
         let recent_rows: Vec<_> = (0..100)
             .map(|offset| {
                 serde_json::json!({
@@ -1379,7 +1328,7 @@ mod tests {
         let responses = vec![
             // A year was requested, but an apparently lossless endpoint returned only 100 rows.
             (serde_json::json!({"rows": recent_rows}).to_string(), Some(100)),
-            // Even every supplied day cannot establish a server completeness contract.
+            // A full-looking response uses the same ordinary parsing path.
             (serde_json::json!({"rows": full_year_rows}).to_string(), Some(365)),
             // Existing filtering of malformed prices must still preserve valid rows.
             (r#"{"rows":[{"date":"2025-01-01","price":10},{"date":"2025-01-02","price":"bad"}]}"#.into(), Some(1)),
@@ -1402,7 +1351,7 @@ mod tests {
                 Arc::new(MockSecretStore),
             );
             let result = provider
-                .get_historical_quotes_with_coverage(
+                .get_historical_quotes(
                     &equity_context(Some("history-test")),
                     ProviderInstrument::EquitySymbol {
                         symbol: Arc::from("TEST"),
@@ -1414,8 +1363,7 @@ mod tests {
             server.join().unwrap();
             if let Some(expected_rows) = expected_rows {
                 let result = result.unwrap();
-                assert_eq!(result.quotes.len(), expected_rows);
-                assert!(!result.complete);
+                assert_eq!(result.len(), expected_rows);
             } else {
                 assert!(result.is_err());
             }
@@ -1423,7 +1371,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn historical_default_price_never_certifies_a_range() {
+    async fn historical_default_price_returns_one_observation() {
         let provider = CustomScraperProvider::new(
             Arc::new(MockCustomProviderRepository { providers: vec![] }),
             Arc::new(MockSecretStore),
@@ -1432,7 +1380,7 @@ mod tests {
         source.url.clear();
         source.default_price = Some(12.0);
         let result = provider
-            .fetch_from_source_with_coverage(
+            .fetch_from_source_with_dates(
                 &source,
                 "TEST",
                 Some("USD"),
@@ -1442,8 +1390,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(result.quotes.len(), 1);
-        assert!(!result.complete);
+        assert_eq!(result.len(), 1);
     }
 
     struct MockCustomProviderRepository {

@@ -746,7 +746,6 @@
   "tax_delete_confirm_desc": "Tem certeza que deseja excluir \"{{name}}\"? Isso removerá todas as atribuições de ativos a esta categoria. Esta ação não pode ser desfeita.",
   "market_data_page": {
     "sync_interval_label": "Intervalo de sincronização automática",
-    "sync_interval_description": "Aplica-se às sincronizações agendadas enquanto o aplicativo de desktop ou o servidor web estiver em execução. As alterações entram em vigor em até um minuto; as sincronizações ao iniciar e manuais não são afetadas.",
     "sync_interval_hours_one": "A cada {{count}} hora",
     "sync_interval_hours_many": "A cada {{count}} horas",
     "sync_interval_hours_other": "A cada {{count}} horas",
@@ -1147,7 +1146,14 @@
       "refresh_error": "Credenciais armazenadas, mas a validação ou atualização do cliente falhou. Verifique o formato e tente novamente.",
       "saved": "Credenciais salvas.",
       "deleted": "Credenciais excluídas."
-    }
+    },
+    "sync_mode_label": "Modo de sincronização automática",
+    "sync_mode_interval": "Intervalo em horas",
+    "sync_mode_daily": "Diariamente a uma hora fixa",
+    "sync_daily_time_label": "Hora da sincronização diária",
+    "sync_timezone_label": "Fuso horário da sincronização",
+    "sync_schedule_description": "É executada enquanto a aplicação ou o servidor web está em funcionamento, incluindo fins de semana e feriados. As execuções perdidas são recuperadas uma única vez. Guardar inicia um novo agendamento sem execução imediata.",
+    "sync_daily_required": "Escolha uma hora e um fuso horário antes de ativar a sincronização diária. O fuso horário é independente das definições de apresentação."
   },
   "addon_permission_none_detected": "Nenhuma permissão de acesso a dados detectada. Esta extensão parece ter acesso mínimo ao sistema.",
   "addon_permission_list_title": "Permissões",

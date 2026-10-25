@@ -218,7 +218,7 @@ async fn execute_health_fix(
         let job_config = PortfolioJobConfig {
             account_ids: Some(account_ids),
             // Prices/valuations were already fixed by the user; just rebuild.
-            market_sync_mode: MarketSyncMode::Incremental { asset_ids: None },
+            market_sync_mode: MarketSyncMode::None,
             force_full: true,
         };
 

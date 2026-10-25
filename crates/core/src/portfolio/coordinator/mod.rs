@@ -611,50 +611,69 @@ impl PortfolioCoordinator {
 }
 
 /// The app's periodic market sync, shared by both hosts. Settings are checked
-/// every minute so changing the interval does not require restarting the host.
+/// every minute. A local, persisted attempt claim prevents restart/failed-job replay.
 pub async fn run_periodic_update(
     coordinator: Arc<PortfolioCoordinator>,
     observer: Arc<dyn JobObserver>,
     settings: Arc<dyn SettingsServiceTrait>,
     initial_delay: std::time::Duration,
 ) {
-    tokio::time::sleep(initial_delay).await;
-    let mut last_completed = None;
+    let started = tokio::time::Instant::now();
     loop {
-        wait_for_periodic_update(settings.as_ref(), last_completed).await;
-        let report = coordinator
-            .update_all(
-                MarketSyncMode::Incremental { asset_ids: None },
-                observer.as_ref(),
-            )
-            .await;
-        last_completed = Some(tokio::time::Instant::now());
-        info!(
-            "Periodic portfolio update: {} account(s) rebuilt, {} failure(s)",
-            report.account_ids.len(),
-            report.failures.len()
-        );
+        let elapsed = started.elapsed();
+        let ready = periodic_startup_ready(settings.as_ref(), elapsed, initial_delay);
+        let attempt = match ready {
+            Ok(true) => {
+                settings
+                    .claim_market_data_sync_attempt(chrono::Utc::now())
+                    .await
+            }
+            Ok(false) => Ok(false),
+            Err(error) => Err(error),
+        };
+        match attempt {
+            Ok(true) => {
+                let report = coordinator
+                    .update_all(
+                        MarketSyncMode::Incremental { asset_ids: None },
+                        observer.as_ref(),
+                    )
+                    .await;
+                info!(
+                    "Periodic portfolio update: {} account(s) rebuilt, {} failure(s)",
+                    report.account_ids.len(),
+                    report.failures.len()
+                );
+            }
+            Ok(false) => {}
+            Err(error) => warn!("Cannot persist automatic market sync attempt: {error}"),
+        }
+        let minute = std::time::Duration::from_secs(60);
+        let next_check = if elapsed < initial_delay {
+            minute.min(initial_delay - elapsed)
+        } else {
+            minute
+        };
+        tokio::time::sleep(next_check).await;
     }
 }
 
-async fn wait_for_periodic_update(
+fn periodic_startup_ready(
     settings: &dyn SettingsServiceTrait,
-    last_completed: Option<tokio::time::Instant>,
-) {
-    loop {
-        match settings.get_settings() {
-            Ok(settings) => {
-                let interval = std::time::Duration::from_secs(
-                    u64::from(settings.market_data_sync_interval_hours) * 3600,
-                );
-                if last_completed.is_none_or(|last| last.elapsed() >= interval) {
-                    return;
-                }
-            }
-            Err(error) => warn!("Cannot read periodic market sync settings: {error}"),
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+    elapsed: std::time::Duration,
+    initial_delay: std::time::Duration,
+) -> Result<bool> {
+    let current = settings.get_settings()?;
+    if current.market_data_sync_mode != crate::settings::MarketDataSyncMode::Interval
+        || elapsed >= initial_delay
+    {
+        return Ok(true);
     }
+    // Only a legacy interval plan's very first automatic attempt retains the
+    // startup grace. Existing/missed tasks and daily plans can run immediately.
+    Ok(settings
+        .get_setting_value(crate::settings::MARKET_DATA_AUTO_SYNC_RECORD_KEY)?
+        .is_some())
 }
 
 fn failures_for(account_ids: &[String], code: &str, message: &str) -> Vec<AccountFailure> {

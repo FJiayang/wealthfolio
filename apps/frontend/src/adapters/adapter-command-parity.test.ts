@@ -665,3 +665,31 @@ describe("provider request counts routing", () => {
     expect(platformInvokeMock).toHaveBeenLastCalledWith("get_provider_request_counts", { days: 7 });
   });
 });
+
+describe("portfolio rebuild market-data opt-in transport", () => {
+  it("keeps manual updates enabled by default and explicitly opts automatic rebuilds out", async () => {
+    const { updatePortfolio } = await import("./shared/portfolio");
+    platformInvokeMock.mockClear();
+    platformInvokeMock.mockResolvedValue(undefined);
+    await updatePortfolio();
+    expect(platformInvokeMock).toHaveBeenLastCalledWith("update_portfolio", {
+      syncMarketData: true,
+    });
+    await updatePortfolio(false);
+    expect(platformInvokeMock).toHaveBeenLastCalledWith("update_portfolio", {
+      syncMarketData: false,
+    });
+  });
+
+  it.each([true, false])(
+    "forwards syncMarketData=%s through the web adapter",
+    async (syncMarketData) => {
+      const fetchMock = stubFetch(null);
+      await invoke("update_portfolio", { syncMarketData });
+      const call = lastCall(fetchMock);
+      expect(call.url).toBe("/api/v1/portfolio/update");
+      expect(call.method).toBe("POST");
+      expect(JSON.parse(call.body as string)).toEqual({ syncMarketData });
+    },
+  );
+});

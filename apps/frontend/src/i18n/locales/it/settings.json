@@ -746,7 +746,6 @@
   "tax_delete_confirm_desc": "Sei sicuro di voler eliminare \"{{name}}\"? Questo rimuoverà tutte le assegnazioni di asset a questa categoria. Questa azione non può essere annullata.",
   "market_data_page": {
     "sync_interval_label": "Intervallo di sincronizzazione automatica",
-    "sync_interval_description": "Si applica alle sincronizzazioni pianificate mentre l’app desktop o il server web sono in esecuzione. Le modifiche hanno effetto entro un minuto; le sincronizzazioni all’avvio e manuali restano invariate.",
     "sync_interval_hours_one": "Ogni {{count}} ora",
     "sync_interval_hours_many": "Ogni {{count}} ore",
     "sync_interval_hours_other": "Ogni {{count}} ore",
@@ -1147,7 +1146,14 @@
       "refresh_error": "Credenziali archiviate, ma convalida o aggiornamento del client non riusciti. Controlla il formato e riprova.",
       "saved": "Credenziali salvate.",
       "deleted": "Credenziali eliminate."
-    }
+    },
+    "sync_mode_label": "Modalità di sincronizzazione automatica",
+    "sync_mode_interval": "Intervallo in ore",
+    "sync_mode_daily": "Ogni giorno a un orario fisso",
+    "sync_daily_time_label": "Orario di sincronizzazione giornaliera",
+    "sync_timezone_label": "Fuso orario di sincronizzazione",
+    "sync_schedule_description": "Viene eseguita mentre l’app o il server web è in funzione, anche nei fine settimana e nei festivi. Le esecuzioni saltate vengono recuperate una sola volta. Il salvataggio avvia una nuova pianificazione senza esecuzione immediata.",
+    "sync_daily_required": "Scegli un orario e un fuso orario prima di attivare la sincronizzazione giornaliera. Il fuso orario è indipendente dalle impostazioni di visualizzazione."
   },
   "addon_permission_none_detected": "Nessun permesso di accesso ai dati rilevato. Questo add-on sembra avere un accesso minimo al sistema.",
   "addon_permission_list_title": "Permessi",

@@ -8,6 +8,16 @@ use crate::settings::{Settings, SettingsUpdate};
 /// Repository trait for managing application settings.
 #[async_trait]
 pub trait SettingsRepositoryTrait: Send + Sync {
+    /// Atomically persist an automatic attempt before any network work.
+    async fn claim_market_data_sync_attempt(
+        &self,
+        _now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool> {
+        Err(crate::Error::InvalidConfigValue(
+            "Automatic market sync is unavailable".to_string(),
+        ))
+    }
+
     /// Get all settings.
     fn get_settings(&self) -> Result<Settings>;
 

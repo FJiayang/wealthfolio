@@ -21,8 +21,8 @@ import type {
 
 import { invoke, logger } from "./platform";
 
-export const updatePortfolio = async (): Promise<void> => {
-  return invoke<void>("update_portfolio");
+export const updatePortfolio = async (syncMarketData = true): Promise<void> => {
+  return invoke<void>("update_portfolio", { syncMarketData });
 };
 
 export const recalculatePortfolio = async (): Promise<void> => {

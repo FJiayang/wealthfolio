@@ -176,6 +176,16 @@ fn validate_gain_loss_color_scheme(scheme: &str) -> Result<()> {
 // Define the trait for SettingsService
 #[async_trait]
 pub trait SettingsServiceTrait: Send + Sync {
+    /// Atomically persist an automatic attempt before any network work.
+    async fn claim_market_data_sync_attempt(
+        &self,
+        _now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool> {
+        Err(crate::Error::InvalidConfigValue(
+            "Automatic market sync is unavailable".to_string(),
+        ))
+    }
+
     fn get_settings(&self) -> Result<Settings>;
 
     async fn update_settings(&self, new_settings: &SettingsUpdate) -> Result<()>;
@@ -209,9 +219,18 @@ pub struct SettingsService {
 // Implement the trait for SettingsService
 #[async_trait]
 impl SettingsServiceTrait for SettingsService {
+    async fn claim_market_data_sync_attempt(
+        &self,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Result<bool> {
+        self.settings_repository
+            .claim_market_data_sync_attempt(now)
+            .await
+    }
+
     fn get_settings(&self) -> Result<Settings> {
         let mut settings = self.settings_repository.get_settings()?;
-        validate_market_data_sync_interval(settings.market_data_sync_interval_hours)?;
+        super::MarketDataSyncSchedule::from_settings(&settings)?;
         validate_gain_loss_color_scheme(&settings.gain_loss_color_scheme)?;
         settings.formatting_region =
             normalize_formatting_region(&settings.language, &settings.formatting_region);
@@ -252,6 +271,21 @@ impl SettingsServiceTrait for SettingsService {
         if let Some(hours) = normalized_settings.market_data_sync_interval_hours {
             validate_market_data_sync_interval(hours)?;
         }
+
+        let mut effective = self.settings_repository.get_settings()?;
+        if let Some(mode) = normalized_settings.market_data_sync_mode {
+            effective.market_data_sync_mode = mode;
+        }
+        if let Some(hours) = normalized_settings.market_data_sync_interval_hours {
+            effective.market_data_sync_interval_hours = hours;
+        }
+        if let Some(ref time) = normalized_settings.market_data_sync_time {
+            effective.market_data_sync_time = Some(time.clone());
+        }
+        if let Some(ref timezone) = normalized_settings.market_data_sync_timezone {
+            effective.market_data_sync_timezone = Some(timezone.clone());
+        }
+        super::MarketDataSyncSchedule::from_settings(&effective)?;
 
         // Validate the whole update first: a rejected update must not change the
         // base currency, which the repository writes in the same transaction as

@@ -281,7 +281,7 @@ async fn build_context(
         ),
     );
     let quote_service: Arc<dyn QuoteServiceTrait> = Arc::new(
-        QuoteService::new_with_custom_provider_and_settings(
+        QuoteService::new_with_custom_provider_and_recorder(
             market_data_repo.clone(),            // QuoteStore
             quote_sync_state_repository.clone(), // SyncStateStore
             market_data_repo.clone(),            // ProviderSettingsStore
@@ -290,7 +290,6 @@ async fn build_context(
             secret_store.clone(),
             Some(custom_provider_repository.clone()),
             request_recorder.clone(),
-            Some(settings_service.clone()),
         )
         .await?
         .with_event_sink(domain_event_sink.clone()),

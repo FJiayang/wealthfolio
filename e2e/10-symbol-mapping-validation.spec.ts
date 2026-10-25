@@ -111,10 +111,21 @@ test.describe("Symbol Mapping Validation", () => {
     await expect(page.getByRole("button", { name: "Add" })).toBeVisible({ timeout: 5000 });
   }
 
-  async function openAssetMarketDataTab() {
+  async function openAssetMarketDataTab(currency: "USD" | "EUR") {
     await openMarketDataTab();
     // Remove any leftover mapping rows from a previous partial run
     await clearAllMappings();
+
+    // Provider quote currency is independent of the portfolio's onboarding/base currency.
+    // Validate USD Yahoo symbols and EUR Frankfurt symbols in their actual quote units.
+    const editSheet = page.getByRole("dialog").first();
+    await editSheet.getByRole("tab", { name: "General", exact: true }).click();
+    const currencyInput = editSheet.getByRole("combobox", { name: "Currency", exact: true });
+    await currencyInput.click();
+    await page.getByPlaceholder("Search currency...").fill(currency);
+    await page.getByRole("option", { name: new RegExp(`\\(${currency}\\)$`) }).click();
+    await expect(currencyInput).toHaveText(currency);
+    await editSheet.getByRole("tab", { name: "Market Data", exact: true }).click();
   }
 
   async function clearAllMappings() {
@@ -152,6 +163,30 @@ test.describe("Symbol Mapping Validation", () => {
     )?.id;
   }
 
+  async function updateTestAssetPrice() {
+    const assetId = await findTestAssetId();
+    expect(assetId).toBeTruthy();
+    // Saving a mapping and rebuilding the portfolio are local-only. The existing
+    // manual Update Prices endpoint explicitly fetches for this asset only.
+    const response = await page.request.post(`${BASE_URL}/api/v1/market-data/sync`, {
+      data: { assetIds: [assetId], refetchAll: false },
+    });
+    expect(response.status()).toBe(204);
+    await expect
+      .poll(
+        async () => {
+          const latest = await page.request.post(`${BASE_URL}/api/v1/market-data/quotes/latest`, {
+            data: { assetIds: [assetId] },
+          });
+          expect(latest.ok()).toBeTruthy();
+          const quotes = await latest.json();
+          return quotes[assetId!]?.quote != null;
+        },
+        { timeout: 30000 },
+      )
+      .toBe(true);
+  }
+
   async function resetTestAssetToManual() {
     const assetId = await findTestAssetId();
     if (!assetId) return;
@@ -166,13 +201,18 @@ test.describe("Symbol Mapping Validation", () => {
 
   async function setOpenSheetToManualPricing() {
     const editSheet = page.getByRole("dialog").first();
-    const pricingSwitch = editSheet.getByRole("switch").first();
-    if (!(await pricingSwitch.isVisible({ timeout: 2000 }).catch(() => false))) return;
+    const pricingToggle = editSheet.getByRole("button", { name: "Automatic Updates" });
+    await expect(pricingToggle).toBeVisible();
+    if (
+      await editSheet
+        .getByText("Automatic syncing is off. You manage prices manually.", { exact: true })
+        .isVisible()
+    ) {
+      return;
+    }
 
-    const isAutomatic = (await pricingSwitch.getAttribute("aria-checked")) === "true";
-    if (!isAutomatic) return;
-
-    await pricingSwitch.click();
+    // The inner switch is aria-hidden; its named popover trigger owns the interaction.
+    await pricingToggle.click();
     const confirmBtn = page.getByRole("button", { name: "Confirm" });
     await expect(confirmBtn).toBeVisible({ timeout: 3000 });
     await confirmBtn.click();
@@ -270,21 +310,23 @@ test.describe("Symbol Mapping Validation", () => {
 
   // ── Yahoo Finance ─────────────────────────────────────────────────────────
 
-  test("1. Yahoo Finance — valid symbol shows green check and price after save", async () => {
-    await openAssetMarketDataTab();
+  test("1. Yahoo Finance — valid symbol shows green check and price after explicit refresh", async () => {
+    await openAssetMarketDataTab("USD");
     const row = await addMappingRow("Yahoo Finance", "AAPL");
     await waitForValidation(row, "valid", 30000);
     await saveChanges();
 
+    await updateTestAssetPrice();
+
     // Re-open and verify the latest price card is shown
-    await openAssetMarketDataTab();
+    await openAssetMarketDataTab("USD");
     await expect(page.getByText("Latest price", { exact: true })).toBeVisible({ timeout: 30000 });
 
     await removeMapping("AAPL");
   });
 
   test("2. Yahoo Finance — invalid symbol shows red error and mapping is persisted after save", async () => {
-    await openAssetMarketDataTab();
+    await openAssetMarketDataTab("USD");
     const row = await addMappingRow("Yahoo Finance", "INVALID_TICKER_XYZ_E2E");
     await waitForValidation(row, "invalid", 30000);
     await saveChanges();
@@ -295,21 +337,23 @@ test.describe("Symbol Mapping Validation", () => {
 
   // ── Börse Frankfurt ───────────────────────────────────────────────────────
 
-  test("3. Börse Frankfurt — valid ISIN shows green check and price after save", async () => {
-    await openAssetMarketDataTab();
+  test("3. Börse Frankfurt — valid ISIN shows green check and price after explicit refresh", async () => {
+    await openAssetMarketDataTab("EUR");
     const row = await addMappingRow("Börse Frankfurt", "DE0007164600");
     await waitForValidation(row, "valid", 30000);
     await saveChanges();
 
+    await updateTestAssetPrice();
+
     // Re-open and verify the latest price card is shown
-    await openAssetMarketDataTab();
+    await openAssetMarketDataTab("EUR");
     await expect(page.getByText("Latest price", { exact: true })).toBeVisible({ timeout: 30000 });
 
     await removeMapping("DE0007164600");
   });
 
   test("4. Börse Frankfurt — invalid symbol shows red error and mapping is persisted after save", async () => {
-    await openAssetMarketDataTab();
+    await openAssetMarketDataTab("EUR");
     const row = await addMappingRow("Börse Frankfurt", "INVALID_BF_XYZ_E2E");
     await waitForValidation(row, "invalid", 30000);
     await saveChanges();

@@ -879,166 +879,103 @@ The sync state system tracks what quotes exist and what's needed for each asset.
 
 ### Request Intent, Scheduling, and Completion
 
-Range intent is separate from permission to bypass local coverage:
+**Architecture impact:** ordinary fetch-capable reads use local price
+boundaries, not persisted completeness proofs or freshness TTLs. Explicit
+automatic and manual syncs directly execute the existing asset/FX plan and
+overlap windows. SQLite, the coordinator, write actor, provider limits/circuit
+breakers, price precedence, and domain-event notifications remain the owners of
+their existing responsibilities. No worker, queue, distributed scheduler, or
+automatic retry mechanism is added. Valuation's exchange-time rules and pure
+database reads are unchanged.
 
-- `Incremental`, `RefetchRecent`, and `BackfillHistory` select the required
-  history window and reuse fresh local coverage. Automatic base-currency
-  updates, health-driven work, and portfolio recalculation do not become
-  provider-forcing operations merely because they need a full history window.
-- The existing `sync_market_data` command with `refetch_all=true` selects
-  `RefreshAllHistory` through the shared `MarketSyncMode::for_quote_refresh`
-  mapping in both Tauri and Axum. This explicit action bypasses local coverage
-  and keeps ordinary provider upsert/revision behavior with manual-price
-  precedence. The legacy explicit `resync` / `synch_quotes` /
-  `/market-data/sync/history` / addon `syncHistory` aliases select the same
-  refresh-all intent; no automatic caller uses that alias. The existing
-  recent-window flag still takes precedence if both command flags are supplied.
-- Reset Provider History is the other explicit bypass. Its separate command,
-  confirmation, validation, and atomic provider-history replacement remain
-  unchanged. A refresh-all operation is not a reset, and a projection's
-  `force_full` flag is not a market-data bypass.
+- `Incremental`, `RefetchRecent`, `BackfillHistory`, and `RefreshAllHistory`
+  select ranges rather than cache-bypass permissions. Their selected providers
+  are requested regardless of weekends, holidays, market close, or quote
+  freshness. The end date is the market-local calendar date.
+- Update Prices immediately performs incremental sync and merges prices. Refresh
+  All History fetches its existing business-defined range and merges; it does
+  not delete old prices. Existing recent-window flag precedence remains.
+- Reset Provider History retains its separate confirmation and atomic
+  replacement semantics, preserving manual and broker prices.
+- CSV price import writes local prices and requests local portfolio rebuilding;
+  it does not request providers.
+- Startup, resume, broker/device-sync completion, and ordinary domain-event
+  rebuilding use `MarketSyncMode::None`. Asset creation may still obtain initial
+  history; search and explicit provider/code validation retain necessary
+  requests.
+- `updatePortfolio` accepts optional `syncMarketData`, defaulting to `true` for
+  existing/manual callers. Automatic startup/resume callers explicitly use
+  `false`. Tauri and Axum expose the same behavior.
 
-Startup, resume, manual requests, periodic timing, job admission invalidation,
-and completion events retain their original behavior. Overlapping requests still
-enter the existing coordinator; local coverage is rechecked after acquiring the
-history lock rather than dropping work for another asset, range, or explicit
-refresh. Redundant jobs may still run, but covered market queries reuse local
-data.
+### Automatic Sync Schedule
 
-**Architecture impact:** provider request planning is optimized within the
-existing services and per-asset coordination. Provider registry, transport/API
-entrypoints, background-job owner, observer protocol, pricing precedence, reset
-transaction, and portfolio calculation rules remain in place. There is no new
-queue or scheduler, and no frontend invalidation timing change.
+The existing background periodic task checks settings every minute on desktop
+and the web server. Native mobile retains its existing exclusion. The app/server
+must be running: shutdown or sleep does not execute a job in the background.
 
-### Local Query Outcomes and Benchmark History
+`marketDataSyncMode` defaults to `interval`, retaining saved
+`marketDataSyncIntervalHours` and its supported values. Daily mode additionally
+requires a valid `marketDataSyncTime` (`HH:mm`) and independent IANA
+`marketDataSyncTimezone`, saved together when first enabled. The UI may prefill
+the device timezone, but never infers a market's closing time. Switching modes
+retains inactive configuration and starts from the next future due time.
 
-Ordinary history reads and symbol-price resolution share the existing
-`QuoteSyncService` owner. Pure database getters remain pure. Each profile owns a
-weak per-asset lock registry: requests for the same asset wait and recheck local
-query outcomes, while different assets retain existing concurrent fetching.
-Waiting does not discard another requested range or an explicit force action.
+The existing settings table stores one local, profile-specific automatic-task
+record containing the effective schedule, its activation baseline, and the last
+automatic attempt's start time. This record is excluded from device sync and is
+not evidence that any quote range is complete.
 
-SQLite stores small query receipts in `market_history_queries`, separate from
-`QuoteSyncState.last_synced_at`. Receipts contain a digested
-canonical/configuration identity, asset ID, inclusive query window, outcome and
-fetch time. Neither quote min/max bounds nor missing calendar days establish
-complete coverage. Existing prices from an older application version have no
-receipts: the first ordinary sync may conservatively validate its existing
-incremental window once. It does not infer complete history from old rows,
-expand that incremental request to all history, or erase the stored prices.
-Persisted receipts then allow repeated views and restarts to reuse that work.
-Provider authentication, fallback, parsing and disable rules remain in the
-existing registry. Providers explicitly attest complete range results; bounded
-or otherwise uncertified successful replies are partial observations:
+- First interval startup without a record retains the initial startup delay and
+  then syncs once. Subsequent attempts are due from the last attempt's start.
+- Daily mode runs once per local calendar day, including weekends and holidays.
+  A repeated DST time uses the first occurrence; a nonexistent time advances to
+  the first valid local minute that day.
+- Missed occurrences coalesce into one attempt after recovery, never a replay of
+  every missed interval/day. Manual refresh does not change the automatic
+  record.
+- Persist the attempt before network work. Persistence failure means no request.
+  Sync failure, partial failure, or a crash after claiming does not
+  automatically retry that occurrence; normal subsequent scheduling or manual
+  retry remains.
 
-- Complete historical prefixes can be reused durably. The existing five-day
-  correction overlap remains mutable when its market session is not settled.
-- An open/current session rechecks using the existing configured market sync
-  interval (default six hours), not a new polling timer. The existing market
-  timezone/close-grace helpers distinguish settled sessions from intraday data.
-  A session closing after an intraday fetch makes that mutable tail due again; a
-  settled Friday does not repeatedly expire over the weekend.
-- Empty and partial observations are reused only for the configured interval.
-  Partial observations never become durable historical coverage or settled
-  session proof. Newly requested, unqueried ranges are still fetched.
-- Custom history, including JSON with date placeholders and fully parsed rows,
-  is always Partial: the current custom-source contract cannot prove pagination
-  ended or that a server did not truncate its response. Custom-history query
-  identities include a coverage-policy version, so old custom Complete receipts
-  are not reused after this correction. Actual stored prices are preserved, and
-  scopes with no eligible custom sources keep their identities.
-- Errors and authentication failures do not create receipts. Future dates are
-  not certified; unobservable latest responses are returned without cache proof.
+### Local Boundary Filling and Benchmark History
 
-Fetched prices and the query receipt commit atomically. The transaction checks
-that the asset/provider context has not changed since fetching. Query commits
-skip financially identical provider rows and report actual changed-price counts;
-ordinary bulk-upsert and atomic reset semantics are unchanged. Direct service
-read-fills emit the existing `PriceHistoryChanged` event once for actual
-canonical writes, including committed earlier ranges if a later range fails;
-existing planners rebuild locally without recursively fetching market data.
-Derived-only writes and local hits emit no financial event. Coordinator-owned
-sync retains its existing completion flow, including its original frontend
-invalidation behavior. Successful provider recovery still heals sync-health
-state. Manual prices keep their existing precedence, and existing provider rows
-are not deleted merely because preferences change.
+Fetch-capable history reads and symbol-price resolution share the existing
+`QuoteSyncService` owner. Pure portfolio valuation, holdings, and database
+getters do not acquire network dependencies. Manual-price assets read only local
+prices. The profile's weak per-asset lock registry serializes same-asset reads;
+inside the lock, re-read compatible prices and their earliest/latest dates.
 
-A benchmark or ordinary symbol resolution absent from the user's asset catalog
-uses isolated `benchmark_history` rows in the same profile database. It never
-creates a fake asset or appears in normal quote lists. Prices for existing
-assets continue to use the original quotes table. A reporting-currency fallback
-(such as USD) is not an authoritative quote currency for an unknown benchmark:
-provider currency and units remain unchanged, and conflicting currency/unit
-series are rejected rather than combined. Benchmark and ordinary history both
-survive a service restart; changing canonical identity, currency or provider
-configuration invalidates reuse assumptions. Destructive quote changes
-invalidate receipts. Only digests of non-secret fetch configuration are stored
-in query identity; credentials and raw request URLs are not persisted there.
-Explicit receipt invalidation also clears the associated derived benchmark rows
-atomically, never user quotes. Custom-provider CRUD changes only namespaces
-whose request can use that source: an explicitly assigned source, or the
-eligible ordered fallback candidates selected by the existing router. The digest
-uses source codes and existing update versions/enabled/priority, not request
-contents. Supported local updates advance `updated_at`, and device
-synchronization carries that version; arbitrary SQL mutations preserving a
-version are outside this contract. A name edit may revalidate its own source,
-but does not invalidate unrelated sources. Previous namespaces remain
-unreachable until ordinary explicit cleanup; there is no new retention worker or
-dependency table. Credential updates still use conservative explicit
-invalidation, and built-in priority/enabled changes can affect global fallback.
-Asset deletion removes associated derived rows before discarding their receipt
-mapping.
+Currency compatibility is applied **before** per-day source-priority selection,
+so an old-currency price cannot hide a usable price for the requested currency.
+Requests are capped at the current market-local date. With no local prices,
+fetch the requested range. Otherwise fetch only the requested prefix before the
+local minimum and/or suffix after the local maximum. Existing prices inside the
+boundaries are reused, including today's intraday observation. Internal missing
+dates are not scanned. Later corrections and missing internal days are handled
+by automatic overlap sync or explicit history refresh.
 
-With an available profile context, both hosts notify the quote service after
-successful writes/deletions of a known market-provider credential or a
-credential referenced by a custom source header. The service rebuilds the
-existing client and invalidates query receipts without hashing secret values;
-unrelated application secrets do not trigger market work. Credential storage and
-client reload are not one transaction: a reload/validation failure is explicitly
-reported as occurring after the credential changed. The frontend does not issue
-a duplicate settings refresh for the same credential write. Tauri preserves
-generic secret writes while the profile database is unavailable; reopening
-constructs a new client from current secrets. Immediate receipt invalidation
-cannot run without that database. Credential-backed provider responses, all
-custom history, and a public fallback after the request's credential-dependent
-primary fails therefore remain bounded Partial observations, not indefinitely
-reusable authenticated history. Public Yahoo and Eastmoney retain durable
-restart reuse; unrelated enabled credential providers do not downgrade those
-public requests. Normal market settings require an available profile context.
+No empty-response or failed-query receipt is stored. Repeated empty ranges may
+request again; existing frontend query caching, rate limits, and failure
+isolation remain. Per-asset coordination does not turn an empty result into a
+persistent negative cache.
 
-Explicit source verification retains the original provider validation behavior;
-its responses are not stored in the benchmark cache. Ordinary resolution,
-including activity selection with a preferred provider, uses the shared
-local-first owner. When an existing manual price obscures provider proof, or a
-known instrument is being checked with different provider/code settings,
-resolution performs one separate validation request without changing its prices
-or caching validation. A freshly fetched provider response remains available to
-the resolver so a normal miss does not fetch twice. Repeated manual-overlay
-validation may repeat that request; it is not a third history-refresh exemption
-or a separate cache.
+Uncatalogued benchmarks retain independent local history with instrument and
+currency validation, without creating synthetic catalog assets or a background
+subscription list. Successful responses merge prices; omitted dates do not erase
+previous history. Legacy benchmark rows remain stored during the proof-table
+cleanup; where their opaque old identity cannot be safely mapped, the new
+identity may require a one-time fetch rather than unsafe cross-instrument reuse.
 
-The asset lock is scoped to the operation rather than carried in success/error
-payloads. As in the original sync implementation, an already-started commit task
-retains the lock until its write finishes, including when its caller is
-cancelled. Cancellation while fetching does not force unused network work to
-continue. SQLite's existing queued transaction remains atomic. Direct-read
-financial events follow the existing post-await service pattern: caller
-cancellation may prevent immediate notification, while quote triggers mark
-projections dirty for the next normal coordinator run. These guarantees do not
-make profile edits and health bookkeeping a new atomic transaction.
-
-Unlike canonical user/provider price history, these derived response-cache rows
-replace history rows only inside a successfully fetched interval. Partial or
-empty new responses cannot silently retain older rows absent from that response;
-history rows outside the interval remain available. Latest-only derived results
-instead replace their prior snapshot, even when the newly returned observation
-is dated earlier. Fetch failures leave the derived cache untouched, and Partial
-receipts still expire rather than certify completeness. Current weekend
-observations can use bounded latest-only Partial receipts. An observation whose
-timestamp cannot safely establish an observable range is returned without
-caching, including conservatively handled market-local date-only values ahead of
-UTC; it cannot create future or durable historical coverage.
+Writes retain current asset/provider configuration validation, manual-price
+precedence, and the existing actor transaction. A commit already started retains
+its operation lock until the write finishes even if its caller is cancelled;
+cancellation during fetching does not force unused network work to continue.
+Actual price changes retain the existing domain events and projection rebuilds.
+Provider/credential changes still reload the actual client, without receipt
+cleanup. A new cleanup migration drops the obsolete query-proof table and its
+proof-only objects, never rewriting published migrations or deleting user quotes
+or benchmark history.
 
 ### Sync Categories
 

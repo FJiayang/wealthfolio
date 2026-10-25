@@ -433,10 +433,10 @@ const useGlobalEventListener = () => {
         Array.from(POST_LOGIN_REQUIRED_LISTENERS).every((name) => readyListeners.has(name)),
       );
 
-      // Listeners are live: request the start-up portfolio update (market sync
-      // plus a rebuild of whatever is stale). Its progress arrives through the
-      // events registered above, so nothing is missed.
-      updatePortfolio().catch((error) => {
+      // Listeners are live: request a local-only start-up portfolio rebuild.
+      // Automatic market sync belongs to the background schedule. Progress arrives
+      // through the events registered above, so nothing is missed.
+      updatePortfolio(false).catch((error) => {
         logger.error("Failed to request the portfolio update: " + String(error));
       });
       // Note: Update check is handled by useCheckUpdateOnStartup query in UpdateDialog
@@ -456,8 +456,8 @@ const useGlobalEventListener = () => {
   return areListenersReady;
 };
 
-/** Hidden this long (a suspended phone, a laptop lid) means market data and
- *  the day may have moved: ask the backend for a portfolio update on return. */
+/** Rebuild locally after a long suspension. The background scheduler owns
+ *  catch-up market-data requests, so resuming does not trigger a global sync. */
 const RESUME_CHECK_AFTER_MS = 5 * 60 * 1000;
 
 export function usePortfolioResumeCheck() {
@@ -471,7 +471,7 @@ export function usePortfolioResumeCheck() {
       const hiddenFor = hiddenAt === null ? 0 : Date.now() - hiddenAt;
       hiddenAt = null;
       if (hiddenFor >= RESUME_CHECK_AFTER_MS) {
-        updatePortfolio().catch((error) => {
+        updatePortfolio(false).catch((error) => {
           logger.error("Failed to request the portfolio update: " + String(error));
         });
       }

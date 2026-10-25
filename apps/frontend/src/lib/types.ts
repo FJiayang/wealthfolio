@@ -956,6 +956,10 @@ export interface Settings {
   menuBarVisible: boolean;
   syncEnabled: boolean;
   marketDataSyncIntervalHours: number;
+  marketDataSyncMode?: "interval" | "daily";
+  marketDataSyncTime?: string | null;
+  /** Independent IANA timezone for the daily automatic market-data schedule. */
+  marketDataSyncTimezone?: string | null;
 }
 
 export interface SettingsContextType {

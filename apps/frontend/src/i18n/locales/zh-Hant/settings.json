@@ -741,7 +741,6 @@
   "tax_delete_confirm_desc": "確定要刪除「{{name}}」嗎？這會移除所有歸入此類別的資產。此操作無法復原。",
   "market_data_page": {
     "sync_interval_label": "自動同步間隔",
-    "sync_interval_description": "控制桌面應用程式或 Web 服務執行期間的定時同步。修改後一分鐘內生效，不影響啟動時與手動同步。",
     "sync_interval_hours_one": "每 {{count}} 小時",
     "sync_interval_hours_other": "每 {{count}} 小時",
     "heading": "市場資料",
@@ -1119,7 +1118,14 @@
       "refresh_error": "憑證已儲存，但驗證或用戶端重新整理失敗。請檢查金鑰格式後重試。",
       "saved": "憑證已儲存。",
       "deleted": "憑證已刪除。"
-    }
+    },
+    "sync_mode_label": "自動同步模式",
+    "sync_mode_interval": "按小時間隔",
+    "sync_mode_daily": "每天固定時間",
+    "sync_daily_time_label": "每日同步時間",
+    "sync_timezone_label": "同步時區",
+    "sync_schedule_description": "應用程式或 Web 服務運行時執行，包括週末和假日。錯過的任務只補執行一次。儲存後使用新排程，不會立即執行。",
+    "sync_daily_required": "啟用每日同步前請選擇時間與時區。同步時區獨立於顯示時區。"
   },
   "addon_permission_none_detected": "未偵測到資料存取權限。此擴充功能對系統的存取權限似乎很少。",
   "addon_permission_list_title": "權限",

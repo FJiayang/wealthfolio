@@ -31,13 +31,10 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, Weak};
 use tokio::sync::RwLock;
 
-use super::client::{credential_backed_provider, HistoricalQuoteFetchError, MarketDataClient};
+use super::client::{HistoricalQuoteFetchError, MarketDataClient};
 use super::constants::*;
 use super::errors::MarketDataError;
-use super::history::{
-    missing_history_ranges_with_freshness, HistoryCoverage, HistoryOutcome, HistoryQueryKind,
-    HistoryWriteMode,
-};
+use super::history::{missing_boundary_ranges, HistoryQueryKind, HistoryWrite, HistoryWriteMode};
 use super::model::Quote;
 use super::store::QuoteStore;
 use super::sync_state::{
@@ -56,7 +53,7 @@ use crate::utils::time_utils;
 // =============================================================================
 
 /// Locks belong to one profile's service, never to a process-global ticker map.
-/// Waiting callers re-read coverage after acquiring the lock, so overlapping work
+/// Waiting callers re-read local prices after acquiring the lock, so overlapping work
 /// coalesces without discarding requests for different ranges or explicit refreshes.
 #[derive(Default)]
 struct HistoryLocks(Mutex<HashMap<String, Weak<tokio::sync::Mutex<()>>>>);
@@ -86,31 +83,6 @@ struct LocalHistoryResult {
     provider_id: Option<String>,
 }
 
-fn latest_observation_range(
-    timestamp: DateTime<Utc>,
-    market_day: NaiveDate,
-    observed_at: DateTime<Utc>,
-) -> Option<(NaiveDate, NaiveDate)> {
-    (timestamp <= observed_at).then(|| {
-        (
-            timestamp.date_naive().min(market_day),
-            timestamp.date_naive().max(market_day),
-        )
-    })
-}
-
-fn latest_history_outcome(asset: &Asset, source: &str) -> HistoryOutcome {
-    if credential_backed_provider(source)
-        || asset
-            .preferred_provider()
-            .is_some_and(|provider| credential_backed_provider(&provider))
-    {
-        HistoryOutcome::Partial
-    } else {
-        HistoryOutcome::Complete
-    }
-}
-
 fn quote_matches_currency(quote: &Quote, asset: &Asset) -> bool {
     quote.data_source == DATA_SOURCE_MANUAL
         || asset.quote_ccy.is_empty()
@@ -138,77 +110,36 @@ fn validate_history_currency(quotes: &[Quote], currency: &mut Option<String>) ->
     Ok(())
 }
 
-fn history_identity(
-    asset: &Asset,
-    client: &MarketDataClient,
-    operation: &str,
-    revision: &str,
-    benchmark: bool,
-) -> String {
-    // Persist only a digest. Provider configurations can contain private URLs.
+fn history_identity(asset: &Asset) -> String {
+    // Stable security identity. Provider settings are transient write guards, not cache versions.
     let identity = serde_json::json!({
-        "operation": operation, "benchmark": benchmark, "asset": asset.id, "kind": asset.kind,
-        "mode": asset.quote_mode, "currency": asset.quote_ccy,
+        "asset": asset.id, "kind": asset.kind, "currency": asset.quote_ccy,
         "type": asset.instrument_type, "symbol": asset.instrument_symbol,
-        "exchange": asset.instrument_exchange_mic, "preferredProvider": asset.preferred_provider(),
-        "overrides": asset.provider_overrides(),
-        "customProviderCode": asset.provider_config.as_ref().and_then(|config| config.get("custom_provider_code")),
+        "exchange": asset.instrument_exchange_mic,
         "isin": asset.metadata.as_ref().and_then(|metadata| metadata.get("identifiers")).and_then(|identifiers| identifiers.get("isin")),
-        "bond": asset.bond_spec(), "providers": client.history_configuration_fingerprint(), "configurationRevision": revision,
+        "bond": asset.bond_spec(),
     });
     format!("{:x}", Sha256::digest(identity.to_string().as_bytes()))
 }
 
-fn history_range_settled(
-    asset: &Asset,
-    record: &HistoryCoverage,
-    now: DateTime<Utc>,
-    latest: Option<NaiveDate>,
-) -> Option<bool> {
-    // Unknown exchanges and continuous markets have no reliable daily close.
-    let mic = asset.instrument_exchange_mic.as_deref()?;
-    if is_continuous_market(asset.instrument_type.as_ref())
-        || wealthfolio_market_data::resolver::exchange_metadata::mic_to_market_close(mic).is_none()
-    {
-        return None;
-    }
-    let expected = effective_market_today(now, Some(mic), asset.instrument_type.as_ref());
-    let fetched_expected =
-        effective_market_today(record.fetched_at, Some(mic), asset.instrument_type.as_ref());
-    if expected > fetched_expected {
-        // A newly completed session also reopens the correction overlap of
-        // previously settled receipts. The range helper retains the old prefix,
-        // rather than allowing Friday's receipt to hide corrections forever.
-        return Some(false);
-    }
-    if record.end <= expected
-        && record.end <= fetched_expected
-        && latest.is_some_and(|latest| latest >= record.end.min(expected))
-    {
-        Some(true)
-    } else {
-        None
-    }
-}
-
-fn is_continuous_market(instrument_type: Option<&InstrumentType>) -> bool {
-    matches!(instrument_type, Some(InstrumentType::Crypto))
-}
-
-fn effective_market_today(
-    now: DateTime<Utc>,
-    exchange_mic: Option<&str>,
-    instrument_type: Option<&InstrumentType>,
-) -> NaiveDate {
-    time_utils::market_effective_date(now, exchange_mic, is_continuous_market(instrument_type))
+fn asset_fetch_identity(asset: &Asset) -> String {
+    let context = serde_json::json!({ "security": history_identity(asset), "mode": asset.quote_mode,
+        "provider": asset.preferred_provider(), "config": asset.provider_config });
+    format!("{:x}", Sha256::digest(context.to_string().as_bytes()))
 }
 
 fn market_fetch_end_date(
     now: DateTime<Utc>,
     exchange_mic: Option<&str>,
-    instrument_type: Option<&InstrumentType>,
+    _instrument_type: Option<&InstrumentType>,
 ) -> NaiveDate {
-    time_utils::market_calendar_date(now, exchange_mic, is_continuous_market(instrument_type))
+    // Fetching uses the actual exchange-local date, including weekends. The
+    // valuation helpers intentionally retain their settled/trading-day rules.
+    let timezone = exchange_mic
+        .and_then(wealthfolio_market_data::resolver::exchange_metadata::mic_to_timezone)
+        .and_then(|name| name.parse::<chrono_tz::Tz>().ok())
+        .unwrap_or(time_utils::DEFAULT_VALUATION_TZ);
+    now.with_timezone(&timezone).date_naive()
 }
 
 /// Determine the effective data provider for an asset.
@@ -616,14 +547,14 @@ pub trait QuoteSyncServiceTrait: Send + Sync {
     /// Perform quote synchronization with the specified mode and optional asset filter.
     ///
     /// # Arguments
-    /// * `mode` - Requested date range and, only for explicit full refresh, local-coverage bypass
+    /// * `mode` - Requested date range and, only for explicit full refresh, direct fetching
     /// * `asset_ids` - Optional list of specific assets to sync. If None, syncs all relevant assets.
     ///
     /// # Sync Modes
     /// * `Incremental` - Default mode. Continues from last_quote_date with overlap to heal corrections.
-    /// * `RefetchRecent { days }` - Ensures the last N days using fresh local coverage first.
+    /// * `RefetchRecent { days }` - Fetches the last N days directly.
     /// * `BackfillHistory { days }` - Ensures history from activity start (or N days fallback), local-first.
-    /// * `RefreshAllHistory { days }` - Explicit full-history refresh; bypasses coverage and merges prices.
+    /// * `RefreshAllHistory { days }` - Explicit full-history refresh; fetches and merges prices.
     async fn sync(&self, mode: SyncMode, asset_ids: Option<Vec<String>>) -> Result<SyncResult>;
 
     /// Legacy explicit full-history refresh alias, using RefreshAllHistory mode.
@@ -675,7 +606,6 @@ where
     /// Activity repository for activity bounds.
     activity_repo: Arc<R>,
     history_locks: HistoryLocks,
-    settings_service: Option<Arc<dyn crate::settings::SettingsServiceTrait>>,
 }
 
 impl<Q, S, A, R> QuoteSyncService<Q, S, A, R>
@@ -700,26 +630,7 @@ where
             asset_repo,
             activity_repo,
             history_locks: HistoryLocks::default(),
-            settings_service: None,
         }
-    }
-
-    pub fn with_settings_service(
-        mut self,
-        settings: Arc<dyn crate::settings::SettingsServiceTrait>,
-    ) -> Self {
-        self.settings_service = Some(settings);
-        self
-    }
-
-    fn retry_interval(&self) -> Duration {
-        let hours = self
-            .settings_service
-            .as_ref()
-            .and_then(|settings| settings.get_settings().ok())
-            .map(|settings| settings.market_data_sync_interval_hours)
-            .unwrap_or(crate::settings::DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS);
-        Duration::hours(i64::from(hours.max(1)))
     }
 
     /// Explicit replacement is the only synchronization operation allowed to remove history.
@@ -942,7 +853,7 @@ where
                 )
             }
             SyncMode::RefetchRecent { days } => {
-                // Select the last N days; execution still reuses fresh local coverage.
+                // Select the last N days for a direct provider request.
                 let start = fetch_end_date - Duration::days(days);
                 (start, fetch_end_date)
             }
@@ -1130,7 +1041,7 @@ where
         start: NaiveDate,
         end: NaiveDate,
         benchmark: bool,
-        force: bool,
+        fetch_requested: bool,
     ) -> std::result::Result<LocalHistoryResult, LocalHistoryError> {
         let guard = Arc::new(
             self.history_locks
@@ -1138,8 +1049,15 @@ where
                 .lock_owned()
                 .await,
         );
-        self.local_history_locked(requested_asset, start, end, benchmark, force, guard)
-            .await
+        self.local_history_locked(
+            requested_asset,
+            start,
+            end,
+            benchmark,
+            fetch_requested,
+            guard,
+        )
+        .await
     }
 
     async fn local_history_locked(
@@ -1148,7 +1066,7 @@ where
         start: NaiveDate,
         end: NaiveDate,
         benchmark: bool,
-        force: bool,
+        fetch_requested: bool,
         guard: Arc<tokio::sync::OwnedMutexGuard<()>>,
     ) -> std::result::Result<LocalHistoryResult, LocalHistoryError> {
         let client = Arc::new(self.client.clone().read_owned().await);
@@ -1182,56 +1100,39 @@ where
                 provider_id: None,
             });
         }
-        let revision = self
-            .quote_store
-            .history_configuration_revision(&asset, HistoryQueryKind::History)
-            .map_err(wrap)?;
-        let identity = history_identity(&asset, &client, "history", &revision, benchmark);
-        // This is deliberately after the lock. A preceding queued request may
-        // already have filled some or all of this caller's requested interval.
-        let coverage = self.quote_store.history_coverage(&identity).map_err(wrap)?;
-        let now = Utc::now();
-        let fetch_end = end.min(market_fetch_end_date(
-            now,
+        let identity = history_identity(&asset);
+        let fetch_identity = asset_fetch_identity(&asset);
+        let market_today = market_fetch_end_date(
+            Utc::now(),
             asset.instrument_exchange_mic.as_deref(),
             asset.instrument_type.as_ref(),
-        ));
+        );
+        let fetch_end = end.min(market_today);
+        // Re-read all compatible prices under the asset lock. Bounds do not certify internal gaps.
         let local = if benchmark {
             self.quote_store
-                .benchmark_history(&identity, start, fetch_end)
+                .benchmark_history(&identity, NaiveDate::MIN, market_today)
                 .map_err(wrap)?
         } else {
             self.quote_store
-                .range(
-                    &AssetId::new(&asset.id),
-                    Day::new(start),
-                    Day::new(fetch_end),
-                    None,
-                )
+                .range_compatible(&asset, Day::new(NaiveDate::MIN), Day::new(market_today))
                 .map_err(wrap)?
         };
         let mut observed_currency = None;
         if benchmark && asset.quote_ccy.is_empty() {
             validate_history_currency(&local, &mut observed_currency).map_err(wrap)?;
         }
-        let latest_provider_date = local
+        let mut dates = local
             .iter()
-            .filter(|quote| quote.data_source != DATA_SOURCE_MANUAL)
-            .map(|quote| quote.timestamp.date_naive())
-            .max();
-        let ranges = if start > fetch_end {
-            Vec::new()
-        } else if force {
+            .filter(|quote| quote_matches_currency(quote, &asset))
+            .map(|quote| quote.timestamp.date_naive());
+        let bounds = dates
+            .next()
+            .map(|first| dates.fold((first, first), |(lo, hi), day| (lo.min(day), hi.max(day))));
+        let ranges = if fetch_requested && start <= fetch_end {
             vec![(start, fetch_end)]
         } else {
-            missing_history_ranges_with_freshness(
-                start,
-                fetch_end,
-                &coverage,
-                now,
-                self.retry_interval(),
-                |record| history_range_settled(&asset, record, now, latest_provider_date),
-            )
+            missing_boundary_ranges(start, fetch_end, bounds)
         };
         let mut written = 0;
         let mut fetched_nonempty = false;
@@ -1245,16 +1146,10 @@ where
                         written,
                         ..wrap(error)
                     })?;
-                if expected_context.as_ref().is_some_and(|context| {
-                    context.custom_revision != revision
-                        || history_identity(
-                            &context.asset,
-                            &client,
-                            "history",
-                            &context.custom_revision,
-                            benchmark,
-                        ) != identity
-                }) {
+                if expected_context
+                    .as_ref()
+                    .is_some_and(|context| asset_fetch_identity(&context.asset) != fetch_identity)
+                {
                     return Err(LocalHistoryError {
                         fetch_error: Box::new(HistoricalQuoteFetchError {
                             error: Error::Asset(
@@ -1270,10 +1165,10 @@ where
                 let end_dt = Utc
                     .from_utc_datetime(&range_end.and_hms_opt(23, 59, 59).expect("valid day end"));
                 let fetched = client
-                    .fetch_historical_quotes_with_coverage(&asset, start_dt, end_dt)
+                    .fetch_historical_quotes_with_context(&asset, start_dt, end_dt)
                     .await;
-                let (mut quotes, complete) = match fetched {
-                    Ok(result) => (result.quotes, result.complete),
+                let mut quotes = match fetched {
+                    Ok(quotes) => quotes,
                     Err(error) => {
                         return Err(LocalHistoryError {
                             fetch_error: Box::new(error),
@@ -1281,8 +1176,7 @@ where
                         })
                     }
                 };
-                // Do not let out-of-request rows establish requested coverage.
-                let original_count = quotes.len();
+                // Reject out-of-request and incompatible observations before persistence.
                 quotes.retain(|quote| {
                     quote.timestamp.date_naive() >= range_start
                         && quote.timestamp.date_naive() <= range_end
@@ -1296,7 +1190,6 @@ where
                         },
                     )?;
                 }
-                let complete = complete && original_count == quotes.len();
                 fetched_nonempty |= !quotes.is_empty();
                 provider_id = quotes
                     .first()
@@ -1309,27 +1202,17 @@ where
                             ..wrap(error)
                         }
                     })?;
-                    if history_identity(&current, &client, "history", &revision, benchmark)
-                        != identity
-                    {
+                    if asset_fetch_identity(&current) != fetch_identity {
                         return Err(LocalHistoryError { fetch_error: Box::new(HistoricalQuoteFetchError {
                             error: Error::Asset("Asset settings changed during quote fetch; retry with current settings".into()), provider_id: None,
                         }), written });
                     }
                 }
-                let record = HistoryCoverage {
+                let record = HistoryWrite {
                     identity: identity.clone(),
                     asset_id: asset.id.clone(),
                     start: range_start,
                     end: range_end,
-                    fetched_at: Utc::now(),
-                    outcome: if !complete {
-                        HistoryOutcome::Partial
-                    } else if quotes.is_empty() {
-                        HistoryOutcome::Empty
-                    } else {
-                        HistoryOutcome::Complete
-                    },
                 };
                 let store = self.quote_store.clone();
                 let write_guard = guard.clone();
@@ -1340,7 +1223,7 @@ where
                     let _guard = write_guard;
                     let _client = write_client;
                     store
-                        .commit_history_query(
+                        .commit_history_prices(
                             &record,
                             &quotes,
                             if benchmark {
@@ -1348,7 +1231,6 @@ where
                             } else {
                                 HistoryWriteMode::Canonical
                             },
-                            true,
                             expected_context.as_ref(),
                         )
                         .await
@@ -1371,14 +1253,11 @@ where
             }
         }
         let mut quotes = if benchmark {
-            self.quote_store.benchmark_history(&identity, start, end)
+            self.quote_store
+                .benchmark_history(&identity, start, fetch_end)
         } else {
-            self.quote_store.range(
-                &AssetId::new(&asset.id),
-                Day::new(start),
-                Day::new(end),
-                None,
-            )
+            self.quote_store
+                .range_compatible(&asset, Day::new(start), Day::new(fetch_end))
         }
         .map_err(|error| LocalHistoryError {
             fetch_error: Box::new(HistoricalQuoteFetchError {
@@ -1402,37 +1281,38 @@ where
         identity: &str,
         benchmark: bool,
     ) -> Result<Option<Quote>> {
+        let today = market_fetch_end_date(
+            Utc::now(),
+            asset.instrument_exchange_mic.as_deref(),
+            asset.instrument_type.as_ref(),
+        );
+        let local_end = if asset.quote_mode == QuoteMode::Manual {
+            NaiveDate::MAX
+        } else {
+            today
+        };
         if benchmark {
             return Ok(self
                 .quote_store
-                .benchmark_history(identity, NaiveDate::MIN, NaiveDate::MAX)?
+                .benchmark_history(identity, NaiveDate::MIN, local_end)?
                 .into_iter()
                 .filter(|quote| quote_matches_currency(quote, asset))
                 .max_by_key(|quote| quote.timestamp));
         }
-        let latest = self.quote_store.latest(&AssetId::new(&asset.id), None)?;
-        if latest
-            .as_ref()
-            .is_none_or(|quote| quote_matches_currency(quote, asset))
-        {
-            return Ok(latest);
-        }
-        // Currency changes can leave older provider rows in the same canonical
-        // asset history. Do not let those shadow a compatible new quote.
         Ok(self
             .quote_store
-            .range(
-                &AssetId::new(&asset.id),
-                Day::new(NaiveDate::MIN),
-                Day::new(NaiveDate::MAX),
-                None,
-            )?
+            .range_compatible(asset, Day::new(NaiveDate::MIN), Day::new(local_end))?
             .into_iter()
-            .filter(|quote| quote_matches_currency(quote, asset))
-            .max_by_key(|quote| quote.timestamp))
+            .max_by_key(|quote| {
+                (
+                    quote.timestamp.date_naive(),
+                    quote.data_source == DATA_SOURCE_MANUAL,
+                    quote.timestamp,
+                )
+            }))
     }
 
-    /// Reuse compatible local history proof first; misses use latest capability.
+    /// Reuse today's compatible local price; misses use the provider latest capability.
     pub async fn fetch_local_first_latest(
         &self,
         requested_asset: &Asset,
@@ -1464,149 +1344,60 @@ where
                 self.asset_repo.get_by_id(&requested_asset.id)?
             };
             let client = Arc::new(self.client.clone().read_owned().await);
-            let revision = self
-                .quote_store
-                .history_configuration_revision(&asset, HistoryQueryKind::Latest)?;
-            let identity = history_identity(&asset, &client, "latest", &revision, benchmark);
-            let now = Utc::now();
+            let identity = history_identity(&asset);
+            let fetch_identity = asset_fetch_identity(&asset);
             let today = market_fetch_end_date(
-                now,
+                Utc::now(),
                 asset.instrument_exchange_mic.as_deref(),
                 asset.instrument_type.as_ref(),
             );
-            let records = self.quote_store.history_coverage(&identity)?;
             let local = self.local_latest(&asset, &identity, benchmark)?;
             if asset.quote_mode == QuoteMode::Manual {
                 return local
                     .map(|quote| (quote, None))
                     .ok_or_else(|| Error::MarketData(MarketDataError::NoData));
             }
-            // A completed history query can already prove the latest market day.
-            // Reuse that proof rather than making a second request with latest capability.
-            let history_revision = self
-                .quote_store
-                .history_configuration_revision(&asset, HistoryQueryKind::History)?;
-            let history_key =
-                history_identity(&asset, &client, "history", &history_revision, benchmark);
-            let history_records: Vec<_> = self
-                .quote_store
-                .history_coverage(&history_key)?
-                .into_iter()
-                .filter(|record| record.outcome == HistoryOutcome::Complete)
-                .collect();
-            let history_local = if benchmark {
-                self.local_latest(&asset, &history_key, true)?
-            } else {
-                local.clone()
-            };
-            if let Some(quote) = history_local {
-                if missing_history_ranges_with_freshness(
-                    today,
-                    today,
-                    &history_records,
-                    now,
-                    self.retry_interval(),
-                    |record| {
-                        history_range_settled(
-                            &asset,
-                            record,
-                            now,
-                            (quote.data_source != DATA_SOURCE_MANUAL)
-                                .then(|| quote.timestamp.date_naive()),
-                        )
-                    },
-                )
-                .is_empty()
-                {
-                    return Ok((quote, None));
-                }
-            }
-            if missing_history_ranges_with_freshness(
-                today,
-                today,
-                &records,
-                now,
-                self.retry_interval(),
-                |record| {
-                    history_range_settled(
-                        &asset,
-                        record,
-                        now,
-                        local
-                            .as_ref()
-                            .filter(|quote| quote.data_source != DATA_SOURCE_MANUAL)
-                            .map(|quote| quote.timestamp.date_naive()),
-                    )
-                },
-            )
-            .is_empty()
-            {
-                if let Some(quote) = local {
-                    return Ok((quote, None));
-                }
+            if let Some(quote) = local.filter(|quote| quote.timestamp.date_naive() == today) {
+                return Ok((quote, None));
             }
             let expected_context = self.quote_store.history_write_context(
                 &asset,
                 HistoryQueryKind::Latest,
                 !benchmark,
             )?;
-            if expected_context.as_ref().is_some_and(|context| {
-                context.custom_revision != revision
-                    || history_identity(
-                        &context.asset,
-                        &client,
-                        "latest",
-                        &context.custom_revision,
-                        benchmark,
-                    ) != identity
-            }) {
+            if expected_context
+                .as_ref()
+                .is_some_and(|context| asset_fetch_identity(&context.asset) != fetch_identity)
+            {
                 return Err(Error::Asset(
                     "Asset settings changed before quote fetch; retry".into(),
                 ));
             }
             let quote = client.fetch_latest_quote(&asset).await?;
+            // Daily quote timestamps may label noon later in this same day. Validate
+            // the market-local date bucket, not whether that instant has elapsed.
+            if quote.timestamp.date_naive() > today {
+                return Err(Error::MarketData(MarketDataError::InvalidData(
+                    "Provider quote date is after the current market date".into(),
+                )));
+            }
             if !quote_matches_currency(&quote, &asset) {
                 return Err(Error::MarketData(MarketDataError::InvalidData(
                     "Provider quote currency does not match the asset".into(),
                 )));
             }
             if !benchmark
-                && history_identity(
-                    &self.asset_repo.get_by_id(&asset.id)?,
-                    &client,
-                    "latest",
-                    &revision,
-                    benchmark,
-                ) != identity
+                && asset_fetch_identity(&self.asset_repo.get_by_id(&asset.id)?) != fetch_identity
             {
                 return Err(Error::Asset(
                     "Asset settings changed during quote fetch; retry with current settings".into(),
                 ));
             }
-            let observed_at = Utc::now();
-            let Some((coverage_start, coverage_end)) =
-                latest_observation_range(quote.timestamp, today, observed_at)
-            else {
-                // Date-only providers may label a market-local day ahead of UTC.
-                // Preserve their response, but do not persist an unobservable price
-                // or a receipt that could certify a future query interval.
-                let merged = self
-                    .local_latest(&asset, &identity, benchmark)?
-                    .filter(|local| local.data_source == DATA_SOURCE_MANUAL)
-                    .unwrap_or_else(|| quote.clone());
-                return Ok((merged, Some(quote)));
-            };
-            let coverage = HistoryCoverage {
+            let write_scope = HistoryWrite {
                 identity: identity.clone(),
                 asset_id: asset.id.clone(),
-                start: coverage_start,
-                end: coverage_end,
-                fetched_at: observed_at,
-                outcome: if coverage_end > today {
-                    HistoryOutcome::Partial
-                } else {
-                    latest_history_outcome(&asset, &quote.data_source)
-                },
+                start: quote.timestamp.date_naive(),
+                end: quote.timestamp.date_naive(),
             };
             let store = self.quote_store.clone();
             let persisted_quote = quote.clone();
@@ -1615,15 +1406,14 @@ where
                 let _guard = guard;
                 let _client = write_client;
                 store
-                    .commit_history_query(
-                        &coverage,
+                    .commit_history_prices(
+                        &write_scope,
                         &[persisted_quote],
                         if benchmark {
                             HistoryWriteMode::DerivedLatest
                         } else {
                             HistoryWriteMode::Canonical
                         },
-                        true,
                         expected_context.as_ref(),
                     )
                     .await
@@ -1642,12 +1432,7 @@ where
         (result, canonical_written)
     }
 
-    async fn sync_asset(
-        &self,
-        asset: &Asset,
-        plan: &SymbolSyncPlan,
-        force: bool,
-    ) -> AssetSyncResult {
+    async fn sync_asset(&self, asset: &Asset, plan: &SymbolSyncPlan) -> AssetSyncResult {
         let asset_id = AssetId::new(&asset.id);
         // Keep synchronization and health bookkeeping ordered without carrying
         // locks through result/error payloads. Queued commits retain a clone.
@@ -1658,7 +1443,7 @@ where
                 plan.start_date,
                 plan.end_date,
                 false,
-                force,
+                true,
                 guard.clone(),
             )
             .await
@@ -1770,7 +1555,6 @@ where
     fn execute_sync_plans(
         &self,
         plans: Vec<SymbolSyncPlan>,
-        force: bool,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = SyncResult> + Send + '_>> {
         Box::pin(async move {
             if plans.is_empty() {
@@ -1802,7 +1586,7 @@ where
                     let asset = asset_map.get(&plan.asset_id).cloned();
                     async move {
                         if let Some(asset) = asset {
-                            self.sync_asset(&asset, &plan, force).await
+                            self.sync_asset(&asset, &plan).await
                         } else {
                             warn!("Asset not found for asset_id: {}", plan.asset_id);
                             AssetSyncResult {
@@ -1942,7 +1726,7 @@ where
                 quote_max,
             };
 
-            let effective_today = effective_market_today(
+            let effective_today = market_fetch_end_date(
                 now,
                 asset.instrument_exchange_mic.as_deref(),
                 asset.instrument_type.as_ref(),
@@ -2190,7 +1974,7 @@ where
         for asset in &syncable {
             let state = existing_states.get(&asset.id).cloned();
             let data_source = effective_provider(state.as_ref(), asset);
-            let effective_today = effective_market_today(
+            let effective_today = market_fetch_end_date(
                 now,
                 asset.instrument_exchange_mic.as_deref(),
                 asset.instrument_type.as_ref(),
@@ -2374,9 +2158,7 @@ where
         );
 
         // Execute sync and merge with skipped results
-        let mut exec_result = self
-            .execute_sync_plans(plans, matches!(mode, SyncMode::RefreshAllHistory { .. }))
-            .await;
+        let mut exec_result = self.execute_sync_plans(plans).await;
         exec_result.skipped += result.skipped;
         exec_result.skipped_reasons.extend(result.skipped_reasons);
         Ok(exec_result)
@@ -2495,6 +2277,35 @@ where
 mod tests {
     use super::*;
     use crate::quotes::sync_state::MarketSyncMode;
+
+    #[test]
+    fn fetch_date_is_market_calendar_date_during_session_and_weekend() {
+        let intraday = Utc.with_ymd_and_hms(2026, 1, 20, 15, 0, 0).unwrap();
+        assert_eq!(
+            market_fetch_end_date(intraday, Some("XNAS"), Some(&InstrumentType::Equity)),
+            NaiveDate::from_ymd_opt(2026, 1, 20).unwrap()
+        );
+        let sunday = Utc.with_ymd_and_hms(2026, 1, 25, 16, 0, 0).unwrap();
+        assert_eq!(
+            market_fetch_end_date(sunday, Some("XNAS"), Some(&InstrumentType::Equity)),
+            NaiveDate::from_ymd_opt(2026, 1, 25).unwrap()
+        );
+    }
+
+    #[test]
+    fn benchmark_price_identity_survives_provider_edits_but_write_guard_does_not() {
+        let asset = Asset {
+            id: "SEC:ABC:XNAS".into(),
+            quote_ccy: "USD".into(),
+            ..Default::default()
+        };
+        let mut changed = asset.clone();
+        changed.provider_config = Some(serde_json::json!({"preferred_provider": "IFIND"}));
+        assert_eq!(history_identity(&asset), history_identity(&changed));
+        assert_ne!(asset_fetch_identity(&asset), asset_fetch_identity(&changed));
+        changed.quote_ccy = "CAD".into();
+        assert_ne!(history_identity(&asset), history_identity(&changed));
+    }
 
     #[test]
     fn test_clamp_end_date_for_fetch_extends_active_category() {
@@ -3027,180 +2838,6 @@ mod tests {
     // =========================================================================
     // Per-Asset Sync Lock Tests (US-012)
     // =========================================================================
-
-    #[test]
-    fn freshness_distinguishes_intraday_closed_weekend_and_unknown_market() {
-        let asset = Asset {
-            instrument_type: Some(InstrumentType::Equity),
-            instrument_exchange_mic: Some("XNAS".into()),
-            ..Default::default()
-        };
-        let friday = NaiveDate::from_ymd_opt(2026, 10, 23).unwrap();
-        let monday = NaiveDate::from_ymd_opt(2026, 10, 26).unwrap();
-        let record = HistoryCoverage {
-            identity: "digest".into(),
-            asset_id: "AAPL".into(),
-            start: friday,
-            end: friday,
-            fetched_at: friday.and_hms_opt(22, 0, 0).unwrap().and_utc(),
-            outcome: HistoryOutcome::Complete,
-        };
-        let sunday = NaiveDate::from_ymd_opt(2026, 10, 25)
-            .unwrap()
-            .and_hms_opt(12, 0, 0)
-            .unwrap()
-            .and_utc();
-        assert_eq!(
-            history_range_settled(&asset, &record, sunday, Some(friday)),
-            Some(true)
-        );
-        let intraday = HistoryCoverage {
-            end: monday,
-            fetched_at: monday.and_hms_opt(15, 0, 0).unwrap().and_utc(),
-            ..record.clone()
-        };
-        assert_eq!(
-            history_range_settled(
-                &asset,
-                &intraday,
-                monday.and_hms_opt(16, 0, 0).unwrap().and_utc(),
-                Some(monday)
-            ),
-            None
-        );
-        assert_eq!(
-            history_range_settled(
-                &asset,
-                &intraday,
-                monday.and_hms_opt(22, 0, 0).unwrap().and_utc(),
-                Some(monday)
-            ),
-            Some(false)
-        );
-        let unknown = Asset {
-            instrument_exchange_mic: None,
-            ..asset
-        };
-        assert_eq!(
-            history_range_settled(&unknown, &record, sunday, Some(friday)),
-            None
-        );
-    }
-
-    #[test]
-    fn new_market_session_refreshes_overlap_but_weekend_reuses_settled_history() {
-        let asset = Asset {
-            instrument_type: Some(InstrumentType::Equity),
-            instrument_exchange_mic: Some("XNAS".into()),
-            ..Default::default()
-        };
-        let start = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
-        let friday = NaiveDate::from_ymd_opt(2026, 10, 23).unwrap();
-        let monday = NaiveDate::from_ymd_opt(2026, 10, 26).unwrap();
-        let record = HistoryCoverage {
-            identity: "digest".into(),
-            asset_id: "AAPL".into(),
-            start,
-            end: friday,
-            fetched_at: friday.and_hms_opt(22, 0, 0).unwrap().and_utc(),
-            outcome: HistoryOutcome::Complete,
-        };
-        let sunday = NaiveDate::from_ymd_opt(2026, 10, 25)
-            .unwrap()
-            .and_hms_opt(12, 0, 0)
-            .unwrap()
-            .and_utc();
-        let missing = |end, now| {
-            missing_history_ranges_with_freshness(
-                start,
-                end,
-                std::slice::from_ref(&record),
-                now,
-                Duration::hours(6),
-                |receipt| history_range_settled(&asset, receipt, now, Some(friday)),
-            )
-        };
-        assert!(missing(friday, sunday).is_empty());
-        assert_eq!(
-            missing(monday, monday.and_hms_opt(22, 0, 0).unwrap().and_utc()),
-            vec![(
-                (friday - Duration::days(OVERLAP_DAYS)).succ_opt().unwrap(),
-                monday
-            )]
-        );
-    }
-
-    #[test]
-    fn latest_credential_responses_and_explicit_fallbacks_only_have_bounded_coverage() {
-        let public = Asset::default();
-        assert_eq!(
-            latest_history_outcome(&public, DATA_SOURCE_YAHOO),
-            HistoryOutcome::Complete
-        );
-        assert_eq!(
-            latest_history_outcome(&public, DATA_SOURCE_EASTMONEY),
-            HistoryOutcome::Complete
-        );
-        assert_eq!(
-            latest_history_outcome(&public, DATA_SOURCE_FUTU),
-            HistoryOutcome::Partial
-        );
-        assert_eq!(
-            latest_history_outcome(&public, "CUSTOM_SCRAPER:fund"),
-            HistoryOutcome::Partial
-        );
-        let preferred = Asset {
-            provider_config: Some(serde_json::json!({"preferred_provider": DATA_SOURCE_FUTU})),
-            ..Default::default()
-        };
-        assert_eq!(
-            latest_history_outcome(&preferred, DATA_SOURCE_YAHOO),
-            HistoryOutcome::Partial
-        );
-    }
-
-    #[test]
-    fn latest_current_weekend_observation_is_bounded_and_future_is_uncached() {
-        let friday = NaiveDate::from_ymd_opt(2026, 10, 23).unwrap();
-        let sunday = NaiveDate::from_ymd_opt(2026, 10, 25).unwrap();
-        let observed = sunday.and_hms_opt(12, 0, 0).unwrap().and_utc();
-        assert_eq!(
-            latest_observation_range(observed - Duration::seconds(1), friday, observed),
-            Some((friday, sunday))
-        );
-        assert_eq!(
-            latest_observation_range(observed + Duration::hours(1), friday, observed),
-            None
-        );
-        let receipt = HistoryCoverage {
-            identity: "latest-only".into(),
-            asset_id: "asset".into(),
-            start: friday,
-            end: sunday,
-            fetched_at: observed,
-            outcome: HistoryOutcome::Partial,
-        };
-        assert!(missing_history_ranges_with_freshness(
-            friday,
-            friday,
-            std::slice::from_ref(&receipt),
-            observed + Duration::hours(1),
-            Duration::hours(6),
-            |_| Some(true)
-        )
-        .is_empty());
-        assert_eq!(
-            missing_history_ranges_with_freshness(
-                friday,
-                friday,
-                &[receipt],
-                observed + Duration::hours(7),
-                Duration::hours(6),
-                |_| Some(true)
-            ),
-            vec![(friday, friday)]
-        );
-    }
 
     #[test]
     fn unknown_history_currency_cannot_mix_cached_and_new_provider_units() {

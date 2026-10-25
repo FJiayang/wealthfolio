@@ -698,7 +698,6 @@
   "tax_delete_confirm_desc": "Are you sure you want to delete “{{name}}”? This will remove all asset assignments to this category. This action cannot be undone.",
   "market_data_page": {
     "sync_interval_label": "Automatic sync interval",
-    "sync_interval_description": "Applies to scheduled syncs while the desktop app or web server is running. Changes take effect within one minute; startup and manual syncs are unaffected.",
     "sync_interval_hours_one": "Every {{count}} hour",
     "sync_interval_hours_other": "Every {{count}} hours",
     "heading": "Market Data",
@@ -1076,7 +1075,14 @@
       "refresh_error": "Credentials were stored, but validation or client refresh failed. Check the key format and retry.",
       "saved": "Credentials saved.",
       "deleted": "Credentials deleted."
-    }
+    },
+    "sync_mode_label": "Automatic sync mode",
+    "sync_mode_interval": "Hourly interval",
+    "sync_mode_daily": "Daily at a fixed time",
+    "sync_daily_time_label": "Daily sync time",
+    "sync_timezone_label": "Sync timezone",
+    "sync_schedule_description": "Runs while the app or web server is running, including weekends and holidays. Missed runs are caught up once. Saving starts a new schedule without running immediately.",
+    "sync_daily_required": "Choose a time and timezone before enabling daily sync. The timezone is independent of display settings."
   },
   "addon_permission_none_detected": "No data access permissions detected. This addon appears to have minimal system access.",
   "addon_permission_list_title": "Permissions",

@@ -631,7 +631,6 @@
   "tax_delete_confirm_desc": "Möchten Sie „{{name}}“ wirklich löschen? Dadurch werden alle Vermögenszuordnungen zu dieser Kategorie entfernt. Diese Aktion kann nicht rückgängig gemacht werden.",
   "market_data_page": {
     "sync_interval_label": "Automatisches Synchronisierungsintervall",
-    "sync_interval_description": "Gilt für geplante Synchronisierungen, während die Desktop-App oder der Webserver läuft. Änderungen werden innerhalb einer Minute wirksam; Start- und manuelle Synchronisierungen bleiben unverändert.",
     "sync_interval_hours_one": "Alle {{count}} Stunde",
     "sync_interval_hours_other": "Alle {{count}} Stunden",
     "heading": "Marktdaten",
@@ -1009,7 +1008,14 @@
       "refresh_error": "Zugangsdaten gespeichert, aber Prüfung oder Client-Aktualisierung fehlgeschlagen. Schlüsselformat prüfen und erneut versuchen.",
       "saved": "Zugangsdaten gespeichert.",
       "deleted": "Zugangsdaten gelöscht."
-    }
+    },
+    "sync_mode_label": "Automatischer Synchronisierungsmodus",
+    "sync_mode_interval": "Stundenintervall",
+    "sync_mode_daily": "Täglich zu einer festen Uhrzeit",
+    "sync_daily_time_label": "Tägliche Synchronisierungszeit",
+    "sync_timezone_label": "Zeitzone der Synchronisierung",
+    "sync_schedule_description": "Läuft bei geöffnetem Programm oder laufendem Webserver, auch an Wochenenden und Feiertagen. Verpasste Läufe werden einmal nachgeholt. Speichern beginnt einen neuen Zeitplan ohne sofortige Ausführung.",
+    "sync_daily_required": "Wählen Sie Uhrzeit und Zeitzone, bevor Sie die tägliche Synchronisierung aktivieren. Die Zeitzone ist unabhängig von den Anzeigeeinstellungen."
   },
   "addon_permission_none_detected": "Keine Datenzugriffsberechtigungen erkannt. Dieses Add-on scheint minimalen Systemzugriff zu haben.",
   "addon_permission_list_title": "Berechtigungen",

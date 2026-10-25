@@ -170,7 +170,7 @@ export interface InternalHostAPI {
   getMarketDataProviders(): Promise<MarketDataProviderInfo[]>;
 
   // Portfolio
-  updatePortfolio(): Promise<void>;
+  updatePortfolio(syncMarketData?: boolean): Promise<void>;
   recalculatePortfolio(): Promise<void>;
   getIncomeSummary(accountId?: string): Promise<IncomeSummary[]>;
   getHistoricalValuations(

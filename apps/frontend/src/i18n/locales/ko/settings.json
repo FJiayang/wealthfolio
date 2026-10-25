@@ -741,7 +741,6 @@
   "tax_delete_confirm_desc": "\"{{name}}\"을(를) 삭제하시겠습니까? 이 카테고리에 대한 모든 자산 배정이 제거됩니다. 이 작업은 되돌릴 수 없습니다.",
   "market_data_page": {
     "sync_interval_label": "자동 동기화 간격",
-    "sync_interval_description": "데스크톱 앱 또는 웹 서버 실행 중 예약 동기화에 적용됩니다. 변경 사항은 1분 이내에 적용되며 시작 시 동기화와 수동 동기화에는 영향을 주지 않습니다.",
     "sync_interval_hours_other": "{{count}}시간마다",
     "heading": "시세 데이터",
     "subtitle": "시세 데이터 제공자를 구성하세요.",
@@ -1118,7 +1117,14 @@
       "refresh_error": "인증 정보는 저장되었지만 검증 또는 클라이언트 새로 고침에 실패했습니다. 키 형식을 확인하고 다시 시도하세요.",
       "saved": "인증 정보가 저장되었습니다.",
       "deleted": "인증 정보가 삭제되었습니다."
-    }
+    },
+    "sync_mode_label": "자동 동기화 모드",
+    "sync_mode_interval": "시간 간격",
+    "sync_mode_daily": "매일 지정 시간",
+    "sync_daily_time_label": "일일 동기화 시간",
+    "sync_timezone_label": "동기화 시간대",
+    "sync_schedule_description": "앱 또는 웹 서버가 실행 중일 때 주말과 공휴일에도 실행합니다. 놓친 작업은 한 번만 보충 실행합니다. 저장하면 새 일정이 시작되며 즉시 실행되지는 않습니다.",
+    "sync_daily_required": "일일 동기화를 활성화하기 전에 시간과 시간대를 선택하세요. 시간대는 표시 설정과 별개입니다."
   },
   "addon_permission_none_detected": "감지된 데이터 접근 권한이 없습니다. 이 애드온은 시스템 접근 권한이 최소한인 것으로 보입니다.",
   "addon_permission_list_title": "권한",

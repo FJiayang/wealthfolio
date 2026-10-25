@@ -741,7 +741,6 @@
   "tax_delete_confirm_desc": "「{{name}}」を削除してもよろしいですか?このカテゴリへの資産の割り当てもすべて解除されます。この操作は取り消せません。",
   "market_data_page": {
     "sync_interval_label": "自動同期の間隔",
-    "sync_interval_description": "デスクトップアプリまたは Web サーバーの実行中の定期同期に適用されます。変更は1分以内に反映され、起動時や手動の同期には影響しません。",
     "sync_interval_hours_other": "{{count}} 時間ごと",
     "heading": "市場データ",
     "subtitle": "市場データプロバイダーを設定します。",
@@ -1118,7 +1117,14 @@
       "refresh_error": "認証情報は保存されましたが、検証またはクライアントの更新に失敗しました。鍵の形式を確認して再試行してください。",
       "saved": "認証情報を保存しました。",
       "deleted": "認証情報を削除しました。"
-    }
+    },
+    "sync_mode_label": "自動同期モード",
+    "sync_mode_interval": "時間間隔",
+    "sync_mode_daily": "毎日指定時刻",
+    "sync_daily_time_label": "毎日の同期時刻",
+    "sync_timezone_label": "同期のタイムゾーン",
+    "sync_schedule_description": "アプリまたは Web サーバーの稼働中に、週末・祝日も実行します。逃した実行は一度だけ補います。保存すると新しいスケジュールが始まり、直ちには実行しません。",
+    "sync_daily_required": "毎日の同期を有効にする前に時刻とタイムゾーンを選択してください。同期のタイムゾーンは表示設定とは独立しています。"
   },
   "addon_permission_none_detected": "データへのアクセス権限は検出されませんでした。このアドオンのシステムアクセスは最小限のようです。",
   "addon_permission_list_title": "権限",

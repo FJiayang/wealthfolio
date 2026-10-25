@@ -7,7 +7,6 @@ use std::time::{Duration, SystemTime};
 use tauri::AppHandle;
 use tokio::task::JoinSet;
 use wealthfolio_core::portfolio::coordinator::PortfolioJobReport;
-use wealthfolio_core::quotes::{AssetSkipReason, SyncResult};
 
 use crate::context::ServiceContext;
 use crate::events::{PortfolioRequestPayload, PORTFOLIO_UPDATE_ERROR};
@@ -99,26 +98,10 @@ impl PortfolioTasks {
     }
 }
 
-fn is_broad_market_update(payload: &PortfolioRequestPayload) -> bool {
+fn is_broad_portfolio_update(payload: &PortfolioRequestPayload) -> bool {
     payload.account_ids.is_none()
-        && payload.market_sync_mode.requires_sync()
         && payload.market_sync_mode.asset_ids().is_none()
         && !payload.force_full
-}
-
-fn market_sync_is_complete(result: &SyncResult) -> bool {
-    result.is_success()
-        && result.failures.is_empty()
-        && result.errors.is_empty()
-        && !result.skipped_reasons.iter().any(|(_, reason)| {
-            matches!(
-                reason,
-                AssetSkipReason::TooManyErrors
-                    | AssetSkipReason::SyncInProgress
-                    | AssetSkipReason::NotFound
-                    | AssetSkipReason::NoDataForRange
-            )
-        })
 }
 
 #[cfg(mobile)]
@@ -127,26 +110,26 @@ pub(crate) fn refresh_portfolio_on_resume(handle: AppHandle, context: Arc<Servic
         handle,
         context,
         PortfolioRequestPayload::builder()
-            .market_sync_mode(wealthfolio_core::quotes::MarketSyncMode::Incremental {
-                asset_ids: None,
-            })
+            .market_sync_mode(wealthfolio_core::quotes::MarketSyncMode::None)
             .build(),
         false,
         true,
     );
 }
 
-/// Whether a finished job leaves the profile fresh for the resume cooldown:
-/// a broad market update whose sync completed and whose accounts all
-/// projected. Anything else stays retryable.
+/// Successful broad local rebuilds satisfy the resume cooldown. This is a
+/// projection-work cooldown, not a decision about quote freshness.
 fn job_is_fresh(payload_is_broad: bool, report: Option<&PortfolioJobReport>) -> bool {
     payload_is_broad
         && report.is_some_and(|report| {
             report.failures.is_empty()
-                && report
-                    .market_sync
-                    .as_ref()
-                    .is_some_and(|sync| sync.as_ref().is_ok_and(market_sync_is_complete))
+                && report.market_sync.as_ref().is_none_or(|sync| {
+                    sync.as_ref().is_ok_and(|result| {
+                        result.is_success()
+                            && result.failures.is_empty()
+                            && result.errors.is_empty()
+                    })
+                })
         })
 }
 
@@ -184,7 +167,7 @@ fn dispatch_portfolio_request(
     let task_context = Arc::clone(&context);
     context.portfolio_tasks.spawn(automatic, async move {
         let context = task_context;
-        let broad = is_broad_market_update(&payload);
+        let broad = is_broad_portfolio_update(&payload);
         let mut payload = payload;
         // A recalculation request rebuilds from the first activity.
         payload.force_full |= force_recalc;
@@ -210,6 +193,7 @@ fn dispatch_portfolio_request(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wealthfolio_core::quotes::SyncResult;
 
     async fn finish_tasks(tasks: &PortfolioTasks) {
         tokio::time::timeout(Duration::from_secs(5), async {
@@ -292,40 +276,26 @@ mod tests {
     }
 
     #[test]
-    fn only_complete_broad_market_updates_qualify_for_freshness() {
-        use wealthfolio_core::quotes::MarketSyncMode;
+    fn local_broad_rebuild_qualifies_for_resume_cooldown() {
         let mut payload = PortfolioRequestPayload::default();
-        assert!(!is_broad_market_update(&payload));
-        payload.market_sync_mode = MarketSyncMode::Incremental { asset_ids: None };
-        assert!(is_broad_market_update(&payload));
-        payload.account_ids = Some(vec!["account".into()]);
-        assert!(!is_broad_market_update(&payload));
-        payload.account_ids = None;
-        payload.market_sync_mode = MarketSyncMode::Incremental {
-            asset_ids: Some(vec!["asset".into()]),
+        assert!(is_broad_portfolio_update(&payload));
+        assert!(job_is_fresh(true, Some(&PortfolioJobReport::default())));
+        assert!(!job_is_fresh(true, None));
+        let failed = PortfolioJobReport {
+            failures: vec![wealthfolio_core::portfolio::coordinator::AccountFailure {
+                account_id: "account".into(),
+                code: "REBUILD_FAILED".into(),
+                message: "Rebuild failed".into(),
+            }],
+            ..Default::default()
         };
-        assert!(!is_broad_market_update(&payload));
-
-        assert!(market_sync_is_complete(&SyncResult::default()));
-        assert!(!market_sync_is_complete(&SyncResult {
-            failed: 1,
-            ..Default::default()
-        }));
-        for reason in [
-            AssetSkipReason::TooManyErrors,
-            AssetSkipReason::SyncInProgress,
-            AssetSkipReason::NoDataForRange,
-            AssetSkipReason::NotFound,
-        ] {
-            assert!(!market_sync_is_complete(&SyncResult {
-                skipped_reasons: vec![("asset".into(), reason)],
-                ..Default::default()
-            }));
-        }
-        assert!(market_sync_is_complete(&SyncResult {
-            skipped_reasons: vec![("asset".into(), AssetSkipReason::ManualPricing)],
-            ..Default::default()
-        }));
+        assert!(!job_is_fresh(true, Some(&failed)));
+        payload.account_ids = Some(vec!["account".into()]);
+        assert!(!is_broad_portfolio_update(&payload));
+        assert!(!job_is_fresh(false, Some(&PortfolioJobReport::default())));
+        payload.account_ids = None;
+        payload.force_full = true;
+        assert!(!is_broad_portfolio_update(&payload));
     }
 
     #[test]
@@ -384,7 +354,7 @@ mod tests {
     }
 
     #[test]
-    fn only_a_complete_broad_job_leaves_the_profile_fresh() {
+    fn successful_broad_jobs_include_local_only_rebuilds() {
         let report = |market_sync, failures| PortfolioJobReport {
             account_ids: Vec::new(),
             market_sync,
@@ -399,6 +369,6 @@ mod tests {
             true,
             Some(&report(Some(Err("offline".into())), Vec::new()))
         ));
-        assert!(!job_is_fresh(true, Some(&report(None, Vec::new()))));
+        assert!(job_is_fresh(true, Some(&report(None, Vec::new()))));
     }
 }

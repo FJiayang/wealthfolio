@@ -746,7 +746,6 @@
   "tax_delete_confirm_desc": "¿Seguro que quieres eliminar «{{name}}»? Esto eliminará todas las asignaciones de activos a esta categoría. Esta acción no se puede deshacer.",
   "market_data_page": {
     "sync_interval_label": "Intervalo de sincronización automática",
-    "sync_interval_description": "Se aplica a las sincronizaciones programadas mientras la aplicación de escritorio o el servidor web están en ejecución. Los cambios se aplican en un minuto; no afectan a las sincronizaciones al iniciar ni a las manuales.",
     "sync_interval_hours_one": "Cada {{count}} hora",
     "sync_interval_hours_many": "Cada {{count}} horas",
     "sync_interval_hours_other": "Cada {{count}} horas",
@@ -1147,7 +1146,14 @@
       "refresh_error": "Credenciales almacenadas, pero falló la validación o actualización del cliente. Comprueba el formato y reintenta.",
       "saved": "Credenciales guardadas.",
       "deleted": "Credenciales eliminadas."
-    }
+    },
+    "sync_mode_label": "Modo de sincronización automática",
+    "sync_mode_interval": "Intervalo en horas",
+    "sync_mode_daily": "Diariamente a una hora fija",
+    "sync_daily_time_label": "Hora de sincronización diaria",
+    "sync_timezone_label": "Zona horaria de sincronización",
+    "sync_schedule_description": "Se ejecuta mientras la aplicación o el servidor web está en marcha, incluidos fines de semana y festivos. Las ejecuciones pendientes se recuperan una sola vez. Al guardar se inicia una nueva programación sin ejecución inmediata.",
+    "sync_daily_required": "Elige una hora y una zona horaria antes de activar la sincronización diaria. La zona horaria es independiente de los ajustes de visualización."
   },
   "addon_permission_none_detected": "No se detectaron permisos de acceso a datos. Este complemento parece tener un acceso mínimo al sistema.",
   "addon_permission_list_title": "Permisos",

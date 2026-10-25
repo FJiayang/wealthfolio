@@ -67,7 +67,9 @@ test("market-data metadata translates while provider brands stay unchanged", asy
     const saved = await page.request.put(`${api}/settings`, { data: { language: "zh" } });
     expect(saved.ok()).toBe(true);
     await page.goto(`${BASE_URL}/settings/market-data?dir=rtl`);
-    await expect(page.getByText("Yahoo Finance", { exact: true })).toBeVisible();
+    // The request-statistics selector also displays the selected provider brand.
+    const builtinProviders = page.getByRole("tabpanel", { name: /内置提供商/ });
+    await expect(builtinProviders.getByText("Yahoo Finance", { exact: true })).toBeVisible();
     await expect(
       page.getByText("Yahoo Finance 提供多个市场的历史及实时股票数据。", { exact: true }),
     ).toBeVisible();

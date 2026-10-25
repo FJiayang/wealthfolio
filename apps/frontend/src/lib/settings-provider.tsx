@@ -34,6 +34,9 @@ interface ExtendedSettingsContextType extends SettingsContextType {
         | "menuBarVisible"
         | "syncEnabled"
         | "marketDataSyncIntervalHours"
+        | "marketDataSyncMode"
+        | "marketDataSyncTime"
+        | "marketDataSyncTimezone"
         | "insightsOverviewLayout"
       >
     >,
@@ -79,6 +82,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         | "menuBarVisible"
         | "syncEnabled"
         | "marketDataSyncIntervalHours"
+        | "marketDataSyncMode"
+        | "marketDataSyncTime"
+        | "marketDataSyncTimezone"
         | "insightsOverviewLayout"
       >
     >,

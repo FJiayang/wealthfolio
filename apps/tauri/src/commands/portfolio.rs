@@ -179,13 +179,21 @@ pub async fn recalculate_portfolio(handle: AppHandle, state: ProfileAccess) -> R
 }
 
 #[tauri::command]
-pub async fn update_portfolio(handle: AppHandle, state: ProfileAccess) -> Result<(), String> {
+pub async fn update_portfolio(
+    handle: AppHandle,
+    state: ProfileAccess,
+    sync_market_data: Option<bool>,
+) -> Result<(), String> {
     let context = state.context()?;
     debug!("Emitting PORTFOLIO_TRIGGER_UPDATE event...");
-    // Manual update uses Incremental sync for all assets
+    // Manual calls retain incremental sync; automatic callers opt into a local rebuild.
     let payload = PortfolioRequestPayload::builder()
         .account_ids(None) // None signifies all accounts
-        .market_sync_mode(MarketSyncMode::Incremental { asset_ids: None })
+        .market_sync_mode(if sync_market_data.unwrap_or(true) {
+            MarketSyncMode::Incremental { asset_ids: None }
+        } else {
+            MarketSyncMode::None
+        })
         .build();
     emit_portfolio_trigger_update(&handle, payload, &context);
     Ok(())
@@ -1706,7 +1714,7 @@ pub async fn delete_snapshot(
     // Trigger portfolio update to recalculate valuations
     let payload = PortfolioRequestPayload::builder()
         .account_ids(Some(vec![account_id.clone()]))
-        .market_sync_mode(MarketSyncMode::Incremental { asset_ids: None })
+        .market_sync_mode(MarketSyncMode::None)
         .build();
     emit_portfolio_trigger_recalculate(&handle, payload, &context);
 

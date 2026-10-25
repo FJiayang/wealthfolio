@@ -19,13 +19,10 @@ async fn update_portfolio(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
     body: Option<Json<PortfolioRequestBody>>,
 ) -> ApiResult<StatusCode> {
-    // Web-mode callers typically omit the body; preserve desktop behavior by defaulting
-    // to an explicit market sync policy (the job runner performs no implicit sync).
-    let mut request = body.map(|Json(inner)| inner).unwrap_or_default();
-    if matches!(request.market_sync_mode, MarketSyncMode::None) {
-        request.market_sync_mode = MarketSyncMode::Incremental { asset_ids: None };
-    }
-    let cfg = request.into_config();
+    let cfg = body
+        .map(|Json(inner)| inner)
+        .unwrap_or_default()
+        .into_update_config();
     enqueue_portfolio_job(state, cfg);
     Ok(StatusCode::ACCEPTED)
 }
