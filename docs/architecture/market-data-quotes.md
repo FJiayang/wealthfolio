@@ -972,10 +972,15 @@ or otherwise uncertified successful replies are partial observations:
 Fetched prices and the query receipt commit atomically. The transaction checks
 that the asset/provider context has not changed since fetching. Query commits
 skip financially identical provider rows and report actual changed-price counts;
-ordinary bulk-upsert and atomic reset semantics are unchanged. Successful
-provider recovery can still heal sync-health state without forcing portfolio
-price invalidation. Manual prices keep their existing precedence, and existing
-provider rows are not deleted merely because preferences change.
+ordinary bulk-upsert and atomic reset semantics are unchanged. Direct service
+read-fills emit the existing `PriceHistoryChanged` event once for actual
+canonical writes, including committed earlier ranges if a later range fails;
+existing planners rebuild locally without recursively fetching market data.
+Derived-only writes and local hits emit no financial event. Coordinator-owned
+sync retains its existing completion flow. Successful provider recovery can
+still heal sync-health state without forcing portfolio price invalidation.
+Manual prices keep their existing precedence, and existing provider rows are not
+deleted merely because preferences change.
 
 A benchmark that is absent from the user's asset catalog uses isolated
 `benchmark_history` rows in the same profile database. It never creates a fake
@@ -1016,11 +1021,17 @@ When a manual override prevents storing provider validation in the canonical
 price row, that validation payload uses the existing isolated derived-cache
 namespace and canonical asset lock. It does not replace or duplicate the
 canonical manual price, create catalog assets, or add another cache subsystem.
-Current weekend observations can use bounded latest-only Partial receipts. An
-observation whose timestamp cannot safely establish an observable range is
-returned without caching, including conservatively handled market-local
-date-only values ahead of UTC; it cannot create future or durable historical
-coverage.
+Unlike canonical user/provider price history, these derived response-cache rows
+replace history rows only inside a successfully fetched interval. Partial or
+empty new responses cannot silently retain older rows absent from that response;
+history rows outside the interval remain available. Latest-only derived results
+instead replace their prior snapshot, even when the newly returned observation
+is dated earlier. Fetch failures leave the derived cache untouched, and Partial
+receipts still expire rather than certify completeness. Current weekend
+observations can use bounded latest-only Partial receipts. An observation whose
+timestamp cannot safely establish an observable range is returned without
+caching, including conservatively handled market-local date-only values ahead of
+UTC; it cannot create future or durable historical coverage.
 
 ### Sync Categories
 

@@ -404,19 +404,28 @@ fn changed_history_rows(
         .collect())
 }
 
-fn upsert_benchmark_rows(
+fn replace_benchmark_interval(
     conn: &mut SqliteConnection,
     identity: &str,
+    interval: Option<(NaiveDate, NaiveDate)>,
     quotes: &[Quote],
 ) -> Result<usize> {
-    if quotes.is_empty() {
-        return Ok(0);
-    }
     let mut count = 0;
-    let existing = sql_query("SELECT quote_json FROM benchmark_history WHERE identity = ?")
+    let existing = if let Some((start, end)) = interval {
+        sql_query(
+            "SELECT quote_json FROM benchmark_history WHERE identity = ? AND day >= ? AND day <= ?",
+        )
         .bind::<Text, _>(identity)
+        .bind::<Text, _>(start.to_string())
+        .bind::<Text, _>(end.to_string())
         .load::<BenchmarkQuoteRow>(conn)
-        .map_err(StorageError::QueryFailed)?;
+        .map_err(StorageError::QueryFailed)?
+    } else {
+        sql_query("SELECT quote_json FROM benchmark_history WHERE identity = ?")
+            .bind::<Text, _>(identity)
+            .load::<BenchmarkQuoteRow>(conn)
+            .map_err(StorageError::QueryFailed)?
+    };
     let existing: HashMap<NaiveDate, Quote> = existing
         .into_iter()
         .map(|row| {
@@ -425,6 +434,20 @@ fn upsert_benchmark_rows(
                 .map_err(|err| wealthfolio_core::Error::Repository(err.to_string()))
         })
         .collect::<Result<_>>()?;
+    // This is a derived verification cache, not canonical quote history. A
+    // successful response supersedes exactly its queried interval, including
+    // omitted days in partial responses and authoritative empty results.
+    let returned_days: HashSet<_> = quotes
+        .iter()
+        .map(|quote| quote.timestamp.date_naive())
+        .collect();
+    for day in existing.keys().filter(|day| !returned_days.contains(*day)) {
+        count += sql_query("DELETE FROM benchmark_history WHERE identity = ? AND day = ?")
+            .bind::<Text, _>(identity)
+            .bind::<Text, _>(day.to_string())
+            .execute(conn)
+            .map_err(StorageError::QueryFailed)?;
+    }
     for quote in quotes {
         if existing
             .get(&quote.timestamp.date_naive())
@@ -534,11 +557,11 @@ impl QuoteStore for MarketDataRepository {
         &self,
         coverage: &wealthfolio_core::quotes::history::HistoryCoverage,
         quotes: &[Quote],
-        benchmark: bool,
+        mode: wealthfolio_core::quotes::history::HistoryWriteMode,
         record_coverage: bool,
         expected_context: Option<&ProviderHistoryResetContext>,
     ) -> Result<usize> {
-        use wealthfolio_core::quotes::history::HistoryOutcome;
+        use wealthfolio_core::quotes::history::{HistoryOutcome, HistoryWriteMode};
         if coverage.start > coverage.end
             || coverage.identity.is_empty()
             || quotes.iter().any(|q| {
@@ -564,13 +587,26 @@ impl QuoteStore for MarketDataRepository {
                         "Asset or provider settings changed during fetching; quotes were not written".into()));
                 }
             }
-            let count = if benchmark {
-                upsert_benchmark_rows(tx.conn(), &coverage.identity, &quotes)?
+            let count = if mode != HistoryWriteMode::Canonical {
+                let interval = if mode == HistoryWriteMode::DerivedLatest {
+                    None
+                } else {
+                    Some((coverage.start, coverage.end))
+                };
+                replace_benchmark_interval(tx.conn(), &coverage.identity, interval, &quotes)?
             } else {
                 let changed = changed_history_rows(tx.conn(), &coverage.asset_id,
                     coverage.start, coverage.end, &quotes)?;
                 upsert_quote_rows(tx, changed)?
             };
+            if mode == HistoryWriteMode::DerivedLatest {
+                // Latest verification is one response/proof snapshot, even when
+                // the newest observation moves back to an earlier market day.
+                sql_query("DELETE FROM market_history_queries WHERE identity = ?")
+                    .bind::<Text, _>(&coverage.identity)
+                    .execute(tx.conn())
+                    .map_err(StorageError::QueryFailed)?;
+            }
             if !record_coverage {
                 return Ok(count);
             }

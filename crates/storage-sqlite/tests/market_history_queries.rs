@@ -8,7 +8,9 @@ use rust_decimal::Decimal;
 use wealthfolio_core::assets::{
     AssetKind, AssetRepositoryTrait, InstrumentType, NewAsset, QuoteMode,
 };
-use wealthfolio_core::quotes::history::{missing_history_ranges, HistoryCoverage, HistoryOutcome};
+use wealthfolio_core::quotes::history::{
+    missing_history_ranges, HistoryCoverage, HistoryOutcome, HistoryWriteMode,
+};
 use wealthfolio_core::quotes::{AssetId, Quote, QuoteStore};
 use wealthfolio_storage_sqlite::{assets::AssetRepository, db, market_data::MarketDataRepository};
 
@@ -90,7 +92,13 @@ async fn history_survives_repository_restart_and_is_profile_local() {
     let one = fixture().await;
     let record = coverage("identity-v1", "asset");
     one.store
-        .commit_history_query(&record, &[quote("asset", "YAHOO", 100)], false, true, None)
+        .commit_history_query(
+            &record,
+            &[quote("asset", "YAHOO", 100)],
+            HistoryWriteMode::Canonical,
+            true,
+            None,
+        )
         .await
         .unwrap();
     let reopened = MarketDataRepository::new(one.pool.clone(), one.writer.clone());
@@ -117,7 +125,7 @@ async fn benchmark_history_does_not_create_assets_or_pollute_quote_lists() {
         .commit_history_query(
             &record,
             &[quote("SEC:BENCH:INDEX", "YAHOO", 123)],
-            true,
+            HistoryWriteMode::DerivedRange,
             true,
             None,
         )
@@ -151,7 +159,13 @@ async fn query_commit_preserves_manual_priority_and_delete_invalidates_coverage(
         .unwrap();
     let record = coverage("identity", "asset");
     f.store
-        .commit_history_query(&record, &[quote("asset", "YAHOO", 100)], false, true, None)
+        .commit_history_query(
+            &record,
+            &[quote("asset", "YAHOO", 100)],
+            HistoryWriteMode::Canonical,
+            true,
+            None,
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -171,7 +185,7 @@ async fn failed_price_or_coverage_write_rolls_back_both() {
         .commit_history_query(
             &missing_asset,
             &[quote("not-an-asset", "YAHOO", 100)],
-            false,
+            HistoryWriteMode::Canonical,
             true,
             None
         )
@@ -189,7 +203,7 @@ async fn failed_price_or_coverage_write_rolls_back_both() {
         .commit_history_query(
             &coverage("identity", "asset"),
             &[quote("asset", "YAHOO", 100)],
-            false,
+            HistoryWriteMode::Canonical,
             true,
             None
         )
@@ -204,7 +218,7 @@ async fn empty_queries_survive_restart_but_expire_and_partial_has_no_coverage() 
     let mut record = coverage("empty", "asset");
     record.outcome = HistoryOutcome::Empty;
     f.store
-        .commit_history_query(&record, &[], false, true, None)
+        .commit_history_query(&record, &[], HistoryWriteMode::Canonical, true, None)
         .await
         .unwrap();
     let reopened = MarketDataRepository::new(f.pool.clone(), f.writer.clone());
@@ -225,7 +239,7 @@ async fn empty_queries_survive_restart_but_expire_and_partial_has_no_coverage() 
         .commit_history_query(
             &coverage("partial", "benchmark"),
             &[quote("benchmark", "YAHOO", 100)],
-            true,
+            HistoryWriteMode::DerivedRange,
             false,
             None,
         )
@@ -250,7 +264,7 @@ async fn provider_delete_invalidates_range() {
         .commit_history_query(
             &coverage("identity", "asset"),
             &[quote("asset", "YAHOO", 100)],
-            false,
+            HistoryWriteMode::Canonical,
             true,
             None,
         )
@@ -614,7 +628,13 @@ async fn successful_identical_refresh_records_coverage_without_counting_price_ch
     let original = quote("asset", "YAHOO", 100);
     assert_eq!(
         f.store
-            .commit_history_query(&record, std::slice::from_ref(&original), false, true, None)
+            .commit_history_query(
+                &record,
+                std::slice::from_ref(&original),
+                HistoryWriteMode::Canonical,
+                true,
+                None
+            )
             .await
             .unwrap(),
         1
@@ -624,7 +644,13 @@ async fn successful_identical_refresh_records_coverage_without_counting_price_ch
     repeated.id = "different-generated-id".into();
     assert_eq!(
         f.store
-            .commit_history_query(&record, std::slice::from_ref(&repeated), false, true, None)
+            .commit_history_query(
+                &record,
+                std::slice::from_ref(&repeated),
+                HistoryWriteMode::Canonical,
+                true,
+                None
+            )
             .await
             .unwrap(),
         0
@@ -632,7 +658,13 @@ async fn successful_identical_refresh_records_coverage_without_counting_price_ch
     repeated.close = Decimal::new(101, 0);
     assert_eq!(
         f.store
-            .commit_history_query(&record, &[repeated], false, true, None)
+            .commit_history_query(
+                &record,
+                &[repeated],
+                HistoryWriteMode::Canonical,
+                true,
+                None
+            )
             .await
             .unwrap(),
         1
@@ -641,7 +673,13 @@ async fn successful_identical_refresh_records_coverage_without_counting_price_ch
     let first = quote("unknown", "YAHOO", 100);
     assert_eq!(
         f.store
-            .commit_history_query(&benchmark, std::slice::from_ref(&first), true, true, None)
+            .commit_history_query(
+                &benchmark,
+                std::slice::from_ref(&first),
+                HistoryWriteMode::DerivedRange,
+                true,
+                None
+            )
             .await
             .unwrap(),
         1
@@ -650,7 +688,13 @@ async fn successful_identical_refresh_records_coverage_without_counting_price_ch
     duplicate.created_at = Utc::now() + Duration::seconds(1);
     assert_eq!(
         f.store
-            .commit_history_query(&benchmark, &[duplicate], true, true, None)
+            .commit_history_query(
+                &benchmark,
+                &[duplicate],
+                HistoryWriteMode::DerivedRange,
+                true,
+                None
+            )
             .await
             .unwrap(),
         0
@@ -664,14 +708,14 @@ async fn partial_response_counts_only_changes_and_never_records_coverage() {
     let quotes = [quote("asset", "YAHOO", 100)];
     assert_eq!(
         f.store
-            .commit_history_query(&record, &quotes, false, false, None)
+            .commit_history_query(&record, &quotes, HistoryWriteMode::Canonical, false, None)
             .await
             .unwrap(),
         1
     );
     assert_eq!(
         f.store
-            .commit_history_query(&record, &quotes, false, false, None)
+            .commit_history_query(&record, &quotes, HistoryWriteMode::Canonical, false, None)
             .await
             .unwrap(),
         0
@@ -693,7 +737,7 @@ async fn queued_profile_change_rejects_complete_and_partial_writes_atomically() 
             .commit_history_query(
                 &record,
                 &[quote("asset", "YAHOO", 100)],
-                false,
+                HistoryWriteMode::Canonical,
                 complete,
                 Some(&expected)
             )
@@ -709,7 +753,13 @@ async fn new_partial_receipt_supersedes_old_complete_only_within_queried_range()
     let f = fixture().await;
     let old = coverage("identity", "asset");
     f.store
-        .commit_history_query(&old, &[quote("asset", "YAHOO", 100)], false, true, None)
+        .commit_history_query(
+            &old,
+            &[quote("asset", "YAHOO", 100)],
+            HistoryWriteMode::Canonical,
+            true,
+            None,
+        )
         .await
         .unwrap();
     let mut partial = old.clone();
@@ -717,7 +767,13 @@ async fn new_partial_receipt_supersedes_old_complete_only_within_queried_range()
     partial.end = old.start + Duration::days(19);
     partial.outcome = HistoryOutcome::Partial;
     f.store
-        .commit_history_query(&partial, &[quote("asset", "YAHOO", 101)], false, true, None)
+        .commit_history_query(
+            &partial,
+            &[quote("asset", "YAHOO", 101)],
+            HistoryWriteMode::Canonical,
+            true,
+            None,
+        )
         .await
         .unwrap();
     let receipts = f.store.history_coverage("identity").unwrap();
@@ -735,7 +791,13 @@ async fn new_partial_receipt_supersedes_old_complete_only_within_queried_range()
     partial.start = old.start;
     partial.end = old.end;
     f.store
-        .commit_history_query(&partial, &[quote("asset", "YAHOO", 101)], false, true, None)
+        .commit_history_query(
+            &partial,
+            &[quote("asset", "YAHOO", 101)],
+            HistoryWriteMode::Canonical,
+            true,
+            None,
+        )
         .await
         .unwrap();
     let receipts = f.store.history_coverage("identity").unwrap();
@@ -774,7 +836,7 @@ async fn custom_provider_revision_changes_identity_and_transaction_guard_without
         .commit_history_query(
             &coverage("identity", "asset"),
             &[quote("asset", "YAHOO", 100)],
-            false,
+            HistoryWriteMode::Canonical,
             true,
             Some(&expected)
         )
@@ -946,7 +1008,13 @@ async fn explicit_invalidation_clears_derived_benchmark_rows_before_partial_refi
     old_extra.timestamp += Duration::days(1);
     old_extra.id = "old-extra-day".into();
     f.store
-        .commit_history_query(&record, &[original.clone(), old_extra], true, true, None)
+        .commit_history_query(
+            &record,
+            &[original.clone(), old_extra],
+            HistoryWriteMode::DerivedRange,
+            true,
+            None,
+        )
         .await
         .unwrap();
     f.store
@@ -970,7 +1038,7 @@ async fn explicit_invalidation_clears_derived_benchmark_rows_before_partial_refi
         .commit_history_query(
             &partial,
             std::slice::from_ref(&replacement),
-            true,
+            HistoryWriteMode::DerivedRange,
             true,
             None,
         )
@@ -996,7 +1064,7 @@ async fn asset_invalidation_preserves_unrelated_benchmarks_and_user_quotes() {
             .commit_history_query(
                 &coverage(identity, asset),
                 &[quote(asset, "YAHOO", 100)],
-                true,
+                HistoryWriteMode::DerivedRange,
                 true,
                 None,
             )
@@ -1048,7 +1116,13 @@ async fn direct_custom_provider_mutations_clear_only_derived_cache_tables() {
         "DELETE FROM market_data_custom_providers WHERE id='lifecycle'",
     ] {
         f.store
-            .commit_history_query(&bounds, &[quote("BENCH", "YAHOO", 100)], true, true, None)
+            .commit_history_query(
+                &bounds,
+                &[quote("BENCH", "YAHOO", 100)],
+                HistoryWriteMode::DerivedRange,
+                true,
+                None,
+            )
             .await
             .unwrap();
         diesel::sql_query(mutation)
@@ -1069,4 +1143,254 @@ async fn direct_custom_provider_mutations_clear_only_derived_cache_tables() {
             .iter()
             .any(|q| q.data_source == "YAHOO" && q.close == Decimal::new(100, 0)));
     }
+}
+
+#[tokio::test]
+async fn successful_benchmark_partial_replaces_only_queried_interval() {
+    let f = fixture().await;
+    let record = coverage("derived", "BENCH");
+    let middle = quote("BENCH", "YAHOO", 100);
+    let mut prefix = middle.clone();
+    prefix.timestamp -= Duration::days(5);
+    let mut suffix = middle.clone();
+    suffix.timestamp += Duration::days(5);
+    let mut omitted = middle.clone();
+    omitted.timestamp += Duration::days(1);
+    f.store
+        .commit_history_query(
+            &record,
+            &[prefix.clone(), middle.clone(), omitted, suffix.clone()],
+            HistoryWriteMode::DerivedRange,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+    f.store
+        .upsert_quotes(&[quote("asset", "MANUAL", 999)])
+        .await
+        .unwrap();
+    let partial = HistoryCoverage {
+        start: middle.timestamp.date_naive(),
+        end: middle.timestamp.date_naive() + Duration::days(1),
+        outcome: HistoryOutcome::Partial,
+        ..record.clone()
+    };
+    // An unchanged returned row is not counted again; removal is a real change.
+    assert_eq!(
+        f.store
+            .commit_history_query(
+                &partial,
+                std::slice::from_ref(&middle),
+                HistoryWriteMode::DerivedRange,
+                true,
+                None
+            )
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        f.store
+            .benchmark_history("derived", record.start, record.end)
+            .unwrap(),
+        vec![prefix, middle, suffix]
+    );
+    assert!(f
+        .store
+        .history_coverage("derived")
+        .unwrap()
+        .iter()
+        .any(|receipt| receipt.start == partial.start
+            && receipt.end == partial.end
+            && receipt.outcome == HistoryOutcome::Partial));
+    assert_eq!(
+        f.store.get_historical_quotes("asset").unwrap()[0].close,
+        Decimal::new(999, 0)
+    );
+}
+
+#[tokio::test]
+async fn benchmark_empty_clears_window_and_failed_commit_preserves_old_rows() {
+    let f = fixture().await;
+    let record = coverage("derived", "BENCH");
+    let middle = quote("BENCH", "YAHOO", 100);
+    let mut prefix = middle.clone();
+    prefix.timestamp -= Duration::days(5);
+    f.store
+        .commit_history_query(
+            &record,
+            &[prefix.clone(), middle.clone()],
+            HistoryWriteMode::DerivedRange,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+    let empty = HistoryCoverage {
+        start: middle.timestamp.date_naive(),
+        end: middle.timestamp.date_naive(),
+        outcome: HistoryOutcome::Empty,
+        ..record.clone()
+    };
+    diesel::sql_query(
+        "CREATE TRIGGER fail_derived_receipt BEFORE INSERT ON market_history_queries
+         BEGIN SELECT RAISE(ABORT, 'test failure'); END",
+    )
+    .execute(&mut *db::get_connection(&f.pool).unwrap())
+    .unwrap();
+    // Even a failure after interval deletion rolls back both cache and receipt.
+    assert!(f
+        .store
+        .commit_history_query(&empty, &[], HistoryWriteMode::DerivedRange, true, None)
+        .await
+        .is_err());
+    assert_eq!(
+        f.store
+            .benchmark_history("derived", record.start, record.end)
+            .unwrap(),
+        vec![prefix.clone(), middle]
+    );
+    assert_eq!(
+        f.store.history_coverage("derived").unwrap(),
+        vec![record.clone()]
+    );
+    diesel::sql_query("DROP TRIGGER fail_derived_receipt")
+        .execute(&mut *db::get_connection(&f.pool).unwrap())
+        .unwrap();
+    assert_eq!(
+        f.store
+            .commit_history_query(&empty, &[], HistoryWriteMode::DerivedRange, true, None)
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        f.store
+            .benchmark_history("derived", record.start, record.end)
+            .unwrap(),
+        vec![prefix]
+    );
+}
+
+#[tokio::test]
+async fn benchmark_provider_failure_preserves_previously_verified_rows() {
+    let f = fixture().await;
+    let provider = Arc::new(FakeProvider::default());
+    let service = sync_service(&f, provider.clone()).await;
+    let mut asset = AssetRepository::new(f.pool.clone(), f.writer.clone())
+        .get_by_id("asset")
+        .unwrap();
+    asset.id = "SEC:BENCH:INDEX".into();
+    asset.instrument_symbol = Some("BENCH".into());
+    let bounds = coverage("unused", &asset.id);
+    let original = service
+        .fetch_local_first_history(&asset, bounds.start, bounds.end, true)
+        .await
+        .unwrap();
+    #[derive(diesel::QueryableByName)]
+    struct Identity {
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        identity: String,
+    }
+    let mut conn = db::get_connection(&f.pool).unwrap();
+    let identity = diesel::sql_query("SELECT identity FROM market_history_queries LIMIT 1")
+        .get_result::<Identity>(&mut *conn)
+        .unwrap()
+        .identity;
+    // Remove only the proof to force verification, retaining the derived prices.
+    diesel::sql_query("DELETE FROM market_history_queries")
+        .execute(&mut *conn)
+        .unwrap();
+    drop(conn);
+    provider
+        .response_mode
+        .store(3, std::sync::atomic::Ordering::SeqCst);
+    assert!(service
+        .fetch_local_first_history(&asset, bounds.start, bounds.end, true)
+        .await
+        .is_err());
+    assert_eq!(provider.ranges.lock().unwrap().len(), 2);
+    assert_eq!(
+        f.store
+            .benchmark_history(&identity, bounds.start, bounds.end)
+            .unwrap(),
+        original
+    );
+    assert!(f.store.history_coverage(&identity).unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn derived_latest_replaces_newer_cached_day_but_failed_commit_preserves_it() {
+    let f = fixture().await;
+    let record = coverage("latest", "BENCH");
+    let mut sunday = quote("BENCH", "YAHOO", 100);
+    sunday.timestamp = NaiveDate::from_ymd_opt(2025, 1, 19)
+        .unwrap()
+        .and_hms_opt(12, 0, 0)
+        .unwrap()
+        .and_utc();
+    f.store
+        .commit_history_query(
+            &record,
+            std::slice::from_ref(&sunday),
+            HistoryWriteMode::DerivedLatest,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+    let mut friday = sunday.clone();
+    friday.timestamp -= Duration::days(2);
+    let friday_scope = HistoryCoverage {
+        start: friday.timestamp.date_naive(),
+        end: friday.timestamp.date_naive(),
+        ..record.clone()
+    };
+    diesel::sql_query("CREATE TRIGGER fail_latest_receipt BEFORE INSERT ON market_history_queries BEGIN SELECT RAISE(ABORT, 'test failure'); END")
+        .execute(&mut *db::get_connection(&f.pool).unwrap()).unwrap();
+    assert!(f
+        .store
+        .commit_history_query(
+            &friday_scope,
+            std::slice::from_ref(&friday),
+            HistoryWriteMode::DerivedLatest,
+            true,
+            None
+        )
+        .await
+        .is_err());
+    assert_eq!(
+        f.store
+            .benchmark_history("latest", record.start, record.end)
+            .unwrap(),
+        vec![sunday]
+    );
+    assert_eq!(
+        f.store.history_coverage("latest").unwrap(),
+        vec![record.clone()]
+    );
+    diesel::sql_query("DROP TRIGGER fail_latest_receipt")
+        .execute(&mut *db::get_connection(&f.pool).unwrap())
+        .unwrap();
+    f.store
+        .commit_history_query(
+            &friday_scope,
+            std::slice::from_ref(&friday),
+            HistoryWriteMode::DerivedLatest,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        f.store
+            .benchmark_history("latest", record.start, record.end)
+            .unwrap(),
+        vec![friday]
+    );
+    assert_eq!(
+        f.store.history_coverage("latest").unwrap(),
+        vec![friday_scope]
+    );
 }

@@ -10,6 +10,14 @@ use serde::{Deserialize, Serialize};
 
 use super::constants::OVERLAP_DAYS;
 
+/// Canonical history merges prices; derived verification caches replace observations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HistoryWriteMode {
+    Canonical,
+    DerivedRange,
+    DerivedLatest,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HistoryOutcome {
     Complete,

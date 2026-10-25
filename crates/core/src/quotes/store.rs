@@ -79,11 +79,11 @@ pub trait QuoteStore: Send + Sync {
         &self,
         _coverage: &super::history::HistoryCoverage,
         quotes: &[Quote],
-        benchmark: bool,
+        mode: super::history::HistoryWriteMode,
         _record_coverage: bool,
         _expected_context: Option<&super::model::ProviderHistoryResetContext>,
     ) -> Result<usize> {
-        if benchmark {
+        if mode != super::history::HistoryWriteMode::Canonical {
             return Err(crate::errors::Error::Repository(
                 "Benchmark history is not supported by this store".into(),
             ));

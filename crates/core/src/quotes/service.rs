@@ -1846,6 +1846,7 @@ where
             quote_ccy,
         );
 
+        let mut emitted_price_event = false;
         for attempt_symbol in symbol_resolution_candidates(clean_symbol) {
             let resolved_symbol = attempt_symbol.clone();
             let pair_quote_ccy = if matches!(instrument_type, Some(InstrumentType::Crypto)) {
@@ -1911,7 +1912,7 @@ where
                         .map(|code| format!("{DATA_SOURCE_CUSTOM_SCRAPER}:{code}"))
                         .unwrap_or_else(|| provider.trim().to_string())
                 });
-            match self
+            let (result, written) = self
                 .get_sync_service()
                 .await?
                 .fetch_local_first_latest_for_resolution(
@@ -1919,8 +1920,12 @@ where
                     existing.is_none(),
                     verification_source.as_deref(),
                 )
-                .await
-            {
+                .await;
+            if written > 0 && !emitted_price_event {
+                self.event_sink.emit(DomainEvent::PriceHistoryChanged);
+                emitted_price_event = true;
+            }
+            match result {
                 Ok((mut quote, fetched_provider_quote)) => {
                     if preferred_provider.is_some_and(|provider| !provider.trim().is_empty()) {
                         if let Some(fetched) = fetched_provider_quote {
@@ -1986,11 +1991,15 @@ where
         end: NaiveDate,
     ) -> Result<Vec<Quote>> {
         let asset = self.asset_repo.get_by_id(asset_id)?;
-        let mut quotes = self
+        let (result, written) = self
             .get_sync_service()
             .await?
-            .fetch_local_first_history(&asset, start, end, false)
-            .await?;
+            .fetch_local_first_history_with_writes(&asset, start, end, false)
+            .await;
+        if written > 0 {
+            self.event_sink.emit(DomainEvent::PriceHistoryChanged);
+        }
+        let mut quotes = result?;
         for quote in &mut quotes {
             reconcile_quote_currency(quote, &asset);
         }
@@ -3726,11 +3735,14 @@ mod tests {
             &self,
             coverage: &super::super::history::HistoryCoverage,
             quotes: &[Quote],
-            benchmark: bool,
+            mode: super::super::history::HistoryWriteMode,
             record_coverage: bool,
             _expected_context: Option<&super::super::model::ProviderHistoryResetContext>,
         ) -> Result<usize> {
-            if benchmark {
+            if mode != super::super::history::HistoryWriteMode::Canonical {
+                if mode == super::super::history::HistoryWriteMode::DerivedLatest {
+                    self.derived.lock().unwrap().remove(&coverage.identity);
+                }
                 self.derived
                     .lock()
                     .unwrap()
@@ -3808,9 +3820,11 @@ mod tests {
             _source: Option<&QuoteSource>,
         ) -> Result<Vec<Quote>> {
             self.range_calls.fetch_add(1, Ordering::Relaxed);
+            let written = self.written.lock().unwrap();
             Ok(self
                 .quotes
                 .iter()
+                .chain(written.iter())
                 .filter(|quote| {
                     quote.asset_id == asset_id.as_str()
                         && quote.timestamp.date_naive() >= start.date()
@@ -5106,13 +5120,19 @@ mod tests {
             &self,
             _context: &wealthfolio_market_data::QuoteContext,
             _instrument: ProviderInstrument,
-            _start: chrono::DateTime<Utc>,
+            start: chrono::DateTime<Utc>,
             _end: chrono::DateTime<Utc>,
         ) -> std::result::Result<
             Vec<wealthfolio_market_data::Quote>,
             wealthfolio_market_data::errors::MarketDataError,
         > {
-            unreachable!("explicit verification uses latest capability")
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            Ok(vec![wealthfolio_market_data::Quote::new(
+                start,
+                dec!(120),
+                "USD".into(),
+                "YAHOO".into(),
+            )])
         }
     }
 
@@ -5133,6 +5153,65 @@ mod tests {
             ),
             ..Default::default()
         }
+    }
+
+    #[tokio::test]
+    async fn direct_read_fills_emit_once_and_cache_hits_emit_nothing() -> Result<()> {
+        for history in [false, true] {
+            let asset = resolution_asset(Some("VERIFIED"));
+            let store = Arc::new(RangeQuoteStore::default());
+            let sink = Arc::new(crate::events::MockDomainEventSink::new());
+            let service = quote_service_for_asset(asset, store)
+                .await?
+                .with_event_sink(sink.clone());
+            let calls = Arc::new(AtomicUsize::new(0));
+            *service.client.write().await = MarketDataClient::new_with_extra(
+                Arc::new(MockSecretStore),
+                vec![ProviderConfig {
+                    id: "YAHOO".into(),
+                    priority: 1,
+                }],
+                vec![Arc::new(VerificationProvider {
+                    calls: calls.clone(),
+                })],
+            )
+            .await?;
+            for _ in 0..2 {
+                if history {
+                    let day = NaiveDate::from_ymd_opt(2025, 1, 2).unwrap();
+                    assert_eq!(
+                        service
+                            .fetch_quotes_for_symbol("canonical-aapl", "USD", day, day)
+                            .await?
+                            .len(),
+                        1
+                    );
+                } else {
+                    assert_eq!(
+                        service
+                            .resolve_symbol_quote(
+                                "AAPL",
+                                Some("XNAS"),
+                                Some(&InstrumentType::Equity),
+                                Some("USD"),
+                                Some("YAHOO"),
+                                Some("VERIFIED"),
+                            )
+                            .await?
+                            .price,
+                        Some(dec!(120))
+                    );
+                }
+                assert_eq!(
+                    sink.len(),
+                    1,
+                    "only the actual canonical fill emits a financial event"
+                );
+                assert!(matches!(sink.events()[0], DomainEvent::PriceHistoryChanged));
+            }
+            assert_eq!(calls.load(Ordering::Relaxed), 1);
+        }
+        Ok(())
     }
 
     #[tokio::test]
@@ -5229,7 +5308,10 @@ mod tests {
         let mut asset = resolution_asset(Some("VERIFIED"));
         asset.quote_mode = QuoteMode::Manual;
         let store = Arc::new(RangeQuoteStore::default());
-        let service = quote_service_for_asset(asset, store.clone()).await?;
+        let sink = Arc::new(crate::events::MockDomainEventSink::new());
+        let service = quote_service_for_asset(asset, store.clone())
+            .await?
+            .with_event_sink(sink.clone());
         let calls = Arc::new(AtomicUsize::new(0));
         *service.client.write().await = MarketDataClient::new_with_extra(
             Arc::new(MockSecretStore),
@@ -5262,6 +5344,10 @@ mod tests {
             .is_none());
         assert!(store.written.lock().unwrap().is_empty());
         assert_eq!(store.derived.lock().unwrap().len(), 1);
+        assert!(
+            sink.is_empty(),
+            "derived validation must not emit financial events"
+        );
         Ok(())
     }
 
@@ -5275,7 +5361,10 @@ mod tests {
             covered: false,
             ..Default::default()
         });
-        let service = quote_service_for_asset(asset, store.clone()).await?;
+        let sink = Arc::new(crate::events::MockDomainEventSink::new());
+        let service = quote_service_for_asset(asset, store.clone())
+            .await?
+            .with_event_sink(sink.clone());
         let calls = Arc::new(AtomicUsize::new(0));
         *service.client.write().await = MarketDataClient::new_with_extra(
             Arc::new(MockSecretStore),
@@ -5345,6 +5434,10 @@ mod tests {
                 .unwrap()
                 .close,
             dec!(999)
+        );
+        assert!(
+            sink.is_empty(),
+            "derived validation must not emit financial events"
         );
         Ok(())
     }
