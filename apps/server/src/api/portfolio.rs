@@ -85,7 +85,36 @@ async fn stream_events(
 
 pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
+        .route(
+            "/portfolio/recalculate-local",
+            post(recalculate_portfolio_local),
+        )
+        .route(
+            "/portfolio/check-market-data",
+            post(check_market_data_update),
+        )
         .route("/portfolio/update", post(update_portfolio))
         .route("/portfolio/recalculate", post(recalculate_portfolio))
         .route("/events/stream", get(stream_events))
+}
+
+async fn check_market_data_update(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<StatusCode> {
+    crate::api::shared::spawn_portfolio_update(state);
+    Ok(StatusCode::ACCEPTED)
+}
+
+async fn recalculate_portfolio_local(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+) -> ApiResult<StatusCode> {
+    enqueue_portfolio_job(
+        state,
+        crate::api::shared::PortfolioJobConfig {
+            force_full: true,
+            market_sync_mode: MarketSyncMode::None,
+            ..Default::default()
+        },
+    );
+    Ok(StatusCode::ACCEPTED)
 }

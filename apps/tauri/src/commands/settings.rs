@@ -7,19 +7,14 @@ use wealthfolio_core::fx::{
     ExchangeRate, ExchangeRateDateBatchRequest, ExchangeRateDateResult, NewExchangeRate,
 };
 use wealthfolio_core::health::HealthServiceTrait;
-use wealthfolio_core::quotes::{MarketSyncMode, DATA_SOURCE_MANUAL};
+use wealthfolio_core::quotes::MarketSyncMode;
 use wealthfolio_core::settings::{Settings, SettingsUpdate};
 
 fn recalculate_mode_for_settings_change(
     base_currency_changed: bool,
     timezone_changed: bool,
 ) -> Option<MarketSyncMode> {
-    if base_currency_changed {
-        Some(MarketSyncMode::BackfillHistory {
-            asset_ids: None,
-            days: wealthfolio_core::quotes::DEFAULT_HISTORY_DAYS,
-        })
-    } else if timezone_changed {
+    if base_currency_changed || timezone_changed {
         Some(MarketSyncMode::None)
     } else {
         None
@@ -199,16 +194,7 @@ pub async fn add_exchange_rate(
         .await
         .map_err(|e| format!("Failed to add exchange rate: {}", e))?;
 
-    // Manual rates are saved as-is and need no market sync. Provider-backed
-    // pairs store no quote on add (#1143); sync their real rate now so the pair
-    // populates immediately instead of waiting for the next periodic sync.
-    let market_sync_mode = if result.source == DATA_SOURCE_MANUAL {
-        MarketSyncMode::None
-    } else {
-        MarketSyncMode::Incremental {
-            asset_ids: Some(vec![result.id.clone()]),
-        }
-    };
+    let market_sync_mode = MarketSyncMode::None;
 
     let handle = handle.clone();
     tauri::async_runtime::spawn(async move {
@@ -264,24 +250,18 @@ mod tests {
     }
 
     #[test]
-    fn recalculate_mode_backfill_for_base_currency_only_change() {
+    fn recalculate_mode_is_local_for_base_currency_change() {
         assert_eq!(
             recalculate_mode_for_settings_change(true, false),
-            Some(MarketSyncMode::BackfillHistory {
-                asset_ids: None,
-                days: wealthfolio_core::quotes::DEFAULT_HISTORY_DAYS,
-            })
+            Some(MarketSyncMode::None)
         );
     }
 
     #[test]
-    fn recalculate_mode_prefers_base_currency_when_both_changed() {
+    fn recalculate_mode_is_local_when_both_changed() {
         assert_eq!(
             recalculate_mode_for_settings_change(true, true),
-            Some(MarketSyncMode::BackfillHistory {
-                asset_ids: None,
-                days: wealthfolio_core::quotes::DEFAULT_HISTORY_DAYS,
-            })
+            Some(MarketSyncMode::None)
         );
     }
 }

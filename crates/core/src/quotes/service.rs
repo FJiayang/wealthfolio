@@ -584,6 +584,10 @@ pub trait QuoteServiceTrait: Send + Sync {
     /// * `RefetchRecent { days }` - Refetches the last N days regardless of existing quotes.
     /// * `BackfillHistory { days }` - Rebuilds full history from activity start (or N days fallback).
     async fn sync(&self, mode: SyncMode, asset_ids: Option<Vec<String>>) -> Result<SyncResult>;
+    async fn sync_daily(&self, benchmark_ids: &[String]) -> Result<SyncResult> {
+        let _ = benchmark_ids;
+        self.sync(SyncMode::Incremental, None).await
+    }
 
     /// Force resync for specific asset IDs (or all if None) using BackfillHistory mode.
     /// An empty asset ID list is treated as sync nothing.
@@ -2011,6 +2015,13 @@ where
     async fn sync(&self, mode: SyncMode, asset_ids: Option<Vec<String>>) -> Result<SyncResult> {
         let sync_service = self.get_sync_service().await?;
         sync_service.sync(mode, asset_ids).await
+    }
+
+    async fn sync_daily(&self, benchmark_ids: &[String]) -> Result<SyncResult> {
+        self.get_sync_service()
+            .await?
+            .sync_with_benchmarks(SyncMode::Incremental, None, benchmark_ids)
+            .await
     }
 
     async fn resync(&self, asset_ids: Option<Vec<String>>) -> Result<SyncResult> {
@@ -3609,7 +3620,7 @@ mod tests {
             _asset_ids: &[String],
             _source: &str,
         ) -> Result<HashMap<String, (NaiveDate, NaiveDate)>> {
-            unimplemented!("unused in this test")
+            Ok(HashMap::new())
         }
 
         fn get_latest_quote(&self, _symbol: &str) -> Result<Quote> {
@@ -3721,8 +3732,11 @@ mod tests {
             unimplemented!("unused in this test")
         }
 
-        async fn update_after_failure(&self, _asset_id: &str, _error: &str) -> Result<()> {
-            unimplemented!("unused in this test")
+        async fn update_after_failure(&self, asset_id: &str, error: &str) -> Result<()> {
+            if let Some(state) = self.states.lock().unwrap().get_mut(asset_id) {
+                state.mark_sync_failed(error.into());
+            }
+            Ok(())
         }
 
         async fn mark_inactive(&self, asset_id: &str, closed_date: NaiveDate) -> Result<()> {
@@ -4117,21 +4131,23 @@ mod tests {
         }
 
         fn get_first_activity_date_overall(&self) -> Result<chrono::DateTime<Utc>> {
-            unimplemented!("unused in this test")
+            Err(Error::Activity(crate::activities::ActivityError::NotFound(
+                "No activities".into(),
+            )))
         }
 
         fn get_activity_bounds_for_assets(
             &self,
             _asset_ids: &[String],
         ) -> Result<HashMap<String, (Option<NaiveDate>, Option<NaiveDate>)>> {
-            unimplemented!("unused in this test")
+            Ok(HashMap::new())
         }
 
         fn get_holdings_snapshot_bounds_for_assets(
             &self,
             _asset_ids: &[String],
         ) -> Result<HashMap<String, (Option<NaiveDate>, Option<NaiveDate>)>> {
-            unimplemented!("unused in this test")
+            Ok(HashMap::new())
         }
 
         fn check_existing_duplicates(
@@ -4818,6 +4834,43 @@ mod tests {
             result.is_err(),
             "no provider is enabled, so the provider path must surface its own error"
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn daily_benchmark_survives_closed_position_but_respects_asset_disabled() -> Result<()> {
+        for active in [true, false] {
+            let asset = Asset {
+                id: "benchmark".into(),
+                kind: AssetKind::Investment,
+                instrument_type: Some(InstrumentType::Equity),
+                instrument_symbol: Some("^GSPC".into()),
+                quote_mode: QuoteMode::Market,
+                quote_ccy: "USD".into(),
+                is_active: active,
+                ..Default::default()
+            };
+            let service = quote_service_for_asset(
+                asset,
+                Arc::new(RangeQuoteStore {
+                    quotes: vec![],
+                    range_calls: Arc::new(AtomicUsize::new(0)),
+                }),
+            )
+            .await?;
+            let mut state = QuoteSyncState::new("benchmark".into(), "YAHOO".into());
+            state.mark_closed(NaiveDate::from_ymd_opt(2000, 1, 1).unwrap());
+            service.sync_state_store.upsert(&state).await?;
+            let ordinary = service.sync(SyncMode::Incremental, None).await?;
+            assert_eq!(ordinary.failed, 0);
+            assert_eq!(ordinary.skipped, 1);
+            let scheduled = service
+                .sync_daily(&["benchmark".into(), "benchmark".into()])
+                .await?;
+            // No provider is enabled: a planned request fails locally, without any HTTP call.
+            assert_eq!(scheduled.failed, usize::from(active));
+            assert_eq!(scheduled.skipped, usize::from(!active));
+        }
         Ok(())
     }
 

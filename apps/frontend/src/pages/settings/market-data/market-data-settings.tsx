@@ -784,6 +784,7 @@ export default function MarketDataSettingsPage() {
   const { data: providers, isLoading, error } = useMarketDataProviderSettings();
   const { mutate: updateSettings } = useUpdateMarketDataProviderSettings();
   const { mutate: updatePortfolio, isPending: isUpdating } = useUpdatePortfolioMutation();
+  const localRecalculation = useRecalculatePortfolioMutation(true);
   const { mutate: recalculatePortfolio, isPending: isRecalculating } =
     useRecalculatePortfolioMutation();
   const { data: customProviders = [] } = useCustomProviders();
@@ -1064,6 +1065,13 @@ export default function MarketDataSettingsPage() {
       )}
 
       <MarketDataSyncSettings />
+      <Button
+        variant="outline"
+        disabled={localRecalculation.isPending}
+        onClick={() => localRecalculation.mutate()}
+      >
+        {t("settings:market_data_page.recalculate_local")}
+      </Button>
 
       <Tabs value={providersTab} onValueChange={setProvidersTab} className="w-full">
         {/* Narrow screens wrap the button below the tabs so their labels keep full width. */}

@@ -112,22 +112,6 @@ pub fn trigger_full_portfolio_recalc(state: Arc<AppState>) {
     );
 }
 
-/// Trigger a full portfolio recalculation that also syncs the given assets'
-/// market data. Used when a provider-backed FX pair is added so its real rate
-/// is fetched immediately instead of waiting for the periodic sync (#1143).
-pub fn trigger_portfolio_recalc_with_asset_sync(state: Arc<AppState>, asset_ids: Vec<String>) {
-    enqueue_portfolio_job(
-        state,
-        PortfolioJobConfig {
-            account_ids: None,
-            market_sync_mode: MarketSyncMode::Incremental {
-                asset_ids: Some(asset_ids),
-            },
-            ..PortfolioJobConfig::default()
-        },
-    );
-}
-
 /// Server side of a portfolio job: the coordinator does the work, the
 /// observer turns its callbacks into SSE events.
 pub struct ServerJobObserver {
@@ -162,6 +146,25 @@ impl ServerJobObserver {
 }
 
 impl JobObserver for ServerJobObserver {
+    fn enrichment_started(&self, total: usize) {
+        self.event_bus.publish(ServerEvent::with_payload(
+            crate::events::ASSET_ENRICHMENT_START,
+            json!({ "total": total }),
+        ));
+    }
+    fn enrichment_progress(&self, completed: usize, total: usize) {
+        self.event_bus.publish(ServerEvent::with_payload(
+            crate::events::ASSET_ENRICHMENT_PROGRESS,
+            json!({ "completed": completed, "total": total }),
+        ));
+    }
+    fn enrichment_completed(&self, enriched: usize, skipped: usize, failed: usize) {
+        self.event_bus.publish(ServerEvent::with_payload(
+            crate::events::ASSET_ENRICHMENT_COMPLETE,
+            json!({ "enriched": enriched, "skipped": skipped, "failed": failed }),
+        ));
+    }
+
     fn market_sync_started(&self) {
         self.event_bus.publish(ServerEvent::new(MARKET_SYNC_START));
     }
@@ -241,27 +244,45 @@ pub async fn process_portfolio_job(
     Ok(())
 }
 
-/// Portfolio update at server start (architecture §3.3): sync market data,
-/// then bring whatever is stale up to date, so a web client finds it current.
+/// At startup, check the daily schedule and calculate with saved prices otherwise.
 pub fn spawn_portfolio_update(state: Arc<AppState>) {
     tokio::spawn(async move {
-        let observer = ServerJobObserver::new(&state);
-        state
-            .portfolio_coordinator
-            .update_all(MarketSyncMode::Incremental { asset_ids: None }, &observer)
-            .await;
+        if let Err(error) = check_market_data_update(&state).await {
+            tracing::error!("Automatic market update failed: {error}");
+        }
     });
 }
 
-/// The app's periodic market sync plus portfolio update (configured interval, after a 2min
-/// delay). The handle joins the profile's workers so the loop stops with its
-/// profile.
+/// Check the daily schedule until this profile's workers stop.
 pub fn spawn_periodic_update(state: Arc<AppState>) -> tokio::task::JoinHandle<()> {
     let observer: Arc<dyn JobObserver> = Arc::new(ServerJobObserver::new(&state));
     tokio::spawn(run_periodic_update(
         state.portfolio_coordinator.clone(),
         observer,
         state.settings_service.clone(),
-        std::time::Duration::from_secs(120),
+        state.asset_service.clone(),
     ))
+}
+
+pub async fn check_market_data_update(state: &Arc<AppState>) -> ApiResult<()> {
+    let observer = ServerJobObserver::new(state);
+    let report = state
+        .portfolio_coordinator
+        .update_if_due(
+            state.settings_service.as_ref(),
+            state.asset_service.as_ref(),
+            &observer,
+        )
+        .await
+        .map_err(|error| {
+            observer.market_sync_failed(&error.to_string());
+            crate::error::ApiError::Anyhow(anyhow!(error.to_string()))
+        })?;
+    if report.is_none() {
+        state
+            .portfolio_coordinator
+            .update_all(MarketSyncMode::None, &observer)
+            .await;
+    }
+    Ok(())
 }

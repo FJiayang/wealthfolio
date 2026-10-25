@@ -66,14 +66,10 @@ async fn update_settings(
 
         let state_for_job = state.clone();
         tokio::spawn(async move {
-            // Base currency change needs BackfillHistory mode to ensure FX pairs
-            // have sufficient quote coverage from earliest activity date (US-006)
+            // Recalculate with saved FX prices; the daily batch fills missing history.
             let job_config = PortfolioJobConfig {
                 account_ids: None,
-                market_sync_mode: MarketSyncMode::BackfillHistory {
-                    asset_ids: None,
-                    days: wealthfolio_core::quotes::DEFAULT_HISTORY_DAYS,
-                },
+                market_sync_mode: MarketSyncMode::None,
                 ..PortfolioJobConfig::default()
             };
 

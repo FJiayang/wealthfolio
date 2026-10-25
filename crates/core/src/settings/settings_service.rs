@@ -223,6 +223,12 @@ impl SettingsServiceTrait for SettingsService {
     async fn update_settings(&self, new_settings: &SettingsUpdate) -> Result<()> {
         let current_base_currency = self.get_base_currency()?;
         let mut normalized_settings = new_settings.clone();
+        if let Some(ref time) = new_settings.market_data_sync_time {
+            super::validate_market_data_sync_time(time)?;
+        }
+        if let Some(ref timezone) = new_settings.market_data_sync_timezone {
+            super::validate_market_data_sync_timezone(timezone)?;
+        }
 
         if let Some(ref timezone_raw) = normalized_settings.timezone {
             normalized_settings.timezone = Some(canonicalize_timezone(timezone_raw)?);

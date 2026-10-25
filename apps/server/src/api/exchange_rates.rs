@@ -1,10 +1,6 @@
 use std::sync::Arc;
 
-use crate::{
-    api::shared::{trigger_full_portfolio_recalc, trigger_portfolio_recalc_with_asset_sync},
-    error::ApiResult,
-    main_lib::AppState,
-};
+use crate::{api::shared::trigger_full_portfolio_recalc, error::ApiResult, main_lib::AppState};
 use axum::{
     extract::Path,
     http::StatusCode,
@@ -14,7 +10,6 @@ use axum::{
 use wealthfolio_core::fx::{
     ExchangeRate, ExchangeRateDateBatchRequest, ExchangeRateDateResult, NewExchangeRate,
 };
-use wealthfolio_core::quotes::DATA_SOURCE_MANUAL;
 
 async fn get_latest_exchange_rates(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
@@ -48,14 +43,7 @@ async fn add_exchange_rate(
     Json(new_rate): Json<NewExchangeRate>,
 ) -> ApiResult<Json<ExchangeRate>> {
     let added = state.fx_service.add_exchange_rate(new_rate).await?;
-    // Manual rates are saved as-is and need no market sync. Provider-backed
-    // pairs store no quote on add (#1143); sync their real rate now so the pair
-    // populates immediately instead of waiting for the next periodic sync.
-    if added.source == DATA_SOURCE_MANUAL {
-        trigger_full_portfolio_recalc(state.clone());
-    } else {
-        trigger_portfolio_recalc_with_asset_sync(state.clone(), vec![added.id.clone()]);
-    }
+    trigger_full_portfolio_recalc(state.clone());
     Ok(Json(added))
 }
 

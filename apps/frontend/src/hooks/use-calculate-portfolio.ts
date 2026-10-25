@@ -1,7 +1,7 @@
 import i18n from "i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
-import { updatePortfolio, recalculatePortfolio } from "@/adapters";
+import { updatePortfolio, recalculatePortfolio, recalculatePortfolioLocal } from "@/adapters";
 import { logger } from "@/adapters";
 import { invalidatePerformanceCaches } from "@/lib/performance-cache";
 
@@ -25,10 +25,10 @@ export function useUpdatePortfolioMutation() {
   });
 }
 
-export function useRecalculatePortfolioMutation() {
+export function useRecalculatePortfolioMutation(localOnly = false) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: recalculatePortfolio,
+    mutationFn: localOnly ? recalculatePortfolioLocal : recalculatePortfolio,
     onSuccess: () => {
       invalidatePerformanceCaches(queryClient);
     },

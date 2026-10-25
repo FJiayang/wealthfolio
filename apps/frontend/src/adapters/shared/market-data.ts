@@ -311,3 +311,6 @@ async function invokeHistoryReset<T>(
     throw Object.assign(new Error(message), { outcomeUnknown });
   }
 }
+
+export const registerBenchmark = (payload: NewAsset): Promise<Asset> =>
+  invoke<Asset>("register_benchmark", { payload });

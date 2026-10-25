@@ -55,7 +55,11 @@ impl PortfolioTasks {
 
     // Completion timestamps come from the whole job, not from market-sync events.
     // Admission and spawning share the existing lock so simultaneous resumes coalesce.
-    fn spawn(&self, automatic: bool, task: impl Future<Output = bool> + Send + 'static) -> bool {
+    pub(crate) fn spawn(
+        &self,
+        automatic: bool,
+        task: impl Future<Output = bool> + Send + 'static,
+    ) -> bool {
         let mut state = self
             .0
             .lock()
@@ -123,17 +127,7 @@ fn market_sync_is_complete(result: &SyncResult) -> bool {
 
 #[cfg(mobile)]
 pub(crate) fn refresh_portfolio_on_resume(handle: AppHandle, context: Arc<ServiceContext>) {
-    dispatch_portfolio_request(
-        handle,
-        context,
-        PortfolioRequestPayload::builder()
-            .market_sync_mode(wealthfolio_core::quotes::MarketSyncMode::Incremental {
-                asset_ids: None,
-            })
-            .build(),
-        false,
-        true,
-    );
+    crate::portfolio_jobs::request_scheduled_update(handle, context);
 }
 
 /// Whether a finished job leaves the profile fresh for the resume cooldown:

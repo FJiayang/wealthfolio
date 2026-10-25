@@ -71,3 +71,17 @@ pub async fn delete_asset(id: String, state: ProfileAccess) -> Result<(), String
         .await
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn register_benchmark(payload: NewAsset, state: ProfileAccess) -> Result<Asset, String> {
+    let context = state.context()?;
+    context
+        .portfolio_coordinator()
+        .register_benchmark(
+            context.settings_service().as_ref(),
+            context.asset_service().as_ref(),
+            payload,
+        )
+        .await
+        .map_err(|error| error.to_string())
+}

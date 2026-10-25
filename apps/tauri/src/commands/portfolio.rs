@@ -1706,7 +1706,7 @@ pub async fn delete_snapshot(
     // Trigger portfolio update to recalculate valuations
     let payload = PortfolioRequestPayload::builder()
         .account_ids(Some(vec![account_id.clone()]))
-        .market_sync_mode(MarketSyncMode::Incremental { asset_ids: None })
+        .market_sync_mode(MarketSyncMode::None)
         .build();
     emit_portfolio_trigger_recalculate(&handle, payload, &context);
 
@@ -1772,4 +1772,31 @@ mod tests {
 
         assert_eq!(ids, vec!["hidden", "active"]);
     }
+}
+
+#[tauri::command]
+pub async fn check_market_data_update(
+    handle: AppHandle,
+    state: ProfileAccess,
+) -> Result<(), String> {
+    let context = state.context()?;
+    crate::portfolio_jobs::request_scheduled_update(handle, context);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn recalculate_portfolio_local(
+    handle: AppHandle,
+    state: ProfileAccess,
+) -> Result<(), String> {
+    let context = state.context()?;
+    emit_portfolio_trigger_recalculate(
+        &handle,
+        PortfolioRequestPayload::builder()
+            .market_sync_mode(MarketSyncMode::None)
+            .force_full(true)
+            .build(),
+        &context,
+    );
+    Ok(())
 }

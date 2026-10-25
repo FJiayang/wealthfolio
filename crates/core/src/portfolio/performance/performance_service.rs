@@ -432,10 +432,48 @@ impl PerformanceService {
                 start_date, end_date
             ))));
         }
-        let quotes = self
-            .quotes
-            .fetch_quotes_for_symbol(asset_id, "USD", start_date, end_date)
-            .await?;
+        let service = self.quotes.clone();
+        let id = asset_id.to_string();
+        let mut stored =
+            crate::portfolio::coordinator::blocking(move || service.get_historical_quotes(&id))
+                .await?;
+        stored.sort_by_key(|quote| quote.timestamp);
+        let asset = self.sources.assets.get_by_id(asset_id)?;
+        let continuous = asset.instrument_type == Some(crate::assets::InstrumentType::Crypto);
+        let mut expected_end = crate::utils::time_utils::market_effective_date(
+            chrono::Utc::now(),
+            asset.instrument_exchange_mic.as_deref(),
+            continuous,
+        )
+        .min(end_date);
+        let mut expected_start = start_date;
+        if !continuous {
+            while matches!(
+                chrono::Datelike::weekday(&expected_end),
+                chrono::Weekday::Sat | chrono::Weekday::Sun
+            ) {
+                expected_end -= Duration::days(1);
+            }
+            while matches!(
+                chrono::Datelike::weekday(&expected_start),
+                chrono::Weekday::Sat | chrono::Weekday::Sun
+            ) {
+                expected_start += Duration::days(1);
+            }
+        }
+        let coverage_missing = stored
+            .first()
+            .is_none_or(|quote| quote.timestamp.date_naive() > expected_start)
+            || stored
+                .last()
+                .is_none_or(|quote| quote.timestamp.date_naive() < expected_end);
+        let quotes: Vec<_> = stored
+            .into_iter()
+            .filter(|quote| {
+                let day = quote.timestamp.date_naive();
+                day >= start_date && day <= end_date
+            })
+            .collect();
         if quotes.is_empty() {
             warn!(
                 "Asset '{}': No quote data found between {} and {}.",
@@ -463,9 +501,13 @@ impl PerformanceService {
         points.dedup_by_key(|(date, _)| *date);
         let currency = Currency::parse(&currency)
             .unwrap_or_else(|| Currency::parse("USD").expect("valid currency"));
-        Ok(from_kernel(engine::measure_price_series(
-            asset_id, &currency, &points,
-        )))
+        let mut result = from_kernel(engine::measure_price_series(asset_id, &currency, &points));
+        if coverage_missing && !result.series.is_empty() {
+            result.data_quality.status = DataQualityStatus::Partial;
+            result.data_quality.warnings.push("Saved benchmark history does not cover this period; fetch missing prices manually or wait for the daily update.".into());
+            sync_performance_summary_quality(&mut result);
+        }
+        Ok(result)
     }
 
     /// Legacy `calculate_simple_performance`: latest-row gain and weight.

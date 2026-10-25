@@ -10,10 +10,11 @@ use crate::schema::{accounts, assets};
 use wealthfolio_core::assets::AssetKind;
 use wealthfolio_core::errors::{Error, Result};
 use wealthfolio_core::settings::{
+    validate_market_data_sync_time, validate_market_data_sync_timezone,
     validate_provider_request_timezone, Settings, SettingsRepositoryTrait, SettingsUpdate,
     CURRENCY_FORMATTING_REGIONS_KEY, DEFAULT_PROVIDER_REQUEST_TIMEZONE, GAIN_LOSS_COLOR_SCHEME_KEY,
     INSIGHTS_OVERVIEW_LAYOUT_KEY, MARKET_DATA_SYNC_INTERVAL_HOURS_KEY,
-    PROVIDER_REQUEST_TIMEZONE_KEY,
+    MARKET_DATA_SYNC_TIMEZONE_KEY, MARKET_DATA_SYNC_TIME_KEY, PROVIDER_REQUEST_TIMEZONE_KEY,
 };
 
 pub struct SettingsRepository {
@@ -52,6 +53,14 @@ impl SettingsRepositoryTrait for SettingsRepository {
                 }
                 "base_currency" => settings.base_currency = value,
                 "timezone" => settings.timezone = value,
+                MARKET_DATA_SYNC_TIME_KEY => {
+                    validate_market_data_sync_time(&value)?;
+                    settings.market_data_sync_time = value;
+                }
+                MARKET_DATA_SYNC_TIMEZONE_KEY => {
+                    validate_market_data_sync_timezone(&value)?;
+                    settings.market_data_sync_timezone = value;
+                }
                 PROVIDER_REQUEST_TIMEZONE_KEY => settings.provider_request_timezone = value,
                 "onboarding_completed" => {
                     settings.onboarding_completed = value.parse().unwrap_or(false);
@@ -88,9 +97,36 @@ impl SettingsRepositoryTrait for SettingsRepository {
         if let Some(ref timezone) = new_settings.provider_request_timezone {
             validate_provider_request_timezone(timezone)?;
         }
+        if let Some(ref time) = new_settings.market_data_sync_time {
+            validate_market_data_sync_time(time)?;
+        }
+        if let Some(ref timezone) = new_settings.market_data_sync_timezone {
+            validate_market_data_sync_timezone(timezone)?;
+        }
         let settings = new_settings.clone();
         self.writer
             .exec_tx(move |tx| {
+                for (key, value) in [
+                    (
+                        MARKET_DATA_SYNC_TIME_KEY,
+                        settings.market_data_sync_time.as_ref(),
+                    ),
+                    (
+                        MARKET_DATA_SYNC_TIMEZONE_KEY,
+                        settings.market_data_sync_timezone.as_ref(),
+                    ),
+                ] {
+                    if let Some(value) = value {
+                        diesel::replace_into(app_settings)
+                            .values(&AppSettingDB {
+                                setting_key: key.into(),
+                                setting_value: value.clone(),
+                            })
+                            .execute(tx.conn())
+                            .map_err(StorageError::from)?;
+                    }
+                }
+
                 if let Some(ref theme) = settings.theme {
                     diesel::replace_into(app_settings)
                         .values(&AppSettingDB {

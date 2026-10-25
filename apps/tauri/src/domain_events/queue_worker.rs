@@ -19,15 +19,13 @@ use wealthfolio_core::utils::time_utils::{parse_user_timezone_or_default, user_t
 #[cfg(feature = "connect-sync")]
 use super::planner::plan_broker_sync;
 use super::planner::{
-    plan_asset_classification_change, plan_asset_enrichment, plan_categorization_job,
-    plan_portfolio_job,
+    plan_asset_classification_change, plan_categorization_job, plan_portfolio_job,
 };
 #[cfg(feature = "connect-sync")]
 use crate::commands::brokers_sync::perform_broker_sync;
 use crate::context::ServiceContext;
 use crate::events::{
-    PortfolioRequestPayload, ASSET_CLASSIFICATIONS_CHANGED, ASSET_ENRICHMENT_COMPLETE,
-    ASSET_ENRICHMENT_PROGRESS, ASSET_ENRICHMENT_START, PORTFOLIO_UPDATE_ERROR,
+    PortfolioRequestPayload, ASSET_CLASSIFICATIONS_CHANGED, PORTFOLIO_UPDATE_ERROR,
 };
 
 /// Debounce window duration in milliseconds.
@@ -135,79 +133,7 @@ async fn process_event_batch(
         );
     }
 
-    // 1. Plan and run asset enrichment FIRST so that bond metadata (coupon rate,
-    //    maturity date, etc.) is available before the portfolio job tries to
-    //    sync quotes and calculate snapshots.
-    let enrichment_asset_ids = plan_asset_enrichment(events);
-    if !enrichment_asset_ids.is_empty() {
-        info!(
-            "Triggering asset enrichment for {} asset(s)",
-            enrichment_asset_ids.len()
-        );
-
-        let total = enrichment_asset_ids.len();
-        let _ = crate::events::emit_for_profile(
-            app_handle,
-            context,
-            ASSET_ENRICHMENT_START,
-            serde_json::json!({ "total": total }),
-        );
-
-        let asset_service = context.asset_service();
-        let mut total_enriched: usize = 0;
-        let mut total_skipped: usize = 0;
-        let mut total_failed: usize = 0;
-
-        let chunk_size = 5;
-
-        for chunk in enrichment_asset_ids.chunks(chunk_size) {
-            match tokio::time::timeout(
-                Duration::from_secs(30),
-                asset_service.enrich_assets(chunk.to_vec()),
-            )
-            .await
-            {
-                Ok(Ok((enriched, skipped, failed))) => {
-                    total_enriched += enriched;
-                    total_skipped += skipped;
-                    total_failed += failed;
-                }
-                Ok(Err(e)) => {
-                    warn!("Asset enrichment chunk failed: {}", e);
-                    total_failed += chunk.len();
-                }
-                Err(_) => {
-                    warn!(
-                        "Asset enrichment chunk timed out ({} asset(s))",
-                        chunk.len()
-                    );
-                    total_failed += chunk.len();
-                }
-            }
-
-            let completed = total_enriched + total_skipped + total_failed;
-            let _ = crate::events::emit_for_profile(
-                app_handle,
-                context,
-                ASSET_ENRICHMENT_PROGRESS,
-                serde_json::json!({
-                    "completed": completed,
-                    "total": total,
-                }),
-            );
-        }
-
-        let _ = crate::events::emit_for_profile(
-            app_handle,
-            context,
-            ASSET_ENRICHMENT_COMPLETE,
-            serde_json::json!({
-                "enriched": total_enriched,
-                "skipped": total_skipped,
-                "failed": total_failed,
-            }),
-        );
-    }
+    // Asset metadata is fetched only by the daily batch.
 
     // 2. Plan and run portfolio job directly (not via event emission)
     // This ensures the is_processing guard properly tracks completion

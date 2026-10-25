@@ -17,6 +17,8 @@ import { ALL_PORTFOLIO_ITEM } from "./performance-selection";
 
 const mocks = vi.hoisted(() => ({
   performance: vi.fn(),
+  registerBenchmark: vi.fn(),
+  syncMarketData: vi.fn(),
   getAccounts: vi.fn(),
   settings: { timezone: "Asia/Shanghai" } as { timezone: string } | null,
   mobile: false,
@@ -24,7 +26,13 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: mocks.settings }),
 }));
-vi.mock("@/adapters", () => ({ getAccounts: mocks.getAccounts }));
+vi.mock("@/adapters", () => ({
+  getAccounts: mocks.getAccounts,
+  syncMarketData: mocks.syncMarketData,
+}));
+vi.mock("@/components/benchmark-assets", () => ({
+  registerBenchmarkSelection: (...args: unknown[]) => mocks.registerBenchmark(...args),
+}));
 vi.mock("@/hooks/use-portfolios", () => ({
   usePortfolios: () => ({ data: [{ id: "p", name: "Retirement" }] }),
 }));
@@ -137,6 +145,8 @@ describe("PerformancePage shared scope", () => {
   beforeEach(() => {
     mocks.settings = { timezone: "Asia/Shanghai" };
     mocks.mobile = false;
+    mocks.registerBenchmark.mockReset();
+    mocks.syncMarketData.mockReset();
     localStorage.clear();
     useAccountScopeStore.setState(initialState, true);
     mocks.performance.mockReturnValue({
@@ -146,6 +156,66 @@ describe("PerformancePage shared scope", () => {
       errorMessages: [],
     });
     mocks.getAccounts.mockResolvedValue(accounts);
+  });
+
+  it("migrates saved benchmark IDs under StrictMode without fetching prices", async () => {
+    localStorage.setItem(
+      "performance:selectedItems",
+      JSON.stringify([ALL_PORTFOLIO_ITEM, { id: "^HSI", type: "symbol", name: "Hang Seng" }]),
+    );
+    localStorage.setItem("performance:selectedItemId", JSON.stringify("^HSI"));
+    mocks.registerBenchmark.mockResolvedValue({ id: "asset-hsi", name: "Hang Seng" });
+    renderPage();
+    await waitFor(() => expect(savedItems().some((item) => item.id === "asset-hsi")).toBe(true));
+    expect(savedItems().filter((item) => item.type === "symbol")).toHaveLength(1);
+    expect(JSON.parse(localStorage.getItem("performance:selectedItemId")!)).toBe("asset-hsi");
+    expect(mocks.syncMarketData).not.toHaveBeenCalled();
+  });
+
+  it("fetches benchmark history only after the explicit action", async () => {
+    localStorage.setItem(
+      "performance:selectedItems",
+      JSON.stringify([ALL_PORTFOLIO_ITEM, { id: "asset-hsi", type: "symbol", name: "Hang Seng" }]),
+    );
+    mocks.registerBenchmark.mockResolvedValue({ id: "asset-hsi", name: "Hang Seng" });
+    mocks.syncMarketData.mockResolvedValue(undefined);
+    renderPage();
+    const fetch = await screen.findByRole("button", { name: "Fetch / fill benchmark history" });
+    await waitFor(() => expect(fetch).not.toBeDisabled());
+    expect(mocks.syncMarketData).not.toHaveBeenCalled();
+    await userEvent.click(fetch);
+    await waitFor(() =>
+      expect(mocks.syncMarketData).toHaveBeenCalledWith(["asset-hsi"], false, expect.any(Number)),
+    );
+  });
+
+  it("allows fetching valid benchmarks after removing a failed legacy selection", async () => {
+    localStorage.setItem(
+      "performance:selectedItems",
+      JSON.stringify([
+        ALL_PORTFOLIO_ITEM,
+        { id: "unknown", type: "symbol", name: "Unknown benchmark" },
+        { id: "asset-hsi", type: "symbol", name: "Hang Seng" },
+      ]),
+    );
+    mocks.registerBenchmark.mockImplementation((item: TrackedItem) =>
+      item.id === "unknown"
+        ? Promise.reject(new Error("Unknown legacy symbol"))
+        : Promise.resolve({ id: item.id, name: item.name }),
+    );
+    mocks.syncMarketData.mockResolvedValue(undefined);
+    renderPage();
+    await screen.findByRole("alert");
+    const fetch = screen.getByRole("button", { name: "Fetch / fill benchmark history" });
+    expect(fetch).toBeDisabled();
+    await userEvent.click(screen.getAllByRole("button", { name: "Remove Unknown benchmark" })[0]);
+    await waitFor(() => expect(fetch).not.toBeDisabled());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(mocks.syncMarketData).not.toHaveBeenCalled();
+    await userEvent.click(fetch);
+    await waitFor(() =>
+      expect(mocks.syncMarketData).toHaveBeenCalledWith(["asset-hsi"], false, expect.any(Number)),
+    );
   });
 
   it("updates the default range when settings arrive after the initial render", async () => {

@@ -114,6 +114,7 @@ async fn delete_asset_logo(
 
 pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
+        .route("/assets/benchmark", axum::routing::post(register_benchmark))
         .route("/assets", get(list_assets).post(create_asset))
         .route("/assets/{id}", delete(delete_asset))
         .route("/assets/profile", get(get_asset_profile))
@@ -126,4 +127,20 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
                 .put(upsert_asset_logo)
                 .delete(delete_asset_logo),
         )
+}
+
+async fn register_benchmark(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Json(payload): Json<NewAsset>,
+) -> ApiResult<Json<CoreAsset>> {
+    Ok(Json(
+        state
+            .portfolio_coordinator
+            .register_benchmark(
+                state.settings_service.as_ref(),
+                state.asset_service.as_ref(),
+                payload,
+            )
+            .await?,
+    ))
 }

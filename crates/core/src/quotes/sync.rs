@@ -329,6 +329,22 @@ fn calculate_targeted_closed_incremental_window(
     }
 }
 
+fn history_start_for_asset(
+    activity_repo: &dyn ActivityRepositoryTrait,
+    asset: &Asset,
+    activity_min: Option<NaiveDate>,
+) -> Result<Option<NaiveDate>> {
+    if asset.kind != AssetKind::Fx {
+        return Ok(activity_min);
+    }
+    // FX has no own activities, but must cover the portfolio's history.
+    match activity_repo.get_first_activity_date_overall() {
+        Ok(date) => Ok(Some(date.date_naive())),
+        Err(Error::Activity(crate::activities::ActivityError::NotFound(_))) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
 // Test helpers - expose lock functions for testing
 #[cfg(test)]
 fn try_acquire_sync_lock(asset_id: &str) -> bool {
@@ -781,7 +797,8 @@ where
     /// activity date across ALL accounts to support valuation history calculations.
     ///
     /// - **BackfillHistory mode + FX asset**: Use global earliest activity date
-    /// - **Incremental mode + FX asset**: Continue from quote_max (no backfill)
+    /// - **Incremental mode + FX asset**: Planning inputs include the portfolio start,
+    ///   so missing history is backfilled before continuing from quote_max.
     fn calculate_date_range_for_mode(
         &self,
         inputs: &SyncPlanningInputs,
@@ -1340,7 +1357,11 @@ where
             let inputs = SyncPlanningInputs {
                 is_active: state.is_active,
                 position_closed_date: state.position_closed_date,
-                activity_min,
+                activity_min: history_start_for_asset(
+                    self.activity_repo.as_ref(),
+                    asset,
+                    activity_min,
+                )?,
                 activity_max,
                 quote_min,
                 quote_max,
@@ -1494,15 +1515,19 @@ where
     }
 }
 
-#[async_trait]
-impl<Q, S, A, R> QuoteSyncServiceTrait for QuoteSyncService<Q, S, A, R>
+impl<Q, S, A, R> QuoteSyncService<Q, S, A, R>
 where
     Q: QuoteStore + 'static,
     S: SyncStateStore + 'static,
     A: AssetRepositoryTrait + 'static,
     R: ActivityRepositoryTrait + 'static,
 {
-    async fn sync(&self, mode: SyncMode, asset_ids: Option<Vec<String>>) -> Result<SyncResult> {
+    pub async fn sync_with_benchmarks(
+        &self,
+        mode: SyncMode,
+        asset_ids: Option<Vec<String>>,
+        benchmark_ids: &[String],
+    ) -> Result<SyncResult> {
         debug!("Starting sync (mode: {}) for {:?}", mode, asset_ids);
 
         if is_empty_asset_target(asset_ids.as_deref()) {
@@ -1628,17 +1653,36 @@ where
                 .map(|(min, max)| (Some(*min), Some(*max)))
                 .unwrap_or((None, None));
 
-            let inputs = SyncPlanningInputs {
+            let mut inputs = SyncPlanningInputs {
                 is_active: state
                     .as_ref()
                     .map(|s| s.is_active)
                     .unwrap_or(asset.is_active),
                 position_closed_date: state.as_ref().and_then(|s| s.position_closed_date),
-                activity_min,
+                activity_min: history_start_for_asset(
+                    self.activity_repo.as_ref(),
+                    asset,
+                    activity_min,
+                )?,
                 activity_max,
                 quote_min,
                 quote_max,
             };
+
+            if benchmark_ids.contains(&asset.id) {
+                inputs.is_active = true;
+                inputs.position_closed_date = None;
+                if inputs.quote_min.is_none() {
+                    let fallback = effective_today - Duration::days(DEFAULT_HISTORY_DAYS);
+                    let global_start = match self.activity_repo.get_first_activity_date_overall() {
+                        Ok(date) => Some(date),
+                        Err(Error::Activity(crate::activities::ActivityError::NotFound(_))) => None,
+                        Err(error) => return Err(error),
+                    };
+                    inputs.activity_min =
+                        Some(global_start.map_or(fallback, |date| date.date_naive().min(fallback)));
+                }
+            }
 
             // Determine category for priority
             let mut category = determine_sync_category(
@@ -1783,6 +1827,19 @@ where
         exec_result.skipped_reasons.extend(result.skipped_reasons);
         Ok(exec_result)
     }
+}
+
+#[async_trait]
+impl<Q, S, A, R> QuoteSyncServiceTrait for QuoteSyncService<Q, S, A, R>
+where
+    Q: QuoteStore + 'static,
+    S: SyncStateStore + 'static,
+    A: AssetRepositoryTrait + 'static,
+    R: ActivityRepositoryTrait + 'static,
+{
+    async fn sync(&self, mode: SyncMode, asset_ids: Option<Vec<String>>) -> Result<SyncResult> {
+        self.sync_with_benchmarks(mode, asset_ids, &[]).await
+    }
 
     async fn resync(&self, asset_ids: Option<Vec<String>>) -> Result<SyncResult> {
         // resync is a convenience wrapper for BackfillHistory mode
@@ -1897,6 +1954,59 @@ where
 mod tests {
     use super::*;
     use crate::quotes::sync_state::MarketSyncMode;
+
+    #[test]
+    fn fx_incremental_history_covers_portfolio_start_and_existing_gaps() {
+        use crate::test_support::{
+            in_memory::InMemoryActivityRepository, scenario::load_all_scenarios,
+        };
+        let facts = load_all_scenarios()
+            .into_iter()
+            .find(|scenario| scenario.id == "NOM-TRADE-01")
+            .unwrap()
+            .facts();
+        let repo = InMemoryActivityRepository::new(facts.activities, Default::default());
+        let first = repo.get_first_activity_date_overall().unwrap().date_naive();
+        let today = first + Duration::days(365 * 3);
+        let asset = Asset {
+            kind: AssetKind::Fx,
+            ..Default::default()
+        };
+        let mut inputs = SyncPlanningInputs {
+            is_active: true,
+            position_closed_date: None,
+            activity_min: history_start_for_asset(&repo, &asset, None).unwrap(),
+            activity_max: None,
+            quote_min: None,
+            quote_max: None,
+        };
+        let category = determine_sync_category(&inputs, CLOSED_POSITION_GRACE_PERIOD_DAYS, today);
+        assert_eq!(category, SyncCategory::New);
+        assert_eq!(
+            calculate_sync_window(&category, &inputs, today).unwrap().0,
+            first - Duration::days(QUOTE_HISTORY_BUFFER_DAYS)
+        );
+        // Repair pairs already populated by the former 45-day-only batch too.
+        inputs.quote_min = Some(today - Duration::days(45));
+        inputs.quote_max = Some(today);
+        let category = determine_sync_category(&inputs, CLOSED_POSITION_GRACE_PERIOD_DAYS, today);
+        assert_eq!(category, SyncCategory::NeedsBackfill);
+        let (start, end) = calculate_sync_window(&category, &inputs, today).unwrap();
+        assert!(start < first);
+        assert!(end >= inputs.quote_min.unwrap() - Duration::days(1));
+        inputs.quote_min = Some(start);
+        let category = determine_sync_category(&inputs, CLOSED_POSITION_GRACE_PERIOD_DAYS, today);
+        assert_eq!(category, SyncCategory::Active);
+        assert_eq!(
+            calculate_sync_window(&category, &inputs, today).unwrap().0,
+            today - Duration::days(OVERLAP_DAYS)
+        );
+        let equity = Asset {
+            kind: AssetKind::Investment,
+            ..Default::default()
+        };
+        assert_eq!(history_start_for_asset(&repo, &equity, None).unwrap(), None);
+    }
 
     #[test]
     fn test_clamp_end_date_for_fetch_extends_active_category() {

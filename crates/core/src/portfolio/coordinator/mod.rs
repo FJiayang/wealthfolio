@@ -126,6 +126,9 @@ pub trait JobObserver: Send + Sync {
     fn market_sync_started(&self) {}
     fn market_sync_completed(&self, _result: &SyncResult) {}
     fn market_sync_failed(&self, _message: &str) {}
+    fn enrichment_started(&self, _total: usize) {}
+    fn enrichment_completed(&self, _enriched: usize, _skipped: usize, _failed: usize) {}
+    fn enrichment_progress(&self, _completed: usize, _total: usize) {}
     fn update_started(&self) {}
     fn update_failed(&self, _failure: &AccountFailure) {}
     fn update_completed(&self) {}
@@ -610,48 +613,168 @@ impl PortfolioCoordinator {
     }
 }
 
-/// The app's periodic market sync, shared by both hosts. Settings are checked
-/// every minute so changing the interval does not require restarting the host.
+/// Daily admission is checked under the same lock as manual portfolio jobs.
+impl PortfolioCoordinator {
+    pub async fn register_benchmark(
+        &self,
+        settings: &dyn SettingsServiceTrait,
+        assets: &dyn crate::assets::AssetServiceTrait,
+        payload: crate::assets::NewAsset,
+    ) -> Result<crate::assets::Asset> {
+        let _job = self.job.lock().await;
+        let asset = if let Some(id) = payload.id.as_deref() {
+            assets.get_asset_by_id(id)?
+        } else {
+            assets.create_asset(payload).await?
+        };
+        let key = crate::settings::MARKET_DATA_BENCHMARK_IDS_KEY;
+        let mut ids: Vec<String> = settings
+            .get_setting_value(key)?
+            .map(|value| serde_json::from_str(&value))
+            .transpose()
+            .map_err(|_| Error::InvalidConfigValue("Invalid benchmark asset list".into()))?
+            .unwrap_or_default();
+        if !ids.contains(&asset.id) {
+            ids.push(asset.id.clone());
+            settings
+                .set_setting_value(
+                    key,
+                    &serde_json::to_string(&ids)
+                        .map_err(|error| Error::Unexpected(error.to_string()))?,
+                )
+                .await?;
+        }
+        Ok(asset)
+    }
+
+    pub async fn update_if_due(
+        &self,
+        settings: &dyn SettingsServiceTrait,
+        assets: &dyn crate::assets::AssetServiceTrait,
+        observer: &dyn JobObserver,
+    ) -> Result<Option<PortfolioJobReport>> {
+        use crate::settings::MARKET_DATA_AUTO_SYNC_LAST_ATTEMPT_KEY;
+        let _job = self.job.lock().await;
+        let config = settings.get_settings()?;
+        let last = settings.get_setting_value(MARKET_DATA_AUTO_SYNC_LAST_ATTEMPT_KEY)?;
+        let now = chrono::Utc::now();
+        if !daily_sync_due(&config, last.as_deref(), now)? {
+            return Ok(None);
+        }
+        // Record before dispatch: a failed or interrupted batch must not retry all providers.
+        settings
+            .set_setting_value(MARKET_DATA_AUTO_SYNC_LAST_ATTEMPT_KEY, &now.to_rfc3339())
+            .await?;
+        self.deps.sources.quotes.refresh_sync_state().await?;
+        let pending = self
+            .deps
+            .sources
+            .quotes
+            .get_assets_needing_profile_enrichment()?;
+        let pending_ids: Vec<_> = pending.into_iter().map(|state| state.asset_id).collect();
+        let pending: Vec<_> = self
+            .deps
+            .sources
+            .assets
+            .list_by_asset_ids(&pending_ids)?
+            .into_iter()
+            .filter(|asset| asset.is_active && asset.quote_mode == crate::assets::QuoteMode::Market)
+            .map(|asset| asset.id)
+            .collect();
+        observer.enrichment_started(pending.len());
+        let (mut enriched, mut skipped, mut failed) = (0, 0, 0);
+        for chunk in pending.chunks(5) {
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(30),
+                assets.enrich_assets(chunk.to_vec()),
+            )
+            .await
+            {
+                Ok(Ok((e, s, f))) => {
+                    enriched += e;
+                    skipped += s;
+                    failed += f;
+                }
+                Ok(Err(error)) => {
+                    failed += chunk.len();
+                    warn!("Scheduled asset enrichment failed: {error}");
+                }
+                Err(_) => {
+                    failed += chunk.len();
+                    warn!("Scheduled asset enrichment timed out");
+                }
+            }
+            observer.enrichment_progress(enriched + skipped + failed, pending.len());
+        }
+        observer.enrichment_completed(enriched, skipped, failed);
+        let benchmarks: Vec<String> = settings
+            .get_setting_value(crate::settings::MARKET_DATA_BENCHMARK_IDS_KEY)?
+            .map(|value| serde_json::from_str(&value))
+            .transpose()
+            .map_err(|_| Error::InvalidConfigValue("Invalid benchmark asset list".into()))?
+            .unwrap_or_default();
+        self.reconcile_quote_sync().await;
+        observer.market_sync_started();
+        let sync = self.deps.sources.quotes.sync_daily(&benchmarks).await;
+        match &sync {
+            Ok(result) => observer.market_sync_completed(result),
+            Err(error) => observer.market_sync_failed(&error.to_string()),
+        }
+        if let Err(error) = self.deps.fx_service.initialize() {
+            warn!("Failed to reload FX after market sync: {error}");
+        }
+        let mut report = self
+            .run_locked(
+                &PortfolioJobRequest {
+                    account_ids: None,
+                    market_sync: MarketSyncMode::None,
+                    force_full: false,
+                },
+                observer,
+            )
+            .await?;
+        report.market_sync = Some(sync.map_err(|error| error.to_string()));
+        Ok(Some(report))
+    }
+}
+
+fn daily_sync_due(
+    settings: &crate::settings::Settings,
+    last: Option<&str>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Result<bool> {
+    use crate::settings::{validate_market_data_sync_time, validate_market_data_sync_timezone};
+    validate_market_data_sync_time(&settings.market_data_sync_time)?;
+    validate_market_data_sync_timezone(&settings.market_data_sync_timezone)?;
+    let timezone = settings
+        .market_data_sync_timezone
+        .parse::<chrono_tz::Tz>()
+        .expect("validated timezone");
+    let time = chrono::NaiveTime::parse_from_str(&settings.market_data_sync_time, "%H:%M")
+        .expect("validated time");
+    let local = now.with_timezone(&timezone);
+    let attempted = last
+        .map(chrono::DateTime::parse_from_rfc3339)
+        .transpose()
+        .map_err(|_| Error::InvalidConfigValue("Invalid automatic market sync timestamp".into()))?;
+    Ok(local.time() >= time
+        && attempted
+            .is_none_or(|last| last.with_timezone(&timezone).date_naive() < local.date_naive()))
+}
+
+/// Reuse the profile-owned worker; a restart checks today's window immediately.
 pub async fn run_periodic_update(
     coordinator: Arc<PortfolioCoordinator>,
     observer: Arc<dyn JobObserver>,
     settings: Arc<dyn SettingsServiceTrait>,
-    initial_delay: std::time::Duration,
-) {
-    tokio::time::sleep(initial_delay).await;
-    let mut last_completed = None;
-    loop {
-        wait_for_periodic_update(settings.as_ref(), last_completed).await;
-        let report = coordinator
-            .update_all(
-                MarketSyncMode::Incremental { asset_ids: None },
-                observer.as_ref(),
-            )
-            .await;
-        last_completed = Some(tokio::time::Instant::now());
-        info!(
-            "Periodic portfolio update: {} account(s) rebuilt, {} failure(s)",
-            report.account_ids.len(),
-            report.failures.len()
-        );
-    }
-}
-
-async fn wait_for_periodic_update(
-    settings: &dyn SettingsServiceTrait,
-    last_completed: Option<tokio::time::Instant>,
+    assets: Arc<dyn crate::assets::AssetServiceTrait>,
 ) {
     loop {
-        match settings.get_settings() {
-            Ok(settings) => {
-                let interval = std::time::Duration::from_secs(
-                    u64::from(settings.market_data_sync_interval_hours) * 3600,
-                );
-                if last_completed.is_none_or(|last| last.elapsed() >= interval) {
-                    return;
-                }
-            }
-            Err(error) => warn!("Cannot read periodic market sync settings: {error}"),
+        if let Err(error) = coordinator
+            .update_if_due(settings.as_ref(), assets.as_ref(), observer.as_ref())
+            .await
+        {
+            observer.market_sync_failed(&error.to_string());
         }
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;
     }

@@ -368,3 +368,59 @@ async fn invalid_provider_request_timezone_rejects_the_entire_update() {
             .is_err());
     }
 }
+
+#[tokio::test]
+async fn daily_schedule_defaults_persist_and_validate_atomically() {
+    let fixture = fixture().await;
+    let config = fixture.settings.get_settings().unwrap();
+    assert_eq!(config.market_data_sync_time, "22:00");
+    assert_eq!(config.market_data_sync_timezone, "Asia/Shanghai");
+    fixture
+        .settings
+        .update_settings(&update(
+            json!({"marketDataSyncTime": "21:35", "marketDataSyncTimezone": "Asia/Tokyo"}),
+        ))
+        .await
+        .unwrap();
+    let config = fixture.settings.get_settings().unwrap();
+    assert_eq!(config.market_data_sync_time, "21:35");
+    assert_eq!(config.market_data_sync_timezone, "Asia/Tokyo");
+    for time in ["24:00", "22:60", "7:00", "22:00:00", "bad"] {
+        assert!(fixture
+            .settings
+            .update_settings(&update(
+                json!({"marketDataSyncTime": time, "baseCurrency": "EUR"})
+            ))
+            .await
+            .is_err());
+        assert_eq!(
+            fixture.settings.get_settings().unwrap().base_currency,
+            "USD"
+        );
+    }
+    assert!(fixture
+        .settings
+        .update_settings(&update(json!({"marketDataSyncTimezone": "Mars/Olympus"})))
+        .await
+        .is_err());
+    let marker = wealthfolio_core::settings::MARKET_DATA_AUTO_SYNC_LAST_ATTEMPT_KEY;
+    fixture
+        .settings
+        .set_setting_value(marker, "2026-10-25T14:00:00Z")
+        .await
+        .unwrap();
+    fixture
+        .settings
+        .update_settings(&update(json!({"marketDataSyncTime": "23:00"})))
+        .await
+        .unwrap();
+    assert_eq!(
+        fixture
+            .settings
+            .get_setting_value(marker)
+            .unwrap()
+            .as_deref(),
+        Some("2026-10-25T14:00:00Z")
+    );
+    assert!(fixture.events.events().is_empty());
+}

@@ -18,6 +18,36 @@ fn default_market_data_sync_interval_hours() -> u32 {
     DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS
 }
 
+pub const MARKET_DATA_SYNC_TIME_KEY: &str = "market_data_sync_time";
+pub const MARKET_DATA_SYNC_TIMEZONE_KEY: &str = "market_data_sync_timezone";
+pub const MARKET_DATA_AUTO_SYNC_LAST_ATTEMPT_KEY: &str = "market_data_auto_sync_last_attempt_at";
+pub const MARKET_DATA_BENCHMARK_IDS_KEY: &str = "market_data_benchmark_ids";
+
+fn default_market_data_sync_time() -> String {
+    "22:00".into()
+}
+fn default_market_data_sync_timezone() -> String {
+    "Asia/Shanghai".into()
+}
+
+pub fn validate_market_data_sync_time(value: &str) -> crate::errors::Result<()> {
+    if !chrono::NaiveTime::parse_from_str(value, "%H:%M")
+        .is_ok_and(|time| time.format("%H:%M").to_string() == value)
+    {
+        return Err(crate::Error::InvalidConfigValue(
+            "Invalid market data sync time (HH:mm)".into(),
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_market_data_sync_timezone(value: &str) -> crate::errors::Result<()> {
+    value
+        .parse::<chrono_tz::Tz>()
+        .map(|_| ())
+        .map_err(|_| crate::Error::InvalidConfigValue("Invalid market data sync timezone".into()))
+}
+
 pub const PROVIDER_REQUEST_TIMEZONE_KEY: &str = "provider_request_timezone";
 pub const DEFAULT_PROVIDER_REQUEST_TIMEZONE: &str = "Asia/Shanghai";
 
@@ -57,6 +87,10 @@ pub struct Settings {
     pub sync_enabled: bool,
     #[serde(default = "default_market_data_sync_interval_hours")]
     pub market_data_sync_interval_hours: u32,
+    #[serde(default = "default_market_data_sync_time")]
+    pub market_data_sync_time: String,
+    #[serde(default = "default_market_data_sync_timezone")]
+    pub market_data_sync_timezone: String,
     /// Read-only restore state; clearing UI feedback must not authorize sync.
     #[serde(default)]
     pub restore_reconnect_required: bool,
@@ -83,6 +117,8 @@ impl Default for Settings {
             menu_bar_visible: true,
             sync_enabled: true,
             market_data_sync_interval_hours: DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS,
+            market_data_sync_time: default_market_data_sync_time(),
+            market_data_sync_timezone: default_market_data_sync_timezone(),
             restore_reconnect_required: false,
             default_return_metric: "twr".to_string(),
             insights_overview_layout: None,
@@ -108,6 +144,8 @@ pub struct SettingsUpdate {
     pub menu_bar_visible: Option<bool>,
     pub sync_enabled: Option<bool>,
     pub market_data_sync_interval_hours: Option<u32>,
+    pub market_data_sync_time: Option<String>,
+    pub market_data_sync_timezone: Option<String>,
     pub default_return_metric: Option<String>,
     pub insights_overview_layout: Option<serde_json::Map<String, serde_json::Value>>,
 }
