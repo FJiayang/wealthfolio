@@ -15,6 +15,7 @@ use crate::errors::{IntoCore, StorageError};
 use crate::schema::market_data_providers::dsl as market_data_providers_dsl;
 use crate::schema::quotes::dsl as quotes_dsl;
 use crate::utils::{chunk_for_sqlite, SQLITE_MAX_PARAMS_CHUNK};
+use wealthfolio_core::quotes::history::{HistoryQueryKind, HistoryWriteContext};
 use wealthfolio_core::quotes::store::{ProviderSettingsStore, QuoteStore};
 use wealthfolio_core::quotes::types::{AssetId, Day, QuoteSource};
 use wealthfolio_core::quotes::{
@@ -79,19 +80,75 @@ impl MarketDataRepository {
     }
 }
 
-fn history_configuration_revision(conn: &mut SqliteConnection) -> Result<String> {
+fn history_configuration_revision(
+    conn: &mut SqliteConnection,
+    asset: &wealthfolio_core::assets::Asset,
+    kind: HistoryQueryKind,
+) -> Result<String> {
     use crate::schema::market_data_custom_providers as custom;
     use sha2::{Digest, Sha256};
-    let revisions = custom::table
-        .order(custom::id.asc())
-        .select((
-            custom::id,
-            custom::updated_at,
-            custom::enabled,
-            custom::priority,
-        ))
-        .load::<(String, String, bool, i32)>(conn)
+    use wealthfolio_core::quotes::custom_scraper_provider::CustomScraperProvider;
+    let custom_enabled = market_data_providers_dsl::market_data_providers
+        .filter(market_data_providers_dsl::id.eq("CUSTOM_SCRAPER"))
+        .select(market_data_providers_dsl::enabled)
+        .first::<bool>(conn)
+        .optional()
         .map_err(StorageError::QueryFailed)?;
+    if custom_enabled == Some(false) {
+        return Ok(String::new());
+    }
+    let rows = custom::table
+        .order(custom::priority.asc())
+        .select(crate::custom_provider::CustomProviderDB::as_select())
+        .load::<crate::custom_provider::CustomProviderDB>(conn)
+        .map_err(StorageError::QueryFailed)?;
+    let providers: Vec<_> = rows
+        .iter()
+        .cloned()
+        .map(crate::custom_provider::repository::db_to_domain)
+        .collect();
+    let assigned = if asset.preferred_provider().as_deref() == Some("CUSTOM_SCRAPER") {
+        asset
+            .provider_config
+            .as_ref()
+            .and_then(|config| config.get("custom_provider_code"))
+            .and_then(|code| code.as_str())
+    } else {
+        None
+    };
+    let mut sources = CustomScraperProvider::select_sources(
+        &providers,
+        assigned,
+        if kind == HistoryQueryKind::History {
+            "historical"
+        } else {
+            "latest"
+        },
+    );
+    if kind == HistoryQueryKind::History && sources.is_empty() {
+        sources = CustomScraperProvider::select_sources(&providers, assigned, "latest");
+    }
+    // Official repository updates and device-sync payloads carry updated_at.
+    // Only selected ordered candidates participate, never URLs, headers or keys.
+    let revisions: Vec<_> = sources
+        .iter()
+        .filter_map(|source| {
+            rows.iter()
+                .find(|row| row.code == source.provider_id)
+                .map(|row| {
+                    (
+                        &row.code,
+                        &source.kind,
+                        &row.updated_at,
+                        row.enabled,
+                        row.priority,
+                    )
+                })
+        })
+        .collect();
+    if revisions.is_empty() {
+        return Ok(String::new());
+    }
     let payload = serde_json::to_vec(&revisions)
         .map_err(|err| wealthfolio_core::Error::Repository(err.to_string()))?;
     Ok(hex::encode(Sha256::digest(payload)))
@@ -145,21 +202,6 @@ fn reset_context(conn: &mut SqliteConnection, id: &str) -> Result<ProviderHistor
         earliest_provider_date,
         provider_configuration,
     })
-}
-
-/// Normal query guards include live custom configuration revisions. Explicit
-/// reset keeps its original, narrower eligibility/configuration semantics.
-fn history_context(
-    conn: &mut SqliteConnection,
-    asset_id: &str,
-) -> Result<ProviderHistoryResetContext> {
-    let mut context = reset_context(conn, asset_id)?;
-    context.fingerprint = serde_json::json!({
-        "assetAndProviders": context.fingerprint,
-        "customProviderRevision": history_configuration_revision(conn)?,
-    })
-    .to_string();
-    Ok(context)
 }
 
 fn upsert_quote_rows(
@@ -476,8 +518,12 @@ fn replace_benchmark_interval(
 
 #[async_trait]
 impl QuoteStore for MarketDataRepository {
-    fn history_configuration_revision(&self) -> Result<String> {
-        history_configuration_revision(&mut *get_connection(&self.pool)?)
+    fn history_configuration_revision(
+        &self,
+        asset: &wealthfolio_core::assets::Asset,
+        kind: HistoryQueryKind,
+    ) -> Result<String> {
+        history_configuration_revision(&mut *get_connection(&self.pool)?, asset, kind)
     }
 
     fn history_coverage(
@@ -559,7 +605,7 @@ impl QuoteStore for MarketDataRepository {
         quotes: &[Quote],
         mode: wealthfolio_core::quotes::history::HistoryWriteMode,
         record_coverage: bool,
-        expected_context: Option<&ProviderHistoryResetContext>,
+        expected_context: Option<&HistoryWriteContext>,
     ) -> Result<usize> {
         use wealthfolio_core::quotes::history::{HistoryOutcome, HistoryWriteMode};
         if coverage.start > coverage.end
@@ -581,8 +627,11 @@ impl QuoteStore for MarketDataRepository {
         let expected_context = expected_context.cloned();
         self.writer.exec_tx(move |tx| {
             if let Some(expected) = &expected_context {
-                let current = history_context(tx.conn(), &coverage.asset_id)?;
-                if expected.asset.id != coverage.asset_id || current.fingerprint != expected.fingerprint {
+                let canonical_matches = if let Some(canonical) = &expected.canonical_context {
+                    reset_context(tx.conn(), &coverage.asset_id)?.fingerprint == canonical.fingerprint
+                } else { true };
+                if expected.asset.id != coverage.asset_id || !canonical_matches
+                    || history_configuration_revision(tx.conn(), &expected.asset, expected.kind)? != expected.custom_revision {
                     return Err(wealthfolio_core::Error::Asset(
                         "Asset or provider settings changed during fetching; quotes were not written".into()));
                 }
@@ -707,12 +756,27 @@ impl QuoteStore for MarketDataRepository {
             .await
     }
 
-    fn history_write_context(&self, asset_id: &str) -> Result<Option<ProviderHistoryResetContext>> {
+    fn history_write_context(
+        &self,
+        asset: &wealthfolio_core::assets::Asset,
+        kind: HistoryQueryKind,
+        canonical: bool,
+    ) -> Result<Option<HistoryWriteContext>> {
         let mut conn = get_connection(&self.pool)?;
         conn.transaction::<_, StorageError, _>(|conn| {
-            history_context(conn, asset_id)
-                .map(Some)
-                .map_err(StorageError::from)
+            let canonical_context = if canonical {
+                Some(reset_context(conn, &asset.id).map_err(StorageError::from)?)
+            } else {
+                None
+            };
+            let custom_revision =
+                history_configuration_revision(conn, asset, kind).map_err(StorageError::from)?;
+            Ok(Some(HistoryWriteContext {
+                asset: asset.clone(),
+                kind,
+                custom_revision,
+                canonical_context,
+            }))
         })
         .map_err(Into::into)
     }

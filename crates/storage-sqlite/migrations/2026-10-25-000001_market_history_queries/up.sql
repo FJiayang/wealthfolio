@@ -28,21 +28,6 @@ BEGIN
     DELETE FROM market_history_queries WHERE asset_id = OLD.id;
 END;
 
--- Custom configuration participates in every query identity. Invalidate these
--- derived caches conservatively on every mutation, including device-sync writes.
--- Never delete user/provider prices from the normal quotes table.
-CREATE TRIGGER invalidate_custom_history_insert AFTER INSERT ON market_data_custom_providers
-BEGIN
-    DELETE FROM benchmark_history;
-    DELETE FROM market_history_queries;
-END;
-CREATE TRIGGER invalidate_custom_history_update AFTER UPDATE ON market_data_custom_providers
-BEGIN
-    DELETE FROM benchmark_history;
-    DELETE FROM market_history_queries;
-END;
-CREATE TRIGGER invalidate_custom_history_delete AFTER DELETE ON market_data_custom_providers
-BEGIN
-    DELETE FROM benchmark_history;
-    DELETE FROM market_history_queries;
-END;
+-- Custom query identities use only eligible ordered source revisions. Updating
+-- one custom provider must not purge unrelated provider/benchmark caches.
+-- Obsolete identities remain unreachable until normal explicit cache cleanup.

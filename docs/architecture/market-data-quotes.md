@@ -898,42 +898,18 @@ Range intent is separate from permission to bypass local coverage:
   unchanged. A refresh-all operation is not a reset, and a projection's
   `force_full` flag is not a market-data bypass.
 
-Startup, resume, manual requests, and periodic work retain their existing
-entrypoints and backend coordinator. The periodic worker starts its own interval
-baseline when it launches. After the startup delay it checks the configured
-interval, instead of unconditionally performing another startup sync. Settings
-are still checked every minute, and subsequent periodic attempts wait from their
-own completion. This is not a global last-completion clock: page visits and
-other local no-op jobs cannot continually postpone the periodic interval.
-Overlapping requests still enter the existing coordinator; local coverage is
-rechecked after acquiring the history lock, rather than dropping a request that
-might cover another asset, another range, or an explicit refresh.
+Startup, resume, manual requests, periodic timing, job admission invalidation,
+and completion events retain their original behavior. Overlapping requests still
+enter the existing coordinator; local coverage is rechecked after acquiring the
+history lock rather than dropping work for another asset, range, or explicit
+refresh. Redundant jobs may still run, but covered market queries reuse local
+data.
 
-The sync, update, and recalculate commands acknowledge background-job admission,
-not completed writes. Their frontend mutation hooks therefore do not invalidate
-queries on success. The shared completion listener refreshes data after the
-job's persistence and reconciliation have finished. Both hosts include an
-optional `changed` verdict on the portfolio completion event:
-
-- `false`: confirmed no price or projection changes; clear the progress
-  indicator and refresh only database-backed health/provider status. Performance
-  and benchmark queries are not invalidated, so health recovery cannot create a
-  market-fetch feedback cycle.
-- `true`: completed price writes or a successful nonempty projection plan;
-  refresh the affected portfolio queries.
-- `null` or an absent field: an uncertain partial-write outcome or an older
-  host; retain the conservative refresh behavior.
-
-Failed jobs still report errors, and a job that wrote prices before a later
-projection failure is never reported as a confirmed no-op. The observer's
-backward-compatible default callback preserves existing non-UI observers.
-
-**Architecture impact:** provider request planning and periodic first-run timing
-are intentionally optimized. The existing provider registry, transport/API
-entrypoints, background-job owner, pricing precedence, reset transaction, and
-portfolio calculation rules remain in place; there is no new queue or scheduler.
-The completion payload is a small additive event change, compatible with callers
-that do not consume it.
+**Architecture impact:** provider request planning is optimized within the
+existing services and per-asset coordination. Provider registry, transport/API
+entrypoints, background-job owner, observer protocol, pricing precedence, reset
+transaction, and portfolio calculation rules remain in place. There is no new
+queue or scheduler, and no frontend invalidation timing change.
 
 ### Local Query Outcomes and Benchmark History
 
@@ -967,7 +943,7 @@ or otherwise uncertified successful replies are partial observations:
   Partial observations never become durable historical coverage or settled
   session proof. Newly requested, unqueried ranges are still fetched.
 - Errors and authentication failures do not create receipts. Future dates are
-  not certified; latest responses with future quote dates are rejected.
+  not certified; unobservable latest responses are returned without cache proof.
 
 Fetched prices and the query receipt commit atomically. The transaction checks
 that the asset/provider context has not changed since fetching. Query commits
@@ -977,27 +953,36 @@ read-fills emit the existing `PriceHistoryChanged` event once for actual
 canonical writes, including committed earlier ranges if a later range fails;
 existing planners rebuild locally without recursively fetching market data.
 Derived-only writes and local hits emit no financial event. Coordinator-owned
-sync retains its existing completion flow. Successful provider recovery can
-still heal sync-health state without forcing portfolio price invalidation.
-Manual prices keep their existing precedence, and existing provider rows are not
-deleted merely because preferences change.
+sync retains its existing completion flow, including its original frontend
+invalidation behavior. Successful provider recovery still heals sync-health
+state. Manual prices keep their existing precedence, and existing provider rows
+are not deleted merely because preferences change.
 
-A benchmark that is absent from the user's asset catalog uses isolated
-`benchmark_history` rows in the same profile database. It never creates a fake
-asset or appears in normal quote lists. Prices for existing assets continue to
-use the original quotes table. A reporting-currency fallback (such as USD) is
-not an authoritative quote currency for an unknown benchmark: provider currency
-and units remain unchanged, and conflicting currency/unit series are rejected
-rather than combined. Benchmark and ordinary history both survive a service
-restart; changing canonical identity, currency or provider configuration
-invalidates reuse assumptions. Destructive quote changes invalidate receipts.
-Only digests of non-secret fetch configuration are stored in query identity;
-credentials and raw request URLs are not persisted there. Explicit receipt
-invalidation also clears the associated derived benchmark rows atomically, never
-user quotes. Custom-provider mutations invalidate these derived caches through
-SQLite triggers, including device-sync writes, matching the conservative global
-custom-configuration revision. Asset deletion removes associated derived rows
-before discarding their receipt mapping.
+A benchmark or ordinary symbol resolution absent from the user's asset catalog
+uses isolated `benchmark_history` rows in the same profile database. It never
+creates a fake asset or appears in normal quote lists. Prices for existing
+assets continue to use the original quotes table. A reporting-currency fallback
+(such as USD) is not an authoritative quote currency for an unknown benchmark:
+provider currency and units remain unchanged, and conflicting currency/unit
+series are rejected rather than combined. Benchmark and ordinary history both
+survive a service restart; changing canonical identity, currency or provider
+configuration invalidates reuse assumptions. Destructive quote changes
+invalidate receipts. Only digests of non-secret fetch configuration are stored
+in query identity; credentials and raw request URLs are not persisted there.
+Explicit receipt invalidation also clears the associated derived benchmark rows
+atomically, never user quotes. Custom-provider CRUD changes only namespaces
+whose request can use that source: an explicitly assigned source, or the
+eligible ordered fallback candidates selected by the existing router. The digest
+uses source codes and existing update versions/enabled/priority, not request
+contents. Supported local updates advance `updated_at`, and device
+synchronization carries that version; arbitrary SQL mutations preserving a
+version are outside this contract. A name edit may revalidate its own source,
+but does not invalidate unrelated sources. Previous namespaces remain
+unreachable until ordinary explicit cleanup; there is no new retention worker or
+dependency table. Credential updates still use conservative explicit
+invalidation, and built-in priority/enabled changes can affect global fallback.
+Asset deletion removes associated derived rows before discarding their receipt
+mapping.
 
 With an available profile context, both hosts notify the quote service after
 successful writes/deletions of a known market-provider credential or a
@@ -1017,13 +1002,27 @@ Eastmoney and unauthenticated custom history retain durable restart reuse;
 unrelated enabled credential providers do not downgrade those public requests.
 Normal market settings require an available profile context.
 
-Explicit provider verification remains distinct from the manual-priority display
-price: it reuses compatible local provider proof or the actual response of one
-necessary latest fetch, never relabeling a manual price as provider-supplied.
-When a manual override prevents storing provider validation in the canonical
-price row, that validation payload uses the existing isolated derived-cache
-namespace and canonical asset lock. It does not replace or duplicate the
-canonical manual price, create catalog assets, or add another cache subsystem.
+Explicit source verification retains the original provider validation behavior;
+its responses are not stored in the benchmark cache. Ordinary resolution,
+including activity selection with a preferred provider, uses the shared
+local-first owner. When an existing manual price obscures provider proof, or a
+known instrument is being checked with different provider/code settings,
+resolution performs one separate validation request without changing its prices
+or caching validation. A freshly fetched provider response remains available to
+the resolver so a normal miss does not fetch twice. Repeated manual-overlay
+validation may repeat that request; it is not a third history-refresh exemption
+or a separate cache.
+
+The asset lock is scoped to the operation rather than carried in success/error
+payloads. As in the original sync implementation, an already-started commit task
+retains the lock until its write finishes, including when its caller is
+cancelled. Cancellation while fetching does not force unused network work to
+continue. SQLite's existing queued transaction remains atomic. Direct-read
+financial events follow the existing post-await service pattern: caller
+cancellation may prevent immediate notification, while quote triggers mark
+projections dirty for the next normal coordinator run. These guarantees do not
+make profile edits and health bookkeeping a new atomic transaction.
+
 Unlike canonical user/provider price history, these derived response-cache rows
 replace history rows only inside a successfully fetched interval. Partial or
 empty new responses cannot silently retain older rows absent from that response;

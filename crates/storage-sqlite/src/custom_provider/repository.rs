@@ -98,7 +98,7 @@ fn config_to_json(config: &ProviderConfig) -> String {
     })
 }
 
-fn db_to_domain(row: CustomProviderDB) -> CustomProviderWithSources {
+pub(crate) fn db_to_domain(row: CustomProviderDB) -> CustomProviderWithSources {
     let config = parse_config(row.config.as_deref(), &row.code);
     CustomProviderWithSources {
         use_as_fallback: config.use_as_fallback.unwrap_or(true),

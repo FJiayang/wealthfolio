@@ -16,7 +16,7 @@ use crate::custom_provider::service::{
     detect_html_locale, parse_csv_records, parse_number_string, resolve_csv_column,
 };
 use crate::custom_provider::store::CustomProviderRepository;
-use crate::custom_provider::CustomProviderSource;
+use crate::custom_provider::{CustomProviderSource, CustomProviderWithSources};
 use crate::quotes::constants::DATA_SOURCE_CUSTOM_SCRAPER;
 use crate::secrets::SecretStore;
 
@@ -704,43 +704,28 @@ impl CustomScraperProvider {
         context: &QuoteContext,
         kind: &str,
     ) -> Result<Vec<CustomProviderSource>, MarketDataError> {
-        // Assigned provider — use it directly. A leftover code under another chosen
-        // provider is ignored, so only fallback providers can serve that security.
-        if let Some(code) = context.assigned_custom_provider() {
-            let source = self
-                .repo
-                .get_source_by_kind(code, kind)
-                .map_err(|e| MarketDataError::ProviderError {
-                    provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
-                    message: format!("Failed to load source config: {}", e),
-                })?
-                // The repository returns nothing for disabled or deleted providers too.
-                .ok_or_else(|| MarketDataError::ProviderError {
-                    provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
-                    message: format!(
-                        "Custom provider '{}' is disabled, deleted, or has no '{}' source",
-                        code, kind
-                    ),
-                })?;
-            return Ok(vec![source]);
-        }
-
-        // No explicit code — collect general-purpose sources whose URL or body contains an
-        // identity placeholder from enabled fallback providers, tried in priority order.
+        let assigned_code = context.assigned_custom_provider();
         let providers = self
             .repo
             .get_all()
             .map_err(|e| MarketDataError::ProviderError {
                 provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
-                message: format!("Failed to list custom providers: {}", e),
+                message: if assigned_code.is_some() {
+                    format!("Failed to load source config: {}", e)
+                } else {
+                    format!("Failed to list custom providers: {}", e)
+                },
             })?;
-
-        let sources: Vec<CustomProviderSource> = providers
-            .into_iter()
-            .filter(|p| p.enabled && p.use_as_fallback)
-            .flat_map(|p| p.sources.into_iter().filter(|s| s.kind == kind))
-            .filter(Self::source_has_identity_placeholder)
-            .collect();
+        let sources = Self::select_sources(&providers, assigned_code, kind);
+        if let (true, Some(code)) = (sources.is_empty(), assigned_code) {
+            return Err(MarketDataError::ProviderError {
+                provider: DATA_SOURCE_CUSTOM_SCRAPER.to_string(),
+                message: format!(
+                    "Custom provider '{}' is disabled, deleted, or has no '{}' source",
+                    code, kind
+                ),
+            });
+        }
 
         if sources.is_empty() {
             return Err(MarketDataError::NotSupported {
@@ -750,6 +735,31 @@ impl CustomScraperProvider {
         }
 
         Ok(sources)
+    }
+
+    /// Select sources in repository priority order, shared with query-revision planning.
+    /// An assigned code never falls through to general sources, even when unavailable.
+    pub fn select_sources(
+        providers: &[CustomProviderWithSources],
+        assigned_code: Option<&str>,
+        kind: &str,
+    ) -> Vec<CustomProviderSource> {
+        if let Some(code) = assigned_code {
+            return providers
+                .iter()
+                .find(|provider| provider.id == code && provider.enabled)
+                .and_then(|provider| provider.sources.iter().find(|source| source.kind == kind))
+                .cloned()
+                .into_iter()
+                .collect();
+        }
+        providers
+            .iter()
+            .filter(|provider| provider.enabled && provider.use_as_fallback)
+            .flat_map(|provider| provider.sources.iter().filter(|source| source.kind == kind))
+            .filter(|source| Self::source_has_identity_placeholder(source))
+            .cloned()
+            .collect()
     }
 
     /// Resolve the symbol for a specific custom provider source.
@@ -2023,6 +2033,45 @@ mod tests {
             .await;
         assert!(result.is_err());
         assert!(recorder.0.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn shared_source_selection_preserves_order_and_assignment_boundaries() {
+        let mut disabled = provider_with_scope("disabled", true, "https://test/{SYMBOL}");
+        disabled.enabled = false;
+        let private = provider_with_scope("private", false, "https://test/{ISIN}");
+        let mut first = provider_with_scope("first", true, "https://test/{SYMBOL}");
+        let mut duplicate = first.sources[0].clone();
+        duplicate.url = "https://duplicate.test/{SYMBOL}".to_string();
+        first.sources.push(duplicate);
+        let second = provider_with_scope("second", true, "https://test/{ISIN}");
+        let fixed = provider_with_scope("fixed", true, "https://test/fixed");
+        let providers = vec![disabled, private, first, second, fixed];
+        let selected = CustomScraperProvider::select_sources(&providers, None, "latest");
+        assert_eq!(
+            selected
+                .iter()
+                .map(|source| source.provider_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["first", "first", "second"]
+        );
+        for unavailable in ["disabled", "missing"] {
+            assert!(
+                CustomScraperProvider::select_sources(&providers, Some(unavailable), "latest")
+                    .is_empty()
+            );
+        }
+        let assigned = CustomScraperProvider::select_sources(&providers, Some("first"), "latest");
+        assert_eq!(assigned.len(), 1);
+        assert_eq!(assigned[0].url, "https://test/{SYMBOL}");
+        assert_eq!(
+            CustomScraperProvider::select_sources(&providers, Some("private"), "historical").len(),
+            1
+        );
+        assert_eq!(
+            CustomScraperProvider::select_sources(&providers, Some("fixed"), "latest").len(),
+            1
+        );
     }
 
     #[test]

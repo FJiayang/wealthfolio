@@ -46,7 +46,11 @@ use crate::errors::Result;
 #[async_trait]
 pub trait QuoteStore: Send + Sync {
     /// Non-secret revision of live custom-provider settings used for cache identity.
-    fn history_configuration_revision(&self) -> Result<String> {
+    fn history_configuration_revision(
+        &self,
+        _asset: &crate::assets::Asset,
+        _kind: super::history::HistoryQueryKind,
+    ) -> Result<String> {
         Ok(String::new())
     }
 
@@ -81,7 +85,7 @@ pub trait QuoteStore: Send + Sync {
         quotes: &[Quote],
         mode: super::history::HistoryWriteMode,
         _record_coverage: bool,
-        _expected_context: Option<&super::model::ProviderHistoryResetContext>,
+        _expected_context: Option<&super::history::HistoryWriteContext>,
     ) -> Result<usize> {
         if mode != super::history::HistoryWriteMode::Canonical {
             return Err(crate::errors::Error::Repository(
@@ -95,8 +99,10 @@ pub trait QuoteStore: Send + Sync {
     /// stores can opt in without making reset support a requirement for reads.
     fn history_write_context(
         &self,
-        _asset_id: &str,
-    ) -> Result<Option<super::model::ProviderHistoryResetContext>> {
+        _asset: &crate::assets::Asset,
+        _kind: super::history::HistoryQueryKind,
+        _canonical: bool,
+    ) -> Result<Option<super::history::HistoryWriteContext>> {
         Ok(None)
     }
 

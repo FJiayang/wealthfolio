@@ -10,7 +10,23 @@ use serde::{Deserialize, Serialize};
 
 use super::constants::OVERLAP_DAYS;
 
-/// Canonical history merges prices; derived verification caches replace observations.
+/// Provider operation whose ordered custom source candidates define reuse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HistoryQueryKind {
+    History,
+    Latest,
+}
+
+/// Transient query guard. Synthetic benchmarks have no canonical database asset.
+#[derive(Debug, Clone)]
+pub struct HistoryWriteContext {
+    pub asset: crate::assets::Asset,
+    pub kind: HistoryQueryKind,
+    pub custom_revision: String,
+    pub canonical_context: Option<super::model::ProviderHistoryResetContext>,
+}
+
+/// Canonical history merges prices; derived non-catalog quote caches replace observations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HistoryWriteMode {
     Canonical,

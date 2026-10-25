@@ -9,7 +9,7 @@ use wealthfolio_core::assets::{
     AssetKind, AssetRepositoryTrait, InstrumentType, NewAsset, QuoteMode,
 };
 use wealthfolio_core::quotes::history::{
-    missing_history_ranges, HistoryCoverage, HistoryOutcome, HistoryWriteMode,
+    missing_history_ranges, HistoryCoverage, HistoryOutcome, HistoryQueryKind, HistoryWriteMode,
 };
 use wealthfolio_core::quotes::{AssetId, Quote, QuoteStore};
 use wealthfolio_storage_sqlite::{assets::AssetRepository, db, market_data::MarketDataRepository};
@@ -282,6 +282,8 @@ struct FakeProvider {
     ranges: std::sync::Mutex<Vec<(NaiveDate, NaiveDate)>>,
     response_mode: std::sync::atomic::AtomicU8,
     latest_calls: std::sync::atomic::AtomicUsize,
+    request_started: tokio::sync::Notify,
+    release_request: tokio::sync::Notify,
 }
 
 #[async_trait::async_trait]
@@ -362,6 +364,10 @@ impl wealthfolio_market_data::MarketDataProvider for FakeProvider {
             .push((start.date_naive(), end.date_naive()));
         tokio::task::yield_now().await;
         let mode = self.response_mode.load(std::sync::atomic::Ordering::SeqCst);
+        if mode == 5 {
+            self.request_started.notify_one();
+            self.release_request.notified().await;
+        }
         if mode == 1 {
             return Ok(Vec::new());
         }
@@ -727,7 +733,14 @@ async fn partial_response_counts_only_changes_and_never_records_coverage() {
 async fn queued_profile_change_rejects_complete_and_partial_writes_atomically() {
     for complete in [true, false] {
         let f = fixture().await;
-        let expected = f.store.history_write_context("asset").unwrap().unwrap();
+        let asset = AssetRepository::new(f.pool.clone(), f.writer.clone())
+            .get_by_id("asset")
+            .unwrap();
+        let expected = f
+            .store
+            .history_write_context(&asset, HistoryQueryKind::History, true)
+            .unwrap()
+            .unwrap();
         diesel::sql_query("UPDATE assets SET quote_ccy='EUR' WHERE id='asset'")
             .execute(&mut *db::get_connection(&f.pool).unwrap())
             .unwrap();
@@ -813,36 +826,203 @@ async fn new_partial_receipt_supersedes_old_complete_only_within_queried_range()
     );
 }
 
-#[tokio::test]
-async fn custom_provider_revision_changes_identity_and_transaction_guard_without_config_values() {
-    let f = fixture().await;
-    let initial = f.store.history_configuration_revision().unwrap();
-    diesel::sql_query(
-        "INSERT INTO market_data_custom_providers
-        (id,code,name,description,enabled,priority,config,created_at,updated_at)
-        VALUES ('custom','custom','Custom','test',1,1,NULL,'v1','v1')",
+async fn create_custom(f: &Fixture, code: &str, fallback: bool, kind: &str, priority: i32) {
+    use wealthfolio_core::custom_provider::CustomProviderRepository;
+    let payload = serde_json::from_value(serde_json::json!({
+        "code": code, "name": code, "priority": priority, "useAsFallback": fallback,
+        "sources": [{"kind":kind,"format":"json","url":"https://example.invalid/{SYMBOL}","pricePath":"price"}]
+    })).unwrap();
+    wealthfolio_storage_sqlite::custom_provider::CustomProviderSqliteRepository::new(
+        f.pool.clone(),
+        f.writer.clone(),
     )
-    .execute(&mut *db::get_connection(&f.pool).unwrap())
+    .create(&payload)
+    .await
     .unwrap();
-    let inserted = f.store.history_configuration_revision().unwrap();
-    assert_ne!(initial, inserted);
-    let expected = f.store.history_write_context("asset").unwrap().unwrap();
-    diesel::sql_query("UPDATE market_data_custom_providers SET updated_at='v2' WHERE id='custom'")
-        .execute(&mut *db::get_connection(&f.pool).unwrap())
+}
+
+async fn rename_custom(f: &Fixture, code: &str) {
+    use wealthfolio_core::custom_provider::CustomProviderRepository;
+    let payload = serde_json::from_value(serde_json::json!({"name":"Updated label"})).unwrap();
+    wealthfolio_storage_sqlite::custom_provider::CustomProviderSqliteRepository::new(
+        f.pool.clone(),
+        f.writer.clone(),
+    )
+    .update(code, &payload)
+    .await
+    .unwrap();
+}
+
+fn assigned_asset(f: &Fixture, code: &str) -> wealthfolio_core::assets::Asset {
+    let mut asset = AssetRepository::new(f.pool.clone(), f.writer.clone())
+        .get_by_id("asset")
         .unwrap();
-    assert_ne!(inserted, f.store.history_configuration_revision().unwrap());
+    asset.provider_config = Some(
+        serde_json::json!({"preferred_provider":"CUSTOM_SCRAPER","custom_provider_code":code}),
+    );
+    asset
+}
+
+#[tokio::test]
+async fn custom_revision_scopes_official_updates_and_guards_unknown_benchmark_commits() {
+    let f = fixture().await;
+    create_custom(&f, "a", false, "historical", 1).await;
+    create_custom(&f, "b", false, "historical", 2).await;
+    let mut a = assigned_asset(&f, "a");
+    a.id = "unknown-benchmark".into();
+    let b = assigned_asset(&f, "b");
+    let builtin = AssetRepository::new(f.pool.clone(), f.writer.clone())
+        .get_by_id("asset")
+        .unwrap();
+    let a_before = f
+        .store
+        .history_configuration_revision(&a, HistoryQueryKind::History)
+        .unwrap();
+    let b_before = f
+        .store
+        .history_configuration_revision(&b, HistoryQueryKind::History)
+        .unwrap();
+    let builtin_before = f
+        .store
+        .history_configuration_revision(&builtin, HistoryQueryKind::History)
+        .unwrap();
+    let expected = f
+        .store
+        .history_write_context(&a, HistoryQueryKind::History, false)
+        .unwrap()
+        .unwrap();
+    rename_custom(&f, "a").await;
+    assert_ne!(
+        a_before,
+        f.store
+            .history_configuration_revision(&a, HistoryQueryKind::History)
+            .unwrap()
+    );
+    assert_eq!(
+        b_before,
+        f.store
+            .history_configuration_revision(&b, HistoryQueryKind::History)
+            .unwrap()
+    );
+    assert_eq!(
+        builtin_before,
+        f.store
+            .history_configuration_revision(&builtin, HistoryQueryKind::History)
+            .unwrap()
+    );
+    let record = coverage("stale-custom", &a.id);
     assert!(f
         .store
         .commit_history_query(
-            &coverage("identity", "asset"),
-            &[quote("asset", "YAHOO", 100)],
-            HistoryWriteMode::Canonical,
+            &record,
+            &[quote(&a.id, "CUSTOM_SCRAPER:a", 100)],
+            HistoryWriteMode::DerivedRange,
             true,
             Some(&expected)
         )
         .await
         .is_err());
-    assert!(f.store.get_historical_quotes("asset").unwrap().is_empty());
+    assert!(f
+        .store
+        .benchmark_history(&record.identity, record.start, record.end)
+        .unwrap()
+        .is_empty());
+    assert!(f
+        .store
+        .history_coverage(&record.identity)
+        .unwrap()
+        .is_empty());
+    // Device sync preserves the version supplied by the originating official API.
+    let before = f
+        .store
+        .history_configuration_revision(&b, HistoryQueryKind::History)
+        .unwrap();
+    diesel::sql_query("UPDATE market_data_custom_providers SET name='Synced label', updated_at='2099-01-01T00:00:00Z' WHERE code='b'")
+        .execute(&mut *db::get_connection(&f.pool).unwrap()).unwrap();
+    assert_ne!(
+        before,
+        f.store
+            .history_configuration_revision(&b, HistoryQueryKind::History)
+            .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn fallback_revision_tracks_eligible_order_and_actual_history_latest_fallback() {
+    use wealthfolio_core::custom_provider::CustomProviderRepository;
+    let f = fixture().await;
+    let asset = AssetRepository::new(f.pool.clone(), f.writer.clone())
+        .get_by_id("asset")
+        .unwrap();
+    create_custom(&f, "private", false, "historical", 0).await;
+    let empty = f
+        .store
+        .history_configuration_revision(&asset, HistoryQueryKind::History)
+        .unwrap();
+    rename_custom(&f, "private").await;
+    assert_eq!(
+        empty,
+        f.store
+            .history_configuration_revision(&asset, HistoryQueryKind::History)
+            .unwrap()
+    );
+    create_custom(&f, "latest", true, "latest", 1).await;
+    let latest_fallback = f
+        .store
+        .history_configuration_revision(&asset, HistoryQueryKind::History)
+        .unwrap();
+    assert_ne!(empty, latest_fallback);
+    create_custom(&f, "history", true, "historical", 2).await;
+    let history = f
+        .store
+        .history_configuration_revision(&asset, HistoryQueryKind::History)
+        .unwrap();
+    assert_ne!(latest_fallback, history);
+    rename_custom(&f, "latest").await;
+    assert_eq!(
+        history,
+        f.store
+            .history_configuration_revision(&asset, HistoryQueryKind::History)
+            .unwrap()
+    );
+    create_custom(&f, "history-two", true, "historical", 3).await;
+    let ordered = f
+        .store
+        .history_configuration_revision(&asset, HistoryQueryKind::History)
+        .unwrap();
+    let repo = wealthfolio_storage_sqlite::custom_provider::CustomProviderSqliteRepository::new(
+        f.pool.clone(),
+        f.writer.clone(),
+    );
+    repo.update(
+        "history-two",
+        &serde_json::from_value(serde_json::json!({"priority":1})).unwrap(),
+    )
+    .await
+    .unwrap();
+    assert_ne!(
+        ordered,
+        f.store
+            .history_configuration_revision(&asset, HistoryQueryKind::History)
+            .unwrap()
+    );
+    repo.update(
+        "history",
+        &serde_json::from_value(serde_json::json!({"enabled":false})).unwrap(),
+    )
+    .await
+    .unwrap();
+    let disabled = f
+        .store
+        .history_configuration_revision(&asset, HistoryQueryKind::History)
+        .unwrap();
+    repo.delete("history-two").await.unwrap();
+    assert_ne!(
+        disabled,
+        f.store
+            .history_configuration_revision(&asset, HistoryQueryKind::History)
+            .unwrap()
+    );
 }
 
 #[tokio::test]
@@ -1098,51 +1278,39 @@ async fn asset_invalidation_preserves_unrelated_benchmarks_and_user_quotes() {
 }
 
 #[tokio::test]
-async fn direct_custom_provider_mutations_clear_only_derived_cache_tables() {
+async fn unrelated_official_custom_update_preserves_cached_rows_receipts_and_user_quotes() {
     let f = fixture().await;
+    create_custom(&f, "private", false, "historical", 1).await;
+    let bounds = coverage("unrelated-benchmark", "BENCH");
+    let original = quote("BENCH", "YAHOO", 100);
+    f.store
+        .commit_history_query(
+            &bounds,
+            std::slice::from_ref(&original),
+            HistoryWriteMode::DerivedRange,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
     let mut provider_quote = quote("asset", "YAHOO", 100);
     provider_quote.timestamp += Duration::days(1);
-    provider_quote.id = "real-provider-price".into();
     f.store
         .upsert_quotes(&[quote("asset", "MANUAL", 999), provider_quote])
         .await
         .unwrap();
-    let bounds = coverage("benchmark", "BENCH");
-    for mutation in [
-        "INSERT INTO market_data_custom_providers
-            (id,code,name,description,enabled,priority,config,created_at,updated_at)
-            VALUES ('lifecycle','lifecycle','Custom','test',1,1,NULL,'v1','v1')",
-        "UPDATE market_data_custom_providers SET updated_at='v2' WHERE id='lifecycle'",
-        "DELETE FROM market_data_custom_providers WHERE id='lifecycle'",
-    ] {
+    rename_custom(&f, "private").await;
+    assert_eq!(
         f.store
-            .commit_history_query(
-                &bounds,
-                &[quote("BENCH", "YAHOO", 100)],
-                HistoryWriteMode::DerivedRange,
-                true,
-                None,
-            )
-            .await
-            .unwrap();
-        diesel::sql_query(mutation)
-            .execute(&mut *db::get_connection(&f.pool).unwrap())
-            .unwrap();
-        assert!(f
-            .store
-            .benchmark_history("benchmark", bounds.start, bounds.end)
-            .unwrap()
-            .is_empty());
-        assert!(f.store.history_coverage("benchmark").unwrap().is_empty());
-        let actual = f.store.get_historical_quotes("asset").unwrap();
-        assert_eq!(actual.len(), 2);
-        assert!(actual
-            .iter()
-            .any(|q| q.data_source == "MANUAL" && q.close == Decimal::new(999, 0)));
-        assert!(actual
-            .iter()
-            .any(|q| q.data_source == "YAHOO" && q.close == Decimal::new(100, 0)));
-    }
+            .benchmark_history(&bounds.identity, bounds.start, bounds.end)
+            .unwrap(),
+        vec![original]
+    );
+    assert_eq!(
+        f.store.history_coverage(&bounds.identity).unwrap(),
+        vec![bounds]
+    );
+    assert_eq!(f.store.get_historical_quotes("asset").unwrap().len(), 2);
 }
 
 #[tokio::test]
@@ -1392,5 +1560,118 @@ async fn derived_latest_replaces_newer_cached_day_but_failed_commit_preserves_it
     assert_eq!(
         f.store.history_coverage("latest").unwrap(),
         vec![friday_scope]
+    );
+}
+
+#[tokio::test]
+async fn cancelling_provider_wait_writes_nothing_and_releases_same_asset_lock() {
+    let f = fixture().await;
+    let provider = Arc::new(FakeProvider::default());
+    provider
+        .response_mode
+        .store(5, std::sync::atomic::Ordering::SeqCst);
+    let service = Arc::new(sync_service(&f, provider.clone()).await);
+    let asset = AssetRepository::new(f.pool.clone(), f.writer.clone())
+        .get_by_id("asset")
+        .unwrap();
+    let bounds = coverage("unused", &asset.id);
+    let task_service = service.clone();
+    let task_asset = asset.clone();
+    let request = tokio::spawn(async move {
+        task_service
+            .fetch_local_first_history(&task_asset, bounds.start, bounds.end, false)
+            .await
+    });
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        provider.request_started.notified(),
+    )
+    .await
+    .unwrap();
+    request.abort();
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_secs(5), request)
+            .await
+            .unwrap()
+            .unwrap_err()
+            .is_cancelled()
+    );
+    assert!(f.store.get_historical_quotes("asset").unwrap().is_empty());
+    #[derive(diesel::QueryableByName)]
+    struct ReceiptCount {
+        #[diesel(sql_type = diesel::sql_types::BigInt)]
+        count: i64,
+    }
+    assert_eq!(
+        diesel::sql_query("SELECT COUNT(*) AS count FROM market_history_queries")
+            .get_result::<ReceiptCount>(&mut *db::get_connection(&f.pool).unwrap())
+            .unwrap()
+            .count,
+        0
+    );
+    provider
+        .response_mode
+        .store(0, std::sync::atomic::Ordering::SeqCst);
+    let recovered = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        service.fetch_local_first_history(&asset, bounds.start, bounds.end, false),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(!recovered.is_empty());
+    assert_eq!(provider.ranges.lock().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn cancelling_queued_commit_waiter_preserves_atomic_price_and_receipt_write() {
+    let f = fixture().await;
+    let (entered_tx, entered_rx) = tokio::sync::oneshot::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let writer = f.writer.clone();
+    let blocker = tokio::spawn(async move {
+        writer
+            .exec(move |_| {
+                entered_tx.send(()).unwrap();
+                release_rx
+                    .recv_timeout(std::time::Duration::from_secs(5))
+                    .unwrap();
+                Ok(())
+            })
+            .await
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(5), entered_rx)
+        .await
+        .unwrap()
+        .unwrap();
+    let record = coverage("cancelled-waiter", "asset");
+    let prices = [quote("asset", "YAHOO", 100)];
+    {
+        let commit =
+            f.store
+                .commit_history_query(&record, &prices, HistoryWriteMode::Canonical, true, None);
+        tokio::pin!(commit);
+        // Poll once to enqueue behind the blocked actor. Dropping the waiter
+        // cannot retract an already admitted actor job; both writes must commit.
+        tokio::select! {
+            biased;
+            _ = &mut commit => panic!("blocked writer unexpectedly completed"),
+            _ = tokio::task::yield_now() => {}
+        }
+    }
+    release_tx.send(()).unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), blocker)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), f.writer.exec(|_| Ok(())))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(f.store.get_historical_quotes("asset").unwrap(), prices);
+    assert_eq!(
+        f.store.history_coverage("cancelled-waiter").unwrap(),
+        vec![record]
     );
 }

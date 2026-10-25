@@ -17,7 +17,6 @@ import {
 import { usePortfolioSyncOptional } from "@/context/portfolio-sync-context";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { assetLogoRegistry } from "@/lib/asset-logo-registry";
-import { QueryKeys } from "@/lib/query-keys";
 import {
   invalidateAfterAssetClassificationsChanged,
   shouldInvalidateAfterPortfolioUpdate,
@@ -222,29 +221,15 @@ const useGlobalEventListener = () => {
       logger.error("Portfolio Update Error: " + errorMessage);
     };
 
-    const handlePortfolioUpdateComplete = (event: {
-      payload: { changed?: boolean | null } | null;
-    }) => {
+    const handlePortfolioUpdateComplete = () => {
       if (isMobileViewportRef.current && syncContextRef.current) {
         syncContextRef.current.setIdle();
       } else {
         toast.dismiss(TOAST_IDS.portfolioUpdateStart);
       }
-      // An old host or an uncertain partial write has no explicit verdict;
-      // preserve its refresh. A confirmed no-op still clears progress above.
-      if (event.payload?.changed !== false) {
-        queryClientRef.current.invalidateQueries({
-          predicate: (query) => shouldInvalidateAfterPortfolioUpdate(query.queryKey),
-        });
-      } else {
-        // A successful unchanged fetch can still clear provider errors. Refresh
-        // only database-backed status, never performance/benchmark queries.
-        queryClientRef.current.invalidateQueries({
-          predicate: (query) =>
-            query.queryKey[0] === QueryKeys.HEALTH_STATUS ||
-            query.queryKey[0] === QueryKeys.MARKET_DATA_PROVIDER_SETTINGS,
-        });
-      }
+      queryClientRef.current.invalidateQueries({
+        predicate: (query) => shouldInvalidateAfterPortfolioUpdate(query.queryKey),
+      });
     };
 
     const handleDatabaseRestored = () => {

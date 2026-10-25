@@ -1895,32 +1895,48 @@ where
                 ..Default::default()
             };
 
+            // Find a unique instrument before comparing provider configuration.
+            // A known instrument being edited is validation, not an unknown benchmark.
+            let mut instrument_identity = temp_asset.clone();
+            instrument_identity.provider_config = None;
             let matching_assets: Vec<_> = self
                 .asset_repo
                 .list()?
                 .into_iter()
-                .filter(|asset| asset_matches_quote_resolution(asset, &temp_asset))
+                .filter(|asset| asset_matches_quote_resolution(asset, &instrument_identity))
                 .collect();
-            let existing = (matching_assets.len() == 1).then(|| &matching_assets[0]);
+            let known = (matching_assets.len() == 1).then(|| &matching_assets[0]);
+            let existing = known.filter(|asset| asset_matches_quote_resolution(asset, &temp_asset));
             let quote_asset = existing.unwrap_or(&temp_asset);
-            let verification_source = preferred_provider
-                .filter(|provider| !provider.trim().is_empty())
-                .map(|provider| {
-                    provider
-                        .trim()
-                        .strip_prefix("CUSTOM:")
-                        .map(|code| format!("{DATA_SOURCE_CUSTOM_SCRAPER}:{code}"))
-                        .unwrap_or_else(|| provider.trim().to_string())
-                });
-            let (result, written) = self
-                .get_sync_service()
-                .await?
-                .fetch_local_first_latest_for_resolution(
-                    quote_asset,
-                    existing.is_none(),
-                    verification_source.as_deref(),
+            let needs_provider_proof =
+                preferred_provider.is_some_and(|provider| !provider.trim().is_empty());
+            // Provider/code validation is distinct from the displayed manual price.
+            // Do not route this response into the benchmark cache or overwrite the
+            // user's price. Ordinary activity selection still uses local-first below.
+            let provider_validation = needs_provider_proof
+                && (known.is_some() && existing.is_none()
+                    || known.is_some_and(|asset| asset.quote_mode == QuoteMode::Manual)
+                    || known
+                        .map(|asset| self.quote_store.latest(&AssetId::new(&asset.id), None))
+                        .transpose()?
+                        .flatten()
+                        .is_some_and(|quote| quote.data_source == DATA_SOURCE_MANUAL));
+            let (result, written) = if provider_validation {
+                (
+                    self.client
+                        .read()
+                        .await
+                        .fetch_latest_quote(&temp_asset)
+                        .await
+                        .map(|quote| (quote, None)),
+                    0,
                 )
-                .await;
+            } else {
+                self.get_sync_service()
+                    .await?
+                    .fetch_local_first_latest_with_writes(quote_asset, existing.is_none())
+                    .await
+            };
             if written > 0 && !emitted_price_event {
                 self.event_sink.emit(DomainEvent::PriceHistoryChanged);
                 emitted_price_event = true;
@@ -3744,8 +3760,10 @@ mod tests {
 
         fn history_write_context(
             &self,
-            _asset_id: &str,
-        ) -> Result<Option<super::super::model::ProviderHistoryResetContext>> {
+            _asset: &Asset,
+            _kind: super::super::history::HistoryQueryKind,
+            _canonical: bool,
+        ) -> Result<Option<super::super::history::HistoryWriteContext>> {
             if self.fail_context_after_write && !self.written.lock().unwrap().is_empty() {
                 return Err(Error::Repository(
                     "injected later-range context failure".into(),
@@ -3760,7 +3778,7 @@ mod tests {
             quotes: &[Quote],
             mode: super::super::history::HistoryWriteMode,
             record_coverage: bool,
-            _expected_context: Option<&super::super::model::ProviderHistoryResetContext>,
+            _expected_context: Option<&super::super::history::HistoryWriteContext>,
         ) -> Result<usize> {
             if mode != super::super::history::HistoryWriteMode::Canonical {
                 if mode == super::super::history::HistoryWriteMode::DerivedLatest {
@@ -5378,39 +5396,90 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn explicit_provider_resolution_uses_provider_price_not_manual_override() -> Result<()> {
-        let asset = resolution_asset(None);
-        let today = time_utils::market_calendar_date(Utc::now(), Some("XNAS"), false);
-        let mut manual = stored_quote(&asset.id, today, dec!(999));
-        manual.currency = "USD".into();
-        let mut provider = manual.clone();
-        provider.data_source = "YAHOO".into();
-        provider.close = dec!(123);
-        let store = Arc::new(RangeQuoteStore {
-            quotes: vec![provider, manual],
-            covered: true,
-            ..Default::default()
-        });
-        let service = quote_service_for_asset(asset, store.clone()).await?;
-        let resolved = service
-            .resolve_symbol_quote(
-                "AAPL",
-                Some("XNAS"),
-                Some(&InstrumentType::Equity),
-                Some("USD"),
-                Some("YAHOO"),
-                None,
-            )
-            .await?;
-        assert_eq!(resolved.price, Some(dec!(123)));
-        assert_eq!(resolved.resolved_provider_id.as_deref(), Some("YAHOO"));
+    async fn unknown_symbol_selection_with_provider_hint_reuses_local_price() -> Result<()> {
+        let store = Arc::new(RangeQuoteStore::default());
+        let sink = Arc::new(crate::events::MockDomainEventSink::new());
+        let service = quote_service_for_asset(resolution_asset(None), store.clone())
+            .await?
+            .with_event_sink(sink.clone());
+        let calls = Arc::new(AtomicUsize::new(0));
+        *service.client.write().await = MarketDataClient::new_with_extra(
+            Arc::new(MockSecretStore),
+            vec![ProviderConfig {
+                id: "YAHOO".into(),
+                priority: 1,
+            }],
+            vec![Arc::new(VerificationProvider {
+                calls: calls.clone(),
+            })],
+        )
+        .await?;
+        for _ in 0..2 {
+            let resolved = service
+                .resolve_symbol_quote(
+                    "NEW",
+                    Some("XNAS"),
+                    Some(&InstrumentType::Equity),
+                    Some("USD"),
+                    Some("YAHOO"),
+                    Some("VERIFIED"),
+                )
+                .await?;
+            assert_eq!(resolved.price, Some(dec!(120)));
+            assert_eq!(resolved.resolved_provider_id.as_deref(), Some("YAHOO"));
+        }
         assert_eq!(
-            store
-                .latest(&AssetId::new("canonical-aapl"), None)?
-                .unwrap()
-                .close,
-            dec!(999)
+            calls.load(Ordering::Relaxed),
+            1,
+            "a selected provider hint does not bypass ordinary local-first resolution"
         );
+        assert!(store.written.lock().unwrap().is_empty());
+        assert_eq!(store.derived.lock().unwrap().len(), 1);
+        assert!(sink.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn changed_provider_code_validates_known_asset_without_derived_cache() -> Result<()> {
+        let store = Arc::new(RangeQuoteStore::default());
+        let sink = Arc::new(crate::events::MockDomainEventSink::new());
+        let service = quote_service_for_asset(resolution_asset(None), store.clone())
+            .await?
+            .with_event_sink(sink.clone());
+        let calls = Arc::new(AtomicUsize::new(0));
+        *service.client.write().await = MarketDataClient::new_with_extra(
+            Arc::new(MockSecretStore),
+            vec![ProviderConfig {
+                id: "YAHOO".into(),
+                priority: 1,
+            }],
+            vec![Arc::new(VerificationProvider {
+                calls: calls.clone(),
+            })],
+        )
+        .await?;
+        for _ in 0..2 {
+            let resolved = service
+                .resolve_symbol_quote(
+                    "AAPL",
+                    Some("XNAS"),
+                    Some(&InstrumentType::Equity),
+                    Some("USD"),
+                    Some("YAHOO"),
+                    Some("VERIFIED"),
+                )
+                .await?;
+            assert_eq!(resolved.price, Some(dec!(120)));
+            assert_eq!(resolved.resolved_provider_id.as_deref(), Some("YAHOO"));
+        }
+        assert_eq!(
+            calls.load(Ordering::Relaxed),
+            2,
+            "changed provider/code is validation rather than ordinary quote retrieval"
+        );
+        assert!(store.written.lock().unwrap().is_empty());
+        assert!(store.derived.lock().unwrap().is_empty());
+        assert!(sink.is_empty());
         Ok(())
     }
 
@@ -5501,21 +5570,21 @@ mod tests {
             assert_eq!(resolved.price, Some(dec!(120)));
             assert_eq!(resolved.resolved_provider_id.as_deref(), Some("YAHOO"));
         }
-        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        assert_eq!(calls.load(Ordering::Relaxed), 2);
         assert!(store
             .latest(&AssetId::new("canonical-aapl"), None)?
             .is_none());
         assert!(store.written.lock().unwrap().is_empty());
-        assert_eq!(store.derived.lock().unwrap().len(), 1);
+        assert!(store.derived.lock().unwrap().is_empty());
         assert!(
             sink.is_empty(),
-            "derived validation must not emit financial events"
+            "provider validation must not emit financial events"
         );
         Ok(())
     }
 
     #[tokio::test]
-    async fn stale_manual_overlay_requires_only_one_provider_verification_request() -> Result<()> {
+    async fn manual_overlay_validation_does_not_cache_or_mutate_user_prices() -> Result<()> {
         let asset = resolution_asset(Some("VERIFIED"));
         let mut manual = stored_quote(&asset.id, Utc::now().date_naive(), dec!(999));
         manual.currency = "USD".into();
@@ -5558,10 +5627,10 @@ mod tests {
             store.written.lock().unwrap().is_empty(),
             "verification must not write canonical quotes"
         );
-        assert_eq!(store.derived.lock().unwrap().len(), 1);
+        assert!(store.derived.lock().unwrap().is_empty());
         assert_eq!(resolved.price, Some(dec!(120)));
         assert_eq!(resolved.resolved_provider_id.as_deref(), Some("YAHOO"));
-        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        assert_eq!(calls.load(Ordering::Relaxed), 3);
         service
             .client
             .write()
@@ -5570,7 +5639,7 @@ mod tests {
         assert_eq!(resolve().await?.price, Some(dec!(120)));
         assert_eq!(
             calls.load(Ordering::Relaxed),
-            2,
+            4,
             "changed provider configuration needs fresh validation"
         );
         let changed_code = service
@@ -5586,7 +5655,7 @@ mod tests {
         assert_eq!(changed_code.price, None);
         assert_eq!(
             calls.load(Ordering::Relaxed),
-            3,
+            5,
             "changed provider code cannot reuse prior validation"
         );
         assert!(store.written.lock().unwrap().is_empty());
@@ -5600,7 +5669,7 @@ mod tests {
         );
         assert!(
             sink.is_empty(),
-            "derived validation must not emit financial events"
+            "provider validation must not emit financial events"
         );
         Ok(())
     }
