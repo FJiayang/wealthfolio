@@ -860,6 +860,23 @@ async fn future_latest_response_writes_neither_quotes_nor_receipts() {
         .get_result::<Count>(&mut *db::get_connection(&f.pool).unwrap())
         .unwrap();
     assert_eq!(count.count, 0);
+
+    // Uncacheable provider observations must not replace ordinary manual output.
+    f.store
+        .upsert_quotes(&[quote("asset", "MANUAL", 999)])
+        .await
+        .unwrap();
+    let merged = service
+        .fetch_local_first_latest(&asset, false)
+        .await
+        .unwrap();
+    assert_eq!(merged.data_source, "MANUAL");
+    assert_eq!(merged.close, Decimal::new(999, 0));
+    assert_eq!(f.store.get_historical_quotes("asset").unwrap().len(), 1);
+    let count = diesel::sql_query("SELECT COUNT(*) AS count FROM market_history_queries")
+        .get_result::<Count>(&mut *db::get_connection(&f.pool).unwrap())
+        .unwrap();
+    assert_eq!(count.count, 0);
 }
 
 #[tokio::test]

@@ -1012,6 +1012,10 @@ Normal market settings require an available profile context.
 Explicit provider verification remains distinct from the manual-priority display
 price: it reuses compatible local provider proof or the actual response of one
 necessary latest fetch, never relabeling a manual price as provider-supplied.
+When a manual override prevents storing provider validation in the canonical
+price row, that validation payload uses the existing isolated derived-cache
+namespace and canonical asset lock. It does not replace or duplicate the
+canonical manual price, create catalog assets, or add another cache subsystem.
 Current weekend observations can use bounded latest-only Partial receipts. An
 observation whose timestamp cannot safely establish an observable range is
 returned without caching, including conservatively handled market-local

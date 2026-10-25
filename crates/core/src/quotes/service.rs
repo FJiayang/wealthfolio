@@ -1902,10 +1902,23 @@ where
                 .collect();
             let existing = (matching_assets.len() == 1).then(|| &matching_assets[0]);
             let quote_asset = existing.unwrap_or(&temp_asset);
+            let verification_source = preferred_provider
+                .filter(|provider| !provider.trim().is_empty())
+                .map(|provider| {
+                    provider
+                        .trim()
+                        .strip_prefix("CUSTOM:")
+                        .map(|code| format!("{DATA_SOURCE_CUSTOM_SCRAPER}:{code}"))
+                        .unwrap_or_else(|| provider.trim().to_string())
+                });
             match self
                 .get_sync_service()
                 .await?
-                .fetch_local_first_latest_with_provenance(quote_asset, existing.is_none())
+                .fetch_local_first_latest_for_resolution(
+                    quote_asset,
+                    existing.is_none(),
+                    verification_source.as_deref(),
+                )
                 .await
             {
                 Ok((mut quote, fetched_provider_quote)) => {
@@ -1919,65 +1932,6 @@ where
                             }
                             quote = fetched;
                         }
-                    }
-                    if quote.data_source == DATA_SOURCE_MANUAL
-                        && preferred_provider.is_some_and(|provider| !provider.trim().is_empty())
-                    {
-                        // Manual precedence is correct for displayed prices, but it
-                        // is not proof that the requested provider can resolve this
-                        // exact symbol/override. Keep the two contracts separate.
-                        let requested = preferred_provider
-                            .expect("checked nonempty preference")
-                            .trim();
-                        let source = requested
-                            .strip_prefix("CUSTOM:")
-                            .map(|code| format!("{DATA_SOURCE_CUSTOM_SCRAPER}:{code}"))
-                            .unwrap_or_else(|| requested.to_string());
-                        let provider_quote = if let Some(asset) =
-                            existing.filter(|asset| asset.quote_mode == QuoteMode::Market)
-                        {
-                            let current_day = time_utils::market_calendar_date(
-                                Utc::now(),
-                                asset.instrument_exchange_mic.as_deref(),
-                                matches!(asset.instrument_type, Some(InstrumentType::Crypto)),
-                            );
-                            self.quote_store
-                                .latest(
-                                    &AssetId::new(&asset.id),
-                                    Some(&QuoteSource::from_storage_string(&source)),
-                                )?
-                                .filter(|candidate| {
-                                    candidate.data_source != DATA_SOURCE_MANUAL
-                                        && resolved_provider_matches_requested(
-                                            &candidate.data_source,
-                                            preferred_provider,
-                                        )
-                                        && candidate.timestamp.date_naive() >= current_day
-                                        && candidate.timestamp <= Utc::now()
-                                        && candidate.created_at.naive_utc() >= asset.updated_at
-                                        && (asset.quote_ccy.is_empty()
-                                            || normalize_currency_code(&candidate.currency)
-                                                == normalize_currency_code(&asset.quote_ccy))
-                                })
-                        } else {
-                            None
-                        };
-                        quote = match provider_quote {
-                            Some(provider_quote) => provider_quote,
-                            None => match self
-                                .client
-                                .read()
-                                .await
-                                .fetch_latest_quote(&temp_asset)
-                                .await
-                            {
-                                Ok(provider_quote) => provider_quote,
-                                Err(error) => {
-                                    debug!("resolve_symbol_quote: explicit provider verification failed for symbol='{}': {}", attempt_symbol, error);
-                                    continue;
-                                }
-                            },
-                        };
                     }
                     let currency = {
                         let c = quote.currency.trim();
@@ -3714,6 +3668,8 @@ mod tests {
     struct RangeQuoteStore {
         quotes: Vec<Quote>,
         written: Mutex<Vec<Quote>>,
+        derived: Mutex<HashMap<String, Vec<Quote>>>,
+        receipts: Mutex<HashMap<String, super::super::history::HistoryCoverage>>,
         range_calls: Arc<AtomicUsize>,
         covered: bool,
         invalidations: Arc<AtomicUsize>,
@@ -3725,6 +3681,9 @@ mod tests {
             &self,
             identity: &str,
         ) -> Result<Vec<super::super::history::HistoryCoverage>> {
+            if let Some(record) = self.receipts.lock().unwrap().get(identity) {
+                return Ok(vec![record.clone()]);
+            }
             Ok(if self.covered {
                 vec![super::super::history::HistoryCoverage {
                     identity: identity.to_owned(),
@@ -3741,6 +3700,53 @@ mod tests {
             } else {
                 Vec::new()
             })
+        }
+
+        fn benchmark_history(
+            &self,
+            identity: &str,
+            start: NaiveDate,
+            end: NaiveDate,
+        ) -> Result<Vec<Quote>> {
+            Ok(self
+                .derived
+                .lock()
+                .unwrap()
+                .get(identity)
+                .into_iter()
+                .flatten()
+                .filter(|quote| {
+                    quote.timestamp.date_naive() >= start && quote.timestamp.date_naive() <= end
+                })
+                .cloned()
+                .collect())
+        }
+
+        async fn commit_history_query(
+            &self,
+            coverage: &super::super::history::HistoryCoverage,
+            quotes: &[Quote],
+            benchmark: bool,
+            record_coverage: bool,
+            _expected_context: Option<&super::super::model::ProviderHistoryResetContext>,
+        ) -> Result<usize> {
+            if benchmark {
+                self.derived
+                    .lock()
+                    .unwrap()
+                    .entry(coverage.identity.clone())
+                    .or_default()
+                    .extend_from_slice(quotes);
+            } else {
+                self.written.lock().unwrap().extend_from_slice(quotes);
+            }
+            if record_coverage {
+                self.receipts
+                    .lock()
+                    .unwrap()
+                    .insert(coverage.identity.clone(), coverage.clone());
+            }
+            Ok(quotes.len())
         }
 
         async fn invalidate_history_coverage(&self, _asset_id: Option<&str>) -> Result<()> {
@@ -5219,6 +5225,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn explicit_provider_validates_manual_asset_without_any_local_price() -> Result<()> {
+        let mut asset = resolution_asset(Some("VERIFIED"));
+        asset.quote_mode = QuoteMode::Manual;
+        let store = Arc::new(RangeQuoteStore::default());
+        let service = quote_service_for_asset(asset, store.clone()).await?;
+        let calls = Arc::new(AtomicUsize::new(0));
+        *service.client.write().await = MarketDataClient::new_with_extra(
+            Arc::new(MockSecretStore),
+            vec![ProviderConfig {
+                id: "YAHOO".into(),
+                priority: 1,
+            }],
+            vec![Arc::new(VerificationProvider {
+                calls: calls.clone(),
+            })],
+        )
+        .await?;
+        for _ in 0..2 {
+            let resolved = service
+                .resolve_symbol_quote(
+                    "AAPL",
+                    Some("XNAS"),
+                    Some(&InstrumentType::Equity),
+                    Some("USD"),
+                    Some("YAHOO"),
+                    Some("VERIFIED"),
+                )
+                .await?;
+            assert_eq!(resolved.price, Some(dec!(120)));
+            assert_eq!(resolved.resolved_provider_id.as_deref(), Some("YAHOO"));
+        }
+        assert_eq!(calls.load(Ordering::Relaxed), 1);
+        assert!(store
+            .latest(&AssetId::new("canonical-aapl"), None)?
+            .is_none());
+        assert!(store.written.lock().unwrap().is_empty());
+        assert_eq!(store.derived.lock().unwrap().len(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn stale_manual_overlay_requires_only_one_provider_verification_request() -> Result<()> {
         let asset = resolution_asset(Some("VERIFIED"));
         let mut manual = stored_quote(&asset.id, Utc::now().date_naive(), dec!(999));
@@ -5241,8 +5288,8 @@ mod tests {
             })],
         )
         .await?;
-        let resolved = service
-            .resolve_symbol_quote(
+        let resolve = || {
+            service.resolve_symbol_quote(
                 "AAPL",
                 Some("XNAS"),
                 Some(&InstrumentType::Equity),
@@ -5250,10 +5297,48 @@ mod tests {
                 Some("YAHOO"),
                 Some("VERIFIED"),
             )
-            .await?;
+        };
+        let (first, second) = tokio::join!(resolve(), resolve());
+        let resolved = first?;
+        assert_eq!(second?.price, Some(dec!(120)));
+        assert_eq!(resolve().await?.price, Some(dec!(120)));
+        assert!(
+            store.written.lock().unwrap().is_empty(),
+            "verification must not write canonical quotes"
+        );
+        assert_eq!(store.derived.lock().unwrap().len(), 1);
         assert_eq!(resolved.price, Some(dec!(120)));
         assert_eq!(resolved.resolved_provider_id.as_deref(), Some("YAHOO"));
         assert_eq!(calls.load(Ordering::Relaxed), 1);
+        service
+            .client
+            .write()
+            .await
+            .set_history_configuration_fingerprint("changed-settings".into());
+        assert_eq!(resolve().await?.price, Some(dec!(120)));
+        assert_eq!(
+            calls.load(Ordering::Relaxed),
+            2,
+            "changed provider configuration needs fresh validation"
+        );
+        let changed_code = service
+            .resolve_symbol_quote(
+                "AAPL",
+                Some("XNAS"),
+                Some(&InstrumentType::Equity),
+                Some("USD"),
+                Some("YAHOO"),
+                Some("INVALID"),
+            )
+            .await?;
+        assert_eq!(changed_code.price, None);
+        assert_eq!(
+            calls.load(Ordering::Relaxed),
+            3,
+            "changed provider code cannot reuse prior validation"
+        );
+        assert!(store.written.lock().unwrap().is_empty());
+
         assert_eq!(
             store
                 .latest(&AssetId::new("canonical-aapl"), None)?
