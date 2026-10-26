@@ -9,11 +9,11 @@ import {
   type TradeInstruction,
 } from "@/adapters";
 import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Input } from "@wealthfolio/ui/components/ui/input";
+import { DatePickerInput } from "@wealthfolio/ui";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { useNumberFormatting, useDateFormatting, useLocalizationSettings } from "@wealthfolio/ui";
-import { inputTime, instantTime } from "./time";
+import { inputTime, instantTime, pickerTime } from "./time";
 import { instructionKey, useTradeInstruction } from "./use-trade-instructions";
 
 type Action = "start" | "complete" | "cancel" | "correct";
@@ -167,12 +167,16 @@ export function InstructionDetail({ id }: { id: string }) {
               <Label htmlFor="completed-time">
                 {t("completedAt")} ({timezone})
               </Label>
-              <Input
+              <DatePickerInput
                 id="completed-time"
-                type="datetime-local"
-                required={action.kind === "correct"}
-                value={time}
-                onChange={(event) => setTime(event.target.value)}
+                aria-label={`${t("completedAt")} (${timezone})`}
+                data-testid="instruction-completed-picker"
+                enableTime
+                timeZone={timezone}
+                timeGranularity="minute"
+                isRequired={action.kind === "correct"}
+                value={time || undefined}
+                onChange={(date) => setTime(pickerTime(date, timezone))}
                 disabled={mutation.isPending}
               />
               {action.kind === "complete" && (

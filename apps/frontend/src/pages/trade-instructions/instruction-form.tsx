@@ -12,14 +12,14 @@ import type { SymbolSearchResult } from "@/lib/types";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Input } from "@wealthfolio/ui/components/ui/input";
 import { Label } from "@wealthfolio/ui/components/ui/label";
-import { Icons, Spinner, useLocalizationSettings } from "@wealthfolio/ui";
+import { DatePickerInput, Icons, Spinner, useLocalizationSettings } from "@wealthfolio/ui";
 import {
   AccountSelect,
   AdvancedOptionsSection,
   FormSection,
   NotesInput,
 } from "@/pages/activity/components/forms/fields";
-import { instantTime } from "./time";
+import { instantTime, pickerTime } from "./time";
 import { instructionKey } from "./use-trade-instructions";
 
 const positiveDecimal = z
@@ -69,6 +69,7 @@ export function InstructionForm({
   });
   const {
     register,
+    setValue,
     handleSubmit,
     watch,
     formState: { errors },
@@ -138,10 +139,21 @@ export function InstructionForm({
               <Label htmlFor="instruction-expected">
                 {t("expectedCompletionAt")} ({timezone})
               </Label>
-              <Input
+              <DatePickerInput
                 id="instruction-expected"
-                type="datetime-local"
-                {...register("expectedCompletionAt")}
+                aria-label={`${t("expectedCompletionAt")} (${timezone})`}
+                data-testid="instruction-expected-picker"
+                enableTime
+                timeZone={timezone}
+                timeGranularity="minute"
+                value={watch("expectedCompletionAt") || undefined}
+                onChange={(date) =>
+                  setValue("expectedCompletionAt", pickerTime(date, timezone), {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+                disabled={mutation.isPending}
               />
             </div>
           </FormSection>

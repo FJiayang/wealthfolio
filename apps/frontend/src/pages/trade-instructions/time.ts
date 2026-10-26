@@ -10,3 +10,7 @@ export function instantTime(value: string, timezone: string): string {
   if (!parsed || Number.isNaN(parsed.getTime())) throw new Error("Invalid date/time");
   return parsed.toISOString();
 }
+
+export function pickerTime(value: Date | undefined, timezone: string): string {
+  return value ? inputTime(value.toISOString(), timezone) : "";
+}

@@ -1,6 +1,28 @@
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { BASE_URL, loginIfNeeded, selectAccountOption } from "./helpers";
+
+// Exercise application-timezone entry from a browser in a different timezone.
+test.use({ timezoneId: "America/New_York" });
+
+async function fillInstructionDate(page: Page, picker: Locator, day: string) {
+  for (const [segment, value] of [
+    ["month", "01"],
+    ["day", day],
+    ["year", "2020"],
+    ["hour", "10"],
+    ["minute", "30"],
+  ]) {
+    await picker.locator(`[data-type="${segment}"]`).click();
+    await page.keyboard.type(value);
+  }
+  const period = picker.locator('[data-type="dayPeriod"]');
+  if (await period.count()) {
+    await period.click();
+    await page.keyboard.type("a");
+  }
+  await page.keyboard.press("Tab");
+}
 
 for (const rtl of [false, true]) {
   test(`trade instructions: create, complete and correct (${rtl ? "RTL" : "LTR"})`, async ({
@@ -9,6 +31,10 @@ for (const rtl of [false, true]) {
     test.setTimeout(180_000);
     await loginIfNeeded(page);
     const api = `${BASE_URL}/api/v1`;
+    const settingsResponse = await page.request.put(`${api}/settings`, {
+      data: { timezone: "Asia/Shanghai" },
+    });
+    expect(settingsResponse.ok()).toBeTruthy();
     const suffix = Date.now().toString();
     const name = `Instructions ${suffix}`;
     const symbol = `TI${suffix}`;
@@ -71,7 +97,12 @@ for (const rtl of [false, true]) {
     await expect(symbolOption).toBeVisible();
     await symbolOption.click();
     await dialog.getByRole("textbox", { name: "Quantity", exact: true }).fill("2.123456789");
-    await dialog.getByLabel("Expected completion", { exact: false }).fill("2020-01-01T12:00");
+    const expectedPicker = dialog.getByTestId("instruction-expected-picker");
+    await expectedPicker.getByRole("button", { name: "Pick a date" }).click();
+    await expect(page.getByRole("grid")).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath("instruction-calendar.png") });
+    await page.keyboard.press("Escape");
+    await fillInstructionDate(page, expectedPicker, "01");
     await dialog.getByLabel("Limit price", { exact: false }).fill("12.34");
     await dialog.getByRole("button", { name: "Advanced & notes" }).click();
     await dialog.getByTestId("notes-input").fill("Optional instruction note\nSecond line");
@@ -96,18 +127,19 @@ for (const rtl of [false, true]) {
     });
     const row = (await listing.json()).items[0];
     expect(row.goalId).toBe(goal.id);
+    expect(Date.parse(row.expectedCompletionAt)).toBe(Date.parse("2020-01-01T02:30:00Z"));
     expect(row.notes).toBe("Optional instruction note\nSecond line");
     expect(row.status).toBe("COMPLETED");
     expect(row.quantity).toBe("2.123456789");
     expect(row.completedAt).toBeTruthy();
     await dialog.getByRole("button", { name: "Correct completion time", exact: true }).click();
-    await dialog.getByLabel("Actual completion", { exact: false }).fill("2020-01-02T12:00");
+    await fillInstructionDate(page, dialog.getByTestId("instruction-completed-picker"), "02");
     await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
     await expect(
       dialog.getByRole("button", { name: "Correct completion time", exact: true }),
     ).toBeVisible();
     const corrected = await (await page.request.get(`${api}/trade-instructions/${row.id}`)).json();
-    expect(corrected.completedAt).not.toBe(row.completedAt);
+    expect(Date.parse(corrected.completedAt)).toBe(Date.parse("2020-01-02T02:30:00Z"));
     expect(corrected.closedAt).toBe(row.closedAt);
     expect(corrected.version).toBe(row.version + 1);
     const activities = await (

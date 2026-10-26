@@ -1,4 +1,13 @@
-import { CalendarDate, CalendarDateTime, getLocalTimeZone, parseDate, parseDateTime } from "@internationalized/date";
+import {
+  CalendarDate,
+  CalendarDateTime,
+  fromDate,
+  getLocalTimeZone,
+  toCalendarDate,
+  toCalendarDateTime,
+  parseDate,
+  parseDateTime,
+} from "@internationalized/date";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Icons } from "./icons";
@@ -19,6 +28,7 @@ import { cn } from "../../lib/utils";
 function toDateValue(
   value: Date | string | undefined,
   granularity: "day" | "hour" | "minute" | "second",
+  timeZone?: string,
 ): DateValue | null {
   if (!value) return null;
 
@@ -26,6 +36,10 @@ function toDateValue(
 
   if (value instanceof Date) {
     if (!Number.isFinite(value.getTime())) return null;
+    if (timeZone) {
+      const zoned = fromDate(value, timeZone);
+      return hasTimeGranularity ? toCalendarDateTime(zoned) : toCalendarDate(zoned);
+    }
 
     if (hasTimeGranularity) {
       return new CalendarDateTime(
@@ -62,9 +76,9 @@ function toDateValue(
   return null;
 }
 
-function fromDateValue(value: DateValue | null): Date | undefined {
+function fromDateValue(value: DateValue | null, timeZone?: string): Date | undefined {
   if (value) {
-    return value.toDate(getLocalTimeZone());
+    return value.toDate(timeZone ?? getLocalTimeZone());
   }
   return undefined;
 }
@@ -78,6 +92,8 @@ interface DatePickerInputProps extends Omit<
   disabled?: boolean;
   className?: string;
   enableTime?: boolean;
+  /** Interpret and display values in this timezone; defaults to the browser timezone. */
+  timeZone?: string;
   timeGranularity?: "hour" | "minute" | "second";
   onInteractionEnd?: () => void;
   "data-testid"?: string;
@@ -89,6 +105,7 @@ export function DatePickerInput({
   disabled,
   className,
   enableTime,
+  timeZone,
   timeGranularity,
   onInteractionEnd,
   "data-testid": testId,
@@ -102,13 +119,16 @@ export function DatePickerInput({
     return "day";
   }, [enableTime, timeGranularity]);
 
-  const racValue = React.useMemo(() => toDateValue(value, actualGranularity), [value, actualGranularity]);
+  const racValue = React.useMemo(
+    () => toDateValue(value, actualGranularity, timeZone),
+    [value, actualGranularity, timeZone],
+  );
 
   const handleRacChange = React.useCallback(
     (newValue: DateValue | null) => {
-      onChange(fromDateValue(newValue));
+      onChange(fromDateValue(newValue, timeZone));
     },
-    [onChange],
+    [onChange, timeZone],
   );
 
   return (
