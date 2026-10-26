@@ -1746,5 +1746,211 @@
   "cloud_backup_hint_running": "You can keep using Wealthfolio while we save your encrypted cloud backup.",
   "cloud_backup_hint_failed": "We couldn’t finish the backup. We’ll try again automatically, or you can try now.",
   "cloud_backup_retry_label": "Next retry",
-  "cloud_backup_retry_now": "Try backup again"
+  "cloud_backup_retry_now": "Try backup again",
+  "messages": {
+    "account": {
+      "created": "Account created successfully.",
+      "creatingFailed": "Failed to create this account.",
+      "updatingFailed": "Failed to update this account.",
+      "deletingFailed": "Failed to delete this account."
+    },
+    "contribution": {
+      "added": "Contribution limit added successfully.",
+      "updated": "Contribution limit updated successfully.",
+      "deleted": "Contribution limit deleted successfully.",
+      "addFailed": "Failed to add this contribution limit.",
+      "updateFailed": "Failed to update this contribution limit.",
+      "deleteFailed": "Failed to delete this contribution limit."
+    },
+    "exchange": {
+      "updatingFailed": "There was a problem updating the exchange rate: {{error}}",
+      "addingFailed": "There was a problem adding the exchange rate: {{error}}",
+      "deletingFailed": "There was a problem deleting the exchange rate: {{error}}"
+    },
+    "export": {
+      "empty": {
+        "accounts": "No accounts available to export right now.",
+        "activities": "No activities available to export right now.",
+        "holdings": "No holdings available to export right now.",
+        "goals": "No goals available to export right now.",
+        "portfolio-history": "No portfolio history records available to export right now."
+      }
+    },
+    "providerUpdateFailed": "Failed to update settings for provider {{provider}}",
+    "httpFailed": "HTTP request failed.",
+    "addonDownloadFailed": "Failed to download the addon.",
+    "addonPackages": "Addon Packages",
+    "addonInstalled": "{{name}} has been installed and is now active.",
+    "addonEnabled": "Addon enabled",
+    "addonDisabled": "Addon disabled",
+    "addonEnabledDescription": "{{name}} has been enabled.",
+    "addonDisabledDescription": "{{name}} has been disabled.",
+    "addonRemoved": "{{name}} has been completely removed.",
+    "addonNetworkSaved": "Network host approvals for {{name}} have been saved.",
+    "addonCheckFailed": "Failed to check updates for addon {{addon}}",
+    "auditRemoved_one": "{{count}} entry removed.",
+    "auditRemoved_other": "{{count}} entries removed.",
+    "addonUpdates_one": "{{count}} addon has updates available.",
+    "addonUpdates_other": "{{count}} addons have updates available.",
+    "addonCriticalUpdates_one": "{{count}} addon has critical security updates available.",
+    "addonCriticalUpdates_other": "{{count}} addons have critical security updates available."
+  },
+  "addonPermissions": {
+    "functions": {
+      "accounts_getAll": "View all accounts",
+      "accounts_create": "Create new accounts",
+      "portfolio_getHoldings": "View your investment holdings",
+      "portfolio_getHolding": "View individual holding details",
+      "portfolio_update": "Update portfolio calculations",
+      "portfolio_recalculate": "Recalculate entire portfolio",
+      "portfolio_getIncomeSummary": "View income and dividends",
+      "portfolio_getHistoricalValuations": "View historical portfolio values",
+      "portfolio_getLatestValuations": "View current portfolio values",
+      "activities_getAll": "View all transactions",
+      "activities_search": "Search transactions with filters",
+      "activities_searchCashActivities": "Search categorized spending transactions",
+      "activities_create": "Add new transactions",
+      "activities_update": "Modify transactions",
+      "activities_saveMany": "Save multiple transactions",
+      "activities_import": "Import transaction data",
+      "activities_checkImport": "Validate import data",
+      "activities_getImportMapping": "View import settings",
+      "activities_saveImportMapping": "Save import settings",
+      "activities_getTransferPair": "View linked transfer pairs",
+      "activities_findTransferMatchCandidates": "Find matching transfer candidates",
+      "activities_saveTransferPair": "Link transactions as a transfer",
+      "activities_linkTransfer": "Link transactions as a transfer",
+      "activities_unlinkTransfer": "Unlink transfer transactions",
+      "market_searchTicker": "Search for stocks/funds",
+      "market_syncHistory": "Download price history",
+      "market_sync": "Sync market data for symbols",
+      "market_getProviders": "View market data providers",
+      "assets_getProfile": "View asset profile details",
+      "assets_updateProfile": "Update asset information",
+      "assets_updateDataSource": "Change asset data provider",
+      "quotes_update": "Update current prices",
+      "quotes_getHistory": "View price history",
+      "performance_calculateHistory": "Calculate performance history",
+      "performance_calculateSummary": "Calculate performance summary",
+      "performance_calculateAccountsSimple": "Calculate basic account performance",
+      "currency_getAll": "View exchange rates",
+      "currency_update": "Update currency rates",
+      "currency_add": "Add new exchange rates",
+      "currency_getRatesForDates": "View historical exchange rates",
+      "exchangeRates_getAll": "View exchange rates",
+      "exchangeRates_update": "Update currency rates",
+      "exchangeRates_add": "Add new exchange rates",
+      "exchangeRates_getRatesForDates": "View historical exchange rates",
+      "spending_isEnabled": "Check whether Spending is enabled",
+      "spending_getCategories": "View your spend categories",
+      "spending_getReport": "View aggregate spending reports",
+      "spending_getRules": "View its own auto-categorization rules",
+      "spending_saveRule": "Create or update auto-categorization rules",
+      "spending_deleteRule": "Delete auto-categorization rules",
+      "spending_rerunRules": "Re-apply categorization rules to your transactions",
+      "contributionLimits_getAll": "View contribution limits",
+      "contributionLimits_create": "Set contribution limits",
+      "contributionLimits_update": "Modify contribution limits",
+      "contributionLimits_calculateDeposits": "Calculate required deposits",
+      "financial-planning_getAll": "View financial goals",
+      "financial-planning_create": "Create new goals",
+      "financial-planning_update": "Modify goals",
+      "financial-planning_getFunding": "View goal funding",
+      "financial-planning_saveFunding": "Update goal funding",
+      "financial-planning_updateAllocations": "Update goal allocations",
+      "financial-planning_getAllocations": "View goal allocations",
+      "settings_get": "View app settings",
+      "settings_update": "Modify app settings",
+      "settings_backupDatabase": "Create data backup",
+      "files_openCsvDialog": "Open file picker for CSV",
+      "files_openSaveDialog": "Save files to disk",
+      "secrets_get": "Retrieve stored credentials",
+      "secrets_set": "Store secure credentials",
+      "secrets_use": "Use stored credentials for brokered requests",
+      "secrets_delete": "Remove stored credentials",
+      "events_import_onDropHover": "Detect file drag-and-drop",
+      "events_import_onDrop": "Handle file drops",
+      "events_import_onDropCancelled": "Handle cancelled drops",
+      "events_portfolio_onUpdateStart": "Monitor portfolio update start",
+      "events_portfolio_onUpdateComplete": "Monitor portfolio update completion",
+      "events_portfolio_onUpdateError": "Monitor portfolio update errors",
+      "events_market_onSyncStart": "Monitor market sync start",
+      "events_market_onSyncComplete": "Monitor market sync completion",
+      "network_request": "Send brokered network requests"
+    },
+    "categories": {
+      "accounts": {
+        "name": "Account Management",
+        "description": "Access to account information and settings"
+      },
+      "alternative-assets": {
+        "name": "Alternative Assets",
+        "description": "Read-only access to alternative assets and liabilities (property, vehicles, collectibles, precious metals, other) tracked outside investment accounts"
+      },
+      "portfolio": {
+        "name": "Portfolio Data",
+        "description": "Access to holdings, portfolio performance, and account valuations"
+      },
+      "activities": {
+        "name": "Transaction History",
+        "description": "Access to transaction records and activity management"
+      },
+      "market-data": {
+        "name": "Market Data",
+        "description": "Access to market prices, quotes, and financial data"
+      },
+      "assets": {
+        "name": "Asset Management",
+        "description": "Access to asset profiles and data sources"
+      },
+      "quotes": {
+        "name": "Quote Management",
+        "description": "Access to price quotes and historical data"
+      },
+      "performance": {
+        "name": "Performance Analytics",
+        "description": "Access to performance calculations and metrics"
+      },
+      "currency": {
+        "name": "Exchange Rates",
+        "description": "Access to currency exchange rates and conversion data"
+      },
+      "spending": {
+        "name": "Spending",
+        "description": "View aggregate spending reports and categories, and manage categorization rules that auto-tag transactions"
+      },
+      "financial-planning": {
+        "name": "Financial Planning",
+        "description": "Access to financial goals and allocations"
+      },
+      "contribution-limits": {
+        "name": "Contribution Limits",
+        "description": "Access to contribution limits and deposit calculations"
+      },
+      "settings": {
+        "name": "Application Settings",
+        "description": "Access to application settings and configuration"
+      },
+      "files": {
+        "name": "File Operations",
+        "description": "Access to file dialogs and file system operations"
+      },
+      "secrets": {
+        "name": "Secrets Management",
+        "description": "Access to secure storage for addon secrets"
+      },
+      "snapshots": {
+        "name": "Snapshot Management",
+        "description": "Access to holdings snapshots for accounts with holdings tracking mode"
+      },
+      "events": {
+        "name": "Event Listeners",
+        "description": "Access to application events and notifications"
+      },
+      "network": {
+        "name": "Network Access",
+        "description": "Access to declared external HTTPS hosts through the host network broker"
+      }
+    }
+  }
 }

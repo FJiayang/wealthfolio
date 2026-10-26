@@ -723,7 +723,12 @@
     "notes_placeholder": "この評価額に関する補足(査定元、市況など)を入力",
     "cancel": "キャンセル",
     "update_value": "評価額を更新",
-    "na": "N/A"
+    "na": "N/A",
+    "validation": {
+      "number": "評価額は数値で入力してください。",
+      "non_negative": "評価額は負の値にできません",
+      "notes": "メモは500文字以内で入力してください"
+    }
   },
   "valueHistory": {
     "date": "日付",
@@ -1021,5 +1026,25 @@
     "payment_invalid": "支払額にはゼロより大きい値を入力してください。",
     "payment_unavailable": "この条件では支払額を計算できません。金額、金利、返済期間を確認してください。",
     "fields_read_only": "ローンの条件はローンの詳細でのみ変更できます。"
+  },
+  "notifications": {
+    "profile_updated": "資産情報を更新しました。",
+    "quote_mode_updated": "資産の価格モードを更新しました。",
+    "profile_failed": "資産情報を更新できませんでした。",
+    "quote_mode_failed": "価格モードを更新できませんでした。",
+    "quote_added": "価格を追加しました。",
+    "quote_updated": "価格を更新しました。",
+    "quote_deleted": "価格を削除しました。",
+    "quote_save_failed": "価格を保存できませんでした。",
+    "quote_delete_failed": "価格を削除できませんでした。"
+  },
+  "noQuote": {
+    "manual": "価格モードは手動です",
+    "inactive": "資産は無効です",
+    "matured": "債券は満期を迎えました",
+    "expired": "オプションは満期を迎えました",
+    "paused": "エラーの繰り返しにより同期を一時停止しています",
+    "pending": "データ提供元の価格はまだ同期されていません",
+    "no_data": "データ提供元のデータはまだありません"
   }
 }

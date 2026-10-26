@@ -1458,5 +1458,11 @@
     "94fc13ed-ac40-466b-8071-64f1e3c72204": "医疗",
     "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "特殊场合",
     "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "其他"
+  },
+  "validation": {
+    "accountNameMin": "名称至少需要 2 个字符。",
+    "accountNameMax": "名称不得超过 50 个字符。",
+    "accountCurrency": "请选择货币。",
+    "creditCardTracking": "信用卡账户不能使用持仓跟踪模式。"
   }
 }

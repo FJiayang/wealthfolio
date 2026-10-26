@@ -44,39 +44,39 @@ export const useContributionLimitMutations = () => {
     });
   };
 
-  const handleError = (action: string) => {
+  const handleError = (action: "add" | "update" | "delete") => {
     toast({
       title: i18n.t("settings:settings_update_error_title"),
-      description: `There was a problem ${action}.`,
+      description: i18n.t(`settings:messages.contribution.${action}Failed`),
       variant: "destructive",
     });
   };
 
   const addContributionLimitMutation = useMutation({
     mutationFn: createContributionLimit,
-    onSuccess: (limit) => handleSuccess("Contribution limit added successfully.", limit),
+    onSuccess: (limit) => handleSuccess(i18n.t("settings:messages.contribution.added"), limit),
     onError: (e) => {
       logger.error(`Error adding contribution limit: ${String(e)}`);
-      handleError("adding this contribution limit");
+      handleError("add");
     },
   });
 
   const updateContributionLimitMutation = useMutation({
     mutationFn: (params: { id: string; updatedLimit: NewContributionLimit }) =>
       updateContributionLimit(params.id, params.updatedLimit),
-    onSuccess: (limit) => handleSuccess("Contribution limit updated successfully.", limit),
+    onSuccess: (limit) => handleSuccess(i18n.t("settings:messages.contribution.updated"), limit),
     onError: (e) => {
       logger.error(`Error updating contribution limit: ${String(e)}`);
-      handleError("updating this contribution limit");
+      handleError("update");
     },
   });
 
   const deleteContributionLimitMutation = useMutation({
     mutationFn: deleteContributionLimit,
-    onSuccess: () => handleSuccess("Contribution limit deleted successfully.", undefined),
+    onSuccess: () => handleSuccess(i18n.t("settings:messages.contribution.deleted"), undefined),
     onError: (e) => {
       logger.error(`Error deleting contribution limit: ${String(e)}`);
-      handleError("deleting this contribution limit");
+      handleError("delete");
     },
   });
 

@@ -1034,5 +1034,9 @@
     "addSource_one": "新增來源（{{count}} 個可用）",
     "overridesTitle_one": "覆寫 · {{count}}",
     "sourceMonth": "來源月份"
+  },
+  "budgetErrors": {
+    "deleteGroup": "刪除預算群組失敗。",
+    "copyPlan": "複製計畫失敗。"
   }
 }

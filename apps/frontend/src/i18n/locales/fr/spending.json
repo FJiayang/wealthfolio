@@ -1091,5 +1091,9 @@
     "overridesTitle_other": "Ajustements · {{count}}",
     "overridesTitle_many": "Ajustements · {{count}}",
     "sourceMonth": "Mois source"
+  },
+  "budgetErrors": {
+    "deleteGroup": "Impossible de supprimer le groupe budgétaire.",
+    "copyPlan": "Impossible de copier le plan."
   }
 }

@@ -85,7 +85,9 @@ export function useBudgetMutations(periodKey?: string) {
     onSuccess: invalidate,
     onError: (error) =>
       toast.error(
-        error instanceof Error && error.message ? error.message : "Failed to delete budget group.",
+        error instanceof Error && error.message
+          ? error.message
+          : i18n.t("spending:budgetErrors.deleteGroup"),
       ),
   });
 
@@ -118,7 +120,8 @@ export function useBudgetMutations(periodKey?: string) {
       toast.success(i18n.t("common:notifications.plan_copied"));
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : "Failed to copy plan.";
+      const message =
+        error instanceof Error ? error.message : i18n.t("spending:budgetErrors.copyPlan");
       toast.error(message);
     },
   });

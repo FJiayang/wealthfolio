@@ -7,7 +7,7 @@ import * as z from "zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
 
-import { newAccountSchema } from "@/lib/schemas";
+import { createNewAccountSchema, newAccountSchema } from "@/lib/schemas";
 import { AccountType } from "@/lib/constants";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { cn } from "@/lib/utils";
@@ -176,7 +176,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
   const [pendingFormData, setPendingFormData] = useState<AccountFormOutput | null>(null);
 
   const form = useForm<AccountFormInput, unknown, AccountFormOutput>({
-    resolver: zodResolver(newAccountSchema),
+    resolver: zodResolver(createNewAccountSchema(t)),
     defaultValues: {
       ...defaultValues,
       // Don't default to any mode if account needs setup (must come after spread)

@@ -1486,5 +1486,11 @@
     "94fc13ed-ac40-466b-8071-64f1e3c72204": "Saúde",
     "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "Ocasião especial",
     "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "Outros"
+  },
+  "validation": {
+    "accountNameMin": "O nome deve ter pelo menos 2 caracteres.",
+    "accountNameMax": "O nome não pode exceder 50 caracteres.",
+    "accountCurrency": "Selecione uma moeda.",
+    "creditCardTracking": "Contas de cartão de crédito não podem usar o modo de acompanhamento de posições."
   }
 }

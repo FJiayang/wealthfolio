@@ -708,6 +708,68 @@ describe("PerformancePage built-in display labels", () => {
     expect(savedItems()).toEqual(items);
   });
 
+  it("localizes mobile metric explanations while retaining raw calculation notes", async () => {
+    const i18n = await language();
+    mocks.mobile = true;
+    mocks.performance.mockReturnValue({
+      data: [resultWithWarning],
+      isLoading: false,
+      hasErrors: false,
+      errorMessages: [],
+    });
+    renderPage(true, i18n);
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: i18n.t("common:component.calculation_note_for", {
+          label: zhPerformance.metric.twr_short,
+        }),
+      }),
+    );
+    expect(screen.getByText(zhPerformance.metric_info.time_weighted_return)).toBeInTheDocument();
+    expect(screen.getByText(TWR_WARNING)).toBeInTheDocument();
+    await act(() => i18n.changeLanguage("en"));
+    expect(screen.getByText(enPerformance.metric_info.time_weighted_return)).toBeInTheDocument();
+    expect(screen.getByText(TWR_WARNING)).toBeInTheDocument();
+  });
+
+  it("localizes the metric help and updates it when language changes without rewriting warnings", async () => {
+    const i18n = await language();
+    const data = {
+      ...resultWithWarning,
+      returns: { ...resultWithWarning.returns, irr: 0.08 },
+    };
+    const original = structuredClone(data);
+    mocks.performance.mockReturnValue({
+      data: [data],
+      isLoading: false,
+      hasErrors: false,
+      errorMessages: [],
+    });
+    renderPage(true, i18n);
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: zhPerformance.help.aria_label,
+      }),
+    );
+    for (const key of [
+      "time_weighted_return",
+      "money_weighted_return",
+      "annualized_return",
+      "volatility",
+      "max_drawdown",
+    ] as const) {
+      expect(screen.getByText(zhPerformance.metric_info[key])).toBeInTheDocument();
+      expect(screen.queryByText(enPerformance.metric_info[key])).not.toBeInTheDocument();
+    }
+    expect(screen.getByText(TWR_WARNING)).toBeInTheDocument();
+    await act(() => i18n.changeLanguage("en"));
+    expect(screen.getByText(enPerformance.metric_info.time_weighted_return)).toBeInTheDocument();
+    expect(
+      screen.queryByText(zhPerformance.metric_info.time_weighted_return),
+    ).not.toBeInTheDocument();
+    expect(data).toEqual(original);
+  });
+
   it.each([
     {
       raw: "IRR unavailable for holdings-only scopes because transaction cash flows are not tracked.",

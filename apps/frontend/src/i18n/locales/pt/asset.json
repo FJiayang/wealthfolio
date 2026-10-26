@@ -727,7 +727,12 @@
     "notes_placeholder": "Adicione qualquer contexto sobre esta avaliação (ex.: fonte da avaliação, condições de mercado)",
     "cancel": "Cancelar",
     "update_value": "Atualizar valor",
-    "na": "N/D"
+    "na": "N/D",
+    "validation": {
+      "number": "O valor deve ser um número.",
+      "non_negative": "O valor não pode ser negativo",
+      "notes": "As notas não devem exceder 500 caracteres"
+    }
   },
   "valueHistory": {
     "date": "Data",
@@ -1037,5 +1042,25 @@
     "payment_invalid": "Insira um pagamento maior que zero.",
     "payment_unavailable": "Não é possível calcular um pagamento com estas condições. Verifique o valor, a taxa e a amortização.",
     "fields_read_only": "As condições do empréstimo só podem ser alteradas nos detalhes do empréstimo."
+  },
+  "notifications": {
+    "profile_updated": "Perfil do ativo atualizado.",
+    "quote_mode_updated": "Modo de cotação do ativo atualizado.",
+    "profile_failed": "Não foi possível atualizar o perfil do ativo.",
+    "quote_mode_failed": "Não foi possível atualizar o modo de cotação.",
+    "quote_added": "Cotação adicionada.",
+    "quote_updated": "Cotação atualizada.",
+    "quote_deleted": "Cotação excluída.",
+    "quote_save_failed": "Não foi possível salvar a cotação.",
+    "quote_delete_failed": "Não foi possível excluir a cotação."
+  },
+  "noQuote": {
+    "manual": "O modo de cotação é manual",
+    "inactive": "O ativo está inativo",
+    "matured": "O título venceu",
+    "expired": "A opção expirou",
+    "paused": "Sincronização pausada após erros repetidos",
+    "pending": "Nenhuma cotação do provedor foi sincronizada ainda",
+    "no_data": "Ainda não há dados disponíveis do provedor"
   }
 }

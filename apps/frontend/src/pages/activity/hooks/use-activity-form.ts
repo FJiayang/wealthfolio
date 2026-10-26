@@ -29,7 +29,7 @@ function extractErrorMessage(error: unknown): string {
     if (typeof raw.error === "string" && raw.error.trim()) return raw.error;
     if (typeof raw.message === "string" && raw.message.trim()) return raw.message;
   }
-  return "Failed to save activity. Please check your inputs and try again.";
+  return i18n.t("activity:mobile_form.save_failed_desc");
 }
 
 function transferPairIds(activity: Partial<ActivityDetails> | undefined): {

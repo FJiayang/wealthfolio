@@ -15,14 +15,6 @@ interface FileExportResult {
 
 type ExportMutationResult = FileExportResult | null;
 
-const datasetLabels: Record<ExportDataType, string> = {
-  accounts: "accounts",
-  activities: "activities",
-  holdings: "holdings",
-  goals: "goals",
-  "portfolio-history": "portfolio history records",
-};
-
 export function useExportData() {
   const {
     mutateAsync: exportDataMutation,
@@ -35,7 +27,7 @@ export function useExportData() {
       if (result.status === "empty") {
         toast({
           title: i18n.t("common:notifications.nothing_to_export"),
-          description: `No ${datasetLabels[desiredData]} available to export right now.`,
+          description: i18n.t(`settings:messages.export.empty.${desiredData}`),
         });
         return null;
       }
@@ -62,7 +54,7 @@ export function useExportData() {
       logger.error(`Error while exporting: ${String(e)}`);
       toast({
         title: i18n.t("common:notifications.export_failed"),
-        description: e.message || "The export could not be completed.",
+        description: e.message || i18n.t("common:notifications.export_failed"),
         variant: "destructive",
       });
     },

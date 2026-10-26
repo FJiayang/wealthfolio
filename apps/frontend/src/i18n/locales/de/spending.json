@@ -1034,5 +1034,9 @@
     "overridesTitle_one": "Anpassung · {{count}}",
     "overridesTitle_other": "Anpassungen · {{count}}",
     "sourceMonth": "Quellmonat"
+  },
+  "budgetErrors": {
+    "deleteGroup": "Budgetgruppe konnte nicht gelöscht werden.",
+    "copyPlan": "Plan konnte nicht kopiert werden."
   }
 }

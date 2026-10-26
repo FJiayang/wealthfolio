@@ -34,7 +34,7 @@ import {} from "@/lib/utils";
 import { useAlternativeAssetMutations } from "../hooks/use-alternative-asset-mutations";
 import {
   getUpdateValuationDefaultValues,
-  updateValuationSchema,
+  createUpdateValuationSchema,
   type UpdateValuationFormValues,
 } from "./update-valuation-schema";
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
@@ -79,7 +79,7 @@ export function UpdateValuationModal({
   });
 
   const form = useForm<UpdateValuationFormValues>({
-    resolver: zodResolver(updateValuationSchema) as Resolver<UpdateValuationFormValues>,
+    resolver: zodResolver(createUpdateValuationSchema(t)) as Resolver<UpdateValuationFormValues>,
     defaultValues: getUpdateValuationDefaultValues(currentValue),
   });
 

@@ -1091,5 +1091,9 @@
     "overridesTitle_other": "Excepciones · {{count}}",
     "overridesTitle_many": "Excepciones · {{count}}",
     "sourceMonth": "Mes de origen"
+  },
+  "budgetErrors": {
+    "deleteGroup": "No se pudo eliminar el grupo de presupuesto.",
+    "copyPlan": "No se pudo copiar el plan."
   }
 }

@@ -1034,5 +1034,9 @@
     "overridesTitle_one": "Override · {{count}}",
     "overridesTitle_other": "Overrides · {{count}}",
     "sourceMonth": "Source month"
+  },
+  "budgetErrors": {
+    "deleteGroup": "Failed to delete budget group.",
+    "copyPlan": "Failed to copy plan."
   }
 }

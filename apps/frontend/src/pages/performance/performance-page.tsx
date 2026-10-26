@@ -3,17 +3,17 @@ import { useSettingsContext } from "@/lib/settings-provider";
 import { AccountScopeSelector } from "@/components/account-filter-selector";
 import { BenchmarkSymbolSelector } from "@/components/benchmark-symbol-selector";
 import {
-  ANNUALIZED_RETURN_INFO as annualizedReturnInfo,
-  MAX_DRAWDOWN_INFO as maxDrawdownInfo,
+  ANNUALIZED_RETURN_INFO_KEY as annualizedReturnInfo,
+  MAX_DRAWDOWN_INFO_KEY as maxDrawdownInfo,
   MetricInfoPopoverBody,
   MetricLabelWithInfo,
   metricWarningItems,
-  MONEY_WEIGHTED_RETURN_INFO,
-  PRICE_RETURN_INFO,
-  SIMPLE_RETURN_INFO,
-  TIME_WEIGHTED_RETURN_INFO,
-  VALUE_RETURN_INFO,
-  VOLATILITY_INFO as volatilityInfo,
+  MONEY_WEIGHTED_RETURN_INFO_KEY,
+  PRICE_RETURN_INFO_KEY,
+  SIMPLE_RETURN_INFO_KEY,
+  TIME_WEIGHTED_RETURN_INFO_KEY,
+  VALUE_RETURN_INFO_KEY,
+  VOLATILITY_INFO_KEY as volatilityInfo,
 } from "@/components/metric-display";
 import { PerformanceChart } from "@/components/performance-chart";
 import { PerformanceChartMobile } from "@/components/performance-chart-mobile";
@@ -207,31 +207,31 @@ function metricPresentation(
       return {
         label: t("performance:metric.time_weighted_return"),
         mobileLabel: t("performance:metric.twr_short"),
-        infoText: TIME_WEIGHTED_RETURN_INFO,
+        infoText: t(TIME_WEIGHTED_RETURN_INFO_KEY),
       };
     case "irr":
       return {
         label: t("performance:metric.money_weighted_return"),
         mobileLabel: t("performance:metric.mwr_short"),
-        infoText: MONEY_WEIGHTED_RETURN_INFO,
+        infoText: t(MONEY_WEIGHTED_RETURN_INFO_KEY),
       };
     case "valueReturn":
       return {
         label: t("performance:metric.value_return"),
         mobileLabel: t("performance:metric.value_short"),
-        infoText: VALUE_RETURN_INFO,
+        infoText: t(VALUE_RETURN_INFO_KEY),
       };
     case "volatility":
       return {
         label: t("performance:metric.volatility"),
         mobileLabel: t("performance:metric.vol_short"),
-        infoText: volatilityInfo,
+        infoText: t(volatilityInfo),
       };
     case "drawdown":
       return {
         label: t("performance:metric.max_drawdown"),
         mobileLabel: t("performance:metric.drawdown_short"),
-        infoText: maxDrawdownInfo,
+        infoText: t(maxDrawdownInfo),
       };
   }
 }
@@ -1312,7 +1312,7 @@ export default function PerformancePage() {
         ? {
             label: t("performance:metric.price_return"),
             mobileLabel: t("performance:metric.price_short"),
-            infoText: PRICE_RETURN_INFO,
+            infoText: t(PRICE_RETURN_INFO_KEY),
           }
         : metricPresentation(selectedMetric, t);
     const selectedMetricValue = displayMetricValue(found, selectedMetric);
@@ -1363,22 +1363,22 @@ export default function PerformancePage() {
         ? [
             {
               label: moneyWeightedReturnLabel,
-              infoText: MONEY_WEIGHTED_RETURN_INFO,
+              infoText: t(MONEY_WEIGHTED_RETURN_INFO_KEY),
               warningText: moneyWeightedHelpWarnings,
             },
           ]
         : []),
       {
         label: t("performance:metric.annualized_return"),
-        infoText: annualizedReturnInfo,
+        infoText: t(annualizedReturnInfo),
       },
       {
         label: t("performance:metric.volatility"),
-        infoText: volatilityInfo,
+        infoText: t(volatilityInfo),
       },
       {
         label: t("performance:metric.max_drawdown"),
-        infoText: maxDrawdownInfo,
+        infoText: t(maxDrawdownInfo),
       },
       ...(periodPnl != null
         ? [
@@ -1745,7 +1745,7 @@ export default function PerformancePage() {
                                 label={
                                   selectedItemData?.mobileLabel ?? t("performance:metric.return")
                                 }
-                                infoText={selectedItemData?.infoText ?? SIMPLE_RETURN_INFO}
+                                infoText={selectedItemData?.infoText ?? t(SIMPLE_RETURN_INFO_KEY)}
                                 warningText={selectedItemData?.returnWarnings}
                                 boldTerms={selectedItemData?.warningTerms}
                                 value={selectedItemData?.selectedMetricValue ?? null}
@@ -1764,7 +1764,7 @@ export default function PerformancePage() {
                                     ? t("performance:metric.ann_twr_short")
                                     : t("performance:metric.annualized_short")
                                 }
-                                infoText={annualizedReturnInfo}
+                                infoText={t(annualizedReturnInfo)}
                                 value={selectedItemData?.annualizedReturn ?? null}
                                 align="left"
                                 valueClassName="text-base"
@@ -1776,7 +1776,7 @@ export default function PerformancePage() {
                               <div className="bg-muted/30 rounded-lg px-3 py-2">
                                 <HeaderMetric
                                   label={selectedItemData.moneyWeightedReturnMobileLabel}
-                                  infoText={MONEY_WEIGHTED_RETURN_INFO}
+                                  infoText={t(MONEY_WEIGHTED_RETURN_INFO_KEY)}
                                   warningText={selectedItemData.moneyWeightedWarnings}
                                   value={selectedItemData.moneyWeightedReturn}
                                   reason={selectedItemData.moneyWeightedReason}
@@ -1790,7 +1790,7 @@ export default function PerformancePage() {
                             <div className="bg-muted/30 rounded-lg px-3 py-2">
                               <HeaderMetric
                                 label={t("performance:metric.volatility")}
-                                infoText={volatilityInfo}
+                                infoText={t(volatilityInfo)}
                                 warningText={selectedItemData?.volatilityWarnings}
                                 value={selectedItemData?.volatility ?? null}
                                 tone="neutral"
@@ -1803,7 +1803,7 @@ export default function PerformancePage() {
                             <div className="bg-muted/30 rounded-lg px-3 py-2">
                               <HeaderMetric
                                 label={t("performance:metric.max_drawdown")}
-                                infoText={maxDrawdownInfo}
+                                infoText={t(maxDrawdownInfo)}
                                 value={selectedItemData?.maxDrawdown ?? null}
                                 align="left"
                                 valueClassName="text-base"
@@ -1851,7 +1851,7 @@ export default function PerformancePage() {
                                 label={stripReturnLabel(selectedItemData?.label, t)}
                                 value={selectedItemData?.selectedMetricValue ?? null}
                                 reason={selectedItemData?.selectedMetricReason}
-                                infoText={selectedItemData?.infoText ?? SIMPLE_RETURN_INFO}
+                                infoText={selectedItemData?.infoText ?? t(SIMPLE_RETURN_INFO_KEY)}
                                 warningText={[
                                   ...(selectedItemData?.returnWarnings ?? []),
                                   ...(selectedItemData?.selectedMetricReason
@@ -1865,7 +1865,7 @@ export default function PerformancePage() {
                                   label={selectedItemData.moneyWeightedReturnLabel}
                                   value={selectedItemData.moneyWeightedReturn}
                                   reason={selectedItemData.moneyWeightedReason}
-                                  infoText={MONEY_WEIGHTED_RETURN_INFO}
+                                  infoText={t(MONEY_WEIGHTED_RETURN_INFO_KEY)}
                                   warningText={selectedItemData.moneyWeightedWarnings}
                                   boldTerms={selectedItemData.warningTerms}
                                 />
@@ -1873,7 +1873,7 @@ export default function PerformancePage() {
                               <StripMetric
                                 label={t("performance:metric.annualized_short")}
                                 value={selectedItemData?.annualizedReturn ?? null}
-                                infoText={annualizedReturnInfo}
+                                infoText={t(annualizedReturnInfo)}
                               />
                             </div>
                           </StripSection>
@@ -1884,14 +1884,14 @@ export default function PerformancePage() {
                                 label={t("performance:metric.volatility")}
                                 value={selectedItemData?.volatility ?? null}
                                 tone="neutral"
-                                infoText={volatilityInfo}
+                                infoText={t(volatilityInfo)}
                                 warningText={selectedItemData?.volatilityWarnings}
                                 boldTerms={selectedItemData?.warningTerms}
                               />
                               <StripMetric
                                 label={t("performance:metric.max_drawdown_short")}
                                 value={selectedItemData?.maxDrawdown ?? null}
-                                infoText={maxDrawdownInfo}
+                                infoText={t(maxDrawdownInfo)}
                               />
                             </div>
                           </StripSection>

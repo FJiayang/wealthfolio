@@ -1469,5 +1469,11 @@
     "94fc13ed-ac40-466b-8071-64f1e3c72204": "Medical",
     "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "Special Occasion",
     "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "Other"
+  },
+  "validation": {
+    "accountNameMin": "Name must be at least 2 characters.",
+    "accountNameMax": "Name must not be longer than 50 characters.",
+    "accountCurrency": "Please select a currency.",
+    "creditCardTracking": "Credit card accounts cannot use holdings tracking mode."
   }
 }

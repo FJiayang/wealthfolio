@@ -1458,5 +1458,11 @@
     "94fc13ed-ac40-466b-8071-64f1e3c72204": "医療",
     "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "特別な行事",
     "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "その他"
+  },
+  "validation": {
+    "accountNameMin": "名前は2文字以上で入力してください。",
+    "accountNameMax": "名前は50文字以内で入力してください。",
+    "accountCurrency": "通貨を選択してください。",
+    "creditCardTracking": "クレジットカード口座では保有資産追跡モードを使用できません。"
   }
 }

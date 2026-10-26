@@ -88,33 +88,44 @@ export const importMappingSchema = z.object({
 
 export const trackingModeSchema = z.enum(["TRANSACTIONS", "HOLDINGS", "NOT_SET"]);
 
-export const newAccountSchema = z
-  .object({
-    id: z.guid().optional(),
-    name: z
-      .string()
-      .min(2, {
-        message: "Name must be at least 2 characters.",
-      })
-      .max(50, {
-        message: "Name must not be longer than 50 characters.",
+export const createNewAccountSchema = (t?: TFunction) =>
+  z
+    .object({
+      id: z.guid().optional(),
+      name: z
+        .string()
+        .min(2, {
+          message: t?.("common:validation.accountNameMin") ?? "Name must be at least 2 characters.",
+        })
+        .max(50, {
+          message:
+            t?.("common:validation.accountNameMax") ??
+            "Name must not be longer than 50 characters.",
+        }),
+      group: z.string().optional(),
+      isDefault: z.boolean().optional(),
+      isActive: z.boolean().optional(),
+      isArchived: z.boolean().optional().default(false),
+      accountType: accountTypeSchema,
+      currency: z.string({
+        error: requiredError(
+          t?.("common:validation.accountCurrency") ?? "Please select a currency.",
+        ),
       }),
-    group: z.string().optional(),
-    isDefault: z.boolean().optional(),
-    isActive: z.boolean().optional(),
-    isArchived: z.boolean().optional().default(false),
-    accountType: accountTypeSchema,
-    currency: z.string({ error: requiredError("Please select a currency.") }),
-    trackingMode: trackingModeSchema.optional().default("NOT_SET"),
-    meta: z.string().nullable().optional(),
-  })
-  .refine(
-    (data) => data.accountType !== AccountType.CREDIT_CARD || data.trackingMode !== "HOLDINGS",
-    {
-      message: "Credit card accounts cannot use holdings tracking mode.",
-      path: ["trackingMode"],
-    },
-  );
+      trackingMode: trackingModeSchema.optional().default("NOT_SET"),
+      meta: z.string().nullable().optional(),
+    })
+    .refine(
+      (data) => data.accountType !== AccountType.CREDIT_CARD || data.trackingMode !== "HOLDINGS",
+      {
+        message:
+          t?.("common:validation.creditCardTracking") ??
+          "Credit card accounts cannot use holdings tracking mode.",
+        path: ["trackingMode"],
+      },
+    );
+
+export const newAccountSchema = createNewAccountSchema();
 
 export const newGoalSchema = z.object({
   id: z.guid().optional(),

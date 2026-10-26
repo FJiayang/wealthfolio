@@ -1262,5 +1262,9 @@
     "statusOver": "متجاوز",
     "statusUnder": "أقل من الميزانية",
     "underUsed": "غير مستغلة بالكامل"
+  },
+  "budgetErrors": {
+    "deleteGroup": "فشل حذف مجموعة الميزانية.",
+    "copyPlan": "فشل نسخ الخطة."
   }
 }

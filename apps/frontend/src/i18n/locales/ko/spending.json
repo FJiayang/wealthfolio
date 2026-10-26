@@ -1023,5 +1023,9 @@
     "addSource_other": "수입원 추가 (사용 가능 {{count}}개)",
     "overridesTitle_other": "재정의 · {{count}}개",
     "sourceMonth": "원본 월"
+  },
+  "budgetErrors": {
+    "deleteGroup": "예산 그룹을 삭제하지 못했습니다.",
+    "copyPlan": "계획을 복사하지 못했습니다."
   }
 }

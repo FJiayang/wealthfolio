@@ -727,7 +727,12 @@
     "notes_placeholder": "Ajoutez du contexte sur cette évaluation (p. ex. source d'expertise, conditions du marché)",
     "cancel": "Annuler",
     "update_value": "Mettre à jour la valeur",
-    "na": "N/D"
+    "na": "N/D",
+    "validation": {
+      "number": "La valeur doit être un nombre.",
+      "non_negative": "La valeur ne peut pas être négative",
+      "notes": "Les notes ne doivent pas dépasser 500 caractères"
+    }
   },
   "valueHistory": {
     "date": "Date",
@@ -1037,5 +1042,25 @@
     "payment_invalid": "Saisissez un paiement supérieur à zéro.",
     "payment_unavailable": "Aucun paiement ne peut être calculé avec ces conditions. Vérifiez le montant, le taux et l’amortissement.",
     "fields_read_only": "Les conditions du prêt ne peuvent être modifiées que dans les détails du prêt."
+  },
+  "notifications": {
+    "profile_updated": "Profil de l’actif mis à jour.",
+    "quote_mode_updated": "Mode de cotation de l’actif mis à jour.",
+    "profile_failed": "Impossible de mettre à jour le profil de l’actif.",
+    "quote_mode_failed": "Impossible de mettre à jour le mode de cotation.",
+    "quote_added": "Cotation ajoutée.",
+    "quote_updated": "Cotation mise à jour.",
+    "quote_deleted": "Cotation supprimée.",
+    "quote_save_failed": "Impossible d’enregistrer la cotation.",
+    "quote_delete_failed": "Impossible de supprimer la cotation."
+  },
+  "noQuote": {
+    "manual": "Le mode de cotation est manuel",
+    "inactive": "L’actif est inactif",
+    "matured": "L’obligation est arrivée à échéance",
+    "expired": "L’option a expiré",
+    "paused": "Synchronisation suspendue après des erreurs répétées",
+    "pending": "Aucune cotation du fournisseur n’a encore été synchronisée",
+    "no_data": "Aucune donnée du fournisseur n’est encore disponible"
   }
 }

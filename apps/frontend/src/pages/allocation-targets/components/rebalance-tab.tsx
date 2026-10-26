@@ -389,7 +389,7 @@ function copyToText(
     t("allocation:copyText.proposedTrades"),
     ...plan.trades.map(
       (trade) =>
-        `${trade.action.toUpperCase()}  ${trade.symbol ?? trade.categoryName}  ${formatting.formatAmount(trade.estimatedAmount, currency)}` +
+        `${t(`allocation:trades.${trade.action}`, { defaultValue: trade.action.toUpperCase() })}  ${trade.symbol ?? trade.categoryName}  ${formatting.formatAmount(trade.estimatedAmount, currency)}` +
         (trade.accountId
           ? `  ${t("allocation:copyText.account", { account: trade.accountId })}`
           : "") +

@@ -1,3 +1,4 @@
+import { formatActivityFieldName } from "../../utils/validation-labels";
 import i18n from "i18next";
 import { logger } from "@/adapters";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
@@ -60,7 +61,10 @@ export function useSaveActivities({
 
       const errorMessages = validation.errors
         .slice(0, 3)
-        .map((validationError) => `${validationError.field}: ${validationError.message}`)
+        .map(
+          (validationError) =>
+            `${formatActivityFieldName(validationError.field)}: ${validationError.message}`,
+        )
         .join(", ");
 
       toast({
@@ -107,7 +111,10 @@ export function useSaveActivities({
           .slice(0, 3)
           .map((err) => err.message)
           .join("\n");
-        const suffix = result.errors.length > 3 ? `\n...and ${result.errors.length - 3} more` : "";
+        const suffix =
+          result.errors.length > 3
+            ? `\n${i18n.t("activity:validation.more", { remaining: result.errors.length - 3 })}`
+            : "";
 
         logger.warn(`Backend validation errors: ${JSON.stringify(result.errors)}`);
 
