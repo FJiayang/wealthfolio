@@ -97,6 +97,12 @@ pub struct TradeInstruction {
     pub completed_at: Option<DateTime<Utc>>,
     pub version: i32,
 }
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum InstructionSort {
+    ExpectedCompletionAsc,
+    ExpectedCompletionDesc,
+}
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct InstructionFilter {
@@ -104,6 +110,10 @@ pub struct InstructionFilter {
     /// Omitted: open instructions; empty: all statuses.
     pub statuses: Option<Vec<InstructionStatus>>,
     pub account_id: Option<String>,
+    pub side: Option<InstructionSide>,
+    pub expected_completion_from: Option<DateTime<Utc>>,
+    pub expected_completion_before: Option<DateTime<Utc>>,
+    pub sort: Option<InstructionSort>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }

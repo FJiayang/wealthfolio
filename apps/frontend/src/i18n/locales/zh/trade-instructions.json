@@ -45,5 +45,11 @@
   "independent": "指令不会下单或创建记账活动。",
   "limitHint": "买入价格上限 / 卖出价格下限；留空由交易员决定。",
   "completionDefault": "留空使用确认完成时的系统时间。",
-  "selectType": "请在上方选择买入或卖出以继续"
+  "selectType": "请在上方选择买入或卖出以继续",
+  "expectedCompletionDate": "期望完成时间",
+  "notes": "备注",
+  "records": "条指令",
+  "startShort": "开始",
+  "completeShort": "完成",
+  "cancelShort": "取消"
 }

@@ -45,5 +45,11 @@
   "independent": "지시는 주문을 전송하거나 장부 활동을 생성하지 않습니다.",
   "limitHint": "매수 상한 / 매도 하한. 비워 두면 거래자가 결정합니다.",
   "completionDefault": "비워 두면 완료 확인 시간을 사용합니다.",
-  "selectType": "계속하려면 위에서 매수 또는 매도를 선택하세요"
+  "selectType": "계속하려면 위에서 매수 또는 매도를 선택하세요",
+  "expectedCompletionDate": "예상 완료 시간",
+  "notes": "메모",
+  "records": "지시",
+  "startShort": "시작",
+  "completeShort": "완료",
+  "cancelShort": "취소"
 }

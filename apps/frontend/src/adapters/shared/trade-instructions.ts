@@ -50,6 +50,10 @@ export interface InstructionFilter {
   goalId?: string;
   statuses?: InstructionStatus[];
   accountId?: string;
+  side?: "BUY" | "SELL";
+  expectedCompletionFrom?: string;
+  expectedCompletionBefore?: string;
+  sort?: "expectedCompletionAsc" | "expectedCompletionDesc";
   limit?: number;
   offset?: number;
 }

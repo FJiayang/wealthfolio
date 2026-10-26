@@ -45,5 +45,11 @@
   "independent": "指示は注文送信や記帳を行いません。",
   "limitHint": "買値の上限 / 売値の下限。空欄の場合は執行者が判断します。",
   "completionDefault": "空欄の場合は完了確認時刻を使用します。",
-  "selectType": "上で買いまたは売りを選択してください"
+  "selectType": "上で買いまたは売りを選択してください",
+  "expectedCompletionDate": "完了予定日時",
+  "notes": "メモ",
+  "records": "指示",
+  "startShort": "開始",
+  "completeShort": "完了",
+  "cancelShort": "取消"
 }

@@ -45,5 +45,11 @@
   "independent": "Anweisungen erteilen keine Orders und erzeugen keine Buchungen.",
   "limitHint": "Kaufobergrenze / Verkaufsuntergrenze; leer: Ermessen des Händlers.",
   "completionDefault": "Leer lassen, um die Bestätigungszeit zu verwenden.",
-  "selectType": "Wählen Sie oben Kauf oder Verkauf, um fortzufahren"
+  "selectType": "Wählen Sie oben Kauf oder Verkauf, um fortzufahren",
+  "expectedCompletionDate": "Erwarteter Abschluss",
+  "notes": "Notizen",
+  "records": "Anweisungen",
+  "startShort": "Start",
+  "completeShort": "Abschließen",
+  "cancelShort": "Abbrechen"
 }

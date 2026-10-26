@@ -58,14 +58,40 @@ impl TradeInstructionRepositoryTrait for TradeInstructionRepository {
             if let Some(ref account) = filter.account_id {
                 q = q.filter(account_id.eq(account));
             }
+            if let Some(direction) = filter.side {
+                q = q.filter(side.eq(match direction {
+                    InstructionSide::Buy => "BUY",
+                    InstructionSide::Sell => "SELL",
+                }));
+            }
+            if let Some(from) = filter.expected_completion_from {
+                q = q.filter(expected_completion_at.ge(from.to_rfc3339()));
+            }
+            if let Some(before) = filter.expected_completion_before {
+                q = q.filter(expected_completion_at.lt(before.to_rfc3339()));
+            }
             q
         };
         let total = query()
             .count()
             .get_result(&mut conn)
             .map_err(StorageError::from)?;
-        let rows = query()
-            .order((created_at.desc(), id.desc()))
+        let sorted = match filter.sort {
+            Some(InstructionSort::ExpectedCompletionAsc) => query().order((
+                expected_completion_at.is_null().asc(),
+                expected_completion_at.asc(),
+                created_at.asc(),
+                id.asc(),
+            )),
+            Some(InstructionSort::ExpectedCompletionDesc) => query().order((
+                expected_completion_at.is_null().asc(),
+                expected_completion_at.desc(),
+                created_at.asc(),
+                id.asc(),
+            )),
+            None => query().order((created_at.desc(), id.desc())),
+        };
+        let rows = sorted
             .limit(filter.limit.unwrap_or(50))
             .offset(filter.offset.unwrap_or(0))
             .select(InstructionDb::as_select())
@@ -231,5 +257,144 @@ mod tests {
             .execute(&mut conn)
             .unwrap();
         assert!(reopened.get(&initial.id).is_err());
+    }
+    #[tokio::test]
+    async fn trade_instruction_filter_sort_and_paginate_before_loading() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("filter.db").to_string_lossy().to_string();
+        run_migrations(&path).unwrap();
+        let pool = create_pool(&path).unwrap();
+        let writer = spawn_writer((*pool).clone()).unwrap();
+        let repo = TradeInstructionRepository::new(pool.clone(), writer);
+        diesel::sql_query("INSERT INTO goals (id, title, target_amount) VALUES ('goal-1', 'Goal', 1000), ('goal-2', 'Other', 2000)")
+            .execute(&mut get_connection(&pool).unwrap()).unwrap();
+        for (key, expected, direction, state, account, goal) in [
+            (
+                "a",
+                Some("2026-10-01T00:00:00Z"),
+                InstructionSide::Buy,
+                InstructionStatus::Pending,
+                "account-1",
+                "goal-1",
+            ),
+            (
+                "b",
+                Some("2026-10-01T00:00:00Z"),
+                InstructionSide::Buy,
+                InstructionStatus::Pending,
+                "account-1",
+                "goal-1",
+            ),
+            (
+                "c",
+                Some("2026-10-02T00:00:00Z"),
+                InstructionSide::Sell,
+                InstructionStatus::Completed,
+                "account-1",
+                "goal-1",
+            ),
+            (
+                "d",
+                None,
+                InstructionSide::Buy,
+                InstructionStatus::Pending,
+                "account-1",
+                "goal-1",
+            ),
+            (
+                "e",
+                Some("2026-10-01T00:00:00Z"),
+                InstructionSide::Buy,
+                InstructionStatus::Pending,
+                "account-2",
+                "goal-1",
+            ),
+            (
+                "f",
+                Some("2026-10-01T00:00:00Z"),
+                InstructionSide::Buy,
+                InstructionStatus::Pending,
+                "account-1",
+                "goal-2",
+            ),
+        ] {
+            let mut item = row();
+            item.id = key.into();
+            item.request_id = key.into();
+            item.expected_completion_at = expected.map(|v| v.parse().unwrap());
+            item.side = direction;
+            item.status = state;
+            if state == InstructionStatus::Completed {
+                item.completed_at = item.expected_completion_at;
+            }
+            item.account_id = account.into();
+            item.goal_id = goal.into();
+            repo.create(item).await.unwrap();
+        }
+        let base = InstructionFilter {
+            goal_id: Some("goal-1".into()),
+            account_id: Some("account-1".into()),
+            statuses: Some(vec![]),
+            sort: Some(InstructionSort::ExpectedCompletionAsc),
+            ..Default::default()
+        };
+        let ids = |page: InstructionPage| page.items.into_iter().map(|v| v.id).collect::<Vec<_>>();
+        assert_eq!(ids(repo.list(base.clone()).unwrap()), ["a", "b", "c", "d"]);
+        assert_eq!(
+            ids(repo
+                .list(InstructionFilter {
+                    sort: Some(InstructionSort::ExpectedCompletionDesc),
+                    ..base.clone()
+                })
+                .unwrap()),
+            ["c", "a", "b", "d"]
+        );
+        let first = repo
+            .list(InstructionFilter {
+                limit: Some(2),
+                ..base.clone()
+            })
+            .unwrap();
+        assert_eq!(first.total, 4);
+        assert_eq!(ids(first), ["a", "b"]);
+        assert_eq!(
+            ids(repo
+                .list(InstructionFilter {
+                    limit: Some(2),
+                    offset: Some(2),
+                    ..base.clone()
+                })
+                .unwrap()),
+            ["c", "d"]
+        );
+        let filtered = repo
+            .list(InstructionFilter {
+                side: Some(InstructionSide::Buy),
+                statuses: Some(vec![InstructionStatus::Pending]),
+                expected_completion_from: Some("2026-09-30T20:00:00-04:00".parse().unwrap()),
+                expected_completion_before: Some("2026-10-02T00:00:00Z".parse().unwrap()),
+                ..base.clone()
+            })
+            .unwrap();
+        assert_eq!(filtered.total, 2);
+        assert_eq!(ids(filtered), ["a", "b"]);
+        assert_eq!(
+            ids(repo
+                .list(InstructionFilter {
+                    sort: None,
+                    ..base.clone()
+                })
+                .unwrap()),
+            ["d", "c", "b", "a"]
+        );
+        assert_eq!(
+            ids(repo
+                .list(InstructionFilter {
+                    statuses: None,
+                    ..base
+                })
+                .unwrap()),
+            ["a", "b", "d"]
+        );
     }
 }

@@ -45,5 +45,11 @@
   "independent": "Les instructions ne passent aucun ordre et ne créent aucune écriture.",
   "limitHint": "Plafond d’achat / plancher de vente ; vide : à la discrétion du trader.",
   "completionDefault": "Laisser vide pour utiliser l’heure de confirmation.",
-  "selectType": "Sélectionnez Achat ou Vente ci-dessus pour continuer"
+  "selectType": "Sélectionnez Achat ou Vente ci-dessus pour continuer",
+  "expectedCompletionDate": "Fin prévue",
+  "notes": "Notes",
+  "records": "instructions",
+  "startShort": "Démarrer",
+  "completeShort": "Terminer",
+  "cancelShort": "Annuler"
 }

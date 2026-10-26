@@ -99,7 +99,7 @@ for (const rtl of [false, true]) {
     await dialog.getByRole("textbox", { name: "Quantity", exact: true }).fill("2.123456789");
     const expectedPicker = dialog.getByTestId("instruction-expected-picker");
     await expectedPicker.getByRole("button", { name: "Pick a date" }).click();
-    await expect(page.getByRole("grid")).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("grid")).toBeVisible();
     await page.screenshot({ path: test.info().outputPath("instruction-calendar.png") });
     await page.keyboard.press("Escape");
     await fillInstructionDate(page, expectedPicker, "01");
@@ -111,11 +111,16 @@ for (const rtl of [false, true]) {
     await dialog.getByRole("button", { name: "Add Buy", exact: true }).click();
     await expect(dialog).toBeHidden();
     const item = page
-      .getByRole("button")
-      .filter({ hasText: symbol })
-      .filter({ hasText: "Overdue" });
-    await expect(item).toBeVisible();
-    await item.click();
+      .getByTestId("goal-trade-instructions")
+      .getByRole("row")
+      .filter({ hasText: symbol });
+    await expect(item.getByText("Overdue", { exact: true })).toBeVisible();
+    const frozen = item.locator('[data-column-id="actions"]');
+    await expect(frozen).toHaveCSS("position", "sticky");
+    await expect(frozen.getByRole("button")).toHaveCount(3);
+    await frozen.getByRole("button", { name: "Start", exact: true }).click();
+    await expect(frozen.getByRole("button", { name: "Start", exact: true })).toBeDisabled();
+    await item.getByRole("button", { name: symbol, exact: true }).click();
     await expect(dialog.getByRole("heading", { name: "Transaction" })).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "Financial Details" })).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "Record Info" })).toBeVisible();
@@ -202,13 +207,148 @@ for (const rtl of [false, true]) {
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
     await page
       .getByTestId("goal-trade-instructions")
-      .getByRole("button")
+      .getByRole("row")
       .filter({ hasText: symbol })
+      .getByRole("button", { name: symbol, exact: true })
       .click();
     await dialog.getByRole("button", { name: "Cancel instruction", exact: true }).click();
     await dialog.getByLabel("Resolution note").fill("No longer needed");
     await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
     await expect(dialog.getByText("Cancelled", { exact: true })).toBeVisible();
+
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    const list = page.getByTestId("goal-trade-instructions");
+    for (const [label, title, status] of [
+      ["Complete", "Mark complete", "COMPLETED"],
+      ["Cancel", "Cancel instruction", "CANCELLED"],
+    ]) {
+      const created = await page.request.post(`${api}/trade-instructions`, {
+        data: { ...retryRequest, requestId: randomUUID() },
+      });
+      expect(created.ok()).toBeTruthy();
+      const quickRow = await created.json();
+      await list.getByRole("button", { name: "Refresh", exact: true }).click();
+      await list
+        .getByRole("row")
+        .filter({ hasText: symbol })
+        .locator('[data-column-id="actions"]')
+        .getByRole("button", { name: label, exact: true })
+        .click();
+      const quickDialog = page.getByRole("dialog", { name: title, exact: true });
+      await expect(quickDialog.getByLabel("Resolution note")).toHaveAttribute("required", "");
+      await quickDialog.getByLabel("Resolution note").fill("Quick action handled externally");
+      await quickDialog.getByRole("button", { name: "Confirm", exact: true }).click();
+      await expect(quickDialog).toBeHidden();
+      const saved = await (
+        await page.request.get(`${api}/trade-instructions/${quickRow.id}`)
+      ).json();
+      expect(saved.status).toBe(status);
+      expect(saved.resolutionNote).toBe("Quick action handled externally");
+    }
+    // Populate more than one page in reverse deadline order, using the real API.
+    for (let index = 24; index >= 0; index--) {
+      const response = await page.request.post(`${api}/trade-instructions`, {
+        data: {
+          ...retryRequest,
+          requestId: randomUUID(),
+          side: index % 2 ? "SELL" : "BUY",
+          expectedCompletionAt: `2027-01-${String(index + 1).padStart(2, "0")}T00:00:00Z`,
+          notes: `Pagination ${index}`,
+        },
+      });
+      expect(response.ok()).toBeTruthy();
+    }
+    await list.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expect(list.getByRole("grid")).toHaveAttribute("aria-rowcount", "20");
+    await expect(list.getByRole("row").filter({ hasText: "Pagination 0" })).toBeVisible();
+    await list.getByRole("button", { name: "Next page", exact: true }).click();
+    await expect(list.getByRole("grid")).toHaveAttribute("aria-rowcount", "5");
+    await expect(list.getByRole("row").filter({ hasText: "Pagination 20" })).toBeVisible();
+    await list
+      .getByTestId("instruction-filters")
+      .getByRole("button", { name: "Side", exact: true })
+      .click();
+    await page.getByRole("option", { name: "Sell", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await expect(list.getByRole("grid")).toHaveAttribute("aria-rowcount", "12");
+    await list.getByRole("combobox", { name: "Rows per page" }).click();
+    await page.getByRole("option", { name: "50", exact: true }).click();
+    await page.reload();
+    await expect(list.getByRole("combobox", { name: "Rows per page" })).toHaveText("50");
+    await expect(list.getByRole("grid")).toHaveAttribute("aria-rowcount", "25");
+    await list.getByRole("button", { name: "Toggle columns", exact: true }).click();
+    await expect(page.getByRole("menuitemcheckbox")).toHaveCount(10);
+    await expect(page.getByRole("menuitemcheckbox", { name: /actions/i })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    const gridViewport = list.getByRole("grid");
+    for (const scrollLeft of [0, rtl ? -10000 : 10000]) {
+      await gridViewport.evaluate((element, left) => {
+        element.scrollLeft = left;
+      }, scrollLeft);
+      const pinnedCell = gridViewport.locator('[data-column-id="actions"]').first();
+      await expect(pinnedCell).toHaveCSS("position", "sticky");
+      const viewportBox = await gridViewport.boundingBox();
+      const pinnedBox = await pinnedCell.boundingBox();
+      expect(pinnedBox!.x).toBeGreaterThanOrEqual(viewportBox!.x - 1);
+      expect(pinnedBox!.x + pinnedBox!.width).toBeLessThanOrEqual(
+        viewportBox!.x + viewportBox!.width + 1,
+      );
+    }
+    await gridViewport.evaluate((element) => {
+      element.scrollLeft = 0;
+    });
+    await list
+      .getByTestId("instruction-filters")
+      .getByRole("button", { name: "Expected completion time", exact: true })
+      .click();
+    const datePopover = page
+      .locator('[data-slot="popover-content"]')
+      .filter({ has: page.locator("button[data-day]") });
+    const days = datePopover.locator("button[data-day]");
+    const fromDay = await days.nth(7).getAttribute("data-day");
+    const throughDay = await days.nth(8).getAttribute("data-day");
+    await days.nth(7).click();
+    const dateRequest = page.waitForRequest(
+      (request) =>
+        request.url().endsWith("/trade-instructions/list") &&
+        !!request.postDataJSON()?.expectedCompletionBefore,
+    );
+    await days.nth(8).click();
+    const sent = (await dateRequest).postDataJSON();
+    expect(sent.expectedCompletionFrom).toBe(new Date(`${fromDay}T00:00:00+08:00`).toISOString());
+    expect(Date.parse(sent.expectedCompletionBefore)).toBe(
+      Date.parse(`${throughDay}T00:00:00+08:00`) + 86400000,
+    );
+    await expect(list.getByRole("grid")).toHaveAttribute("aria-rowcount", "0");
+    await datePopover.getByRole("button", { name: "Clear", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await expect(list.getByRole("grid")).toHaveAttribute("aria-rowcount", "25");
+    for (const [direction, firstNote] of [
+      ["desc", "Pagination 24"],
+      ["asc", "Pagination 0"],
+    ]) {
+      await list
+        .getByRole("grid")
+        .getByRole("button", { name: "Expected completion time", exact: true })
+        .click();
+      const sortedResponse = page.waitForResponse(
+        (response) =>
+          response.url().endsWith("/trade-instructions/list") &&
+          response.request().postDataJSON()?.sort ===
+            (direction === "desc" ? "expectedCompletionDesc" : "expectedCompletionAsc"),
+      );
+      await page.getByRole("menuitemcheckbox", { name: `Sort ${direction}`, exact: true }).click();
+      expect((await (await sortedResponse).json()).items[0].notes).toBe(firstNote);
+    }
+    await list.getByRole("combobox", { name: "Rows per page" }).scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: test.info().outputPath(`instruction-grid-${rtl ? "rtl" : "ltr"}.png`),
+      fullPage: true,
+      animations: "disabled",
+    });
+    // Leave this preference at the default for the next LTR/RTL run.
+    await list.getByRole("combobox", { name: "Rows per page" }).click();
+    await page.getByRole("option", { name: "20", exact: true }).click();
 
     const otherGoal = await (
       await page.request.post(`${api}/goals`, {
@@ -217,7 +357,10 @@ for (const rtl of [false, true]) {
     ).json();
     await page.goto(`${BASE_URL}/goals/${otherGoal.id}`);
     await expect(
-      page.getByTestId("goal-trade-instructions").getByText("No instructions", { exact: true }),
+      page
+        .getByTestId("goal-trade-instructions")
+        .getByText("No instructions", { exact: true })
+        .first(),
     ).toBeVisible();
     await page.request.delete(`${api}/goals/${goal.id}`);
     const afterDelete = await (

@@ -41,8 +41,8 @@ business_tool!(GetTradeInstruction, GetArgs, "get_trade_instruction",
     json!({"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}),
     [AgentScope::TradeInstructionsRead], Read, |env, args| { output(env.trade_instruction_service().get(&args.id)?) });
 business_tool!(ListTradeInstructions, ListArgs, "list_trade_instructions",
-    "List locally stored trade instructions, newest first. Default statuses are PENDING and IN_PROGRESS; an empty statuses array includes all. No provider requests.",
-    json!({"type":"object","additionalProperties":false,"properties":{"filter":{"type":"object","additionalProperties":false,"properties":{"goalId":{"type":"string"},"statuses":{"type":"array","items":{"type":"string","enum":["PENDING","IN_PROGRESS","COMPLETED","CANCELLED"]}},"accountId":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50},"offset":{"type":"integer","minimum":0}}}}}),
+    "List locally stored trade instructions, newest first unless sort is specified. Expected completion bounds are inclusive from and exclusive before. Missing expected times sort last. Default statuses are PENDING and IN_PROGRESS; an empty statuses array includes all. No provider requests.",
+    json!({"type":"object","additionalProperties":false,"properties":{"filter":{"type":"object","additionalProperties":false,"properties":{"goalId":{"type":"string"},"statuses":{"type":"array","items":{"type":"string","enum":["PENDING","IN_PROGRESS","COMPLETED","CANCELLED"]}},"accountId":{"type":"string"},"side":{"type":"string","enum":["BUY","SELL"]},"expectedCompletionFrom":{"type":"string","format":"date-time"},"expectedCompletionBefore":{"type":"string","format":"date-time"},"sort":{"type":"string","enum":["expectedCompletionAsc","expectedCompletionDesc"]},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50},"offset":{"type":"integer","minimum":0}}}}}),
     [AgentScope::TradeInstructionsRead], Read, |env, args| { output(env.trade_instruction_service().list(args.filter)?) });
 pub fn tools() -> Vec<Arc<dyn AgentTool>> {
     vec![
