@@ -1,6 +1,7 @@
 import { getPresetName } from "./model-preset-data";
 import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
 import React, { useState, useEffect } from "react";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -680,7 +681,9 @@ function TargetEditor({
     if (!nameTouched) setTargetName(suggestedTargetName);
   }, [resetTargetId, nameTouched, suggestedTargetName]);
 
-  useEffect(() => {
+  // Starts the editor over for another target, not each time a phone screen
+  // shows it again, which would discard the edits made before leaving.
+  useEffectOnChange(() => {
     if (resetTargetId) {
       setTaxonomyId(resetTargetTaxonomyId);
       setStartId("saved");

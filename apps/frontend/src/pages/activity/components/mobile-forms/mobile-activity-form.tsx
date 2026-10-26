@@ -29,17 +29,18 @@ import { generateId } from "@/lib/id";
 import { normalizeCurrency } from "@/lib/utils";
 import type { ActivityCreate, ActivityDetails, ActivityUpdate } from "@/lib/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useForm, type Resolver, type SubmitHandler } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { toast } from "sonner";
 import { useActivityMutations } from "../../hooks/use-activity-mutations";
 import { showValidationToast, type AccountSelectOption } from "../forms/fields";
-import { newActivitySchema, type NewActivityFormValues } from "../forms/schemas";
+import { createActivitySchemas, type NewActivityFormValues } from "../forms/schemas";
 import { MobileActivitySteps } from "./mobile-activity-steps";
 import { getMobileActivityAssetId, hasStoredCustomTradeAmount } from "./mobile-activity-utils";
 import { Spinner } from "@wealthfolio/ui";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 
 interface MobileActivityFormProps {
   accounts: AccountSelectOption[];
@@ -112,8 +113,7 @@ function isValidMobileActivityType(
 }
 
 /**
- * Validates transfer-specific fields that the Zod schema can't enforce
- * (transferActivitySchema lives inside a discriminatedUnion which doesn't support superRefine).
+ * Validates transfer-specific fields that the Zod schema doesn't enforce.
  * Returns null if valid, or the first error found.
  */
 export function validateTransferFields(
@@ -231,7 +231,7 @@ export function validateTransferFields(
 }
 
 /**
- * Validates trade fields that the Zod schema can't enforce in a discriminatedUnion.
+ * Validates trade fields that the Zod schema doesn't enforce.
  * For options: requires all structured fields. For stocks/bonds: requires assetId.
  */
 export function validateTradeFields(
@@ -468,14 +468,16 @@ export function MobileActivityForm({
     };
   }, [activity]);
 
+  const schema = useMemo(() => createActivitySchemas(t).newActivity, [t]);
+
   const form = useForm<NewActivityFormValues>({
-    resolver: zodResolver(newActivitySchema) as Resolver<NewActivityFormValues>,
+    resolver: zodResolver(schema) as Resolver<NewActivityFormValues>,
     defaultValues: defaultValues as any,
   });
   const { reset } = form;
   const storedAmountIsCustom = useMemo(() => hasStoredCustomTradeAmount(activity), [activity]);
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open) return;
 
     const nextDefaultValues = activity?.date
@@ -494,8 +496,9 @@ export function MobileActivityForm({
   // whatever was typed belonged to the previous type, so amount ownership
   // resets and the calculated trade total takes over again. Without this, a
   // deposit amount typed before switching to BUY/SELL would be submitted as
-  // an attested custom trade total.
-  useEffect(() => {
+  // an attested custom trade total. Only on a switch: a phone screen shown
+  // again replays its effects, which would drop a total typed after the switch.
+  useEffectOnChange(() => {
     if (form.getFieldState("activityType").isDirty) {
       amountWasEdited.current = false;
     }
@@ -588,7 +591,7 @@ export function MobileActivityForm({
         submitData.symbolQuoteCcy = submitData.currency;
       }
 
-      // Validate transfer-specific required fields (schema can't use superRefine in discriminatedUnion)
+      // Validate transfer-specific required fields (not enforced by the schema)
       const transferError = validateTransferFields(
         {
           activityType: submitData.activityType,

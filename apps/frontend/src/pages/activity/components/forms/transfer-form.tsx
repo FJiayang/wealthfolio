@@ -2,6 +2,7 @@ import { useSettings } from "@/hooks/use-settings";
 import { isSecuritiesTransfer } from "@/lib/activity-utils";
 import { ActivityType, isLiabilityAccountType, QuoteMode } from "@/lib/constants";
 import { normalizeCurrency } from "@/lib/utils";
+import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   FormControl,
@@ -73,12 +74,14 @@ export const createTransferFormSchema = (t?: TFunction) =>
       fromAccountId: z.string().optional(), // For internal transfers
       toAccountId: z.string().optional(), // For internal transfers
       activityDate: z.date({
-        required_error: msg(t, "activity:form.err_select_date", "Please select a date."),
+        error: requiredError(msg(t, "activity:form.err_select_date", "Please select a date.")),
       }),
       transferMode: z.enum(["cash", "securities"]).default("cash"),
       amount: z.coerce
         .number({
-          invalid_type_error: msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+          error: invalidTypeError(
+            msg(t, "activity:form.err_amount_number", "Amount must be a number."),
+          ),
         })
         .positive({
           message: msg(t, "activity:form.err_amount_gt_zero", "Amount must be greater than 0."),
@@ -87,10 +90,8 @@ export const createTransferFormSchema = (t?: TFunction) =>
         .nullable(),
       sourceAmount: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_sent_amount_number",
-            "Sent amount must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_sent_amount_number", "Sent amount must be a number."),
           ),
         })
         .positive({
@@ -104,10 +105,8 @@ export const createTransferFormSchema = (t?: TFunction) =>
         .nullable(),
       destinationAmount: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_received_amount_number",
-            "Received amount must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_received_amount_number", "Received amount must be a number."),
           ),
         })
         .positive({
@@ -119,7 +118,17 @@ export const createTransferFormSchema = (t?: TFunction) =>
         })
         .optional()
         .nullable(),
-      transferRate: z.coerce.number().positive().optional().nullable(),
+      transferRate: z.coerce
+        .number()
+        .positive({
+          message: msg(
+            t,
+            "activity:form.err_transfer_rate_gt_zero",
+            "Transfer exchange rate must be greater than 0.",
+          ),
+        })
+        .optional()
+        .nullable(),
       sourceCurrency: z.string().optional(),
       destinationCurrency: z.string().optional(),
       // Fields for security transfers
@@ -127,10 +136,8 @@ export const createTransferFormSchema = (t?: TFunction) =>
       existingAssetId: z.string().nullable().optional(),
       quantity: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_quantity_number",
-            "Quantity must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_quantity_number", "Quantity must be a number."),
           ),
         })
         .positive({
@@ -140,10 +147,8 @@ export const createTransferFormSchema = (t?: TFunction) =>
         .nullable(),
       unitPrice: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_cost_basis_number",
-            "Cost basis must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_cost_basis_number", "Cost basis must be a number."),
           ),
         })
         .positive({
@@ -157,15 +162,15 @@ export const createTransferFormSchema = (t?: TFunction) =>
         .nullable(),
       comment: z.string().optional().nullable(),
       // Advanced options
-      currency: z.string().min(1, {
-        message: msg(t, "activity:form.err_currency_required", "Currency is required."),
-      }),
+      currency: z
+        .string({ error: msg(t, "activity:form.err_currency_required", "Currency is required.") })
+        .min(1, {
+          message: msg(t, "activity:form.err_currency_required", "Currency is required."),
+        }),
       fxRate: z.coerce
         .number({
-          invalid_type_error: msg(
-            t,
-            "activity:form.err_fxrate_number",
-            "FX Rate must be a number.",
+          error: invalidTypeError(
+            msg(t, "activity:form.err_fxrate_number", "FX Rate must be a number."),
           ),
         })
         .positive({

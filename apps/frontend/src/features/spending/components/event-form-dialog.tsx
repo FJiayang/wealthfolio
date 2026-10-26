@@ -1,7 +1,7 @@
 import { getEventTypeLabel } from "@/lib/taxonomy-labels";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
@@ -39,9 +39,11 @@ import {
   useDateFormatting,
 } from "@wealthfolio/ui";
 
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Activity } from "@/lib/types";
 import { formatDateISO, parseLocalDate } from "@/lib/utils";
+import { requiredError } from "@/lib/zod-errors";
 
 import { useCashActivities, useSetActivityEvent } from "../hooks/use-cash-activities";
 import {
@@ -100,8 +102,8 @@ export function EventFormDialog({
           name: z.string().min(1, t("spending:eventForm.nameRequired")),
           description: z.string().optional(),
           eventTypeId: z.string().min(1, t("spending:eventForm.typeRequired")),
-          startDate: z.date({ required_error: t("spending:eventForm.startRequired") }),
-          endDate: z.date({ required_error: t("spending:eventForm.endRequired") }),
+          startDate: z.date({ error: requiredError(t("spending:eventForm.startRequired")) }),
+          endDate: z.date({ error: requiredError(t("spending:eventForm.endRequired")) }),
         })
         .refine((data) => data.startDate <= data.endDate, {
           message: t("spending:eventForm.startBeforeEnd"),
@@ -138,7 +140,7 @@ export function EventFormDialog({
     },
   });
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open) return;
     setShowCreateType(false);
     setNewTypeName("");

@@ -98,6 +98,7 @@ import {
 } from "@wealthfolio/ui/components/ui/sheet";
 import { format } from "date-fns";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 import { AccountContributionLimit } from "./account-contribution-limit";
 import AccountHoldings from "./account-holdings";
 import AccountMetrics from "./account-metrics";
@@ -178,6 +179,7 @@ const AccountPage = () => {
     (!!invalidSnapshotId || !!invalidSnapshotDate);
   const requestedAccountDetailTab = parseAccountDetailTab(searchParams.get("tab"));
   const navigate = useNavigate();
+  const goBack = useBackNavigation();
   const isMobile = useIsMobileViewport();
   const [selectedIntervalCode, setSelectedIntervalCode] =
     useState<TimePeriod>(INITIAL_INTERVAL_CODE);
@@ -674,7 +676,9 @@ const AccountPage = () => {
   };
 
   const accountActivitiesContent = isMobile ? (
-    <>
+    // Activities load when their section opens. Until then the section keeps a
+    // screen's height: a shorter page would pull the scroll position up.
+    <div className={cn("space-y-4", accountActivitiesSearch.isLoading && "min-h-dvh")}>
       <ActivityTableMobile
         activities={accountActivitiesSearch.data}
         isLoading={accountActivitiesSearch.isLoading}
@@ -695,7 +699,7 @@ const AccountPage = () => {
         totalFetched={accountActivitiesSearch.data.length}
         totalCount={accountActivitiesSearch.totalRowCount}
       />
-    </>
+    </div>
   ) : (
     <>
       <ActivityTable
@@ -782,7 +786,7 @@ const AccountPage = () => {
   return (
     <Page>
       <PageHeader
-        onBack={() => navigate(-1)}
+        onBack={goBack}
         actions={
           <ActionPalette
             open={actionPaletteOpen}

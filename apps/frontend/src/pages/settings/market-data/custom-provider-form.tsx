@@ -80,7 +80,11 @@ function makeFormSchema(t: TFunction) {
         .min(1, t("settings:market_data_page.validation_code_required"))
         .regex(/^[a-z0-9-]+$/, t("settings:market_data_page.validation_code_format")),
       description: z.string().optional(),
-      priority: z.coerce.number().int().min(1).default(50),
+      priority: z.coerce
+        .number()
+        .int(t("settings:market_data_page.validation_priority_min"))
+        .min(1, t("settings:market_data_page.validation_priority_min"))
+        .default(50),
       useAsFallback: z.boolean().default(false),
       latestEnabled: z.boolean(),
       latestSource: sourceSchema,
@@ -296,8 +300,8 @@ function CustomProviderFormContent({
 }) {
   const { t } = useTranslation();
   const isEditing = !!provider;
-  const { mutate: createProvider, isPending: isCreating } = useCreateCustomProvider();
-  const { mutate: updateProvider, isPending: isUpdating } = useUpdateCustomProvider();
+  const { mutateAsync: createProvider, isPending: isCreating } = useCreateCustomProvider();
+  const { mutateAsync: updateProvider, isPending: isUpdating } = useUpdateCustomProvider();
   const { settings } = useSettingsContext();
   const isSaving = isCreating || isUpdating;
 
@@ -458,7 +462,7 @@ function CustomProviderFormContent({
   ]);
 
   const handleSave = useCallback(
-    (values: FormValues) => {
+    async (values: FormValues) => {
       const mapSource = (
         src: SourceFormValues,
         kind: "latest" | "historical",
@@ -488,9 +492,9 @@ function CustomProviderFormContent({
       if (values.latestEnabled) sources.push(mapSource(values.latestSource, "latest"));
       if (values.historicalEnabled) sources.push(mapSource(values.historicalSource, "historical"));
 
-      if (isEditing && provider) {
-        updateProvider(
-          {
+      try {
+        if (isEditing && provider) {
+          await updateProvider({
             providerId: provider.id,
             payload: {
               name: values.name,
@@ -499,21 +503,20 @@ function CustomProviderFormContent({
               useAsFallback: values.useAsFallback,
               sources,
             },
-          },
-          { onSuccess: () => onOpenChange(false) },
-        );
-      } else {
-        createProvider(
-          {
+          });
+        } else {
+          await createProvider({
             code: values.code,
             name: values.name,
             description: values.description || undefined,
             priority: values.priority,
             useAsFallback: values.useAsFallback,
             sources,
-          },
-          { onSuccess: () => onOpenChange(false) },
-        );
+          });
+        }
+        onOpenChange(false);
+      } catch {
+        // The mutation reports the error; the form stays open to try again.
       }
     },
     [isEditing, provider, createProvider, updateProvider, onOpenChange],
