@@ -3,6 +3,7 @@ import type { AssetResolutionInput } from "@/lib/types";
 
 export type InstructionStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 export interface NewTradeInstruction {
+  goalId: string;
   requestId: string;
   accountId: string;
   asset: AssetResolutionInput;
@@ -11,10 +12,11 @@ export interface NewTradeInstruction {
   amount?: string;
   amountCurrency?: string;
   limitPrice?: string;
-  rationale?: string;
+  notes?: string;
   expectedCompletionAt?: string;
 }
 export interface TradeInstruction {
+  goalId: string;
   id: string;
   requestId: string;
   accountId: string;
@@ -32,7 +34,7 @@ export interface TradeInstruction {
   amount: string | null;
   amountCurrency: string | null;
   limitPrice: string | null;
-  rationale: string | null;
+  notes: string | null;
   expectedCompletionAt: string | null;
   status: InstructionStatus;
   resolutionNote: string | null;
@@ -45,6 +47,7 @@ export interface TradeInstruction {
   version: number;
 }
 export interface InstructionFilter {
+  goalId?: string;
   statuses?: InstructionStatus[];
   accountId?: string;
   limit?: number;

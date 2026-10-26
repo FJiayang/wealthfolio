@@ -13,7 +13,7 @@ import {
 } from "@wealthfolio/ui/components/ui/select";
 import { useNumberFormatting, useDateFormatting } from "@wealthfolio/ui";
 import { useTradeInstructions } from "./use-trade-instructions";
-import { InstructionForm } from "./instruction-form";
+import { InstructionSheet } from "./instruction-sheet";
 import { InstructionDetail } from "./instruction-detail";
 
 function isOverdue(row: TradeInstruction, now = Date.now()) {
@@ -23,7 +23,7 @@ function isOverdue(row: TradeInstruction, now = Date.now()) {
     Date.parse(row.expectedCompletionAt) < now
   );
 }
-export function TradeInstructionsPage() {
+export function GoalTradeInstructions({ goalId }: { goalId: string }) {
   const { t } = useTranslation("trade-instructions");
   const { formatDateTime } = useDateFormatting();
   const { formatQuantity } = useNumberFormatting();
@@ -35,15 +35,16 @@ export function TradeInstructionsPage() {
   const statuses: InstructionStatus[] | undefined =
     status === "all" ? [] : status === "open" ? undefined : [status as InstructionStatus];
   const query = useTradeInstructions({
+    goalId,
     statuses,
     accountId: account === "all" ? undefined : account,
     limit: 50,
     offset,
   });
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
+    <div className="space-y-4" data-testid="goal-trade-instructions">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
+        <h2 className="text-lg font-semibold">{t("title")}</h2>
         <Button onClick={() => setPanel("new")}>{t("create")}</Button>
       </div>
       <p className="text-muted-foreground text-sm">{t("independent")}</p>
@@ -158,22 +159,19 @@ export function TradeInstructionsPage() {
           {t("next")}
         </Button>
       </div>
+      {panel === "new" && <InstructionSheet goalId={goalId} onClose={() => setPanel(undefined)} />}
       <Sheet
-        open={!!panel}
+        open={!!panel && panel !== "new"}
         onOpenChange={(open) => {
           if (!open) setPanel(undefined);
         }}
       >
         <SheetContent side="inline-end" className="w-full overflow-y-auto sm:max-w-lg">
           <SheetHeader>
-            <SheetTitle>{t(panel === "new" ? "create" : "detail")}</SheetTitle>
+            <SheetTitle>{t("detail")}</SheetTitle>
           </SheetHeader>
           <div className="mt-5">
-            {panel === "new" ? (
-              <InstructionForm onSaved={() => setPanel(undefined)} />
-            ) : panel ? (
-              <InstructionDetail key={panel} id={panel} />
-            ) : null}
+            {panel && panel !== "new" ? <InstructionDetail key={panel} id={panel} /> : null}
           </div>
         </SheetContent>
       </Sheet>

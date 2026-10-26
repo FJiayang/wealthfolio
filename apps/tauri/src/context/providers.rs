@@ -707,6 +707,7 @@ async fn build_context(
             ),
             account_service.clone(),
             asset_service.clone(),
+            goal_service.clone(),
         ),
     );
 

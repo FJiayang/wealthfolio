@@ -1,4 +1,3 @@
-import { TradeInstructionsPage } from "@/pages/trade-instructions/trade-instructions-page";
 import { RestoredPortfolioNotice } from "@/features/database-recovery/restored-portfolio-notice";
 import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -116,7 +115,6 @@ export function AppRoutes() {
             path="allocation-targets"
             element={<Navigate to="/insights?tab=overview" replace />}
           />
-          <Route path="trade-instructions" element={<TradeInstructionsPage />} />
           <Route path="goals" element={<GoalsDashboardPage />} />
           <Route path="goals/new" element={<GoalNewPage />} />
           <Route path="goals/:goalId/guide" element={<GoalRetirementGuidePage />} />

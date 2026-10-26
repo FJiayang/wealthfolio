@@ -86,7 +86,7 @@ export function InstructionDetail({ id }: { id: string }) {
         ? `${formatQuantity(row.limitPrice)} ${row.assetSnapshot.quoteCcy}`
         : t("notSet"),
     ],
-    [t("rationale"), row.rationale || t("notSet")],
+    [t("activity:form.label_notes"), row.notes || t("notSet")],
     [t("expectedCompletionAt"), date(row.expectedCompletionAt)],
     [t("completedAt"), date(row.completedAt)],
     [t("closedAt"), date(row.closedAt)],

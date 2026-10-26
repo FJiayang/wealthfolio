@@ -10,7 +10,6 @@
   "currency": "Moeda",
   "limitPrice": "Preço limite (opcional)",
   "expectedCompletionAt": "Conclusão esperada (opcional)",
-  "rationale": "Análise e orientações",
   "invalidInput": "Selecione uma conta e um ativo e informe valores positivos válidos.",
   "status": "Status",
   "notSet": "Não definido",
@@ -45,5 +44,6 @@
   "completedOnTime": "Concluída no prazo",
   "independent": "As instruções não enviam ordens nem criam lançamentos.",
   "limitHint": "Teto de compra / piso de venda; vazio: decisão do operador.",
-  "completionDefault": "Deixe vazio para usar o horário de confirmação."
+  "completionDefault": "Deixe vazio para usar o horário de confirmação.",
+  "selectType": "Selecione Compra ou Venda acima para continuar"
 }

@@ -131,6 +131,7 @@ export function applyScopeDependencies(scopes: Iterable<string>): ScopeKey[] {
   const set = new Set<string>(scopes);
   if (set.has("trade-instructions:create")) {
     set.add("trade-instructions:read");
+    set.add("financial-planning:read");
     set.add("accounts:read");
     set.add("assets:write");
   }

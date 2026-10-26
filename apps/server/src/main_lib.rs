@@ -1018,6 +1018,7 @@ async fn initialize_profile_state(
     let trade_instruction_service = Arc::new(wealthfolio_core::trade_instructions::TradeInstructionService::new(
         Arc::new(wealthfolio_storage_sqlite::trade_instructions::TradeInstructionRepository::new(pool.clone(), writer.clone())),
         account_service.clone(), asset_service.clone(),
+            goal_service.clone(),
     ));
 
     // Create the AI environment and chat service using the new wealthfolio-ai crate

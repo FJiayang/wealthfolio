@@ -10,7 +10,6 @@
   "currency": "通貨",
   "limitPrice": "指値（任意）",
   "expectedCompletionAt": "完了希望日時（任意）",
-  "rationale": "調査理由と執行条件",
   "invalidInput": "口座と銘柄を選択し、有効な正の値を入力してください。",
   "status": "状態",
   "notSet": "未設定",
@@ -45,5 +44,6 @@
   "completedOnTime": "希望日時までに完了",
   "independent": "指示は注文送信や記帳を行いません。",
   "limitHint": "買値の上限 / 売値の下限。空欄の場合は執行者が判断します。",
-  "completionDefault": "空欄の場合は完了確認時刻を使用します。"
+  "completionDefault": "空欄の場合は完了確認時刻を使用します。",
+  "selectType": "上で買いまたは売りを選択してください"
 }

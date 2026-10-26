@@ -27,13 +27,13 @@ struct ListArgs {
 }
 
 business_tool!(CreateTradeInstruction, CreateArgs, "create_trade_instruction",
-    "Save a trade instruction for a human to execute externally. May register an asset using manual-entry rules. Does NOT place an order or record an activity. Reuse requestId when retrying. Only humans can start, complete, cancel or correct completion time. Quantity and amount are mutually exclusive decimal strings. limitPrice is a buy ceiling/sell floor in the asset quote currency; absent means trader discretion. expectedCompletionAt is an optional soft deadline with timezone.",
+    "Save a trade instruction under an existing goal for a human to execute externally. May register an asset using manual-entry rules. Does NOT place an order or record an activity. Reuse requestId when retrying. Only humans can start, complete, cancel or correct completion time. Quantity and amount are mutually exclusive decimal strings. limitPrice is a buy ceiling/sell floor in the asset quote currency; absent means trader discretion. expectedCompletionAt is an optional soft deadline with timezone.",
     json!({"type":"object","additionalProperties":false,"properties":{"input":{"type":"object","additionalProperties":false,"properties":{
-        "requestId":{"type":"string","format":"uuid"},"accountId":{"type":"string"},
+        "goalId":{"type":"string","minLength":1},"requestId":{"type":"string","format":"uuid"},"accountId":{"type":"string"},
         "asset":{"type":"object","properties":{"id":{"type":"string"},"symbol":{"type":"string"},"exchangeMic":{"type":"string"},"kind":{"type":"string"},"name":{"type":"string"},"quoteMode":{"type":"string","enum":["MARKET","MANUAL"]},"quoteCcy":{"type":"string"},"instrumentType":{"type":"string"},"providerId":{"type":"string"},"providerSymbol":{"type":"string"}}},
-        "side":{"type":"string","enum":["BUY","SELL"]},"quantity":{"type":"string"},"amount":{"type":"string"},"amountCurrency":{"type":"string"},"limitPrice":{"type":"string"},"rationale":{"type":"string","maxLength":8000},"expectedCompletionAt":{"type":"string","format":"date-time"}
-    },"required":["requestId","accountId","asset","side"],"oneOf":[{"required":["quantity"],"not":{"required":["amount"]}},{"required":["amount","amountCurrency"],"not":{"required":["quantity"]}}]}},"required":["input"]}),
-    [AgentScope::TradeInstructionsCreate, AgentScope::TradeInstructionsRead, AgentScope::AccountsRead, AgentScope::AssetsWrite], Write, |env, args| {
+        "side":{"type":"string","enum":["BUY","SELL"]},"quantity":{"type":"string"},"amount":{"type":"string"},"amountCurrency":{"type":"string"},"limitPrice":{"type":"string"},"notes":{"type":"string","maxLength":8000,"description":"Optional free-text notes, including reasons or execution details."},"expectedCompletionAt":{"type":"string","format":"date-time"}
+    },"required":["goalId","requestId","accountId","asset","side"],"oneOf":[{"required":["quantity"],"not":{"required":["amount"]}},{"required":["amount","amountCurrency"],"not":{"required":["quantity"]}}]}},"required":["input"]}),
+    [AgentScope::TradeInstructionsCreate, AgentScope::TradeInstructionsRead, AgentScope::AccountsRead, AgentScope::AssetsWrite, AgentScope::FinancialPlanningRead], Write, |env, args| {
         output(env.trade_instruction_service().create(args.input, InstructionSource::Mcp).await?)
     });
 business_tool!(GetTradeInstruction, GetArgs, "get_trade_instruction",
@@ -42,7 +42,7 @@ business_tool!(GetTradeInstruction, GetArgs, "get_trade_instruction",
     [AgentScope::TradeInstructionsRead], Read, |env, args| { output(env.trade_instruction_service().get(&args.id)?) });
 business_tool!(ListTradeInstructions, ListArgs, "list_trade_instructions",
     "List locally stored trade instructions, newest first. Default statuses are PENDING and IN_PROGRESS; an empty statuses array includes all. No provider requests.",
-    json!({"type":"object","additionalProperties":false,"properties":{"filter":{"type":"object","additionalProperties":false,"properties":{"statuses":{"type":"array","items":{"type":"string","enum":["PENDING","IN_PROGRESS","COMPLETED","CANCELLED"]}},"accountId":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50},"offset":{"type":"integer","minimum":0}}}}}),
+    json!({"type":"object","additionalProperties":false,"properties":{"filter":{"type":"object","additionalProperties":false,"properties":{"goalId":{"type":"string"},"statuses":{"type":"array","items":{"type":"string","enum":["PENDING","IN_PROGRESS","COMPLETED","CANCELLED"]}},"accountId":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50},"offset":{"type":"integer","minimum":0}}}}}),
     [AgentScope::TradeInstructionsRead], Read, |env, args| { output(env.trade_instruction_service().list(args.filter)?) });
 pub fn tools() -> Vec<Arc<dyn AgentTool>> {
     vec![
@@ -72,5 +72,24 @@ mod tests {
             Value::Null
         );
         assert!(mcp.get("complete_trade_instruction").is_none());
+    }
+    #[test]
+    fn creation_requires_goal_and_exposes_only_optional_notes() {
+        let schema = CreateTradeInstruction.input_schema();
+        let input = &schema["properties"]["input"];
+        assert!(input["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("goalId")));
+        assert!(input["properties"]["notes"].is_object());
+        assert!(input["properties"].get("rationale").is_none());
+        assert!(!input["required"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("notes")));
+        assert_eq!(
+            CreateTradeInstruction.sanitize_args_for_audit(&json!({"input":{"notes":"private"}})),
+            Value::Null
+        );
     }
 }

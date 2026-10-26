@@ -10,7 +10,6 @@
   "currency": "Currency",
   "limitPrice": "Limit price (optional)",
   "expectedCompletionAt": "Expected completion (optional)",
-  "rationale": "Research and execution notes",
   "invalidInput": "Select an account and asset, and enter valid positive values.",
   "status": "Status",
   "notSet": "Not set",
@@ -45,5 +44,6 @@
   "completedOnTime": "Completed by target",
   "independent": "Instructions do not place orders or create bookkeeping activities.",
   "limitHint": "Buy ceiling / sell floor; leave empty for trader discretion.",
-  "completionDefault": "Leave empty to use the time you confirm completion."
+  "completionDefault": "Leave empty to use the time you confirm completion.",
+  "selectType": "Select Buy or Sell above to continue"
 }

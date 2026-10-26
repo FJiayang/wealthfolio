@@ -40,6 +40,7 @@ pub enum InstructionSource {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct NewTradeInstruction {
+    pub goal_id: String,
     pub request_id: String,
     pub account_id: String,
     pub asset: AssetResolutionInput,
@@ -51,7 +52,7 @@ pub struct NewTradeInstruction {
     pub amount_currency: Option<String>,
     #[serde(default, with = "rust_decimal::serde::str_option")]
     pub limit_price: Option<Decimal>,
-    pub rationale: Option<String>,
+    pub notes: Option<String>,
     pub expected_completion_at: Option<DateTime<Utc>>,
 }
 
@@ -67,6 +68,7 @@ pub struct InstructionAssetSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TradeInstruction {
+    pub goal_id: String,
     pub id: String,
     pub request_id: String,
     #[serde(skip_serializing, default)]
@@ -83,7 +85,7 @@ pub struct TradeInstruction {
     pub amount_currency: Option<String>,
     #[serde(with = "rust_decimal::serde::str_option")]
     pub limit_price: Option<Decimal>,
-    pub rationale: Option<String>,
+    pub notes: Option<String>,
     pub expected_completion_at: Option<DateTime<Utc>>,
     pub status: InstructionStatus,
     pub resolution_note: Option<String>,
@@ -98,6 +100,7 @@ pub struct TradeInstruction {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct InstructionFilter {
+    pub goal_id: Option<String>,
     /// Omitted: open instructions; empty: all statuses.
     pub statuses: Option<Vec<InstructionStatus>>,
     pub account_id: Option<String>,

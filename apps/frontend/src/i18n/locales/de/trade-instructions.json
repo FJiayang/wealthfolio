@@ -10,7 +10,6 @@
   "currency": "Währung",
   "limitPrice": "Limitpreis (optional)",
   "expectedCompletionAt": "Gewünschter Abschluss (optional)",
-  "rationale": "Analyse und Ausführungshinweise",
   "invalidInput": "Wählen Sie Konto und Anlage und geben Sie gültige positive Werte ein.",
   "status": "Status",
   "notSet": "Nicht festgelegt",
@@ -45,5 +44,6 @@
   "completedOnTime": "Fristgerecht abgeschlossen",
   "independent": "Anweisungen erteilen keine Orders und erzeugen keine Buchungen.",
   "limitHint": "Kaufobergrenze / Verkaufsuntergrenze; leer: Ermessen des Händlers.",
-  "completionDefault": "Leer lassen, um die Bestätigungszeit zu verwenden."
+  "completionDefault": "Leer lassen, um die Bestätigungszeit zu verwenden.",
+  "selectType": "Wählen Sie oben Kauf oder Verkauf, um fortzufahren"
 }

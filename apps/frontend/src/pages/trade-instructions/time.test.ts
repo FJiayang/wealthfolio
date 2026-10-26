@@ -14,6 +14,7 @@ describe("trade instruction times and permissions", () => {
         "trade-instructions:read",
         "trade-instructions:create",
         "accounts:read",
+        "financial-planning:read",
         "assets:write",
       ]),
     );

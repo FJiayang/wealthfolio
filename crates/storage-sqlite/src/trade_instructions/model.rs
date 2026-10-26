@@ -16,7 +16,6 @@ pub struct InstructionDb {
     pub amount: Option<String>,
     pub amount_currency: Option<String>,
     pub limit_price: Option<String>,
-    pub rationale: Option<String>,
     pub expected_completion_at: Option<String>,
     pub status: String,
     pub resolution_note: Option<String>,
@@ -27,6 +26,8 @@ pub struct InstructionDb {
     pub closed_at: Option<String>,
     pub completed_at: Option<String>,
     pub version: i32,
+    pub goal_id: String,
+    pub notes: Option<String>,
 }
 fn decode<T: serde::de::DeserializeOwned>(value: String) -> Result<T, StorageError> {
     serde_json::from_value(serde_json::Value::String(value))
@@ -53,7 +54,7 @@ impl TryFrom<TradeInstruction> for InstructionDb {
             amount: row.amount.map(|v| v.to_string()),
             amount_currency: row.amount_currency,
             limit_price: row.limit_price.map(|v| v.to_string()),
-            rationale: row.rationale,
+            notes: row.notes,
             expected_completion_at: row.expected_completion_at.map(|v| v.to_rfc3339()),
             status: row.status.as_str().into(),
             resolution_note: row.resolution_note,
@@ -68,6 +69,7 @@ impl TryFrom<TradeInstruction> for InstructionDb {
             closed_at: row.closed_at.map(|v| v.to_rfc3339()),
             completed_at: row.completed_at.map(|v| v.to_rfc3339()),
             version: row.version,
+            goal_id: row.goal_id,
         })
     }
 }
@@ -88,7 +90,7 @@ impl TryFrom<InstructionDb> for TradeInstruction {
             amount: row.amount.map(decode).transpose()?,
             amount_currency: row.amount_currency,
             limit_price: row.limit_price.map(decode).transpose()?,
-            rationale: row.rationale,
+            notes: row.notes,
             expected_completion_at: row.expected_completion_at.map(decode).transpose()?,
             status: decode(row.status)?,
             resolution_note: row.resolution_note,
@@ -99,6 +101,7 @@ impl TryFrom<InstructionDb> for TradeInstruction {
             closed_at: row.closed_at.map(decode).transpose()?,
             completed_at: row.completed_at.map(decode).transpose()?,
             version: row.version,
+            goal_id: row.goal_id,
         })
     }
 }

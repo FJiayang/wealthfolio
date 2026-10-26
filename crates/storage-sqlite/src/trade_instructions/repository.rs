@@ -49,6 +49,9 @@ impl TradeInstructionRepositoryTrait for TradeInstructionRepository {
         let states: Vec<_> = states.iter().map(|s| s.as_str()).collect();
         let query = || {
             let mut q = trade_instructions.into_boxed();
+            if let Some(ref goal) = filter.goal_id {
+                q = q.filter(goal_id.eq(goal));
+            }
             if !states.is_empty() {
                 q = q.filter(status.eq_any(&states));
             }
@@ -142,9 +145,9 @@ mod tests {
     use serde_json::json;
     fn row() -> TradeInstruction {
         serde_json::from_value(json!({
-            "id":"instruction-1", "requestId":"request-1", "requestHash":"hash", "accountId":"account-1", "assetId":"asset-1", "accountName":"Account snapshot",
+            "id":"instruction-1", "goalId":"goal-1", "requestId":"request-1", "requestHash":"hash", "accountId":"account-1", "assetId":"asset-1", "accountName":"Account snapshot",
             "assetSnapshot":{"name":"Snapshot", "symbol":"ABC", "exchangeMic":"XNAS", "instrumentType":"EQUITY", "quoteCcy":"USD"},
-            "side":"BUY", "quantity":"0.123456789123456789", "amount":null, "amountCurrency":null, "limitPrice":"12.3456789", "rationale":"Research",
+            "side":"BUY", "quantity":"0.123456789123456789", "amount":null, "amountCurrency":null, "limitPrice":"12.3456789", "notes":"Optional notes",
             "expectedCompletionAt":null, "status":"PENDING", "resolutionNote":null, "source":"MCP", "createdAt":"2026-01-01T00:00:00Z", "updatedAt":"2026-01-01T00:00:00Z",
             "startedAt":null, "closedAt":null, "completedAt":null, "version":1
         })).unwrap()
@@ -161,6 +164,8 @@ mod tests {
         let pool = create_pool(&path).unwrap();
         let writer = spawn_writer((*pool).clone()).unwrap();
         let repo = TradeInstructionRepository::new(pool.clone(), writer.clone());
+        diesel::sql_query("INSERT INTO goals (id, title, target_amount) VALUES ('goal-1', 'Goal', 1000), ('goal-2', 'Other', 2000)")
+            .execute(&mut get_connection(&pool).unwrap()).unwrap();
         let initial = row();
         let saved = repo.create(initial.clone()).await.unwrap();
         assert_eq!(saved.quantity, initial.quantity);
@@ -212,5 +217,19 @@ mod tests {
                 .unwrap(),
             0
         );
+        assert_eq!(
+            reopened
+                .list(InstructionFilter {
+                    goal_id: Some("goal-2".into()),
+                    ..Default::default()
+                })
+                .unwrap()
+                .total,
+            0
+        );
+        diesel::sql_query("DELETE FROM goals WHERE id = 'goal-1'")
+            .execute(&mut conn)
+            .unwrap();
+        assert!(reopened.get(&initial.id).is_err());
     }
 }

@@ -970,7 +970,6 @@ diesel::table! {
         amount -> Nullable<Text>,
         amount_currency -> Nullable<Text>,
         limit_price -> Nullable<Text>,
-        rationale -> Nullable<Text>,
         expected_completion_at -> Nullable<Text>,
         status -> Text,
         resolution_note -> Nullable<Text>,
@@ -981,5 +980,7 @@ diesel::table! {
         closed_at -> Nullable<Text>,
         completed_at -> Nullable<Text>,
         version -> Integer,
+        goal_id -> Text,
+        notes -> Nullable<Text>,
     }
 }

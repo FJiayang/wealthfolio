@@ -16,6 +16,7 @@ pub struct TradeInstructionService {
     repository: Arc<dyn TradeInstructionRepositoryTrait>,
     accounts: Arc<dyn AccountServiceTrait>,
     assets: Arc<dyn AssetServiceTrait>,
+    goals: Arc<dyn crate::goals::GoalServiceTrait>,
 }
 fn invalid(message: &str) -> Error {
     ValidationError::InvalidInput(message.into()).into()
@@ -47,11 +48,13 @@ impl TradeInstructionService {
         repository: Arc<dyn TradeInstructionRepositoryTrait>,
         accounts: Arc<dyn AccountServiceTrait>,
         assets: Arc<dyn AssetServiceTrait>,
+        goals: Arc<dyn crate::goals::GoalServiceTrait>,
     ) -> Self {
         Self {
             repository,
             accounts,
             assets,
+            goals,
         }
     }
     fn account(&self, id: &str) -> Result<Account> {
@@ -79,6 +82,10 @@ fn normalize(input: &mut NewTradeInstruction) -> Result<()> {
         .map_err(|_| invalid("requestId must be a UUID"))?
         .to_string();
     input.account_id = input.account_id.trim().into();
+    input.goal_id = input.goal_id.trim().into();
+    if input.goal_id.is_empty() {
+        return Err(invalid("A goal is required"));
+    }
     if input.quantity.is_some() == input.amount.is_some() {
         return Err(invalid("Provide exactly one of quantity or amount"));
     }
@@ -109,13 +116,13 @@ fn normalize(input: &mut NewTradeInstruction) -> Result<()> {
     } else if input.amount_currency.is_some() {
         return Err(invalid("amountCurrency is only valid with amount"));
     }
-    input.rationale = input
-        .rationale
+    input.notes = input
+        .notes
         .take()
-        .map(|v| v.trim().to_string())
-        .filter(|v| !v.is_empty());
-    if input.rationale.as_ref().is_some_and(|v| v.len() > 8000) {
-        return Err(invalid("Rationale exceeds 8000 bytes"));
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if input.notes.as_ref().is_some_and(|value| value.len() > 8000) {
+        return Err(invalid("Notes exceed 8000 bytes"));
     }
     let a = &mut input.asset;
     for field in [
@@ -165,6 +172,7 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
             }
             return Ok(existing);
         }
+        self.goals.get_goal(&input.goal_id)?;
         let account = self.account(&input.account_id)?;
         if let Some(symbol) = input.asset.symbol.as_deref() {
             let resolver = ManualAssetResolver::new(self.assets.clone());
@@ -196,6 +204,7 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
         }
         let now = Utc::now();
         let row = TradeInstruction {
+            goal_id: input.goal_id,
             id: Uuid::new_v4().to_string(),
             request_id: input.request_id,
             request_hash: hash,
@@ -214,7 +223,7 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
             amount: input.amount,
             amount_currency: input.amount_currency,
             limit_price: input.limit_price,
-            rationale: input.rationale,
+            notes: input.notes,
             expected_completion_at: input.expected_completion_at,
             status: InstructionStatus::Pending,
             resolution_note: None,

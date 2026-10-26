@@ -1,3 +1,4 @@
+import { GoalTradeInstructions } from "@/pages/trade-instructions/goal-trade-instructions";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useSettingsContext } from "@/lib/settings-provider";
 import type {
@@ -396,6 +397,8 @@ export default function SaveUpDetailPage({ goal, plan, overview }: Props) {
             isHidden={isBalanceHidden}
           />
         )}
+
+        <GoalTradeInstructions key={goal.id} goalId={goal.id} />
 
         {/* Projection chart */}
         {chartData.length > 2 && (

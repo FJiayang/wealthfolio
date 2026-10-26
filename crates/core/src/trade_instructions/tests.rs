@@ -55,20 +55,25 @@ impl TradeInstructionRepositoryTrait for MemoryRepository {
     }
 }
 fn setup() -> (TradeInstructionService, Arc<MemoryRepository>) {
-    let accounts = MockAccountService::new();
+    let accounts = Arc::new(MockAccountService::new());
     accounts.add_account(create_test_account("a", "USD"));
     let assets = MockAssetService::new();
     let mut asset = create_test_asset("s", "USD");
     asset.is_active = true;
     assets.add_asset(asset);
     let repo = Arc::new(MemoryRepository::default());
+    let goal = serde_json::from_value(json!({"id":"g", "goalType":"custom_save_up", "title":"Goal", "statusLifecycle":"active", "statusHealth":"not_applicable", "priority":0, "createdAt":"", "updatedAt":""})).unwrap();
+    let goals = Arc::new(crate::goals::GoalService::new(
+        Arc::new(crate::goals::MockGoalRepository::new(vec![goal])),
+        accounts.clone(),
+    ));
     (
-        TradeInstructionService::new(repo.clone(), Arc::new(accounts), Arc::new(assets)),
+        TradeInstructionService::new(repo.clone(), accounts, Arc::new(assets), goals),
         repo,
     )
 }
 fn input() -> NewTradeInstruction {
-    serde_json::from_value(json!({"requestId":uuid::Uuid::new_v4().to_string(),"accountId":"a","asset":{"id":"s"},"side":"BUY","quantity":"1.2300","limitPrice":"0.0100","expectedCompletionAt":"2020-01-01T09:00:00+09:00"})).unwrap()
+    serde_json::from_value(json!({"goalId":"g","requestId":uuid::Uuid::new_v4().to_string(),"accountId":"a","asset":{"id":"s"},"side":"BUY","quantity":"1.2300","limitPrice":"0.0100","expectedCompletionAt":"2020-01-01T09:00:00+09:00"})).unwrap()
 }
 #[tokio::test]
 async fn trade_instruction_completion_retry_correction_and_conflict() {
@@ -231,4 +236,43 @@ async fn trade_instruction_start_cancel_and_missing_references() {
         )
         .await
         .is_ok());
+}
+
+#[tokio::test]
+async fn trade_instruction_requires_existing_goal_and_preserves_optional_notes() {
+    let (service, repo) = setup();
+    let mut request = input();
+    request.goal_id = "missing-goal".into();
+    request.asset.id = Some("missing-asset".into());
+    let error = service
+        .create(request, InstructionSource::Mcp)
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("missing-goal"));
+    assert!(repo.0.lock().unwrap().is_empty());
+    let mut request = input();
+    request.goal_id = " ".into();
+    assert!(matches!(
+        service.create(request, InstructionSource::Ui).await,
+        Err(Error::Validation(_))
+    ));
+    let mut request = input();
+    request.notes = Some(" Optional reason\nExecution detail ".into());
+    let row = service
+        .create(request, InstructionSource::Mcp)
+        .await
+        .unwrap();
+    assert_eq!(row.goal_id, "g");
+    assert_eq!(
+        row.notes.as_deref(),
+        Some("Optional reason\nExecution detail")
+    );
+    let row = service
+        .create(input(), InstructionSource::Ui)
+        .await
+        .unwrap();
+    assert!(row.notes.is_none());
+    let mut raw = serde_json::to_value(input()).unwrap();
+    raw.as_object_mut().unwrap().remove("goalId");
+    assert!(serde_json::from_value::<NewTradeInstruction>(raw).is_err());
 }

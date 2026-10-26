@@ -10,3 +10,6 @@ pub use goals_model::{
 };
 pub use goals_service::{validate_retirement_plan, GoalService};
 pub use goals_traits::{GoalRepositoryTrait, GoalServiceTrait};
+
+#[cfg(test)]
+pub(crate) use goals_service::tests::MockGoalRepository;

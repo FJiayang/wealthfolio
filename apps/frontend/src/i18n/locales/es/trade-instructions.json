@@ -10,7 +10,6 @@
   "currency": "Moneda",
   "limitPrice": "Precio límite (opcional)",
   "expectedCompletionAt": "Finalización prevista (opcional)",
-  "rationale": "Análisis e instrucciones",
   "invalidInput": "Seleccione una cuenta y un activo e introduzca valores positivos válidos.",
   "status": "Estado",
   "notSet": "Sin definir",
@@ -45,5 +44,6 @@
   "completedOnTime": "Completada a tiempo",
   "independent": "Las instrucciones no envían órdenes ni crean registros contables.",
   "limitHint": "Máximo de compra / mínimo de venta; vacío: criterio del operador.",
-  "completionDefault": "Deje vacío para usar la hora de confirmación."
+  "completionDefault": "Deje vacío para usar la hora de confirmación.",
+  "selectType": "Seleccione Compra o Venta arriba para continuar"
 }

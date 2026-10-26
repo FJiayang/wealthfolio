@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
-import { BASE_URL, loginIfNeeded } from "./helpers";
+import { BASE_URL, loginIfNeeded, selectAccountOption } from "./helpers";
 
 for (const rtl of [false, true]) {
   test(`trade instructions: create, complete and correct (${rtl ? "RTL" : "LTR"})`, async ({
@@ -12,6 +12,16 @@ for (const rtl of [false, true]) {
     const suffix = Date.now().toString();
     const name = `Instructions ${suffix}`;
     const symbol = `TI${suffix}`;
+    const goalResponse = await page.request.post(`${api}/goals`, {
+      data: {
+        title: `Goal ${suffix}`,
+        goalType: "custom_save_up",
+        targetAmount: 1000,
+        currency: "USD",
+      },
+    });
+    expect(goalResponse.ok()).toBeTruthy();
+    const goal = await goalResponse.json();
     const accountResponse = await page.request.post(`${api}/accounts`, {
       data: {
         name,
@@ -38,14 +48,17 @@ for (const rtl of [false, true]) {
     });
     expect(assetResponse.ok()).toBeTruthy();
     const asset = await assetResponse.json();
-    await page.goto(`${BASE_URL}/trade-instructions${rtl ? "?dir=rtl" : ""}`);
+    await page.goto(`${BASE_URL}/goals/${goal.id}${rtl ? "?dir=rtl" : ""}`);
     await page.getByRole("button", { name: "New instruction", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: /^(New instruction|Instruction details)$/ });
-    await dialog
-      .getByRole("combobox")
-      .filter({ hasText: /Select an account/i })
-      .click();
-    await page.getByRole("option").filter({ hasText: name }).click();
+    await expect(dialog.getByRole("textbox", { name: "Quantity", exact: true })).toHaveCount(0);
+    await expect(dialog.getByLabel("Goal", { exact: true })).toHaveCount(0);
+    await expect(page.locator('a[href="/trade-instructions"]')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath("instruction-type-picker.png") });
+    await dialog.getByTestId("activity-type-sell").click();
+    await expect(dialog.getByRole("button", { name: "Add Sell", exact: true })).toBeVisible();
+    await dialog.getByTestId("activity-type-buy").click();
+    await selectAccountOption(page, name, "USD", dialog.getByTestId("account-select"));
     await dialog
       .getByRole("combobox")
       .filter({ hasText: /Select symbol/i })
@@ -60,7 +73,11 @@ for (const rtl of [false, true]) {
     await dialog.getByRole("textbox", { name: "Quantity", exact: true }).fill("2.123456789");
     await dialog.getByLabel("Expected completion", { exact: false }).fill("2020-01-01T12:00");
     await dialog.getByLabel("Limit price", { exact: false }).fill("12.34");
-    await dialog.getByRole("button", { name: "New instruction", exact: true }).click();
+    await dialog.getByRole("button", { name: "Advanced & notes" }).click();
+    await dialog.getByTestId("notes-input").fill("Optional instruction note\nSecond line");
+    await expect(dialog.getByText("Research and execution notes", { exact: true })).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath("instruction-form.png") });
+    await dialog.getByRole("button", { name: "Add Buy", exact: true }).click();
     await expect(dialog).toBeHidden();
     const item = page
       .getByRole("button")
@@ -75,9 +92,11 @@ for (const rtl of [false, true]) {
       dialog.getByRole("button", { name: "Correct completion time", exact: true }),
     ).toBeVisible();
     const listing = await page.request.post(`${api}/trade-instructions/list`, {
-      data: { statuses: [], accountId: account.id },
+      data: { statuses: [], goalId: goal.id },
     });
     const row = (await listing.json()).items[0];
+    expect(row.goalId).toBe(goal.id);
+    expect(row.notes).toBe("Optional instruction note\nSecond line");
     expect(row.status).toBe("COMPLETED");
     expect(row.quantity).toBe("2.123456789");
     expect(row.completedAt).toBeTruthy();
@@ -98,6 +117,7 @@ for (const rtl of [false, true]) {
     ).json();
     expect(activities.data).toHaveLength(0);
     const retryRequest = {
+      goalId: goal.id,
       requestId: randomUUID(),
       accountId: account.id,
       asset: { id: asset.id },
@@ -112,6 +132,22 @@ for (const rtl of [false, true]) {
       (await (await page.request.post(`${api}/trade-instructions`, { data: retryRequest })).json())
         .id,
     ).toBe(externalRow.id);
+    const otherGoal = await (
+      await page.request.post(`${api}/goals`, {
+        data: { title: "Other goal", goalType: "custom_save_up", targetAmount: 2000 },
+      })
+    ).json();
+    await page.goto(`${BASE_URL}/goals/${otherGoal.id}`);
+    await expect(
+      page.getByTestId("goal-trade-instructions").getByText("No instructions", { exact: true }),
+    ).toBeVisible();
+    await page.request.delete(`${api}/goals/${goal.id}`);
+    const afterDelete = await (
+      await page.request.post(`${api}/trade-instructions/list`, {
+        data: { statuses: [], goalId: goal.id },
+      })
+    ).json();
+    expect(afterDelete.total).toBe(0);
   });
 }
 
@@ -132,6 +168,11 @@ test("MCP can create and read, but cannot complete an instruction", async ({ pag
       },
     })
   ).json();
+  const goal = await (
+    await page.request.post(`${api}/goals`, {
+      data: { title: "MCP goal", goalType: "custom_save_up", targetAmount: 1000 },
+    })
+  ).json();
   const credentials = await page.request.post(`${api}/agent-access/tokens`, {
     data: {
       name: "Instruction E2E",
@@ -140,6 +181,7 @@ test("MCP can create and read, but cannot complete an instruction", async ({ pag
         "trade-instructions:create",
         "accounts:read",
         "assets:write",
+        "financial-planning:read",
       ],
     },
   });
@@ -183,11 +225,13 @@ test("MCP can create and read, but cannot complete an instruction", async ({ pag
     expect(catalog.result.tools.map((tool: { name: string }) => tool.name)).not.toContain(
       "complete_trade_instruction",
     );
-    await page.goto(`${BASE_URL}/trade-instructions`);
+    await page.goto(`${BASE_URL}/goals/${goal.id}`);
     const result = await rpc("tools/call", {
       name: "create_trade_instruction",
       arguments: {
         input: {
+          goalId: goal.id,
+          notes: "MCP optional note",
           requestId: randomUUID(),
           accountId: account.id,
           asset: {

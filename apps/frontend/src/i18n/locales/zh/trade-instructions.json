@@ -10,7 +10,6 @@
   "currency": "币种",
   "limitPrice": "限价（选填）",
   "expectedCompletionAt": "期望完成时间（选填）",
-  "rationale": "研究理由与执行要求",
   "invalidInput": "请选择账户及标的，并输入有效的正数。",
   "status": "状态",
   "notSet": "未设置",
@@ -45,5 +44,6 @@
   "completedOnTime": "按期完成",
   "independent": "指令不会下单或创建记账活动。",
   "limitHint": "买入价格上限 / 卖出价格下限；留空由交易员决定。",
-  "completionDefault": "留空使用确认完成时的系统时间。"
+  "completionDefault": "留空使用确认完成时的系统时间。",
+  "selectType": "请在上方选择买入或卖出以继续"
 }

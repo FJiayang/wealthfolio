@@ -222,6 +222,7 @@ impl AgentScopeSet {
                 AgentScope::TradeInstructionsRead,
                 AgentScope::AccountsRead,
                 AgentScope::AssetsWrite,
+                AgentScope::FinancialPlanningRead,
             ] {
                 if !self.contains(required) {
                     return Some(format!("trade-instructions:create requires {}", required));

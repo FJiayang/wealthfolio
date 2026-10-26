@@ -123,10 +123,11 @@ permission. Tools that read actual holdings additionally require
 `create_trade_instruction`, `list_trade_instructions`, and
 `get_trade_instruction` manage local execution instructions independently of
 activities. Creation requires `trade-instructions:create`,
-`trade-instructions:read`, `accounts:read`, and `assets:write`; reads require
-`trade-instructions:read`. Existing tokens are not upgraded automatically. These
-tools are MCP-only and carry no execution or bookkeeping permission. Tool
-arguments are redacted from audit logs.
+`trade-instructions:read`, `accounts:read`, and `assets:write`, and
+`financial-planning:read`; reads require `trade-instructions:read`. Existing
+tokens are not upgraded automatically. These tools are MCP-only and carry no
+execution or bookkeeping permission. Tool arguments are redacted from audit
+logs.
 
 The UI can create, start, complete, cancel, and correct actual completion time.
 Completion is a human report, not broker verification. Expected completion is an
@@ -148,3 +149,16 @@ activity-resolution regressions, adapter parity tests, and
 persistence, permissions, completion correction and UI/MCP operation including
 RTL. Instructions are not a multi-user approval or broker order system and are
 not replicated to paired devices.
+
+Trade instructions have no top-level navigation or standalone page. Each goal's
+detail page contains its own paginated list. The UI supplies the current goal
+ID; MCP creation requires `goalId`, and the shared service verifies it before
+asset resolution. `notes` is optional in both entry points; the separate
+`rationale` field has been removed. The creation sheet reuses the activity type
+picker and form sections, showing the form only after Buy or Sell is selected.
+
+Architecture impact: the goal is a required parent. Deleting a goal cascades to
+its local instructions; instructions still do not affect goal valuations or
+bookkeeping. The pre-release migration rebuilds the experimental instruction
+table, intentionally discarding the earlier records without goal associations.
+No legacy association UI or migration backfill is provided.
