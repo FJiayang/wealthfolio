@@ -12,6 +12,25 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.11.0.7 — 2026-10-26
+
+- Add goal-scoped trade instructions with account and asset snapshots, buy/sell
+  direction, quantity or amount, optional limit price, notes and expected
+  completion time. Instructions do not place broker orders or record activities.
+- Let users start, complete or cancel instructions and correct actual completion
+  time. Creation supports idempotent retries; status changes check record
+  versions to prevent overwriting concurrent edits.
+- Expose creation and reads through separately scoped MCP tools; execution
+  status changes remain human-only. Reuse themed form controls, localized
+  decimal input without losing precision, application timezones and balance
+  privacy.
+
+Architecture impact: instructions use a separate profile-local SQLite table and
+existing writer, without device-sync outbox entries, Activity writes, manual
+quote writes or portfolio recalculation. Manual asset resolution is shared with
+activity entry. Deleting a goal also deletes its instructions. This release's
+pre-release migration discards experimental instructions without goal links.
+
 ## v3.11.0.6 — 2026-10-25
 
 - Replace automatic interval-based market updates with one daily attempt,
