@@ -12,6 +12,24 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.11.0.9 — 2026-10-26
+
+- Add an Actions heading and per-row details, edit and delete menu. Allow content
+  edits only while pending, support confirmed permanent deletion in any status,
+  and show asset names beside codes using account-style badges.
+- Make completion notes optional while keeping cancellation notes required.
+  Prefill actual completion with current application-timezone time; clearing it
+  uses server time at submission. Preserve unchanged deadlines at full precision.
+- Expose the full instruction lifecycle through MCP, including editing, status
+  changes, completion-time correction and deletion. Use one instruction write
+  permission; existing creation grants remain compatible with unified writes,
+  while read-only tokens cannot mutate instructions.
+
+Architecture impact: UI and MCP reuse the shared local service and version-checked
+writer. Content edits preserve identity and creation retry keys; permanent deletion
+removes the record and its key. No schema migration, broker orders, activity writes
+or device-sync expansion is introduced. Mutation arguments remain audit-redacted.
+
 ## v3.11.0.8 — 2026-10-26
 
 - Replace trade instruction cards with an activity-style grid, with buy/sell and
