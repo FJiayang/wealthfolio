@@ -10,7 +10,8 @@ import TickerSearch from "@/components/ticker-search";
 import { buildAssetResolutionInputFromSearchResult } from "@/lib/asset-resolution-input";
 import type { SymbolSearchResult } from "@/lib/types";
 import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Input } from "@wealthfolio/ui/components/ui/input";
+import { CurrencyInput, MoneyInput } from "@wealthfolio/ui/components/financial";
+import { RadioGroup, RadioGroupItem } from "@wealthfolio/ui/components/ui/radio-group";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { DatePickerInput, Icons, Spinner, useLocalizationSettings } from "@wealthfolio/ui";
 import {
@@ -68,7 +69,6 @@ export function InstructionForm({
     },
   });
   const {
-    register,
     setValue,
     handleSubmit,
     watch,
@@ -158,36 +158,49 @@ export function InstructionForm({
             </div>
           </FormSection>
           <FormSection title={t("activity:form.section_trade")}>
-            <fieldset className="flex gap-4">
-              <legend className="sr-only">{t("size")}</legend>
+            <RadioGroup
+              aria-label={t("size")}
+              className="flex gap-4"
+              value={watch("sizeMode")}
+              disabled={mutation.isPending}
+              onValueChange={(value) =>
+                setValue("sizeMode", value as Fields["sizeMode"], { shouldDirty: true })
+              }
+            >
               {(["quantity", "amount"] as const).map((mode) => (
-                <label key={mode} className="flex items-center gap-2">
-                  <input type="radio" value={mode} {...register("sizeMode")} />
-                  {t(mode)}
-                </label>
+                <div key={mode} className="flex items-center gap-2">
+                  <RadioGroupItem id={`instruction-${mode}`} value={mode} />
+                  <Label htmlFor={`instruction-${mode}`}>{t(mode)}</Label>
+                </div>
               ))}
-            </fieldset>
+            </RadioGroup>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="instruction-size">{t(watch("sizeMode"))}</Label>
-                <Input
+                <MoneyInput
                   id="instruction-size"
-                  inputMode="decimal"
-                  className="text-end tabular-nums"
-                  placeholder="0.00"
-                  {...register("size")}
+                  className="tabular-nums"
+                  maxDecimalPlaces={28}
+                  thousandSeparator
+                  value={watch("size")}
+                  onValueStringChange={(value) => setValue("size", value, { shouldDirty: true })}
+                  disabled={mutation.isPending}
                 />
               </div>
               <div>
                 <Label htmlFor="instruction-limit">
                   {t("limitPrice")} {asset?.currency && `(${asset.currency})`}
                 </Label>
-                <Input
+                <MoneyInput
                   id="instruction-limit"
-                  inputMode="decimal"
-                  className="text-end tabular-nums"
-                  placeholder="0.00"
-                  {...register("limitPrice")}
+                  className="tabular-nums"
+                  maxDecimalPlaces={28}
+                  thousandSeparator
+                  value={watch("limitPrice")}
+                  onValueStringChange={(value) =>
+                    setValue("limitPrice", value, { shouldDirty: true })
+                  }
+                  disabled={mutation.isPending}
                 />
               </div>
             </div>
@@ -195,10 +208,12 @@ export function InstructionForm({
             {watch("sizeMode") === "amount" && (
               <div>
                 <Label htmlFor="instruction-currency">{t("currency")}</Label>
-                <Input
+                <CurrencyInput
                   id="instruction-currency"
-                  placeholder={account?.currency}
-                  {...register("amountCurrency")}
+                  aria-label={t("currency")}
+                  value={watch("amountCurrency") || account?.currency}
+                  onChange={(value) => setValue("amountCurrency", value, { shouldDirty: true })}
+                  disabled={mutation.isPending}
                 />
               </div>
             )}

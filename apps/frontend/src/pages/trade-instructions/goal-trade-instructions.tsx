@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { InstructionStatus, TradeInstruction } from "@/adapters";
+import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useAccounts } from "@/hooks/use-accounts";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Sheet, SheetContent } from "@wealthfolio/ui/components/ui/sheet";
@@ -27,6 +28,7 @@ export function GoalTradeInstructions({ goalId }: { goalId: string }) {
   const { t } = useTranslation("trade-instructions");
   const { formatDateTime } = useDateFormatting();
   const { formatQuantity } = useNumberFormatting();
+  const { isBalanceHidden } = useBalancePrivacy();
   const [status, setStatus] = useState("open");
   const [account, setAccount] = useState("all");
   const [offset, setOffset] = useState(0);
@@ -118,9 +120,11 @@ export function GoalTradeInstructions({ goalId }: { goalId: string }) {
               </span>
             </span>
             <span>
-              {row.quantity
-                ? `${formatQuantity(row.quantity)} · ${t("quantity")}`
-                : `${formatQuantity(row.amount)} ${row.amountCurrency}`}
+              {isBalanceHidden
+                ? "••••"
+                : row.quantity
+                  ? `${formatQuantity(row.quantity)} · ${t("quantity")}`
+                  : `${formatQuantity(row.amount)} ${row.amountCurrency}`}
               <span className="text-muted-foreground block text-sm">{t(row.status)}</span>
             </span>
             <span className="text-sm">

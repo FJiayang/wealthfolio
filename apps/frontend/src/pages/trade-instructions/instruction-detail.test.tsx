@@ -5,9 +5,11 @@ import i18n from "i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TradeInstruction } from "@/adapters";
 import enInstructions from "@/i18n/locales/en/trade-instructions.json";
+import { GoalTradeInstructions } from "./goal-trade-instructions";
 import { InstructionDetail } from "./instruction-detail";
 
 const state = vi.hoisted(() => ({ hidden: false }));
+vi.mock("@/hooks/use-accounts", () => ({ useAccounts: () => ({ accounts: [] }) }));
 vi.mock("@/hooks/use-balance-privacy", () => ({
   useBalancePrivacy: () => ({ isBalanceHidden: state.hidden }),
 }));
@@ -44,6 +46,17 @@ const instruction: TradeInstruction = {
 };
 vi.mock("./use-trade-instructions", () => ({
   instructionKey: ["trade-instructions"],
+  useTradeInstructions: () => ({
+    data: {
+      items: [
+        instruction,
+        { ...instruction, id: "amount", quantity: null, amount: "2345.67", amountCurrency: "USD" },
+      ],
+      total: 2,
+    },
+    isPending: false,
+    isError: false,
+  }),
   useTradeInstruction: () => ({ data: instruction, isPending: false, isError: false }),
 }));
 function showDetail() {
@@ -82,4 +95,26 @@ describe("instruction detail", () => {
     expect(screen.queryByText("$12.34")).not.toBeInTheDocument();
     expect(screen.getByText("Optional execution note")).toBeVisible();
   });
+});
+
+describe("instruction list privacy", () => {
+  it.each([false, true])(
+    "applies balance privacy to quantities and amounts (hidden: %s)",
+    (hidden) => {
+      state.hidden = hidden;
+      i18n.addResourceBundle("en", "trade-instructions", enInstructions);
+      const { rerender } = render(<GoalTradeInstructions goalId="goal" />);
+      if (hidden) {
+        expect(screen.getAllByText("••••")).toHaveLength(2);
+        expect(screen.queryByText(/1,000/)).not.toBeInTheDocument();
+        expect(screen.queryByText(/2,345.67/)).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByText(/1,000/)).toBeVisible();
+        expect(screen.getByText(/2,345.67/)).toBeVisible();
+      }
+      state.hidden = !hidden;
+      rerender(<GoalTradeInstructions goalId="goal" />);
+      expect(screen.queryAllByText("••••")).toHaveLength(hidden ? 0 : 2);
+    },
+  );
 });
