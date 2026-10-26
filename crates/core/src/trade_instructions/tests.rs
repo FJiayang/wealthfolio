@@ -276,3 +276,22 @@ async fn trade_instruction_requires_existing_goal_and_preserves_optional_notes()
     raw.as_object_mut().unwrap().remove("goalId");
     assert!(serde_json::from_value::<NewTradeInstruction>(raw).is_err());
 }
+
+#[test]
+fn trade_instruction_list_rejects_invalid_completion_range() {
+    let (service, _) = setup();
+    let now = Utc::now();
+    for before in [now, now - Duration::seconds(1)] {
+        assert!(service
+            .list(InstructionFilter {
+                expected_completion_from: Some(now),
+                expected_completion_before: Some(before),
+                ..Default::default()
+            })
+            .is_err());
+    }
+    assert!(
+        serde_json::from_value::<InstructionFilter>(json!({"expectedCompletionFrom": "bad"}))
+            .is_err()
+    );
+}

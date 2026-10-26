@@ -154,6 +154,14 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
         if !(1..=100).contains(&limit) || filter.offset.unwrap_or(0) < 0 {
             return Err(invalid("Invalid pagination"));
         }
+        if let (Some(from), Some(before)) = (
+            filter.expected_completion_from,
+            filter.expected_completion_before,
+        ) {
+            if from >= before {
+                return Err(invalid("Invalid expected completion range"));
+            }
+        }
         filter.limit = Some(limit);
         self.repository.list(filter)
     }

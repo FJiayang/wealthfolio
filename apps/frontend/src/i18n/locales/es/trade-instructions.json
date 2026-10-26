@@ -45,5 +45,11 @@
   "independent": "Las instrucciones no envían órdenes ni crean registros contables.",
   "limitHint": "Máximo de compra / mínimo de venta; vacío: criterio del operador.",
   "completionDefault": "Deje vacío para usar la hora de confirmación.",
-  "selectType": "Seleccione Compra o Venta arriba para continuar"
+  "selectType": "Seleccione Compra o Venta arriba para continuar",
+  "expectedCompletionDate": "Finalización prevista",
+  "notes": "Notas",
+  "records": "instrucciones",
+  "startShort": "Iniciar",
+  "completeShort": "Completar",
+  "cancelShort": "Cancelar"
 }

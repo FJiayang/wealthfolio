@@ -36,3 +36,26 @@ describe("trade instruction times and permissions", () => {
     expect(scopes).not.toContain("market-data:write");
   });
 });
+
+describe("completion date filters", () => {
+  it("uses application midnight with an exclusive next-day bound across DST", async () => {
+    const { completionDateBounds } = await import("./time");
+    expect(
+      completionDateBounds(
+        { from: new Date(2026, 2, 8), to: new Date(2026, 2, 8) },
+        "America/New_York",
+      ),
+    ).toEqual({
+      expectedCompletionFrom: "2026-03-08T05:00:00.000Z",
+      expectedCompletionBefore: "2026-03-09T04:00:00.000Z",
+    });
+    expect(completionDateBounds({ from: new Date(2026, 9, 26) }, "Asia/Shanghai")).toEqual({
+      expectedCompletionFrom: "2026-10-25T16:00:00.000Z",
+      expectedCompletionBefore: undefined,
+    });
+    expect(completionDateBounds(undefined, "UTC")).toEqual({
+      expectedCompletionFrom: undefined,
+      expectedCompletionBefore: undefined,
+    });
+  });
+});

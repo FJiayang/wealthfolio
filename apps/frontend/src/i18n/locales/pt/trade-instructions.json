@@ -45,5 +45,11 @@
   "independent": "As instruções não enviam ordens nem criam lançamentos.",
   "limitHint": "Teto de compra / piso de venda; vazio: decisão do operador.",
   "completionDefault": "Deixe vazio para usar o horário de confirmação.",
-  "selectType": "Selecione Compra ou Venda acima para continuar"
+  "selectType": "Selecione Compra ou Venda acima para continuar",
+  "expectedCompletionDate": "Conclusão prevista",
+  "notes": "Notas",
+  "records": "instruções",
+  "startShort": "Iniciar",
+  "completeShort": "Concluir",
+  "cancelShort": "Cancelar"
 }

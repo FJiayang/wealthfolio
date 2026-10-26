@@ -1,48 +1,66 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { DateRange } from "react-day-picker";
+import type { OnChangeFn, SortingState } from "@tanstack/react-table";
 import type { InstructionStatus, TradeInstruction } from "@/adapters";
-import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useAccounts } from "@/hooks/use-accounts";
-import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Sheet, SheetContent } from "@wealthfolio/ui/components/ui/sheet";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@wealthfolio/ui/components/ui/select";
-import { useNumberFormatting, useDateFormatting } from "@wealthfolio/ui";
+  Button,
+  FacetedFilter,
+  Sheet,
+  SheetContent,
+  useLocalizationSettings,
+} from "@wealthfolio/ui";
+import { InstructionPagination } from "./instruction-pagination";
+import { DateRangeFilter } from "@/features/spending/components/date-range-filter";
 import { useTradeInstructions } from "./use-trade-instructions";
 import { InstructionSheet } from "./instruction-sheet";
 import { InstructionDetail } from "./instruction-detail";
+import { InstructionGrid } from "./instruction-grid";
+import { completionDateBounds } from "./time";
 
-function isOverdue(row: TradeInstruction, now = Date.now()) {
-  return (
-    (row.status === "PENDING" || row.status === "IN_PROGRESS") &&
-    !!row.expectedCompletionAt &&
-    Date.parse(row.expectedCompletionAt) < now
-  );
-}
+const PAGE_SIZES = [20, 50, 100];
+const EMPTY_ITEMS: TradeInstruction[] = [];
 export function GoalTradeInstructions({ goalId }: { goalId: string }) {
   const { t } = useTranslation("trade-instructions");
-  const { formatDateTime } = useDateFormatting();
-  const { formatQuantity } = useNumberFormatting();
-  const { isBalanceHidden } = useBalancePrivacy();
-  const [status, setStatus] = useState("open");
-  const [account, setAccount] = useState("all");
-  const [offset, setOffset] = useState(0);
+  const { timezone = "UTC" } = useLocalizationSettings();
+  const [status, setStatus] = useState(new Set(["PENDING", "IN_PROGRESS"]));
+  const [account, setAccount] = useState(new Set<string>());
+  const [sides, setSides] = useState(new Set<string>());
+  const [dateRange, setDateRange] = useState<DateRange>();
+  const [storedPageSize, setPageSize] = usePersistentState("trade-instructions-page-size", 20);
+  const pageSize = PAGE_SIZES.includes(storedPageSize) ? storedPageSize : 20;
+  const [pageIndex, setPageIndex] = useState(0);
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "expectedCompletionAt", desc: false },
+  ]);
   const [panel, setPanel] = useState<string>();
   const { accounts } = useAccounts({ includeArchived: true, filterActive: false });
-  const statuses: InstructionStatus[] | undefined =
-    status === "all" ? [] : status === "open" ? undefined : [status as InstructionStatus];
   const query = useTradeInstructions({
     goalId,
-    statuses,
-    accountId: account === "all" ? undefined : account,
-    limit: 50,
-    offset,
+    statuses: [...status] as InstructionStatus[],
+    accountId: [...account][0],
+    side: sides.size === 1 ? ([...sides][0] as "BUY" | "SELL") : undefined,
+    ...completionDateBounds(dateRange, timezone),
+    sort: sorting[0]?.desc ? "expectedCompletionDesc" : "expectedCompletionAsc",
+    limit: pageSize,
+    offset: pageIndex * pageSize,
   });
+  const pageCount = Math.ceil((query.data?.total ?? 0) / pageSize);
+  useEffect(() => {
+    if (query.data && pageIndex >= pageCount) setPageIndex(Math.max(0, pageCount - 1));
+  }, [query.data, pageIndex, pageCount]);
+  useEffect(() => {
+    setPageIndex(0);
+  }, [goalId]);
+  const changeSorting: OnChangeFn<SortingState> = (update) => {
+    setSorting((previous) => {
+      const next = typeof update === "function" ? update(previous) : update;
+      return next.length ? next : [{ id: "expectedCompletionAt", desc: false }];
+    });
+    setPageIndex(0);
+  };
   return (
     <div className="space-y-4" data-testid="goal-trade-instructions">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -50,49 +68,52 @@ export function GoalTradeInstructions({ goalId }: { goalId: string }) {
         <Button onClick={() => setPanel("new")}>{t("create")}</Button>
       </div>
       <p className="text-muted-foreground text-sm">{t("independent")}</p>
-      <div className="flex flex-wrap gap-3">
-        <Select
-          value={status}
-          onValueChange={(value) => {
-            setStatus(value ?? "open");
-            setOffset(0);
+      <div className="flex flex-wrap items-center gap-2" data-testid="instruction-filters">
+        <FacetedFilter
+          title={t("status")}
+          options={["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((value) => ({
+            value,
+            label: t(value),
+          }))}
+          selectedValues={status}
+          onFilterChange={(next) => {
+            setStatus(next);
+            setPageIndex(0);
           }}
-        >
-          <SelectTrigger className="w-44" aria-label={t("status")}>
-            <SelectValue>{t(status)}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {["open", "all", "PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map((value) => (
-              <SelectItem key={value} value={value}>
-                {t(value)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={account}
-          onValueChange={(value) => {
-            setAccount(value ?? "all");
-            setOffset(0);
+        />
+        <FacetedFilter
+          title={t("account")}
+          options={accounts.map((item) => ({ value: item.id, label: item.name }))}
+          selectedValues={account}
+          onFilterChange={(next) => {
+            const added = [...next].find((id) => !account.has(id));
+            setAccount(new Set(added ? [added] : []));
+            setPageIndex(0);
           }}
+        />
+        <FacetedFilter
+          title={t("side")}
+          options={["BUY", "SELL"].map((value) => ({ value, label: t(value) }))}
+          selectedValues={sides}
+          onFilterChange={(next) => {
+            setSides(next);
+            setPageIndex(0);
+          }}
+        />
+        <DateRangeFilter
+          title={t("expectedCompletionDate")}
+          value={dateRange}
+          onChange={(next) => {
+            setDateRange(next);
+            setPageIndex(0);
+          }}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void query.refetch()}
+          disabled={query.isFetching}
         >
-          <SelectTrigger className="w-52" aria-label={t("account")}>
-            <SelectValue>
-              {account === "all"
-                ? t("allAccounts")
-                : accounts.find((item) => item.id === account)?.name}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("allAccounts")}</SelectItem>
-            {accounts.map((item) => (
-              <SelectItem key={item.id} value={item.id}>
-                {item.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button variant="outline" onClick={() => void query.refetch()} disabled={query.isFetching}>
           {t("refresh")}
         </Button>
       </div>
@@ -103,66 +124,24 @@ export function GoalTradeInstructions({ goalId }: { goalId: string }) {
         </p>
       )}
       {query.data?.items.length === 0 && <p className="text-muted-foreground py-8">{t("empty")}</p>}
-      <div className="space-y-2">
-        {query.data?.items.map((row) => (
-          <button
-            key={row.id}
-            type="button"
-            onClick={() => setPanel(row.id)}
-            className="hover:bg-accent focus-visible:ring-ring grid w-full gap-2 rounded-md border p-4 text-start focus-visible:ring-2 sm:grid-cols-3"
-          >
-            <span>
-              <span className="font-medium">
-                {t(row.side)} · {row.assetSnapshot.symbol || row.assetSnapshot.name}
-              </span>
-              <span className="text-muted-foreground block text-sm">
-                {row.accountName} · {row.assetSnapshot.exchangeMic}
-              </span>
-            </span>
-            <span>
-              {isBalanceHidden
-                ? "••••"
-                : row.quantity
-                  ? `${formatQuantity(row.quantity)} · ${t("quantity")}`
-                  : `${formatQuantity(row.amount)} ${row.amountCurrency}`}
-              <span className="text-muted-foreground block text-sm">{t(row.status)}</span>
-            </span>
-            <span className="text-sm">
-              {row.completedAt ? (
-                <>
-                  {t("completedAt")}: {formatDateTime(row.completedAt)}
-                </>
-              ) : (
-                <>
-                  {t("expectedCompletionAt")}:{" "}
-                  {row.expectedCompletionAt
-                    ? formatDateTime(row.expectedCompletionAt)
-                    : t("notSet")}
-                </>
-              )}
-              {isOverdue(row) && (
-                <span className="text-destructive block font-medium">{t("overdue")}</span>
-              )}
-            </span>
-          </button>
-        ))}
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button
-          variant="outline"
-          disabled={offset === 0}
-          onClick={() => setOffset(Math.max(0, offset - 50))}
-        >
-          {t("previous")}
-        </Button>
-        <Button
-          variant="outline"
-          disabled={!query.data || offset + 50 >= query.data.total}
-          onClick={() => setOffset(offset + 50)}
-        >
-          {t("next")}
-        </Button>
-      </div>
+      <InstructionGrid
+        items={query.data?.items ?? EMPTY_ITEMS}
+        sorting={sorting}
+        onSortingChange={changeSorting}
+        onOpen={setPanel}
+      />
+      <InstructionPagination
+        pageIndex={pageIndex}
+        pageSize={pageSize}
+        pageCount={pageCount}
+        totalRowCount={query.data?.total ?? 0}
+        isFetching={query.isFetching}
+        onPageChange={setPageIndex}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPageIndex(0);
+        }}
+      />
       {panel === "new" && <InstructionSheet goalId={goalId} onClose={() => setPanel(undefined)} />}
       <Sheet
         open={!!panel && panel !== "new"}

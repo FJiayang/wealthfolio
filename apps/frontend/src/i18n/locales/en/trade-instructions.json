@@ -45,5 +45,11 @@
   "independent": "Instructions do not place orders or create bookkeeping activities.",
   "limitHint": "Buy ceiling / sell floor; leave empty for trader discretion.",
   "completionDefault": "Leave empty to use the time you confirm completion.",
-  "selectType": "Select Buy or Sell above to continue"
+  "selectType": "Select Buy or Sell above to continue",
+  "expectedCompletionDate": "Expected completion time",
+  "notes": "Notes",
+  "records": "instructions",
+  "startShort": "Start",
+  "completeShort": "Complete",
+  "cancelShort": "Cancel"
 }
