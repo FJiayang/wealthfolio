@@ -25,8 +25,15 @@ interface InstructionGridProps {
   sorting: SortingState;
   onSortingChange: OnChangeFn<SortingState>;
   onOpen: (id: string) => void;
+  onEdit: (id: string) => void;
 }
-export function InstructionGrid({ items, sorting, onSortingChange, onOpen }: InstructionGridProps) {
+export function InstructionGrid({
+  items,
+  sorting,
+  onSortingChange,
+  onOpen,
+  onEdit,
+}: InstructionGridProps) {
   const { t } = useTranslation("trade-instructions");
   const { formatQuantity } = useNumberFormatting();
   const { formatAmount } = useAmountFormatting();
@@ -78,15 +85,28 @@ export function InstructionGrid({ items, sorting, onSortingChange, onOpen }: Ins
         header: () => t("asset"),
         meta: { label: t("asset") },
         cell: ({ row }) => (
-          <Button
-            variant="link"
-            className="h-full max-w-full justify-start truncate p-0 text-xs"
-            onClick={() => onOpen(row.original.id)}
-          >
-            {row.original.assetSnapshot.symbol || row.original.assetSnapshot.name}
-          </Button>
+          <div className="flex h-full min-w-0 items-center gap-2">
+            <Button
+              variant="link"
+              className="h-full max-w-full justify-start truncate p-0 text-xs"
+              onClick={() => onOpen(row.original.id)}
+            >
+              {row.original.assetSnapshot.symbol || row.original.assetSnapshot.name}
+            </Button>
+            {row.original.assetSnapshot.symbol &&
+              row.original.assetSnapshot.name &&
+              row.original.assetSnapshot.name !== row.original.assetSnapshot.symbol && (
+                <Badge
+                  variant="secondary"
+                  className="min-w-0 truncate"
+                  title={row.original.assetSnapshot.name}
+                >
+                  {row.original.assetSnapshot.name}
+                </Badge>
+              )}
+          </div>
         ),
-        size: 200,
+        size: 320,
         accessorFn: (row) =>
           [row.assetSnapshot.symbol || row.assetSnapshot.name, row.assetSnapshot.exchangeMic]
             .filter(Boolean)
@@ -169,19 +189,21 @@ export function InstructionGrid({ items, sorting, onSortingChange, onOpen }: Ins
       { accessorKey: "notes", header: t("notes"), size: 240 },
       {
         id: "actions",
-        header: () => null,
-        size: 200,
-        minSize: 200,
-        maxSize: 200,
+        header: () => t("actions"),
+        size: 240,
+        minSize: 240,
+        maxSize: 240,
         enableResizing: false,
         enableHiding: false,
         enablePinning: false,
-        cell: ({ row }) => <InstructionActions row={row.original} />,
+        cell: ({ row }) => (
+          <InstructionActions row={row.original} onOpen={onOpen} onEdit={onEdit} />
+        ),
       },
     ];
     for (const column of definitions) column.enableSorting ??= false;
     return definitions;
-  }, [t, formatQuantity, formatAmount, isBalanceHidden, onOpen]);
+  }, [t, formatQuantity, formatAmount, isBalanceHidden, onOpen, onEdit]);
   const grid = useDataGrid({
     data,
     columns,

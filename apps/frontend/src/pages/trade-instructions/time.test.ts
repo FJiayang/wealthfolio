@@ -26,12 +26,14 @@ describe("trade instruction times and permissions", () => {
     expect(scopes).toEqual(
       expect.arrayContaining([
         "trade-instructions:read",
-        "trade-instructions:create",
+        "trade-instructions:write",
         "accounts:read",
         "financial-planning:read",
         "assets:write",
       ]),
     );
+    expect(scopes).not.toContain("trade-instructions:create");
+    expect(scopes).toEqual(applyScopeDependencies(["trade-instructions:write"]));
     expect(scopes).not.toContain("activities:write");
     expect(scopes).not.toContain("market-data:write");
   });

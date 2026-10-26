@@ -3,6 +3,19 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   Button,
+  Icons,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
   DatePickerInput,
   Dialog,
   DialogContent,
@@ -14,6 +27,7 @@ import {
   useLocalizationSettings,
 } from "@wealthfolio/ui";
 import {
+  deleteTradeInstruction,
   cancelTradeInstruction,
   completeTradeInstruction,
   startTradeInstruction,
@@ -21,19 +35,28 @@ import {
 } from "@/adapters";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import { instructionKey } from "./use-trade-instructions";
-import { instantTime, pickerTime } from "./time";
+import { inputTime, instantTime, pickerTime } from "./time";
 
-type QuickAction = "start" | "complete" | "cancel";
-export function InstructionActions({ row }: { row: TradeInstruction }) {
+type QuickAction = "start" | "complete" | "cancel" | "delete";
+export function InstructionActions({
+  row,
+  onOpen,
+  onEdit,
+}: {
+  row: TradeInstruction;
+  onOpen: (id: string) => void;
+  onEdit: (id: string) => void;
+}) {
   const { t } = useTranslation("trade-instructions");
   const { timezone = "UTC" } = useLocalizationSettings();
   const queryClient = useQueryClient();
   const fieldId = useId();
-  const [action, setAction] = useState<"complete" | "cancel">();
+  const [action, setAction] = useState<"complete" | "cancel" | "delete">();
   const [note, setNote] = useState("");
   const [time, setTime] = useState("");
   const mutation = useMutation({
-    mutationFn: ({ kind, version }: { kind: QuickAction; version: number }) => {
+    mutationFn: async ({ kind, version }: { kind: QuickAction; version: number }) => {
+      if (kind === "delete") return deleteTradeInstruction(row.id, version);
       if (kind === "start") return startTradeInstruction(row.id, version);
       if (kind === "cancel") return cancelTradeInstruction(row.id, version, note);
       return completeTradeInstruction(row.id, {
@@ -54,10 +77,10 @@ export function InstructionActions({ row }: { row: TradeInstruction }) {
   // Keep the version selected when opening the form, so a concurrent edit cannot be overwritten.
   const [actionVersion, setActionVersion] = useState(row.version);
   const open = row.status === "PENDING" || row.status === "IN_PROGRESS";
-  const begin = (kind: "complete" | "cancel") => {
+  const begin = (kind: "complete" | "cancel" | "delete") => {
     mutation.reset();
     setNote("");
-    setTime("");
+    setTime(kind === "complete" ? inputTime(new Date().toISOString(), timezone) : "");
     setActionVersion(row.version);
     setAction(kind);
   };
@@ -94,9 +117,80 @@ export function InstructionActions({ row }: { row: TradeInstruction }) {
         >
           <span className="truncate">{t("cancelShort")}</span>
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                aria-label={t("menu")}
+                disabled={mutation.isPending}
+              />
+            }
+          >
+            <Icons.MoreVertical className="h-4 w-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onOpen(row.id)}>
+              <Icons.Info className="me-2 h-4 w-4" />
+              {t("detail")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={row.status !== "PENDING"}
+              title={row.status !== "PENDING" ? t("editPendingOnly") : undefined}
+              onClick={() => onEdit(row.id)}
+            >
+              <Icons.Pencil className="me-2 h-4 w-4" />
+              {t("edit")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => begin("delete")}
+            >
+              <Icons.Trash className="me-2 h-4 w-4" />
+              {t("delete")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+      <AlertDialog
+        open={action === "delete"}
+        onOpenChange={(value) => {
+          if (!value && !mutation.isPending) setAction(undefined);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("deleteTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("deleteDescription", {
+                symbol: row.assetSnapshot.symbol || row.assetSnapshot.name,
+                account: row.accountName,
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {mutation.isError && (
+            <p role="alert" className="text-destructive text-sm">
+              {String(mutation.error)}
+            </p>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={mutation.isPending}>{t("back")}</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={mutation.isPending}
+              onClick={() => mutation.mutate({ kind: "delete", version: actionVersion })}
+            >
+              {t("delete")}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Dialog
-        open={!!action}
+        open={!!action && action !== "delete"}
         onOpenChange={(value) => {
           if (!value && !mutation.isPending) setAction(undefined);
         }}
@@ -116,10 +210,12 @@ export function InstructionActions({ row }: { row: TradeInstruction }) {
             }}
           >
             <div className="space-y-2">
-              <Label htmlFor={`${fieldId}-note`}>{t("resolutionNote")}</Label>
+              <Label htmlFor={`${fieldId}-note`}>
+                {t(action === "complete" ? "completionNote" : "resolutionNote")}
+              </Label>
               <Textarea
                 id={`${fieldId}-note`}
-                required
+                required={action === "cancel"}
                 maxLength={4000}
                 value={note}
                 onChange={(event) => setNote(event.target.value)}

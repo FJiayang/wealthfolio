@@ -1,11 +1,12 @@
 import { render, screen, waitFor, within } from "@/test/render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Sheet, SheetContent } from "@wealthfolio/ui";
+import { FormattingProvider, Sheet, SheetContent } from "@wealthfolio/ui";
 import i18n from "i18next";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
 import enActivity from "@/i18n/locales/en/activity.json";
 import {
+  deleteTradeInstruction,
   startTradeInstruction,
   completeTradeInstruction,
   cancelTradeInstruction,
@@ -15,6 +16,7 @@ import {
 import enInstructions from "@/i18n/locales/en/trade-instructions.json";
 import { GoalTradeInstructions } from "./goal-trade-instructions";
 import { InstructionDetail } from "./instruction-detail";
+import { InstructionGrid } from "./instruction-grid";
 
 // jsdom has no viewport; render the real grid with all rows visible.
 vi.mock("@wealthfolio/ui/components/data-grid", async (importOriginal) => {
@@ -39,6 +41,7 @@ vi.mock("@wealthfolio/ui/components/data-grid", async (importOriginal) => {
 });
 vi.mock("@/adapters", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/adapters")>()),
+  deleteTradeInstruction: vi.fn(),
   startTradeInstruction: vi.fn(),
   completeTradeInstruction: vi.fn(),
   cancelTradeInstruction: vi.fn(),
@@ -207,7 +210,7 @@ describe("instruction pagination and filters", () => {
     await user.click(screen.getByRole("button", { name: "Next page" }));
     expect(state.filter?.offset).toBe(20);
     await user.click(screen.getByRole("combobox", { name: "Rows per page" }));
-    await user.click(screen.getByRole("option", { name: "50" }));
+    await user.click(await screen.findByRole("option", { name: "50" }));
     expect(state.filter).toMatchObject({ limit: 50, offset: 0 });
     expect(localStorage.getItem("trade-instructions-page-size")).toBe("50");
     view.unmount();
@@ -284,8 +287,12 @@ describe("instruction quick actions", () => {
       await user.click(within(cells[0]).getByRole("button", { name: label }));
       const dialog = screen.getByRole("dialog");
       expect(within(dialog).queryByText("Financial Details")).not.toBeInTheDocument();
-      expect(within(dialog).getByLabelText("Resolution note")).toBeRequired();
-      await user.type(within(dialog).getByLabelText("Resolution note"), "Handled externally");
+      const noteInput = within(dialog).getByLabelText(
+        label === "Complete" ? "Resolution note (optional)" : "Resolution note",
+      );
+      if (label === "Complete") expect(noteInput).not.toBeRequired();
+      else expect(noteInput).toBeRequired();
+      await user.type(noteInput, "Handled externally");
       await user.click(within(dialog).getByRole("button", { name: "Confirm" }));
       await waitFor(() =>
         expect(
@@ -293,12 +300,145 @@ describe("instruction quick actions", () => {
         ).toHaveBeenCalled(),
       );
       if (label === "Complete")
-        expect(completeTradeInstruction).toHaveBeenCalledWith("instruction", {
-          expectedVersion: 1,
-          resolutionNote: "Handled externally",
-        });
+        expect(completeTradeInstruction).toHaveBeenCalledWith(
+          "instruction",
+          expect.objectContaining({
+            expectedVersion: 1,
+            resolutionNote: "Handled externally",
+          }),
+        );
       else
         expect(cancelTradeInstruction).toHaveBeenCalledWith("instruction", 1, "Handled externally");
     },
   );
+});
+
+describe("instruction completion defaults and row menu", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    state.hidden = false;
+    state.total = 2;
+    vi.clearAllMocks();
+    document.elementsFromPoint = vi.fn(() => []);
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+    i18n.addResourceBundle("en", "trade-instructions", enInstructions);
+    i18n.addResourceBundle("en", "activity", enActivity);
+  });
+  afterEach(() => vi.useRealTimers());
+  it("defaults the quick completion to now and refreshes only after reopening", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-26T08:42:59Z"));
+    const user = userEvent.setup();
+    vi.mocked(completeTradeInstruction).mockResolvedValue({
+      ...instruction,
+      status: "COMPLETED",
+      version: 2,
+    });
+    const view = renderList();
+    await user.click(screen.getAllByRole("button", { name: "Complete" })[0]);
+    let dialog = screen.getByRole("dialog");
+    expect(
+      within(dialog).getByText(
+        "Defaults to the current time. Clear to use the server time when confirming.",
+      ),
+    ).toBeVisible();
+    vi.setSystemTime(new Date("2026-10-26T08:45:00Z"));
+    view.rerender(<GoalTradeInstructions goalId="goal" />);
+    await user.click(within(dialog).getByRole("button", { name: "Confirm" }));
+    await waitFor(() =>
+      expect(completeTradeInstruction).toHaveBeenCalledWith("instruction", {
+        expectedVersion: 1,
+        resolutionNote: "",
+        completedAt: "2026-10-26T08:42:00.000Z",
+      }),
+    );
+    await user.click(screen.getAllByRole("button", { name: "Complete" })[0]);
+    dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Confirm" }));
+    await waitFor(() =>
+      expect(completeTradeInstruction).toHaveBeenLastCalledWith("instruction", {
+        expectedVersion: 1,
+        resolutionNote: "",
+        completedAt: "2026-10-26T08:45:00.000Z",
+      }),
+    );
+  });
+  it("uses the application timezone and minute precision in the detail completion form", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-26T08:42:59Z"));
+    const user = userEvent.setup();
+    vi.mocked(completeTradeInstruction).mockResolvedValue({
+      ...instruction,
+      status: "COMPLETED",
+      version: 2,
+    });
+    render(
+      <FormattingProvider locale="en-US" timezone="Asia/Shanghai">
+        <QueryClientProvider client={new QueryClient()}>
+          <Sheet open>
+            <SheetContent>
+              <InstructionDetail id="instruction" />
+            </SheetContent>
+          </Sheet>
+        </QueryClientProvider>
+      </FormattingProvider>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Mark complete" }));
+    expect(screen.getByLabelText("Resolution note (optional)")).not.toBeRequired();
+    expect(
+      screen.getByTestId("instruction-completed-picker").querySelector('[data-type="hour"]'),
+    ).toHaveTextContent("4");
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() =>
+      expect(completeTradeInstruction).toHaveBeenCalledWith("instruction", {
+        expectedVersion: 1,
+        resolutionNote: "",
+        completedAt: "2026-10-26T08:42:00.000Z",
+      }),
+    );
+  });
+  it("shows the action heading, name badge and detail/edit/delete menu without duplicate", async () => {
+    const user = userEvent.setup();
+    renderList();
+    expect(screen.getByRole("columnheader", { name: "Actions" })).toBeVisible();
+    expect(screen.getAllByText("Apple")[0]).toHaveAttribute("data-slot", "badge");
+    await user.click(screen.getAllByRole("button", { name: "Open menu" })[0]);
+    expect(await screen.findAllByRole("menuitem")).toHaveLength(3);
+    expect(screen.getByRole("menuitem", { name: "Edit instruction" })).toBeEnabled();
+    expect(screen.queryByRole("menuitem", { name: /duplicate/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+    const confirm = screen.getByRole("alertdialog");
+    expect(
+      within(confirm).getByText(/Permanently delete AAPL in Investment account/),
+    ).toBeVisible();
+    await user.click(within(confirm).getByRole("button", { name: "Back" }));
+    expect(deleteTradeInstruction).not.toHaveBeenCalled();
+    await user.click(screen.getAllByRole("button", { name: "Open menu" })[0]);
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }));
+    vi.mocked(deleteTradeInstruction).mockResolvedValue();
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete" }),
+    );
+    await waitFor(() => expect(deleteTradeInstruction).toHaveBeenCalledWith("instruction", 1));
+  });
+});
+
+it.each([
+  { symbol: null, name: "Apple", display: "Apple" },
+  { symbol: "AAPL", name: "AAPL", display: "AAPL" },
+  { symbol: "AAPL", name: null, display: "AAPL" },
+])("does not duplicate the asset label for $symbol / $name", ({ symbol, name, display }) => {
+  state.hidden = false;
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <InstructionGrid
+        items={[{ ...instruction, assetSnapshot: { ...instruction.assetSnapshot, symbol, name } }]}
+        sorting={[]}
+        onSortingChange={vi.fn()}
+        onOpen={vi.fn()}
+        onEdit={vi.fn()}
+      />
+    </QueryClientProvider>,
+  );
+  expect(screen.getAllByText(display)).toHaveLength(1);
 });

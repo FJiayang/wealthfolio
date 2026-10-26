@@ -478,6 +478,10 @@
       "trade_instructions_create": {
         "label": "إنشاء تعليمات التداول",
         "description": "إنشاء تعليمات التداول"
+      },
+      "trade_instructions_write": {
+        "label": "إدارة تعليمات التداول",
+        "description": "إنشاء تعليمات التداول وتعديلها وبدؤها وإكمالها وإلغاؤها وتصحيح وقت إكمالها وحذفها نهائيًا."
       }
     },
     "scope_locked_market_data_title": "مطلوب من قِبل بيانات السوق — كتابة",

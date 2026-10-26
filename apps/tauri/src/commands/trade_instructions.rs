@@ -93,3 +93,30 @@ pub async fn correct_trade_instruction_completion_time(
         .await
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn update_trade_instruction(
+    id: String,
+    input: UpdateTradeInstruction,
+    state: ProfileAccess,
+) -> Result<TradeInstruction, String> {
+    state
+        .context()?
+        .trade_instruction_service()
+        .edit(&id, input)
+        .await
+        .map_err(|error| error.to_string())
+}
+#[tauri::command]
+pub async fn delete_trade_instruction(
+    id: String,
+    input: InstructionVersion,
+    state: ProfileAccess,
+) -> Result<(), String> {
+    state
+        .context()?
+        .trade_instruction_service()
+        .delete(&id, input.expected_version)
+        .await
+        .map_err(|error| error.to_string())
+}

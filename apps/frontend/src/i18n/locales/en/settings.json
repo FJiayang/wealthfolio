@@ -1555,6 +1555,10 @@
       "trade_instructions_create": {
         "label": "Create trade instructions",
         "description": "Create trade instructions"
+      },
+      "trade_instructions_write": {
+        "label": "Manage trade instructions",
+        "description": "Create, edit, start, complete, cancel, correct completion time and permanently delete trade instructions."
       }
     },
     "preset": {

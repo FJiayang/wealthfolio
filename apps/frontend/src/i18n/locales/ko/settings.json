@@ -1597,6 +1597,10 @@
       "trade_instructions_create": {
         "label": "거래 지시 생성",
         "description": "거래 지시 생성"
+      },
+      "trade_instructions_write": {
+        "label": "거래 지시 관리",
+        "description": "거래 지시를 생성, 편집, 시작, 완료, 취소하고 완료 시간을 수정하거나 영구 삭제합니다."
       }
     },
     "preset": {

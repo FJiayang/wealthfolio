@@ -1597,6 +1597,10 @@
       "trade_instructions_create": {
         "label": "取引指示を作成する",
         "description": "取引指示を作成する"
+      },
+      "trade_instructions_write": {
+        "label": "取引指示を管理",
+        "description": "取引指示の作成、編集、開始、完了、取消、完了時刻の訂正、完全削除を行います。"
       }
     },
     "preset": {

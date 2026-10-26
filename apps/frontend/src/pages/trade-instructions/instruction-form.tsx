@@ -4,7 +4,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { createTradeInstruction, type NewTradeInstruction } from "@/adapters";
+import {
+  createTradeInstruction,
+  updateTradeInstruction,
+  type TradeInstruction,
+  type NewTradeInstruction,
+} from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import TickerSearch from "@/components/ticker-search";
 import { buildAssetResolutionInputFromSearchResult } from "@/lib/asset-resolution-input";
@@ -20,7 +25,7 @@ import {
   FormSection,
   NotesInput,
 } from "@/pages/activity/components/forms/fields";
-import { instantTime, pickerTime } from "./time";
+import { inputTime, instantTime, pickerTime } from "./time";
 import { instructionKey } from "./use-trade-instructions";
 
 const positiveDecimal = z
@@ -39,11 +44,13 @@ const schema = z.object({
 type Fields = z.infer<typeof schema>;
 export function InstructionForm({
   goalId,
+  instruction,
   side,
   onSaved,
   onCancel,
 }: {
   goalId: string;
+  instruction?: TradeInstruction;
   side: "BUY" | "SELL";
   onSaved: () => void;
   onCancel: () => void;
@@ -51,7 +58,24 @@ export function InstructionForm({
   const { t } = useTranslation("trade-instructions");
   const { timezone = "UTC" } = useLocalizationSettings();
   const { accounts } = useAccounts({ filterActive: true, accountPurpose: "holdings" });
-  const [asset, setAsset] = useState<SymbolSearchResult>();
+  const [asset, setAsset] = useState<SymbolSearchResult | undefined>(() =>
+    instruction
+      ? {
+          symbol: instruction.assetSnapshot.symbol ?? "",
+          shortName: instruction.assetSnapshot.name ?? "",
+          longName: instruction.assetSnapshot.name ?? "",
+          exchange: instruction.assetSnapshot.exchangeMic ?? "",
+          exchangeMic: instruction.assetSnapshot.exchangeMic ?? undefined,
+          currency: instruction.assetSnapshot.quoteCcy,
+          quoteType: instruction.assetSnapshot.instrumentType ?? "",
+          index: instruction.assetId,
+          score: 1,
+          typeDisplay: instruction.assetSnapshot.instrumentType ?? "",
+          existingAssetId: instruction.assetId,
+          isExisting: true,
+        }
+      : undefined,
+  );
   const [selectionError, setSelectionError] = useState(false);
   // Preserve the same key for transport retries, but never reuse it for edited input.
   const [submission, setSubmission] = useState<{ fingerprint: string; requestId: string }>();
@@ -59,24 +83,41 @@ export function InstructionForm({
   const form = useForm<Fields>({
     resolver: zodResolver(schema),
     defaultValues: {
-      accountId: "",
-      sizeMode: "quantity",
-      size: "",
-      amountCurrency: "",
-      limitPrice: "",
-      notes: "",
-      expectedCompletionAt: "",
+      accountId: instruction?.accountId ?? "",
+      sizeMode:
+        instruction?.amount !== null && instruction?.amount !== undefined ? "amount" : "quantity",
+      size: instruction?.quantity ?? instruction?.amount ?? "",
+      amountCurrency: instruction?.amountCurrency ?? "",
+      limitPrice: instruction?.limitPrice ?? "",
+      notes: instruction?.notes ?? "",
+      expectedCompletionAt: instruction?.expectedCompletionAt
+        ? inputTime(instruction.expectedCompletionAt, timezone)
+        : "",
     },
   });
   const {
     setValue,
     handleSubmit,
     watch,
-    formState: { errors },
+    formState: { errors, dirtyFields },
   } = form;
   const account = accounts.find((item) => item.id === watch("accountId"));
   const mutation = useMutation({
-    mutationFn: createTradeInstruction,
+    mutationFn: (input: NewTradeInstruction) => {
+      if (!instruction) return createTradeInstruction(input);
+      return updateTradeInstruction(instruction.id, {
+        expectedVersion: instruction.version,
+        accountId: input.accountId,
+        asset: input.asset,
+        side: input.side,
+        quantity: input.quantity,
+        amount: input.amount,
+        amountCurrency: input.amountCurrency,
+        limitPrice: input.limitPrice,
+        notes: input.notes,
+        expectedCompletionAt: input.expectedCompletionAt,
+      });
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: instructionKey });
       onSaved();
@@ -91,7 +132,10 @@ export function InstructionForm({
     const input: Omit<NewTradeInstruction, "requestId"> = {
       goalId,
       accountId: account.id,
-      asset: buildAssetResolutionInputFromSearchResult(asset),
+      asset:
+        instruction && asset.existingAssetId === instruction.assetId
+          ? { id: instruction.assetId }
+          : buildAssetResolutionInputFromSearchResult(asset),
       side,
       ...(values.sizeMode === "quantity"
         ? { quantity: values.size }
@@ -102,7 +146,12 @@ export function InstructionForm({
       ...(values.limitPrice ? { limitPrice: values.limitPrice } : {}),
       ...(values.notes.trim() ? { notes: values.notes.trim() } : {}),
       ...(values.expectedCompletionAt
-        ? { expectedCompletionAt: instantTime(values.expectedCompletionAt, timezone) }
+        ? {
+            expectedCompletionAt:
+              instruction?.expectedCompletionAt && !dirtyFields.expectedCompletionAt
+                ? instruction.expectedCompletionAt
+                : instantTime(values.expectedCompletionAt, timezone),
+          }
         : {}),
     };
     const fingerprint = JSON.stringify(input);
@@ -248,7 +297,11 @@ export function InstructionForm({
             ) : (
               <Icons.Plus className="me-2 h-4 w-4" />
             )}
-            {t(side === "BUY" ? "activity:form.button_add_buy" : "activity:form.button_add_sell")}
+            {instruction
+              ? t("common:save")
+              : t(
+                  side === "BUY" ? "activity:form.button_add_buy" : "activity:form.button_add_sell",
+                )}
           </Button>
         </div>
       </form>

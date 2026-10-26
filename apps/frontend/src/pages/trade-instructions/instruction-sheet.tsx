@@ -1,3 +1,4 @@
+import type { TradeInstruction } from "@/adapters";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -12,9 +13,17 @@ import {
 import { ActivityTypePicker } from "@/pages/activity/components/activity-type-picker";
 import { InstructionForm } from "./instruction-form";
 
-export function InstructionSheet({ goalId, onClose }: { goalId: string; onClose: () => void }) {
+export function InstructionSheet({
+  goalId,
+  instruction,
+  onClose,
+}: {
+  goalId: string;
+  instruction?: TradeInstruction;
+  onClose: () => void;
+}) {
   const { t } = useTranslation("trade-instructions");
-  const [side, setSide] = useState<"BUY" | "SELL">();
+  const [side, setSide] = useState<"BUY" | "SELL" | undefined>(instruction?.side);
   return (
     <Sheet
       open
@@ -27,7 +36,7 @@ export function InstructionSheet({ goalId, onClose }: { goalId: string; onClose:
         className="flex w-full flex-col overflow-hidden sm:max-w-[39.0625rem]"
       >
         <SheetHeader>
-          <SheetTitle>{t("create")}</SheetTitle>
+          <SheetTitle>{t(instruction ? "edit" : "create")}</SheetTitle>
           <SheetDescription>{t("independent")}</SheetDescription>
         </SheetHeader>
         <div className="flex-1 space-y-6 overflow-y-auto py-4">
@@ -40,8 +49,9 @@ export function InstructionSheet({ goalId, onClose }: { goalId: string; onClose:
           />
           {side ? (
             <InstructionForm
-              key={side}
+              key={instruction?.id ?? side}
               goalId={goalId}
+              instruction={instruction}
               side={side}
               onSaved={onClose}
               onCancel={onClose}

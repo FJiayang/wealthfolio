@@ -36,6 +36,7 @@ export function GoalTradeInstructions({ goalId }: { goalId: string }) {
     { id: "expectedCompletionAt", desc: false },
   ]);
   const [panel, setPanel] = useState<string>();
+  const [editing, setEditing] = useState<TradeInstruction>();
   const { accounts } = useAccounts({ includeArchived: true, filterActive: false });
   const query = useTradeInstructions({
     goalId,
@@ -129,6 +130,7 @@ export function GoalTradeInstructions({ goalId }: { goalId: string }) {
         sorting={sorting}
         onSortingChange={changeSorting}
         onOpen={setPanel}
+        onEdit={(id) => setEditing(query.data?.items.find((row) => row.id === id))}
       />
       <InstructionPagination
         pageIndex={pageIndex}
@@ -143,6 +145,14 @@ export function GoalTradeInstructions({ goalId }: { goalId: string }) {
         }}
       />
       {panel === "new" && <InstructionSheet goalId={goalId} onClose={() => setPanel(undefined)} />}
+      {editing && (
+        <InstructionSheet
+          key={editing.id}
+          goalId={goalId}
+          instruction={editing}
+          onClose={() => setEditing(undefined)}
+        />
+      )}
       <Sheet
         open={!!panel && panel !== "new"}
         onOpenChange={(open) => {

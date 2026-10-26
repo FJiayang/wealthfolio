@@ -106,7 +106,13 @@ export function InstructionDetail({ id }: { id: string }) {
   const begin = (kind: Action) => {
     mutation.reset();
     setNote("");
-    setTime(kind === "correct" && row.completedAt ? inputTime(row.completedAt, timezone) : "");
+    setTime(
+      kind === "correct" && row.completedAt
+        ? inputTime(row.completedAt, timezone)
+        : kind === "complete"
+          ? inputTime(new Date().toISOString(), timezone)
+          : "",
+    );
     setAction({ kind, row });
   };
   const date = (value: string | null) => (value ? formatDateTime(value) : t("notSet"));
@@ -263,10 +269,12 @@ export function InstructionDetail({ id }: { id: string }) {
             <p className="font-medium">{t(action.kind)}</p>
             {(action.kind === "complete" || action.kind === "cancel") && (
               <div>
-                <Label htmlFor="resolution-note">{t("resolutionNote")}</Label>
+                <Label htmlFor="resolution-note">
+                  {t(action.kind === "complete" ? "completionNote" : "resolutionNote")}
+                </Label>
                 <Textarea
                   id="resolution-note"
-                  required
+                  required={action.kind === "cancel"}
                   maxLength={4000}
                   value={note}
                   onChange={(event) => setNote(event.target.value)}

@@ -44,12 +44,20 @@
   "completedOnTime": "按期完成",
   "independent": "指令不会下单或创建记账活动。",
   "limitHint": "买入价格上限 / 卖出价格下限；留空由交易员决定。",
-  "completionDefault": "留空使用确认完成时的系统时间。",
+  "completionDefault": "默认当前时间；清空后使用确认提交时的系统时间。",
   "selectType": "请在上方选择买入或卖出以继续",
   "expectedCompletionDate": "期望完成时间",
   "notes": "备注",
   "records": "条指令",
   "startShort": "开始",
   "completeShort": "完成",
-  "cancelShort": "取消"
+  "cancelShort": "取消",
+  "actions": "操作",
+  "edit": "编辑指令",
+  "delete": "删除",
+  "menu": "打开菜单",
+  "editPendingOnly": "仅待处理指令可编辑。",
+  "deleteTitle": "删除指令",
+  "deleteDescription": "永久删除 {{account}} 的 {{symbol}} 指令？此操作无法撤销，不影响记账活动。",
+  "completionNote": "处理说明（选填）"
 }

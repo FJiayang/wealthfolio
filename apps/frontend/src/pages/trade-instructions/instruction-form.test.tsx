@@ -2,13 +2,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { FormattingProvider } from "@wealthfolio/ui";
-import { createTradeInstruction } from "@/adapters";
+import { createTradeInstruction, updateTradeInstruction } from "@/adapters";
 import i18n from "i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import enInstructions from "@/i18n/locales/en/trade-instructions.json";
 import { InstructionForm } from "./instruction-form";
 
-vi.mock("@/adapters", () => ({ createTradeInstruction: vi.fn() }));
+vi.mock("@/adapters", () => ({ createTradeInstruction: vi.fn(), updateTradeInstruction: vi.fn() }));
 vi.mock("@/hooks/use-accounts", () => ({
   useAccounts: () => ({ accounts: [{ id: "account", name: "Investment", currency: "USD" }] }),
 }));
@@ -82,4 +82,84 @@ describe("instruction form financial controls", () => {
       });
     },
   );
+  it("prefills an edit and saves exact values without replacing its identity or selecting the asset again", async () => {
+    const user = userEvent.setup();
+    const instruction = {
+      id: "edit-id",
+      version: 7,
+      goalId: "goal",
+      requestId: "existing-request",
+      accountId: "account",
+      accountName: "Investment",
+      assetId: "asset-id",
+      assetSnapshot: {
+        name: "Apple",
+        symbol: "AAPL",
+        exchangeMic: "XNAS",
+        instrumentType: "EQUITY",
+        quoteCcy: "USD",
+      },
+      side: "BUY",
+      quantity: "12.123456789",
+      amount: null,
+      amountCurrency: null,
+      limitPrice: "10.5",
+      notes: "Original",
+      expectedCompletionAt: "2026-10-26T08:30:45Z",
+      status: "PENDING",
+      resolutionNote: null,
+      source: "UI",
+      createdAt: "2026-10-26T00:00:00Z",
+      updatedAt: "2026-10-26T00:00:00Z",
+      startedAt: null,
+      closedAt: null,
+      completedAt: null,
+    } satisfies import("@/adapters").TradeInstruction;
+    const client = new QueryClient();
+    const view = render(
+      <FormattingProvider locale="en-US" timezone="Asia/Shanghai">
+        <QueryClientProvider client={client}>
+          <InstructionForm
+            goalId="goal"
+            instruction={instruction}
+            side="BUY"
+            onSaved={vi.fn()}
+            onCancel={vi.fn()}
+          />
+        </QueryClientProvider>
+      </FormattingProvider>,
+    );
+    expect(screen.getByRole("textbox", { name: "Quantity" })).toHaveValue("12.123456789");
+    expect(screen.getByRole("textbox", { name: /Limit price/ })).toHaveValue("10.5");
+    await user.clear(screen.getByRole("textbox", { name: /Limit price/ }));
+    view.rerender(
+      <FormattingProvider locale="en-US" timezone="Asia/Shanghai">
+        <QueryClientProvider client={client}>
+          <InstructionForm
+            goalId="goal"
+            instruction={instruction}
+            side="SELL"
+            onSaved={vi.fn()}
+            onCancel={vi.fn()}
+          />
+        </QueryClientProvider>
+      </FormattingProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(updateTradeInstruction).toHaveBeenCalledWith(
+        "edit-id",
+        expect.objectContaining({
+          expectedVersion: 7,
+          accountId: "account",
+          asset: { id: "asset-id" },
+          side: "SELL",
+          quantity: "12.123456789",
+          limitPrice: undefined,
+          expectedCompletionAt: "2026-10-26T08:30:45Z",
+        }),
+      ),
+    );
+    expect(createTradeInstruction).not.toHaveBeenCalled();
+  });
 });

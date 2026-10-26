@@ -8,6 +8,7 @@ pub trait TradeInstructionRepositoryTrait: Send + Sync {
     fn get_by_request_id(&self, request_id: &str) -> Result<Option<TradeInstruction>>;
     fn list(&self, filter: InstructionFilter) -> Result<InstructionPage>;
     async fn create(&self, instruction: TradeInstruction) -> Result<TradeInstruction>;
+    async fn delete(&self, id: &str, expected_version: i32) -> Result<()>;
     async fn update(
         &self,
         instruction: TradeInstruction,
@@ -24,6 +25,8 @@ pub trait TradeInstructionServiceTrait: Send + Sync {
         input: NewTradeInstruction,
         source: InstructionSource,
     ) -> Result<TradeInstruction>;
+    async fn edit(&self, id: &str, input: UpdateTradeInstruction) -> Result<TradeInstruction>;
+    async fn delete(&self, id: &str, expected_version: i32) -> Result<()>;
     async fn start(&self, id: &str, expected_version: i32) -> Result<TradeInstruction>;
     async fn complete(&self, id: &str, input: CompleteInstruction) -> Result<TradeInstruction>;
     async fn cancel(&self, id: &str, input: CancelInstruction) -> Result<TradeInstruction>;

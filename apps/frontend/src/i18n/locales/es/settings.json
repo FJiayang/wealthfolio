@@ -1639,6 +1639,10 @@
       "trade_instructions_create": {
         "label": "Crear instrucciones de negociación",
         "description": "Crear instrucciones de negociación"
+      },
+      "trade_instructions_write": {
+        "label": "Administrar instrucciones de negociación",
+        "description": "Crear, editar, iniciar, completar, cancelar, corregir la hora de finalización y eliminar permanentemente instrucciones de negociación."
       }
     },
     "preset": {

@@ -1,7 +1,8 @@
 use super::*;
 use crate::{
     accounts::{account_supports_portfolio_scope, Account, AccountPurpose, AccountServiceTrait},
-    assets::{AssetKind, AssetServiceTrait, ManualAssetResolver},
+    activities::AssetResolutionInput,
+    assets::{Asset, AssetKind, AssetServiceTrait, ManualAssetResolver},
     errors::ValidationError,
     Error, Result,
 };
@@ -65,6 +66,40 @@ impl TradeInstructionService {
             return Err(invalid("An active investment account is required"));
         }
         Ok(account)
+    }
+    async fn resolve_asset(
+        &self,
+        asset_input: AssetResolutionInput,
+        currency: String,
+    ) -> Result<Asset> {
+        if let Some(symbol) = asset_input.symbol.as_deref() {
+            let resolver = ManualAssetResolver::new(self.assets.clone());
+            let kind = asset_input
+                .instrument_type
+                .as_deref()
+                .and_then(|value| ManualAssetResolver::parse_instrument_type(Some(value)))
+                .map(|value| ManualAssetResolver::kind_from_instrument_type(&value))
+                .unwrap_or_else(|| {
+                    resolver
+                        .infer_asset_kind(
+                            symbol,
+                            asset_input.exchange_mic.as_deref(),
+                            asset_input.kind.as_deref(),
+                        )
+                        .0
+                });
+            if kind != AssetKind::Investment {
+                return Err(invalid("An investment asset is required"));
+            }
+        }
+        let (_, asset) = ManualAssetResolver::new(self.assets.clone())
+            .resolve(asset_input, currency, true, None)
+            .await?
+            .ok_or_else(|| invalid("An investment asset is required"))?;
+        if asset.kind != AssetKind::Investment || !asset.is_active {
+            return Err(invalid("An active investment asset is required"));
+        }
+        Ok(asset)
     }
     async fn save(
         &self,
@@ -182,34 +217,9 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
         }
         self.goals.get_goal(&input.goal_id)?;
         let account = self.account(&input.account_id)?;
-        if let Some(symbol) = input.asset.symbol.as_deref() {
-            let resolver = ManualAssetResolver::new(self.assets.clone());
-            let kind = input
-                .asset
-                .instrument_type
-                .as_deref()
-                .and_then(|value| ManualAssetResolver::parse_instrument_type(Some(value)))
-                .map(|value| ManualAssetResolver::kind_from_instrument_type(&value))
-                .unwrap_or_else(|| {
-                    resolver
-                        .infer_asset_kind(
-                            symbol,
-                            input.asset.exchange_mic.as_deref(),
-                            input.asset.kind.as_deref(),
-                        )
-                        .0
-                });
-            if kind != AssetKind::Investment {
-                return Err(invalid("An investment asset is required"));
-            }
-        }
-        let (_, asset) = ManualAssetResolver::new(self.assets.clone())
-            .resolve(input.asset, account.currency.clone(), true, None)
-            .await?
-            .ok_or_else(|| invalid("An investment asset is required"))?;
-        if asset.kind != AssetKind::Investment || !asset.is_active {
-            return Err(invalid("An active investment asset is required"));
-        }
+        let asset = self
+            .resolve_asset(input.asset, account.currency.clone())
+            .await?;
         let now = Utc::now();
         let row = TradeInstruction {
             goal_id: input.goal_id,
@@ -245,6 +255,56 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
         };
         self.repository.create(row).await
     }
+    async fn edit(&self, id: &str, input: UpdateTradeInstruction) -> Result<TradeInstruction> {
+        let mut row = self.get(id)?;
+        check_version(&row, input.expected_version)?;
+        if row.status != InstructionStatus::Pending {
+            return Err(conflict());
+        }
+        let mut content = NewTradeInstruction {
+            goal_id: row.goal_id.clone(),
+            request_id: row.request_id.clone(),
+            account_id: input.account_id,
+            asset: input.asset,
+            side: input.side,
+            quantity: input.quantity,
+            amount: input.amount,
+            amount_currency: input.amount_currency,
+            limit_price: input.limit_price,
+            notes: input.notes,
+            expected_completion_at: input.expected_completion_at,
+        };
+        normalize(&mut content)?;
+        let account = self.account(&content.account_id)?;
+        if row.account_id != account.id {
+            row.account_id = account.id;
+            row.account_name = account.name;
+        }
+        if content.asset.id.as_deref() != Some(row.asset_id.as_str()) {
+            let asset = self.resolve_asset(content.asset, account.currency).await?;
+            row.asset_id = asset.id;
+            row.asset_snapshot = InstructionAssetSnapshot {
+                name: asset.name,
+                symbol: asset.instrument_symbol.or(asset.display_code),
+                exchange_mic: asset.instrument_exchange_mic,
+                instrument_type: asset
+                    .instrument_type
+                    .map(|value| value.as_db_str().to_string()),
+                quote_ccy: asset.quote_ccy,
+            };
+        }
+        row.side = content.side;
+        row.quantity = content.quantity;
+        row.amount = content.amount;
+        row.amount_currency = content.amount_currency;
+        row.limit_price = content.limit_price;
+        row.notes = content.notes;
+        row.expected_completion_at = content.expected_completion_at;
+        self.save(row, InstructionStatus::Pending).await
+    }
+    async fn delete(&self, id: &str, expected_version: i32) -> Result<()> {
+        self.repository.delete(id, expected_version).await
+    }
     async fn start(&self, id: &str, expected_version: i32) -> Result<TradeInstruction> {
         let mut row = self.get(id)?;
         check_version(&row, expected_version)?;
@@ -262,10 +322,17 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
     }
     async fn complete(&self, id: &str, input: CompleteInstruction) -> Result<TradeInstruction> {
         let mut row = self.get(id)?;
+        let resolution_note = input
+            .resolution_note
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(note)
+            .transpose()?;
         // A retried completion never overwrites the original or a corrected time.
         if row.status == InstructionStatus::Completed
             && input.expected_version == row.version - 1
-            && row.resolution_note.as_deref() == Some(input.resolution_note.trim())
+            && row.resolution_note == resolution_note
             && input
                 .completed_at
                 .is_none_or(|time| Some(time) == row.completed_at)
@@ -279,7 +346,7 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
         let previous = row.status;
         let completed_at = input.completed_at.unwrap_or_else(Utc::now);
         check_completion_time(completed_at)?;
-        row.resolution_note = Some(note(&input.resolution_note)?);
+        row.resolution_note = resolution_note;
         row.status = InstructionStatus::Completed;
         row.closed_at = Some(Utc::now());
         row.completed_at = Some(completed_at);

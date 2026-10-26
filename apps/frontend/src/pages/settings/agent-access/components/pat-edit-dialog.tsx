@@ -20,7 +20,9 @@ interface PatEditDialogProps {
 
 export function PatEditDialog({ token, onClose, onSave, isSaving }: PatEditDialogProps) {
   const { t } = useTranslation();
-  const [selected, setSelected] = useState(() => new Set(token.scopes));
+  const [selected, setSelected] = useState(
+    () => new Set<string>(applyScopeDependencies(token.scopes)),
+  );
   const scopes = applyScopeDependencies(selected);
   const toggleScope = (key: ScopeKey) =>
     setSelected((previous) => {

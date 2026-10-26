@@ -64,7 +64,7 @@ for (const rtl of [false, true]) {
     const assetResponse = await page.request.post(`${api}/assets`, {
       data: {
         kind: "INVESTMENT",
-        name: symbol,
+        name: `Instruction asset ${suffix}`,
         displayCode: symbol,
         instrumentSymbol: symbol,
         instrumentType: "EQUITY",
@@ -117,10 +117,45 @@ for (const rtl of [false, true]) {
     await expect(item.getByText("Overdue", { exact: true })).toBeVisible();
     const frozen = item.locator('[data-column-id="actions"]');
     await expect(frozen).toHaveCSS("position", "sticky");
-    await expect(frozen.getByRole("button")).toHaveCount(3);
+    await expect(frozen.getByRole("button")).toHaveCount(4);
+    await expect(
+      page
+        .getByTestId("goal-trade-instructions")
+        .getByRole("columnheader", { name: "Actions", exact: true }),
+    ).toBeVisible();
+    await expect(item.getByText(`Instruction asset ${suffix}`, { exact: true })).toHaveAttribute(
+      "data-slot",
+      "badge",
+    );
+    const beforeEdit = (
+      await (
+        await page.request.post(`${api}/trade-instructions/list`, { data: { goalId: goal.id } })
+      ).json()
+    ).items[0];
+    await frozen.getByRole("button", { name: "Open menu", exact: true }).click();
+    await expect(page.getByRole("menuitem")).toHaveCount(3);
+    await page.getByRole("menuitem", { name: "Edit instruction", exact: true }).click();
+    const editDialog = page.getByRole("dialog", { name: "Edit instruction", exact: true });
+    await expect(editDialog.getByRole("textbox", { name: "Quantity", exact: true })).toHaveValue(
+      "2.123456789",
+    );
+    await editDialog.getByRole("textbox", { name: "Quantity", exact: true }).fill("3.123456789");
+    await editDialog.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(editDialog).toBeHidden();
+    const afterEdit = await (
+      await page.request.get(`${api}/trade-instructions/${beforeEdit.id}`)
+    ).json();
+    expect(afterEdit.version).toBe(beforeEdit.version + 1);
+    expect(afterEdit.requestId).toBe(beforeEdit.requestId);
+    expect(afterEdit.createdAt).toBe(beforeEdit.createdAt);
+    expect(afterEdit.assetSnapshot).toEqual(beforeEdit.assetSnapshot);
     await frozen.getByRole("button", { name: "Start", exact: true }).click();
     await expect(frozen.getByRole("button", { name: "Start", exact: true })).toBeDisabled();
-    await item.getByRole("button", { name: symbol, exact: true }).click();
+    await frozen.getByRole("button", { name: "Open menu", exact: true }).click();
+    await expect(
+      page.getByRole("menuitem", { name: "Edit instruction", exact: true }),
+    ).toBeDisabled();
+    await page.getByRole("menuitem", { name: "Instruction details", exact: true }).click();
     await expect(dialog.getByRole("heading", { name: "Transaction" })).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "Financial Details" })).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "Record Info" })).toBeVisible();
@@ -156,7 +191,9 @@ for (const rtl of [false, true]) {
       .locator("html")
       .evaluate((root, enabled) => root.classList.toggle("dark", enabled), initialDark);
     await dialog.getByRole("button", { name: "Mark complete", exact: true }).click();
-    await dialog.getByLabel("Resolution note").fill("Partially executed, remainder abandoned");
+    await dialog
+      .getByLabel("Resolution note (optional)")
+      .fill("Partially executed, remainder abandoned");
     await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
     await expect(
       dialog.getByRole("button", { name: "Correct completion time", exact: true }),
@@ -169,7 +206,7 @@ for (const rtl of [false, true]) {
     expect(Date.parse(row.expectedCompletionAt)).toBe(Date.parse("2020-01-01T02:30:00Z"));
     expect(row.notes).toBe("Optional instruction note\nSecond line");
     expect(row.status).toBe("COMPLETED");
-    expect(row.quantity).toBe("2.123456789");
+    expect(row.quantity).toBe("3.123456789");
     expect(row.completedAt).toBeTruthy();
     await dialog.getByRole("button", { name: "Correct completion time", exact: true }).click();
     await fillInstructionDate(page, dialog.getByTestId("instruction-completed-picker"), "02");
@@ -218,10 +255,11 @@ for (const rtl of [false, true]) {
 
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
     const list = page.getByTestId("goal-trade-instructions");
-    for (const [label, title, status] of [
-      ["Complete", "Mark complete", "COMPLETED"],
-      ["Cancel", "Cancel instruction", "CANCELLED"],
-    ]) {
+    for (const [label, title, status, clearTime] of [
+      ["Complete", "Mark complete", "COMPLETED", false],
+      ["Complete", "Mark complete", "COMPLETED", true],
+      ["Cancel", "Cancel instruction", "CANCELLED", false],
+    ] as const) {
       const created = await page.request.post(`${api}/trade-instructions`, {
         data: { ...retryRequest, requestId: randomUUID() },
       });
@@ -235,15 +273,46 @@ for (const rtl of [false, true]) {
         .getByRole("button", { name: label, exact: true })
         .click();
       const quickDialog = page.getByRole("dialog", { name: title, exact: true });
-      await expect(quickDialog.getByLabel("Resolution note")).toHaveAttribute("required", "");
-      await quickDialog.getByLabel("Resolution note").fill("Quick action handled externally");
+      const noteInput = quickDialog.getByLabel(
+        label === "Complete" ? "Resolution note (optional)" : "Resolution note",
+        { exact: true },
+      );
+      if (label === "Complete") {
+        await expect(noteInput).not.toHaveAttribute("required");
+      } else {
+        await expect(noteInput).toHaveAttribute("required", "");
+        await noteInput.fill("Quick action handled externally");
+      }
+      if (clearTime) {
+        for (const segment of ["year", "month", "day", "hour", "minute", "dayPeriod"]) {
+          const field = quickDialog.locator(`[data-type="${segment}"]`);
+          if (await field.count()) {
+            for (let digit = 0; digit < 4; digit++) await field.press("Backspace");
+          }
+        }
+      }
+      const completionRequest =
+        label === "Complete"
+          ? page.waitForRequest((request) =>
+              request.url().endsWith(`/trade-instructions/${quickRow.id}/complete`),
+            )
+          : undefined;
       await quickDialog.getByRole("button", { name: "Confirm", exact: true }).click();
+      if (completionRequest) {
+        const submitted = (await completionRequest).postDataJSON();
+        if (clearTime) expect(submitted).not.toHaveProperty("completedAt");
+        else expect(submitted.completedAt).toBeTruthy();
+      }
       await expect(quickDialog).toBeHidden();
       const saved = await (
         await page.request.get(`${api}/trade-instructions/${quickRow.id}`)
       ).json();
       expect(saved.status).toBe(status);
-      expect(saved.resolutionNote).toBe("Quick action handled externally");
+      expect(saved.resolutionNote).toBe(
+        label === "Complete" ? null : "Quick action handled externally",
+      );
+      if (label === "Complete")
+        expect(Math.abs(Date.now() - Date.parse(saved.completedAt))).toBeLessThan(120000);
     }
     // Populate more than one page in reverse deadline order, using the real API.
     for (let index = 24; index >= 0; index--) {
@@ -350,6 +419,47 @@ for (const rtl of [false, true]) {
     await list.getByRole("combobox", { name: "Rows per page" }).click();
     await page.getByRole("option", { name: "20", exact: true }).click();
 
+    await list.getByRole("button", { name: "Next page", exact: true }).click();
+    const lastRow = list.getByRole("row").filter({ hasText: "Pagination 20" });
+    const lastStored = (
+      await (
+        await page.request.post(`${api}/trade-instructions/list`, {
+          data: { goalId: goal.id, statuses: [] },
+        })
+      ).json()
+    ).items.find((value: { notes: string }) => value.notes === "Pagination 20");
+    await lastRow.getByRole("button", { name: "Open menu", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+    const deleteDialog = page.getByRole("alertdialog", { name: "Delete instruction", exact: true });
+    await deleteDialog.getByRole("button", { name: "Back", exact: true }).click();
+    expect(
+      (await page.request.get(`${api}/trade-instructions/${lastStored.id}`)).ok(),
+    ).toBeTruthy();
+    await lastRow.getByRole("button", { name: "Open menu", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+    expect(
+      (
+        await page.request.post(`${api}/trade-instructions/${lastStored.id}/start`, {
+          data: { expectedVersion: lastStored.version },
+        })
+      ).ok(),
+    ).toBeTruthy();
+    await deleteDialog.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(deleteDialog.getByRole("alert")).toBeVisible();
+    await deleteDialog.getByRole("button", { name: "Back", exact: true }).click();
+    await lastRow.getByRole("button", { name: "Open menu", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Delete", exact: true }).click();
+    await deleteDialog.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(deleteDialog).toBeHidden();
+    await expect(list.getByRole("grid")).toHaveAttribute("aria-rowcount", "4");
+    expect((await page.request.get(`${api}/trade-instructions/${lastStored.id}`)).ok()).toBeFalsy();
+    const remaining = await (
+      await page.request.post(`${api}/trade-instructions/list`, {
+        data: { goalId: goal.id, statuses: [] },
+      })
+    ).json();
+    expect(remaining.items.some((value: { id: string }) => value.id === lastStored.id)).toBeFalsy();
+
     const otherGoal = await (
       await page.request.post(`${api}/goals`, {
         data: { title: "Other goal", goalType: "custom_save_up", targetAmount: 2000 },
@@ -372,7 +482,7 @@ for (const rtl of [false, true]) {
   });
 }
 
-test("MCP can create and read, but cannot complete an instruction", async ({ page }) => {
+test("MCP manages the instruction lifecycle with one write permission", async ({ page }) => {
   test.setTimeout(120_000);
   await loginIfNeeded(page);
   const api = `${BASE_URL}/api/v1`;
@@ -399,7 +509,7 @@ test("MCP can create and read, but cannot complete an instruction", async ({ pag
       name: "Instruction E2E",
       scopes: [
         "trade-instructions:read",
-        "trade-instructions:create",
+        "trade-instructions:write",
         "accounts:read",
         "assets:write",
         "financial-planning:read",
@@ -408,13 +518,15 @@ test("MCP can create and read, but cannot complete an instruction", async ({ pag
   });
   expect(credentials.ok()).toBeTruthy();
   const { token, id: tokenId } = await credentials.json();
+  const tokenIds = [tokenId];
+  let activeToken = token;
   const url = `${process.env.WF_E2E_BACKEND_URL || "http://localhost:8088"}/mcp`;
   let session: string | undefined;
   let rpcId = 0;
   const rpc = async (method: string, params: unknown) => {
     const response = await page.request.post(url, {
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${activeToken}`,
         Accept: "application/json, text/event-stream",
         "MCP-Protocol-Version": "2025-03-26",
         ...(session ? { "Mcp-Session-Id": session } : {}),
@@ -443,9 +555,16 @@ test("MCP can create and read, but cannot complete an instruction", async ({ pag
     expect(catalog.result.tools.map((tool: { name: string }) => tool.name)).toContain(
       "create_trade_instruction",
     );
-    expect(catalog.result.tools.map((tool: { name: string }) => tool.name)).not.toContain(
+    for (const name of [
+      "update_trade_instruction",
+      "start_trade_instruction",
       "complete_trade_instruction",
-    );
+      "cancel_trade_instruction",
+      "correct_trade_instruction_completion_time",
+      "delete_trade_instruction",
+    ]) {
+      expect(catalog.result.tools.map((tool: { name: string }) => tool.name)).toContain(name);
+    }
     await page.goto(`${BASE_URL}/goals/${goal.id}`);
     const result = await rpc("tools/call", {
       name: "create_trade_instruction",
@@ -471,7 +590,181 @@ test("MCP can create and read, but cannot complete an instruction", async ({ pag
     await expect(page.getByRole("button").filter({ hasText: "MCPTI" })).toBeVisible({
       timeout: 25_000,
     });
+    const listRows = async () =>
+      (
+        await (
+          await page.request.post(`${api}/trade-instructions/list`, {
+            data: { goalId: goal.id, statuses: [] },
+          })
+        ).json()
+      ).items;
+    const readRow = async (id: string) =>
+      (await page.request.get(`${api}/trade-instructions/${id}`)).json();
+    const initial = (await listRows())[0];
+    const update = {
+      accountId: account.id,
+      asset: { id: initial.assetId },
+      side: "SELL",
+      quantity: "2.123456789",
+      notes: "Updated through MCP",
+    };
+    expect(
+      (await rpc("tools/call", { name: "get_trade_instruction", arguments: { id: initial.id } }))
+        .result.isError,
+    ).not.toBe(true);
+    expect(
+      (
+        await rpc("tools/call", {
+          name: "update_trade_instruction",
+          arguments: { id: initial.id, input: { ...update, expectedVersion: initial.version } },
+        })
+      ).result.isError,
+    ).not.toBe(true);
+    const edited = await readRow(initial.id);
+    expect(edited.quantity).toBe("2.123456789");
+    expect(edited.version).toBe(initial.version + 1);
+    expect(edited.requestId).toBe(initial.requestId);
+    expect(edited.source).toBe("MCP");
+    const stale = await rpc("tools/call", {
+      name: "update_trade_instruction",
+      arguments: { id: initial.id, input: { ...update, expectedVersion: initial.version } },
+    });
+    expect(stale.error || stale.result?.isError).toBeTruthy();
+    expect(
+      (
+        await rpc("tools/call", {
+          name: "start_trade_instruction",
+          arguments: { id: initial.id, input: { expectedVersion: edited.version } },
+        })
+      ).result.isError,
+    ).not.toBe(true);
+    const started = await readRow(initial.id);
+    expect(started.status).toBe("IN_PROGRESS");
+    const notPending = await rpc("tools/call", {
+      name: "update_trade_instruction",
+      arguments: { id: initial.id, input: { ...update, expectedVersion: started.version } },
+    });
+    expect(notPending.error || notPending.result?.isError).toBeTruthy();
+    expect(
+      (
+        await rpc("tools/call", {
+          name: "complete_trade_instruction",
+          arguments: { id: initial.id, input: { expectedVersion: started.version } },
+        })
+      ).result.isError,
+    ).not.toBe(true);
+    const done = await readRow(initial.id);
+    expect(done.status).toBe("COMPLETED");
+    expect(done.resolutionNote).toBeNull();
+    const correctedTime = new Date(Date.parse(done.completedAt) - 60000).toISOString();
+    expect(
+      (
+        await rpc("tools/call", {
+          name: "correct_trade_instruction_completion_time",
+          arguments: {
+            id: initial.id,
+            input: { expectedVersion: done.version, completedAt: correctedTime },
+          },
+        })
+      ).result.isError,
+    ).not.toBe(true);
+    const corrected = await readRow(initial.id);
+    expect(Date.parse(corrected.completedAt)).toBe(Date.parse(correctedTime));
+    expect(corrected.closedAt).toBe(done.closedAt);
+    expect(
+      (
+        await rpc("tools/call", {
+          name: "delete_trade_instruction",
+          arguments: { id: initial.id, input: { expectedVersion: corrected.version } },
+        })
+      ).result.isError,
+    ).not.toBe(true);
+    expect(await listRows()).toHaveLength(0);
+    expect(
+      (
+        await rpc("tools/call", {
+          name: "create_trade_instruction",
+          arguments: {
+            input: {
+              goalId: goal.id,
+              requestId: randomUUID(),
+              accountId: account.id,
+              asset: { id: initial.assetId },
+              side: "BUY",
+              quantity: "1",
+            },
+          },
+        })
+      ).result.isError,
+    ).not.toBe(true);
+    const pending = (await listRows())[0];
+    const readCredentials = await page.request.post(`${api}/agent-access/tokens`, {
+      data: { name: "Read-only instructions", scopes: ["trade-instructions:read"] },
+    });
+    expect(readCredentials.ok()).toBeTruthy();
+    const readToken = await readCredentials.json();
+    tokenIds.push(readToken.id);
+    activeToken = readToken.token;
+    session = undefined;
+    await rpc("initialize", {
+      protocolVersion: "2025-03-26",
+      capabilities: {},
+      clientInfo: { name: "instruction-read-only", version: "1" },
+    });
+    const denied = await rpc("tools/call", {
+      name: "start_trade_instruction",
+      arguments: { id: pending.id, input: { expectedVersion: pending.version } },
+    });
+    expect(denied.error || denied.result?.isError).toBeTruthy();
+    expect((await readRow(pending.id)).status).toBe("PENDING");
+    expect(
+      (await rpc("tools/call", { name: "get_trade_instruction", arguments: { id: pending.id } }))
+        .result.isError,
+    ).not.toBe(true);
+    activeToken = token;
+    session = undefined;
+    await rpc("initialize", {
+      protocolVersion: "2025-03-26",
+      capabilities: {},
+      clientInfo: { name: "instruction-write", version: "1" },
+    });
+    const missingNote = await rpc("tools/call", {
+      name: "cancel_trade_instruction",
+      arguments: {
+        id: pending.id,
+        input: { expectedVersion: pending.version, resolutionNote: " " },
+      },
+    });
+    expect(missingNote.error || missingNote.result?.isError).toBeTruthy();
+    expect(
+      (
+        await rpc("tools/call", {
+          name: "cancel_trade_instruction",
+          arguments: {
+            id: pending.id,
+            input: { expectedVersion: pending.version, resolutionNote: "No longer needed" },
+          },
+        })
+      ).result.isError,
+    ).not.toBe(true);
+    const cancelled = await readRow(pending.id);
+    expect(cancelled.status).toBe("CANCELLED");
+    expect(
+      (
+        await rpc("tools/call", {
+          name: "delete_trade_instruction",
+          arguments: { id: pending.id, input: { expectedVersion: cancelled.version } },
+        })
+      ).result.isError,
+    ).not.toBe(true);
+    expect(await listRows()).toHaveLength(0);
+    const activities = await (
+      await page.request.post(`${api}/activities/search`, {
+        data: { page: 0, pageSize: 100, accountIdFilter: [account.id] },
+      })
+    ).json();
+    expect(activities.data).toHaveLength(0);
   } finally {
-    await page.request.delete(`${api}/agent-access/tokens/${tokenId}`);
+    for (const id of tokenIds) await page.request.delete(`${api}/agent-access/tokens/${id}`);
   }
 });

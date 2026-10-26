@@ -79,11 +79,32 @@ async fn correct_completion_time(
     ))
 }
 
+async fn edit(
+    Extension(state): Extension<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(input): Json<UpdateTradeInstruction>,
+) -> ApiResult<Json<TradeInstruction>> {
+    Ok(Json(
+        state.trade_instruction_service.edit(&id, input).await?,
+    ))
+}
+async fn delete(
+    Extension(state): Extension<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(input): Json<InstructionVersion>,
+) -> ApiResult<axum::http::StatusCode> {
+    state
+        .trade_instruction_service
+        .delete(&id, input.expected_version)
+        .await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
 pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
         .route("/trade-instructions", post(create))
         .route("/trade-instructions/list", post(list))
-        .route("/trade-instructions/{id}", get_route(get))
+        .route("/trade-instructions/{id}", get_route(get).delete(delete))
+        .route("/trade-instructions/{id}/edit", post(edit))
         .route("/trade-instructions/{id}/start", post(start))
         .route("/trade-instructions/{id}/complete", post(complete))
         .route("/trade-instructions/{id}/cancel", post(cancel))
