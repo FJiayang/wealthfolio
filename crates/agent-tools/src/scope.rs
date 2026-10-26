@@ -13,7 +13,7 @@ use std::collections::BTreeSet;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AgentScope {
     TradeInstructionsRead,
-    TradeInstructionsCreate,
+    TradeInstructionsWrite,
     AccountsRead,
     HoldingsRead,
     PerformanceRead,
@@ -40,7 +40,7 @@ impl AgentScope {
     /// draft/write/suggest scopes).
     pub const ALL: &'static [AgentScope] = &[
         AgentScope::TradeInstructionsRead,
-        AgentScope::TradeInstructionsCreate,
+        AgentScope::TradeInstructionsWrite,
         AgentScope::AccountsRead,
         AgentScope::HoldingsRead,
         AgentScope::PerformanceRead,
@@ -82,7 +82,7 @@ impl AgentScope {
     pub fn as_str(&self) -> &'static str {
         match self {
             AgentScope::TradeInstructionsRead => "trade-instructions:read",
-            AgentScope::TradeInstructionsCreate => "trade-instructions:create",
+            AgentScope::TradeInstructionsWrite => "trade-instructions:write",
             AgentScope::AccountsRead => "accounts:read",
             AgentScope::HoldingsRead => "holdings:read",
             AgentScope::PerformanceRead => "performance:read",
@@ -109,6 +109,10 @@ impl AgentScope {
     /// callers decide whether unknown means "ignore" (forward compat for
     /// tokens minted by a newer version) or "reject".
     pub fn parse(s: &str) -> Option<Self> {
+        // Existing creation grants become the unified instruction write permission.
+        if s == "trade-instructions:create" {
+            return Some(Self::TradeInstructionsWrite);
+        }
         Self::ALL.iter().copied().find(|scope| scope.as_str() == s)
     }
 }
@@ -217,7 +221,7 @@ impl AgentScopeSet {
     /// granted scope is missing a prerequisite: committing requires the
     /// matching draft/suggest scope, and quote writes require holdings reads.
     pub fn dependency_error(&self) -> Option<String> {
-        if self.contains(AgentScope::TradeInstructionsCreate) {
+        if self.contains(AgentScope::TradeInstructionsWrite) {
             for required in [
                 AgentScope::TradeInstructionsRead,
                 AgentScope::AccountsRead,
@@ -225,7 +229,7 @@ impl AgentScopeSet {
                 AgentScope::FinancialPlanningRead,
             ] {
                 if !self.contains(required) {
-                    return Some(format!("trade-instructions:create requires {}", required));
+                    return Some(format!("trade-instructions:write requires {}", required));
                 }
             }
         }
@@ -350,6 +354,47 @@ mod tests {
 #[cfg(test)]
 mod request_validation_tests {
     use super::*;
+    #[test]
+    fn instruction_write_is_unified_and_supports_existing_creation_grants() {
+        assert!(!AgentScopeSet::read_only().contains(AgentScope::TradeInstructionsWrite));
+        assert_eq!(
+            AgentScope::parse("trade-instructions:create"),
+            Some(AgentScope::TradeInstructionsWrite)
+        );
+        assert!(validate_requested_scopes(&["trade-instructions:write".into()]).is_err());
+        let scopes = [
+            "trade-instructions:write",
+            "trade-instructions:read",
+            "accounts:read",
+            "assets:write",
+            "financial-planning:read",
+        ];
+        assert!(validate_requested_scopes(&scopes.map(str::to_string)).is_ok());
+        for missing in [
+            "trade-instructions:read",
+            "accounts:read",
+            "assets:write",
+            "financial-planning:read",
+        ] {
+            let incomplete = scopes
+                .iter()
+                .filter(|scope| **scope != missing)
+                .map(|scope| scope.to_string())
+                .collect::<Vec<_>>();
+            assert!(validate_requested_scopes(&incomplete).is_err());
+        }
+        let legacy = [
+            "trade-instructions:create",
+            "trade-instructions:read",
+            "accounts:read",
+            "assets:write",
+            "financial-planning:read",
+        ]
+        .map(str::to_string);
+        let canonical = validate_requested_scopes(&legacy).unwrap();
+        assert!(canonical.contains(&"trade-instructions:write".to_string()));
+        assert!(!canonical.contains(&"trade-instructions:create".to_string()));
+    }
     #[test]
     fn token_permission_edits_validate_the_complete_replacement() {
         assert!(validate_requested_scopes(&[]).is_err());

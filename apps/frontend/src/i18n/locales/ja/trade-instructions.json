@@ -44,12 +44,20 @@
   "completedOnTime": "希望日時までに完了",
   "independent": "指示は注文送信や記帳を行いません。",
   "limitHint": "買値の上限 / 売値の下限。空欄の場合は執行者が判断します。",
-  "completionDefault": "空欄の場合は完了確認時刻を使用します。",
+  "completionDefault": "現在時刻を初期表示します。空欄にすると確認時のサーバー時刻を使用します。",
   "selectType": "上で買いまたは売りを選択してください",
   "expectedCompletionDate": "完了予定日時",
   "notes": "メモ",
   "records": "指示",
   "startShort": "開始",
   "completeShort": "完了",
-  "cancelShort": "取消"
+  "cancelShort": "取消",
+  "actions": "操作",
+  "edit": "指示を編集",
+  "delete": "削除",
+  "menu": "メニューを開く",
+  "editPendingOnly": "未処理の指示のみ編集できます。",
+  "deleteTitle": "指示を削除",
+  "deleteDescription": "{{account}} の {{symbol}} の指示を完全に削除しますか？元に戻すことはできません。記帳済みの取引には影響しません。",
+  "completionNote": "処理メモ（任意）"
 }

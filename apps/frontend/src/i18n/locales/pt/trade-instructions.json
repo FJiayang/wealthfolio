@@ -44,12 +44,20 @@
   "completedOnTime": "Concluída no prazo",
   "independent": "As instruções não enviam ordens nem criam lançamentos.",
   "limitHint": "Teto de compra / piso de venda; vazio: decisão do operador.",
-  "completionDefault": "Deixe vazio para usar o horário de confirmação.",
+  "completionDefault": "O horário atual é preenchido por padrão. Limpe para usar o horário do servidor ao confirmar.",
   "selectType": "Selecione Compra ou Venda acima para continuar",
   "expectedCompletionDate": "Conclusão prevista",
   "notes": "Notas",
   "records": "instruções",
   "startShort": "Iniciar",
   "completeShort": "Concluir",
-  "cancelShort": "Cancelar"
+  "cancelShort": "Cancelar",
+  "actions": "Ações",
+  "edit": "Editar instrução",
+  "delete": "Excluir",
+  "menu": "Abrir menu",
+  "editPendingOnly": "Somente instruções pendentes podem ser editadas.",
+  "deleteTitle": "Excluir instrução",
+  "deleteDescription": "Excluir permanentemente {{symbol}} em {{account}}? Esta ação não pode ser desfeita e não afeta os registros contábeis.",
+  "completionNote": "Nota de resolução (opcional)"
 }

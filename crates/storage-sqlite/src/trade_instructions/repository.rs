@@ -127,6 +127,26 @@ impl TradeInstructionRepositoryTrait for TradeInstructionRepository {
             })
             .await
     }
+    async fn delete(&self, instruction_id: &str, expected_version: i32) -> Result<()> {
+        let instruction_id = instruction_id.to_string();
+        self.writer
+            .exec(move |conn| {
+                let changed = diesel::delete(
+                    trade_instructions
+                        .filter(id.eq(instruction_id))
+                        .filter(version.eq(expected_version)),
+                )
+                .execute(conn)
+                .map_err(StorageError::from)?;
+                if changed != 1 {
+                    return Err(Error::ConstraintViolation(
+                        "Trade instruction changed. Refresh and try again.".into(),
+                    ));
+                }
+                Ok(())
+            })
+            .await
+    }
     async fn update(
         &self,
         instruction: TradeInstruction,
@@ -143,6 +163,17 @@ impl TradeInstructionRepositoryTrait for TradeInstructionRepository {
                         .filter(status.eq(expected_status.as_str())),
                 )
                 .set((
+                    account_id.eq(&row.account_id),
+                    account_name.eq(&row.account_name),
+                    asset_id.eq(&row.asset_id),
+                    asset_snapshot.eq(&row.asset_snapshot),
+                    side.eq(&row.side),
+                    quantity.eq(&row.quantity),
+                    amount.eq(&row.amount),
+                    amount_currency.eq(&row.amount_currency),
+                    limit_price.eq(&row.limit_price),
+                    notes.eq(&row.notes),
+                    expected_completion_at.eq(&row.expected_completion_at),
                     status.eq(&row.status),
                     resolution_note.eq(&row.resolution_note),
                     updated_at.eq(&row.updated_at),
@@ -395,6 +426,60 @@ mod tests {
                 })
                 .unwrap()),
             ["a", "b", "d"]
+        );
+        let original = repo.get("a").unwrap();
+        let mut edited = original.clone();
+        edited.account_id = "account-2".into();
+        edited.account_name = "Changed account".into();
+        edited.asset_id = "asset-2".into();
+        edited.asset_snapshot.name = Some("Changed snapshot".into());
+        edited.side = InstructionSide::Sell;
+        edited.quantity = None;
+        edited.amount = Some("25.123456789".parse().unwrap());
+        edited.amount_currency = Some("USD".into());
+        edited.notes = None;
+        edited.limit_price = None;
+        edited.expected_completion_at = None;
+        edited.version = 2;
+        repo.update(edited, 1, InstructionStatus::Pending)
+            .await
+            .unwrap();
+        let persisted = repo.get("a").unwrap();
+        assert_eq!(persisted.account_name, "Changed account");
+        assert_eq!(persisted.asset_id, "asset-2");
+        assert_eq!(
+            persisted.asset_snapshot.name.as_deref(),
+            Some("Changed snapshot")
+        );
+        assert_eq!(persisted.amount.unwrap().to_string(), "25.123456789");
+        assert!(persisted.quantity.is_none());
+        assert!(persisted.notes.is_none());
+        assert!(persisted.limit_price.is_none());
+        assert!(persisted.expected_completion_at.is_none());
+        assert_eq!(persisted.request_hash, original.request_hash);
+        assert!(repo
+            .update(original, 1, InstructionStatus::Pending)
+            .await
+            .is_err());
+        assert!(repo.delete("a", 1).await.is_err());
+        repo.delete("a", 2).await.unwrap();
+        assert!(repo.get("a").is_err());
+        assert!(repo.get_by_request_id("a").unwrap().is_none());
+        repo.delete("c", 1).await.unwrap();
+        let mut conn = get_connection(&pool).unwrap();
+        assert_eq!(
+            crate::schema::sync_outbox::table
+                .count()
+                .get_result::<i64>(&mut conn)
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            crate::schema::activities::table
+                .count()
+                .get_result::<i64>(&mut conn)
+                .unwrap(),
+            0
         );
     }
 }

@@ -97,4 +97,32 @@ describe("PatEditDialog", () => {
       "false",
     );
   });
+  it("maps a legacy creation grant to the unified write permission and allows removing it", async () => {
+    const save = vi.fn().mockResolvedValue({});
+    render(
+      <PatEditDialog
+        token={{
+          ...token,
+          scopes: [
+            "trade-instructions:create",
+            "trade-instructions:read",
+            "accounts:read",
+            "assets:write",
+            "financial-planning:read",
+          ],
+        }}
+        onClose={vi.fn()}
+        onSave={save}
+        isSaving={false}
+      />,
+    );
+    const manage = screen.getByRole("checkbox", { name: /Manage trade instructions/ });
+    expect(manage).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(manage);
+    expect(manage).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    expect(save.mock.calls[0][0]).not.toContain("trade-instructions:write");
+    expect(save.mock.calls[0][0]).not.toContain("trade-instructions:create");
+  });
 });

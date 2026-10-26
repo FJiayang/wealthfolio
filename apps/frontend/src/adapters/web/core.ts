@@ -72,6 +72,8 @@ export const COMMANDS: CommandMap = {
   get_goals: { method: "GET", path: "/goals" },
   create_trade_instruction: { method: "POST", path: "/trade-instructions" },
   list_trade_instructions: { method: "POST", path: "/trade-instructions/list" },
+  update_trade_instruction: { method: "POST", path: "/trade-instructions" },
+  delete_trade_instruction: { method: "DELETE", path: "/trade-instructions" },
   get_trade_instruction: { method: "GET", path: "/trade-instructions" },
   start_trade_instruction: { method: "POST", path: "/trade-instructions" },
   complete_trade_instruction: { method: "POST", path: "/trade-instructions" },
@@ -784,6 +786,8 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     case "get_trade_instruction":
+    case "update_trade_instruction":
+    case "delete_trade_instruction":
     case "start_trade_instruction":
     case "complete_trade_instruction":
     case "cancel_trade_instruction":
@@ -791,6 +795,8 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       const { id, input } = payload as { id: string; input?: unknown };
       const suffix = {
         get_trade_instruction: "",
+        update_trade_instruction: "/edit",
+        delete_trade_instruction: "",
         start_trade_instruction: "/start",
         complete_trade_instruction: "/complete",
         cancel_trade_instruction: "/cancel",

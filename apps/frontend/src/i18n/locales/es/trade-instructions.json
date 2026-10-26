@@ -44,12 +44,20 @@
   "completedOnTime": "Completada a tiempo",
   "independent": "Las instrucciones no envían órdenes ni crean registros contables.",
   "limitHint": "Máximo de compra / mínimo de venta; vacío: criterio del operador.",
-  "completionDefault": "Deje vacío para usar la hora de confirmación.",
+  "completionDefault": "Usa la hora actual por defecto. Borra el campo para usar la hora del servidor al confirmar.",
   "selectType": "Seleccione Compra o Venta arriba para continuar",
   "expectedCompletionDate": "Finalización prevista",
   "notes": "Notas",
   "records": "instrucciones",
   "startShort": "Iniciar",
   "completeShort": "Completar",
-  "cancelShort": "Cancelar"
+  "cancelShort": "Cancelar",
+  "actions": "Acciones",
+  "edit": "Editar instrucción",
+  "delete": "Eliminar",
+  "menu": "Abrir menú",
+  "editPendingOnly": "Solo se pueden editar instrucciones pendientes.",
+  "deleteTitle": "Eliminar instrucción",
+  "deleteDescription": "¿Eliminar permanentemente {{symbol}} en {{account}}? No se puede deshacer y no afecta a los movimientos registrados.",
+  "completionNote": "Nota de resolución (opcional)"
 }

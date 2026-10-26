@@ -44,12 +44,20 @@
   "completedOnTime": "Completed by target",
   "independent": "Instructions do not place orders or create bookkeeping activities.",
   "limitHint": "Buy ceiling / sell floor; leave empty for trader discretion.",
-  "completionDefault": "Leave empty to use the time you confirm completion.",
+  "completionDefault": "Defaults to the current time. Clear to use the server time when confirming.",
   "selectType": "Select Buy or Sell above to continue",
   "expectedCompletionDate": "Expected completion time",
   "notes": "Notes",
   "records": "instructions",
   "startShort": "Start",
   "completeShort": "Complete",
-  "cancelShort": "Cancel"
+  "cancelShort": "Cancel",
+  "actions": "Actions",
+  "edit": "Edit instruction",
+  "delete": "Delete",
+  "menu": "Open menu",
+  "editPendingOnly": "Only pending instructions can be edited.",
+  "deleteTitle": "Delete instruction",
+  "deleteDescription": "Permanently delete {{symbol}} in {{account}}? This cannot be undone and does not affect bookkeeping activities.",
+  "completionNote": "Resolution note (optional)"
 }

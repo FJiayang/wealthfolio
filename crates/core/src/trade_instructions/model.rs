@@ -125,6 +125,23 @@ pub struct InstructionPage {
 }
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpdateTradeInstruction {
+    pub expected_version: i32,
+    pub account_id: String,
+    pub asset: AssetResolutionInput,
+    pub side: InstructionSide,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub quantity: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub amount: Option<Decimal>,
+    pub amount_currency: Option<String>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub limit_price: Option<Decimal>,
+    pub notes: Option<String>,
+    pub expected_completion_at: Option<DateTime<Utc>>,
+}
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct InstructionVersion {
     pub expected_version: i32,
 }
@@ -132,7 +149,7 @@ pub struct InstructionVersion {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CompleteInstruction {
     pub expected_version: i32,
-    pub resolution_note: String,
+    pub resolution_note: Option<String>,
     pub completed_at: Option<DateTime<Utc>>,
 }
 #[derive(Debug, Deserialize)]

@@ -35,6 +35,14 @@ impl TradeInstructionRepositoryTrait for MemoryRepository {
     fn list(&self, _: InstructionFilter) -> Result<InstructionPage> {
         unimplemented!()
     }
+    async fn delete(&self, id: &str, version: i32) -> Result<()> {
+        let mut rows = self.0.lock().unwrap();
+        if rows.get(id).is_none_or(|row| row.version != version) {
+            return Err(Error::ConstraintViolation("stale".into()));
+        }
+        rows.remove(id);
+        Ok(())
+    }
     async fn create(&self, row: TradeInstruction) -> Result<TradeInstruction> {
         self.0.lock().unwrap().insert(row.id.clone(), row.clone());
         Ok(row)
@@ -57,10 +65,14 @@ impl TradeInstructionRepositoryTrait for MemoryRepository {
 fn setup() -> (TradeInstructionService, Arc<MemoryRepository>) {
     let accounts = Arc::new(MockAccountService::new());
     accounts.add_account(create_test_account("a", "USD"));
+    accounts.add_account(create_test_account("b", "USD"));
     let assets = MockAssetService::new();
     let mut asset = create_test_asset("s", "USD");
     asset.is_active = true;
     assets.add_asset(asset);
+    let mut other = create_test_asset("t", "USD");
+    other.is_active = true;
+    assets.add_asset(other);
     let repo = Arc::new(MemoryRepository::default());
     let goal = serde_json::from_value(json!({"id":"g", "goalType":"custom_save_up", "title":"Goal", "statusLifecycle":"active", "statusHealth":"not_applicable", "priority":0, "createdAt":"", "updatedAt":""})).unwrap();
     let goals = Arc::new(crate::goals::GoalService::new(
@@ -92,7 +104,7 @@ async fn trade_instruction_completion_retry_correction_and_conflict() {
             &row.id,
             CompleteInstruction {
                 expected_version: 1,
-                resolution_note: "Partial execution; remainder abandoned".into(),
+                resolution_note: Some("Partial execution; remainder abandoned".into()),
                 completed_at: None,
             },
         )
@@ -103,7 +115,7 @@ async fn trade_instruction_completion_retry_correction_and_conflict() {
             &row.id,
             CompleteInstruction {
                 expected_version: 1,
-                resolution_note: "Partial execution; remainder abandoned".into(),
+                resolution_note: Some("Partial execution; remainder abandoned".into()),
                 completed_at: None,
             },
         )
@@ -230,7 +242,7 @@ async fn trade_instruction_start_cancel_and_missing_references() {
             &row.id,
             CompleteInstruction {
                 expected_version: row.version,
-                resolution_note: "Already executed".into(),
+                resolution_note: Some("Already executed".into()),
                 completed_at: None
             }
         )
@@ -294,4 +306,178 @@ fn trade_instruction_list_rejects_invalid_completion_range() {
         serde_json::from_value::<InstructionFilter>(json!({"expectedCompletionFrom": "bad"}))
             .is_err()
     );
+}
+
+fn edit_input(version: i32) -> UpdateTradeInstruction {
+    serde_json::from_value(json!({"expectedVersion":version,"accountId":"a","asset":{"id":"s"},"side":"SELL","amount":"12.3400","amountCurrency":"usd","notes":"Updated"})).unwrap()
+}
+
+#[tokio::test]
+async fn trade_instruction_edit_preserves_identity_and_rejects_stale_or_started_rows() {
+    let (service, _) = setup();
+    let original_input = input();
+    let original = service
+        .create(original_input.clone(), InstructionSource::Mcp)
+        .await
+        .unwrap();
+    let edited = service.edit(&original.id, edit_input(1)).await.unwrap();
+    assert_eq!(edited.version, 2);
+    assert_eq!(edited.request_id, original.request_id);
+    assert_eq!(edited.request_hash, original.request_hash);
+    assert_eq!(edited.created_at, original.created_at);
+    assert_eq!(edited.source, original.source);
+    assert_eq!(edited.goal_id, original.goal_id);
+    assert_eq!(
+        serde_json::to_value(&edited.asset_snapshot).unwrap(),
+        serde_json::to_value(&original.asset_snapshot).unwrap()
+    );
+    assert_eq!(edited.status, InstructionStatus::Pending);
+    assert_eq!(edited.side, InstructionSide::Sell);
+    assert_eq!(edited.quantity, None);
+    assert_eq!(edited.amount.unwrap().to_string(), "12.34");
+    assert_eq!(edited.amount_currency.as_deref(), Some("USD"));
+    assert!(edited.limit_price.is_none());
+    assert!(edited.expected_completion_at.is_none());
+    assert_eq!(
+        service
+            .create(original_input, InstructionSource::Mcp)
+            .await
+            .unwrap()
+            .version,
+        2
+    );
+    assert!(service.edit(&original.id, edit_input(1)).await.is_err());
+    let mut changed = edit_input(2);
+    changed.account_id = "b".into();
+    changed.asset.id = Some("t".into());
+    changed.notes = Some(" ".into());
+    let changed = service.edit(&original.id, changed).await.unwrap();
+    assert_eq!(changed.account_id, "b");
+    assert_eq!(changed.asset_id, "t");
+    assert!(changed.notes.is_none());
+    let started = service.start(&original.id, 3).await.unwrap();
+    assert!(service
+        .edit(&original.id, edit_input(started.version))
+        .await
+        .is_err());
+}
+
+#[tokio::test]
+async fn trade_instruction_completion_accepts_empty_notes_but_cancellation_requires_one() {
+    for value in [
+        json!({"expectedVersion":1}),
+        json!({"expectedVersion":1,"resolutionNote":null}),
+        json!({"expectedVersion":1,"resolutionNote":""}),
+        json!({"expectedVersion":1,"resolutionNote":"  "}),
+    ] {
+        let (service, _) = setup();
+        let row = service
+            .create(input(), InstructionSource::Ui)
+            .await
+            .unwrap();
+        let before = Utc::now();
+        let done = service
+            .complete(&row.id, serde_json::from_value(value).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(done.resolution_note, None);
+        assert!(done.completed_at.unwrap() >= before);
+        assert!(done.completed_at.unwrap() <= Utc::now());
+        let retried = service
+            .complete(
+                &row.id,
+                CompleteInstruction {
+                    expected_version: 1,
+                    resolution_note: Some("  ".into()),
+                    completed_at: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(retried.completed_at, done.completed_at);
+        assert_eq!(retried.version, done.version);
+    }
+    let (service, _) = setup();
+    let row = service
+        .create(input(), InstructionSource::Ui)
+        .await
+        .unwrap();
+    assert!(service
+        .complete(
+            &row.id,
+            CompleteInstruction {
+                expected_version: 1,
+                resolution_note: Some("x".repeat(4001)),
+                completed_at: None
+            }
+        )
+        .await
+        .is_err());
+    assert!(service
+        .complete(
+            &row.id,
+            CompleteInstruction {
+                expected_version: 1,
+                resolution_note: None,
+                completed_at: Some(Utc::now() + Duration::days(1))
+            }
+        )
+        .await
+        .is_err());
+    assert!(service
+        .cancel(
+            &row.id,
+            CancelInstruction {
+                expected_version: 1,
+                resolution_note: " ".into()
+            }
+        )
+        .await
+        .is_err());
+}
+
+#[tokio::test]
+async fn trade_instruction_delete_all_statuses_checks_version_and_removes_creation_key() {
+    for state in [
+        InstructionStatus::Pending,
+        InstructionStatus::InProgress,
+        InstructionStatus::Completed,
+        InstructionStatus::Cancelled,
+    ] {
+        let (service, repo) = setup();
+        let mut row = service
+            .create(input(), InstructionSource::Ui)
+            .await
+            .unwrap();
+        row = match state {
+            InstructionStatus::Pending => row,
+            InstructionStatus::InProgress => service.start(&row.id, row.version).await.unwrap(),
+            InstructionStatus::Completed => service
+                .complete(
+                    &row.id,
+                    CompleteInstruction {
+                        expected_version: row.version,
+                        resolution_note: None,
+                        completed_at: None,
+                    },
+                )
+                .await
+                .unwrap(),
+            InstructionStatus::Cancelled => service
+                .cancel(
+                    &row.id,
+                    CancelInstruction {
+                        expected_version: row.version,
+                        resolution_note: "Abandoned".into(),
+                    },
+                )
+                .await
+                .unwrap(),
+        };
+        assert!(service.delete(&row.id, row.version - 1).await.is_err());
+        assert!(service.get(&row.id).is_ok());
+        service.delete(&row.id, row.version).await.unwrap();
+        assert!(service.get(&row.id).is_err());
+        assert!(repo.get_by_request_id(&row.request_id).unwrap().is_none());
+    }
 }

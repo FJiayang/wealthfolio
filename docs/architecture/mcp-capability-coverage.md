@@ -120,20 +120,27 @@ permission. Tools that read actual holdings additionally require
 
 ## Trade instructions
 
-`create_trade_instruction`, `list_trade_instructions`, and
-`get_trade_instruction` manage local execution instructions independently of
-activities. Creation requires `trade-instructions:create`,
-`trade-instructions:read`, `accounts:read`, and `assets:write`, and
-`financial-planning:read`; reads require `trade-instructions:read`. Existing
-tokens are not upgraded automatically. These tools are MCP-only and carry no
-execution or bookkeeping permission. Tool arguments are redacted from audit
-logs.
+The MCP catalog exposes `list_trade_instructions`, `get_trade_instruction`,
+`create_trade_instruction`, `update_trade_instruction`, `start_trade_instruction`,
+`complete_trade_instruction`, `cancel_trade_instruction`,
+`correct_trade_instruction_completion_time`, and `delete_trade_instruction`.
+Reads require `trade-instructions:read`. All mutations share the single
+`trade-instructions:write` permission, whose prerequisites are
+`trade-instructions:read`, `accounts:read`, `assets:write`, and
+`financial-planning:read`. Existing `trade-instructions:create` grants are
+accepted as an alias for the unified write permission; persisted tokens need no
+migration. New grants use the canonical write name. Read-only tokens remain
+read-only. These tools are MCP-only and redact arguments from audit logs.
 
-The UI can create, start, complete, cancel, and correct actual completion time.
-Completion is a human report, not broker verification. Expected completion is an
-optional soft deadline. Actual completion defaults to server time and may be
-corrected; the original system closure time is retained. Updates use optimistic
-versions and creation uses a client-generated request UUID for safe retries.
+UI and MCP use the same service: content edits require PENDING status, all
+mutations check the version read from the record, and deletion is permanent for
+any status. Updates replace the full editable content; omitted optional fields
+are cleared. Completion notes are optional; cancellation notes are required.
+Completion records a report, not broker verification or an actual broker order.
+MCP completion defaults to server time when omitted; the UI pre-fills current
+time and uses server time when cleared. Completion time correction preserves
+the original system closure time. Creation retains its request-UUID retry key;
+permanent deletion removes that key along with the instruction.
 
 Architecture impact: instructions use their own SQLite table and existing
 writer, without device-sync outbox entries, Activity writes, manual quote

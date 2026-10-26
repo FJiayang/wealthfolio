@@ -1598,6 +1598,10 @@
       "trade_instructions_create": {
         "label": "Handelsanweisungen erstellen",
         "description": "Handelsanweisungen erstellen"
+      },
+      "trade_instructions_write": {
+        "label": "Handelsanweisungen verwalten",
+        "description": "Handelsanweisungen erstellen, bearbeiten, starten, abschließen, abbrechen, Abschlusszeiten korrigieren und dauerhaft löschen."
       }
     },
     "preset": {

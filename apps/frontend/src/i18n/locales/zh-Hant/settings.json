@@ -1598,6 +1598,10 @@
       "trade_instructions_create": {
         "label": "建立交易指令",
         "description": "建立交易指令"
+      },
+      "trade_instructions_write": {
+        "label": "管理交易指令",
+        "description": "建立、編輯、開始、完成、取消、更正完成時間及永久刪除交易指令。"
       }
     },
     "preset": {

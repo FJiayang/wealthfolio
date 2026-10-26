@@ -1639,6 +1639,10 @@
       "trade_instructions_create": {
         "label": "Créer des instructions de négociation",
         "description": "Créer des instructions de négociation"
+      },
+      "trade_instructions_write": {
+        "label": "Gérer les instructions de transaction",
+        "description": "Créer, modifier, démarrer, terminer, annuler, corriger la date de fin et supprimer définitivement des instructions de transaction."
       }
     },
     "preset": {

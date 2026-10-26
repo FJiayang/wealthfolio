@@ -7,7 +7,7 @@ import type { TFunction } from "i18next";
 
 export type ScopeKey =
   | "trade-instructions:read"
-  | "trade-instructions:create"
+  | "trade-instructions:write"
   | "accounts:read"
   | "holdings:read"
   | "performance:read"
@@ -40,7 +40,7 @@ export interface ScopeMeta {
 /** Available scopes; only read scopes are selected by default. */
 export const SCOPES: ScopeMeta[] = [
   { key: "trade-instructions:read", i18n: "trade_instructions_read", group: "read" },
-  { key: "trade-instructions:create", i18n: "trade_instructions_create", group: "write" },
+  { key: "trade-instructions:write", i18n: "trade_instructions_write", group: "write" },
   { key: "accounts:write", i18n: "accounts_write", group: "write" },
   { key: "assets:write", i18n: "assets_write", group: "write" },
   { key: "holdings:write", i18n: "holdings_write", group: "write" },
@@ -109,13 +109,17 @@ const SCOPE_I18N = new Map(SCOPES.map((scope) => [scope.key, scope.i18n]));
 
 /** Human label for a scope key; falls back to the raw key for unknown scopes. */
 export function scopeLabel(t: TFunction, key: string): string {
-  const suffix = SCOPE_I18N.get(key as ScopeKey);
+  const suffix = SCOPE_I18N.get(
+    (key === "trade-instructions:create" ? "trade-instructions:write" : key) as ScopeKey,
+  );
   return suffix ? t(`settings:agentAccess.scope.${suffix}.label`) : key;
 }
 
 /** Human description for a scope key; falls back to the raw key for unknown scopes. */
 export function scopeDescription(t: TFunction, key: string): string {
-  const suffix = SCOPE_I18N.get(key as ScopeKey);
+  const suffix = SCOPE_I18N.get(
+    (key === "trade-instructions:create" ? "trade-instructions:write" : key) as ScopeKey,
+  );
   return suffix ? t(`settings:agentAccess.scope.${suffix}.description`) : key;
 }
 
@@ -129,7 +133,8 @@ export function presetLabel(t: TFunction, preset: ScopePreset): string {
  */
 export function applyScopeDependencies(scopes: Iterable<string>): ScopeKey[] {
   const set = new Set<string>(scopes);
-  if (set.has("trade-instructions:create")) {
+  if (set.delete("trade-instructions:create")) set.add("trade-instructions:write");
+  if (set.has("trade-instructions:write")) {
     set.add("trade-instructions:read");
     set.add("financial-planning:read");
     set.add("accounts:read");

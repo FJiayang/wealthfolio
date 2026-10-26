@@ -1639,6 +1639,10 @@
       "trade_instructions_create": {
         "label": "Creare istruzioni di negoziazione",
         "description": "Creare istruzioni di negoziazione"
+      },
+      "trade_instructions_write": {
+        "label": "Gestisci istruzioni di negoziazione",
+        "description": "Crea, modifica, avvia, completa, annulla, correggi la data di completamento ed elimina definitivamente le istruzioni di negoziazione."
       }
     },
     "preset": {

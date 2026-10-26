@@ -15,6 +15,9 @@ export interface NewTradeInstruction {
   notes?: string;
   expectedCompletionAt?: string;
 }
+export interface UpdateTradeInstruction extends Omit<NewTradeInstruction, "goalId" | "requestId"> {
+  expectedVersion: number;
+}
 export interface TradeInstruction {
   goalId: string;
   id: string;
@@ -63,7 +66,7 @@ export interface InstructionPage {
 }
 export interface CompleteInstruction {
   expectedVersion: number;
-  resolutionNote: string;
+  resolutionNote?: string | null;
   completedAt?: string;
 }
 export const createTradeInstruction = (input: NewTradeInstruction) =>
@@ -72,6 +75,10 @@ export const listTradeInstructions = (filter: InstructionFilter) =>
   invoke<InstructionPage>("list_trade_instructions", { filter });
 export const getTradeInstruction = (id: string) =>
   invoke<TradeInstruction>("get_trade_instruction", { id });
+export const updateTradeInstruction = (id: string, input: UpdateTradeInstruction) =>
+  invoke<TradeInstruction>("update_trade_instruction", { id, input });
+export const deleteTradeInstruction = (id: string, expectedVersion: number) =>
+  invoke<void>("delete_trade_instruction", { id, input: { expectedVersion } });
 export const startTradeInstruction = (id: string, expectedVersion: number) =>
   invoke<TradeInstruction>("start_trade_instruction", { id, input: { expectedVersion } });
 export const completeTradeInstruction = (id: string, input: CompleteInstruction) =>

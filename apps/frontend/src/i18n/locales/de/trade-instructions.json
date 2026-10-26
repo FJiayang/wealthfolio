@@ -44,12 +44,20 @@
   "completedOnTime": "Fristgerecht abgeschlossen",
   "independent": "Anweisungen erteilen keine Orders und erzeugen keine Buchungen.",
   "limitHint": "Kaufobergrenze / Verkaufsuntergrenze; leer: Ermessen des Händlers.",
-  "completionDefault": "Leer lassen, um die Bestätigungszeit zu verwenden.",
+  "completionDefault": "Standardmäßig die aktuelle Zeit. Leeren, um die Serverzeit bei Bestätigung zu verwenden.",
   "selectType": "Wählen Sie oben Kauf oder Verkauf, um fortzufahren",
   "expectedCompletionDate": "Erwarteter Abschluss",
   "notes": "Notizen",
   "records": "Anweisungen",
   "startShort": "Start",
   "completeShort": "Abschließen",
-  "cancelShort": "Abbrechen"
+  "cancelShort": "Abbrechen",
+  "actions": "Aktionen",
+  "edit": "Anweisung bearbeiten",
+  "delete": "Löschen",
+  "menu": "Menü öffnen",
+  "editPendingOnly": "Nur ausstehende Anweisungen können bearbeitet werden.",
+  "deleteTitle": "Anweisung löschen",
+  "deleteDescription": "{{symbol}} in {{account}} dauerhaft löschen? Dies kann nicht rückgängig gemacht werden und ändert keine Buchungen.",
+  "completionNote": "Bearbeitungsvermerk (optional)"
 }

@@ -389,6 +389,8 @@ pub fn run() {
             commands::goal::delete_goal,
             commands::trade_instructions::create_trade_instruction,
             commands::trade_instructions::list_trade_instructions,
+            commands::trade_instructions::update_trade_instruction,
+            commands::trade_instructions::delete_trade_instruction,
             commands::trade_instructions::get_trade_instruction,
             commands::trade_instructions::start_trade_instruction,
             commands::trade_instructions::complete_trade_instruction,
