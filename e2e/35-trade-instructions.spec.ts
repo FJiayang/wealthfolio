@@ -76,7 +76,7 @@ for (const rtl of [false, true]) {
     const asset = await assetResponse.json();
     await page.goto(`${BASE_URL}/goals/${goal.id}${rtl ? "?dir=rtl" : ""}`);
     await page.getByRole("button", { name: "New instruction", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: /^(New instruction|Instruction details)$/ });
+    const dialog = page.getByRole("dialog", { name: /^(New instruction|Instruction details)/ });
     await expect(dialog.getByRole("textbox", { name: "Quantity", exact: true })).toHaveCount(0);
     await expect(dialog.getByLabel("Goal", { exact: true })).toHaveCount(0);
     await expect(page.locator('a[href="/trade-instructions"]')).toHaveCount(0);
@@ -116,6 +116,40 @@ for (const rtl of [false, true]) {
       .filter({ hasText: "Overdue" });
     await expect(item).toBeVisible();
     await item.click();
+    await expect(dialog.getByRole("heading", { name: "Transaction" })).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "Financial Details" })).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "Record Info" })).toBeVisible();
+    const initialDark = await page
+      .locator("html")
+      .evaluate((root) => root.classList.contains("dark"));
+    for (const dark of [false, true]) {
+      await page
+        .locator("html")
+        .evaluate((root, enabled) => root.classList.toggle("dark", enabled), dark);
+      await page.mouse.move(0, 0);
+      for (const [name, tokenClasses] of [
+        ["Mark complete", "bg-success"],
+        ["Cancel instruction", "bg-destructive dark:bg-destructive/60"],
+      ]) {
+        const button = dialog.getByRole("button", { name, exact: true });
+        const color = await button.evaluate((element, classes) => {
+          const probe = document.createElement("span");
+          probe.className = classes;
+          element.appendChild(probe);
+          const result = getComputedStyle(probe).backgroundColor;
+          probe.remove();
+          return result;
+        }, tokenClasses);
+        await expect(button).toHaveCSS("background-color", color);
+      }
+      await page.screenshot({
+        path: test.info().outputPath(`instruction-detail-${dark ? "dark" : "light"}.png`),
+        animations: "disabled",
+      });
+    }
+    await page
+      .locator("html")
+      .evaluate((root, enabled) => root.classList.toggle("dark", enabled), initialDark);
     await dialog.getByRole("button", { name: "Mark complete", exact: true }).click();
     await dialog.getByLabel("Resolution note").fill("Partially executed, remainder abandoned");
     await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
@@ -164,6 +198,18 @@ for (const rtl of [false, true]) {
       (await (await page.request.post(`${api}/trade-instructions`, { data: retryRequest })).json())
         .id,
     ).toBe(externalRow.id);
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await page
+      .getByTestId("goal-trade-instructions")
+      .getByRole("button")
+      .filter({ hasText: symbol })
+      .click();
+    await dialog.getByRole("button", { name: "Cancel instruction", exact: true }).click();
+    await dialog.getByLabel("Resolution note").fill("No longer needed");
+    await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
+    await expect(dialog.getByText("Cancelled", { exact: true })).toBeVisible();
+
     const otherGoal = await (
       await page.request.post(`${api}/goals`, {
         data: { title: "Other goal", goalType: "custom_save_up", targetAmount: 2000 },

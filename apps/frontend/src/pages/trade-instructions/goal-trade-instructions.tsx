@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { InstructionStatus, TradeInstruction } from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
+import { Sheet, SheetContent } from "@wealthfolio/ui/components/ui/sheet";
 import {
   Select,
   SelectContent,
@@ -167,12 +167,7 @@ export function GoalTradeInstructions({ goalId }: { goalId: string }) {
         }}
       >
         <SheetContent side="inline-end" className="w-full overflow-y-auto sm:max-w-lg">
-          <SheetHeader>
-            <SheetTitle>{t("detail")}</SheetTitle>
-          </SheetHeader>
-          <div className="mt-5">
-            {panel && panel !== "new" ? <InstructionDetail key={panel} id={panel} /> : null}
-          </div>
+          {panel && panel !== "new" ? <InstructionDetail key={panel} id={panel} /> : null}
         </SheetContent>
       </Sheet>
     </div>

@@ -60,7 +60,7 @@ interface DetailRowProps {
   icon?: React.ReactNode;
 }
 
-function DetailRow({ label, value, icon }: DetailRowProps) {
+export function DetailRow({ label, value, icon }: DetailRowProps) {
   return (
     <div className="flex items-start justify-between gap-4 py-2">
       <div className="text-muted-foreground flex items-center gap-2 text-sm">
@@ -78,7 +78,7 @@ interface DetailSectionProps {
   children: React.ReactNode;
 }
 
-function DetailSection({ title, icon, children }: DetailSectionProps) {
+export function DetailSection({ title, icon, children }: DetailSectionProps) {
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2 pb-2">
