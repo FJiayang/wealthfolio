@@ -1590,6 +1590,14 @@
       "spending_write": {
         "label": "修改收支事件與預算",
         "description": "修改收支事件與預算"
+      },
+      "trade_instructions_read": {
+        "label": "讀取交易指令",
+        "description": "讀取交易指令"
+      },
+      "trade_instructions_create": {
+        "label": "建立交易指令",
+        "description": "建立交易指令"
       }
     },
     "preset": {

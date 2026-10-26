@@ -959,7 +959,7 @@ impl<T: GoalRepositoryTrait + Send + Sync> GoalServiceTrait for GoalService<T> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::accounts::{AccountUpdate, NewAccount};
     use crate::goals::goals_model::GoalFundingRule;
@@ -1126,14 +1126,14 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct MockGoalRepository {
+    pub(crate) struct MockGoalRepository {
         goals: Mutex<HashMap<String, Goal>>,
         funding_rules: Mutex<HashMap<String, Vec<GoalFundingRule>>>,
         plans: Mutex<HashMap<String, GoalPlan>>,
     }
 
     impl MockGoalRepository {
-        fn new(goals: Vec<Goal>) -> Self {
+        pub(crate) fn new(goals: Vec<Goal>) -> Self {
             Self {
                 goals: Mutex::new(goals.into_iter().map(|g| (g.id.clone(), g)).collect()),
                 funding_rules: Mutex::new(HashMap::new()),

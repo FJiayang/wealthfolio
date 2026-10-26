@@ -558,3 +558,5 @@ export {
 export { downloadCloudBackup, previewCloudBackupRestore } from "./cloud-backups";
 
 export type { ProviderRequestCounts, ProviderRequestCountRow } from "../shared/market-data";
+
+export * from "../shared/trade-instructions";

@@ -15,6 +15,8 @@ export interface MoneyInputProps {
    * value changes (e.g. form.setValue) that echo back through the input.
    */
   onValueChange?: (value: number | undefined, isUserEdit?: boolean) => void;
+  /** Receives the exact decimal string for forms that must preserve precision. */
+  onValueStringChange?: (value: string) => void;
   /**
    * Legacy onChange handler for backward compatibility.
    * Receives a synthetic event with value in e.target.value.
@@ -62,6 +64,7 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
     {
       value,
       onValueChange,
+      onValueStringChange,
       onChange,
       maxDecimalPlaces = DECIMAL_PRECISION,
       fixedDecimalScale = false,
@@ -91,8 +94,7 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
         maximumFractionDigits: 2,
         useGrouping: false,
       });
-    // Normalize value to number or empty string
-    const numericValue = value === null || value === undefined || value === "" ? "" : Number(value);
+    const numericValue = value == null || value === "" ? "" : onValueStringChange ? String(value) : Number(value);
 
     return (
       <NumericFormat
@@ -118,11 +120,12 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
         thousandSeparator={thousandSeparator ? formatting.groupSeparator : false}
         decimalSeparator={formatting.decimalSeparator}
         allowedDecimalSeparators={Array.from(new Set([formatting.decimalSeparator, ".", ","]))}
-        valueIsNumericString={false}
+        valueIsNumericString={!!onValueStringChange}
         value={numericValue}
         onValueChange={(values, sourceInfo) => {
-          // Prefer onValueChange if provided
-          if (onValueChange) {
+          if (onValueStringChange) {
+            onValueStringChange(values.value);
+          } else if (onValueChange) {
             // The SourceType enum is not exported from the package's type
             // entry, so compare its literal value ("event" | "prop") as string.
             onValueChange(values.floatValue, String(sourceInfo?.source) === "event");
@@ -138,6 +141,8 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
         }}
         inputMode="decimal"
         onPaste={(event) => {
+          // Let NumericFormat preserve decimal strings without a floating-point conversion.
+          if (onValueStringChange) return;
           const clipboardValue = event.clipboardData.getData("text");
           const input = event.currentTarget;
           const hasSelection =

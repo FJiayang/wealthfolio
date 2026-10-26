@@ -1589,6 +1589,14 @@
       "spending_write": {
         "label": "収支イベントと予算の変更",
         "description": "収支イベントと予算の変更"
+      },
+      "trade_instructions_read": {
+        "label": "取引指示を読む",
+        "description": "取引指示を読む"
+      },
+      "trade_instructions_create": {
+        "label": "取引指示を作成する",
+        "description": "取引指示を作成する"
       }
     },
     "preset": {

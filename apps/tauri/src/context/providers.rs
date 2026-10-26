@@ -697,6 +697,20 @@ async fn build_context(
             .with_projection_freshness(portfolio_coordinator.clone()),
     );
 
+    let trade_instruction_service = Arc::new(
+        wealthfolio_core::trade_instructions::TradeInstructionService::new(
+            Arc::new(
+                wealthfolio_storage_sqlite::trade_instructions::TradeInstructionRepository::new(
+                    pool.clone(),
+                    writer.clone(),
+                ),
+            ),
+            account_service.clone(),
+            asset_service.clone(),
+            goal_service.clone(),
+        ),
+    );
+
     // Create AI environment and chat service
     let ai_environment = Arc::new(TauriAiEnvironment::new(
         base_currency.clone(),
@@ -705,6 +719,7 @@ async fn build_context(
         holdings_service.clone(),
         valuation_service.clone(),
         goal_service.clone(),
+        trade_instruction_service.clone(),
         settings_service.clone(),
         secret_store.clone(),
         ai_chat_repository,
@@ -796,6 +811,7 @@ async fn build_context(
             activity_service,
             asset_service,
             goal_service,
+            trade_instruction_service,
             quote_service,
             limits_service,
             fx_service,

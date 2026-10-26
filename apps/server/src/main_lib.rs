@@ -111,6 +111,8 @@ pub struct AppState {
     pub performance_service:
         Arc<dyn wealthfolio_core::portfolio::performance::PerformanceServiceTrait + Send + Sync>,
     pub income_service: Arc<dyn IncomeServiceTrait + Send + Sync>,
+    pub trade_instruction_service:
+        Arc<dyn wealthfolio_core::trade_instructions::TradeInstructionServiceTrait>,
     pub goal_service: Arc<dyn GoalServiceTrait + Send + Sync>,
     pub limits_service: Arc<dyn ContributionLimitServiceTrait + Send + Sync>,
     pub fx_service: Arc<dyn FxServiceTrait + Send + Sync>,
@@ -1013,6 +1015,12 @@ async fn initialize_profile_state(
     // AI chat repository for thread/message persistence
     let ai_chat_repository = Arc::new(AiChatRepository::new(pool.clone(), writer.clone()));
 
+    let trade_instruction_service = Arc::new(wealthfolio_core::trade_instructions::TradeInstructionService::new(
+        Arc::new(wealthfolio_storage_sqlite::trade_instructions::TradeInstructionRepository::new(pool.clone(), writer.clone())),
+        account_service.clone(), asset_service.clone(),
+            goal_service.clone(),
+    ));
+
     // Create the AI environment and chat service using the new wealthfolio-ai crate
     let ai_environment = Arc::new(ServerAiEnvironment::new(
         base_currency.clone(),
@@ -1021,6 +1029,7 @@ async fn initialize_profile_state(
         holdings_service.clone(),
         valuation_service.clone(),
         goal_service.clone(),
+        trade_instruction_service.clone(),
         settings_service.clone(),
         secret_store.clone(),
         ai_chat_repository,
@@ -1169,6 +1178,7 @@ async fn initialize_profile_state(
         performance_service,
         income_service,
         goal_service,
+        trade_instruction_service,
         limits_service,
         fx_service: fx_service.clone(),
         activity_service,

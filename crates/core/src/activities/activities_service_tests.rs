@@ -36,18 +36,18 @@ pub(crate) mod tests {
 
     // --- Mock AccountService ---
     #[derive(Clone)]
-    struct MockAccountService {
+    pub(crate) struct MockAccountService {
         accounts: Arc<Mutex<Vec<Account>>>,
     }
 
     impl MockAccountService {
-        fn new() -> Self {
+        pub(crate) fn new() -> Self {
             Self {
                 accounts: Arc::new(Mutex::new(Vec::new())),
             }
         }
 
-        fn add_account(&self, account: Account) {
+        pub(crate) fn add_account(&self, account: Account) {
             self.accounts.lock().unwrap().push(account);
         }
     }
@@ -118,14 +118,14 @@ pub(crate) mod tests {
 
     // --- Mock AssetService ---
     #[derive(Clone)]
-    struct MockAssetService {
+    pub(crate) struct MockAssetService {
         assets: Arc<Mutex<Vec<Asset>>>,
         get_asset_by_id_error: Arc<Mutex<Option<String>>>,
         resolve_import_asset_input_batches: Arc<Mutex<Vec<Vec<ImportAssetResolutionInput>>>>,
     }
 
     impl MockAssetService {
-        fn new() -> Self {
+        pub(crate) fn new() -> Self {
             Self {
                 assets: Arc::new(Mutex::new(Vec::new())),
                 get_asset_by_id_error: Arc::new(Mutex::new(None)),
@@ -133,7 +133,7 @@ pub(crate) mod tests {
             }
         }
 
-        fn add_asset(&self, asset: Asset) {
+        pub(crate) fn add_asset(&self, asset: Asset) {
             self.assets.lock().unwrap().push(asset);
         }
 
@@ -1839,7 +1839,7 @@ pub(crate) mod tests {
         }
     }
     // Helper to create a test account
-    fn create_test_account(id: &str, currency: &str) -> Account {
+    pub(crate) fn create_test_account(id: &str, currency: &str) -> Account {
         Account {
             id: id.to_string(),
             name: format!("Test Account {}", id),
@@ -1861,7 +1861,7 @@ pub(crate) mod tests {
     }
 
     // Helper to create a test asset
-    fn create_test_asset(id: &str, currency: &str) -> Asset {
+    pub(crate) fn create_test_asset(id: &str, currency: &str) -> Asset {
         Asset {
             id: id.to_string(),
             display_code: Some(id.to_string()),

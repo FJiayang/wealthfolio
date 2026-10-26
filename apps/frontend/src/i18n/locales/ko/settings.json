@@ -1589,6 +1589,14 @@
       "spending_write": {
         "label": "지출 이벤트 및 예산 수정",
         "description": "지출 이벤트 및 예산 수정"
+      },
+      "trade_instructions_read": {
+        "label": "거래 지시 읽기",
+        "description": "거래 지시 읽기"
+      },
+      "trade_instructions_create": {
+        "label": "거래 지시 생성",
+        "description": "거래 지시 생성"
       }
     },
     "preset": {

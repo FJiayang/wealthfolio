@@ -1,3 +1,4 @@
+import { GoalTradeInstructions } from "@/pages/trade-instructions/goal-trade-instructions";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { parseLocalDate } from "@/lib/utils";
 import {
@@ -321,6 +322,7 @@ export default function GoalDetailPage() {
             <div className="space-y-3">
               <Skeleton className="h-10 w-64" />
               <Skeleton className="h-64 w-full" />
+              <GoalTradeInstructions key={goal.id} goalId={goal.id} />
             </div>
           )
         ) : isSaveUp ? (

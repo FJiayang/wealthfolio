@@ -1,3 +1,4 @@
+import { GoalTradeInstructions } from "@/pages/trade-instructions/goal-trade-instructions";
 import type { Holding, RetirementOverview, RetirementTrajectoryPoint } from "@/lib/types";
 import {
   AnimatedToggleGroup,
@@ -474,7 +475,10 @@ export default function DashboardPage({
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <RetirementAnalysisPendingColumn error={retirementOverviewError ?? error} />
+          <div className="space-y-6 lg:col-span-2">
+            <RetirementAnalysisPendingColumn error={retirementOverviewError ?? error} />
+            {goalId && <GoalTradeInstructions key={goalId} goalId={goalId} />}
+          </div>
           <div className="space-y-4 lg:col-span-1 lg:self-start">
             <SidebarConfigurator
               key={sidebarKey}
@@ -1574,6 +1578,8 @@ export default function DashboardPage({
             currency={currency}
             scaleForModeAtAge={scaleForModeAtAge}
           />
+
+          {goalId && <GoalTradeInstructions key={goalId} goalId={goalId} />}
 
           <Card className="bg-muted/30 border-dashed">
             <CardContent className="text-muted-foreground flex gap-3 py-5 text-xs leading-relaxed">

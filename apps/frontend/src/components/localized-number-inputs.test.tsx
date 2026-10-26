@@ -326,3 +326,38 @@ describe("localized financial input paste", () => {
     expect(onValueChange).not.toHaveBeenCalled();
   });
 });
+
+describe("MoneyInput decimal string values", () => {
+  it.each(["en-US", "de-DE"])(
+    "preserves exact decimal input and pasted values in %s",
+    async (locale) => {
+      const user = userEvent.setup();
+      const onValueStringChange = vi.fn();
+      render(
+        <FormattingProvider locale={locale}>
+          <MoneyInput
+            aria-label="Exact amount"
+            value="9007199254740993.123456789123456789"
+            maxDecimalPlaces={28}
+            thousandSeparator
+            onValueStringChange={onValueStringChange}
+          />
+        </FormattingProvider>,
+      );
+      const input = screen.getByRole("textbox", { name: "Exact amount" });
+      const german = locale === "de-DE";
+      expect(input).toHaveValue(
+        german
+          ? "9.007.199.254.740.993,123456789123456789"
+          : "9,007,199,254,740,993.123456789123456789",
+      );
+      await user.clear(input);
+      await user.type(input, german ? "1,5" : "1.5");
+      expect(onValueStringChange).toHaveBeenLastCalledWith("1.5");
+      await user.clear(input);
+      await user.click(input);
+      await user.paste(german ? "1.234,123456789123456789" : "1,234.123456789123456789");
+      expect(onValueStringChange).toHaveBeenLastCalledWith("1234.123456789123456789");
+    },
+  );
+});

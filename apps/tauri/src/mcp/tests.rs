@@ -46,6 +46,12 @@ async fn mint_pat(repo: &PatRepository, scopes: &[&str]) -> String {
 struct StubEnv;
 
 impl AgentEnvironment for StubEnv {
+    fn trade_instruction_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::trade_instructions::TradeInstructionServiceTrait> {
+        panic!("unexpected instruction service access")
+    }
+
     fn allocation_target_service(
         &self,
     ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationTargetServiceTrait>

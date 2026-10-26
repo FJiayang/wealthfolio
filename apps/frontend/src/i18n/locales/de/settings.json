@@ -1590,6 +1590,14 @@
       "spending_write": {
         "label": "Ausgabenereignisse und Budgets bearbeiten",
         "description": "Ausgabenereignisse und Budgets bearbeiten"
+      },
+      "trade_instructions_read": {
+        "label": "Handelsanweisungen lesen",
+        "description": "Handelsanweisungen lesen"
+      },
+      "trade_instructions_create": {
+        "label": "Handelsanweisungen erstellen",
+        "description": "Handelsanweisungen erstellen"
       }
     },
     "preset": {

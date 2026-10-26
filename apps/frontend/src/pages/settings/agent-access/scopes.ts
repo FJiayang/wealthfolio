@@ -6,6 +6,8 @@
 import type { TFunction } from "i18next";
 
 export type ScopeKey =
+  | "trade-instructions:read"
+  | "trade-instructions:create"
   | "accounts:read"
   | "holdings:read"
   | "performance:read"
@@ -37,6 +39,8 @@ export interface ScopeMeta {
 
 /** Available scopes; only read scopes are selected by default. */
 export const SCOPES: ScopeMeta[] = [
+  { key: "trade-instructions:read", i18n: "trade_instructions_read", group: "read" },
+  { key: "trade-instructions:create", i18n: "trade_instructions_create", group: "write" },
   { key: "accounts:write", i18n: "accounts_write", group: "write" },
   { key: "assets:write", i18n: "assets_write", group: "write" },
   { key: "holdings:write", i18n: "holdings_write", group: "write" },
@@ -125,6 +129,12 @@ export function presetLabel(t: TFunction, preset: ScopePreset): string {
  */
 export function applyScopeDependencies(scopes: Iterable<string>): ScopeKey[] {
   const set = new Set<string>(scopes);
+  if (set.has("trade-instructions:create")) {
+    set.add("trade-instructions:read");
+    set.add("financial-planning:read");
+    set.add("accounts:read");
+    set.add("assets:write");
+  }
   if (set.has("activities:write")) {
     set.add("activities:draft");
   }

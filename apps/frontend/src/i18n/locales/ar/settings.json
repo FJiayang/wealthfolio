@@ -470,6 +470,14 @@
       "spending_write": {
         "label": "تعديل أحداث الإنفاق والميزانيات",
         "description": "تعديل أحداث الإنفاق والميزانيات"
+      },
+      "trade_instructions_read": {
+        "label": "قراءة تعليمات التداول",
+        "description": "قراءة تعليمات التداول"
+      },
+      "trade_instructions_create": {
+        "label": "إنشاء تعليمات التداول",
+        "description": "إنشاء تعليمات التداول"
       }
     },
     "scope_locked_market_data_title": "مطلوب من قِبل بيانات السوق — كتابة",

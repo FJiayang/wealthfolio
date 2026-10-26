@@ -1,4 +1,5 @@
 export const QueryKeys = {
+  TRADE_INSTRUCTIONS: "trade-instructions",
   // Portfolios (saved reporting scopes)
   PORTFOLIOS: "portfolios",
 

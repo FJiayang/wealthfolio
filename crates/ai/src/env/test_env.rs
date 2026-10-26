@@ -1777,6 +1777,12 @@ impl MockEnvironment {
 }
 
 impl AgentEnvironment for MockEnvironment {
+    fn trade_instruction_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::trade_instructions::TradeInstructionServiceTrait> {
+        panic!("unexpected instruction service access")
+    }
+
     fn allocation_target_service(
         &self,
     ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationTargetServiceTrait>
