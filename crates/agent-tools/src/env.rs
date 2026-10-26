@@ -30,6 +30,9 @@ use wealthfolio_spending::categorization_rules::CategorizationRulesServiceTrait;
 
 /// Data-service surface available to agent tools.
 pub trait AgentEnvironment: Send + Sync {
+    fn trade_instruction_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::trade_instructions::TradeInstructionServiceTrait>;
     /// Get the user's base currency (e.g., "USD", "EUR").
     fn base_currency(&self) -> String;
 

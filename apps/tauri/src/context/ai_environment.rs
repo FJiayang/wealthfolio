@@ -32,6 +32,8 @@ pub struct TauriAiEnvironment {
     holdings_service: Arc<dyn HoldingsServiceTrait + Send + Sync>,
     valuation_service: Arc<dyn ValuationServiceTrait + Send + Sync>,
     goal_service: Arc<dyn GoalServiceTrait + Send + Sync>,
+    trade_instruction_service:
+        Arc<dyn wealthfolio_core::trade_instructions::TradeInstructionServiceTrait>,
     settings_service: Arc<dyn SettingsServiceTrait + Send + Sync>,
     secret_store: Arc<dyn SecretStore>,
     chat_repository: Arc<dyn ChatRepositoryTrait + Send + Sync>,
@@ -74,6 +76,9 @@ impl TauriAiEnvironment {
         holdings_service: Arc<dyn HoldingsServiceTrait + Send + Sync>,
         valuation_service: Arc<dyn ValuationServiceTrait + Send + Sync>,
         goal_service: Arc<dyn GoalServiceTrait + Send + Sync>,
+        trade_instruction_service: Arc<
+            dyn wealthfolio_core::trade_instructions::TradeInstructionServiceTrait,
+        >,
         settings_service: Arc<dyn SettingsServiceTrait + Send + Sync>,
         secret_store: Arc<dyn SecretStore>,
         chat_repository: Arc<dyn ChatRepositoryTrait + Send + Sync>,
@@ -126,6 +131,7 @@ impl TauriAiEnvironment {
             holdings_service,
             valuation_service,
             goal_service,
+            trade_instruction_service,
             settings_service,
             secret_store,
             chat_repository,
@@ -147,6 +153,12 @@ impl TauriAiEnvironment {
 }
 
 impl AgentEnvironment for TauriAiEnvironment {
+    fn trade_instruction_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::trade_instructions::TradeInstructionServiceTrait> {
+        self.trade_instruction_service.clone()
+    }
+
     fn base_currency(&self) -> String {
         self.base_currency
             .read()

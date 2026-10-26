@@ -65,6 +65,7 @@ mod spending;
 #[cfg(feature = "device-sync")]
 mod sync_crypto;
 mod taxonomies;
+mod trade_instructions;
 
 #[utoipa::path(get, path = "/api/v1/healthz", responses((status = 200, description = "Health")))]
 pub async fn healthz() -> &'static str {
@@ -202,6 +203,7 @@ fn app_router_with_profiles(
         .merge(performance::router())
         .merge(activities::router())
         .merge(goals::router())
+        .merge(trade_instructions::router())
         .merge(exchange_rates::router())
         .merge(market_data::router())
         .merge(assets::router())

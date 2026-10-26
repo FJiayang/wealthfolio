@@ -61,3 +61,6 @@ pub(crate) use bond_identity::resolve_bond_aliases;
 pub use classification_service::{
     AssetClassificationService, AssetClassifications, CategoryWithWeight,
 };
+
+mod manual_asset_resolver;
+pub use manual_asset_resolver::{ManualAssetInput, ManualAssetResolver};

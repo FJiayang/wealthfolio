@@ -1631,6 +1631,14 @@
       "spending_write": {
         "label": "Modifier événements et budgets",
         "description": "Modifier événements et budgets"
+      },
+      "trade_instructions_read": {
+        "label": "Lire les instructions de négociation",
+        "description": "Lire les instructions de négociation"
+      },
+      "trade_instructions_create": {
+        "label": "Créer des instructions de négociation",
+        "description": "Créer des instructions de négociation"
       }
     },
     "preset": {

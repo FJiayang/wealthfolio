@@ -70,6 +70,13 @@ export const COMMANDS: CommandMap = {
   get_income_summary: { method: "POST", path: "/income/summary/query" },
   // Goals
   get_goals: { method: "GET", path: "/goals" },
+  create_trade_instruction: { method: "POST", path: "/trade-instructions" },
+  list_trade_instructions: { method: "POST", path: "/trade-instructions/list" },
+  get_trade_instruction: { method: "GET", path: "/trade-instructions" },
+  start_trade_instruction: { method: "POST", path: "/trade-instructions" },
+  complete_trade_instruction: { method: "POST", path: "/trade-instructions" },
+  cancel_trade_instruction: { method: "POST", path: "/trade-instructions" },
+  correct_trade_instruction_completion_time: { method: "POST", path: "/trade-instructions" },
   get_goal: { method: "GET", path: "/goals" },
   create_goal: { method: "POST", path: "/goals" },
   update_goal: { method: "PUT", path: "/goals" },
@@ -764,6 +771,33 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       } else {
         body = JSON.stringify({ filter: p?.filter ?? null });
       }
+      break;
+    }
+    case "create_trade_instruction": {
+      const { input } = payload as { input: unknown };
+      body = JSON.stringify(input);
+      break;
+    }
+    case "list_trade_instructions": {
+      const { filter } = payload as { filter: unknown };
+      body = JSON.stringify(filter);
+      break;
+    }
+    case "get_trade_instruction":
+    case "start_trade_instruction":
+    case "complete_trade_instruction":
+    case "cancel_trade_instruction":
+    case "correct_trade_instruction_completion_time": {
+      const { id, input } = payload as { id: string; input?: unknown };
+      const suffix = {
+        get_trade_instruction: "",
+        start_trade_instruction: "/start",
+        complete_trade_instruction: "/complete",
+        cancel_trade_instruction: "/cancel",
+        correct_trade_instruction_completion_time: "/completion-time",
+      }[command];
+      url += `/${encodeURIComponent(id)}${suffix}`;
+      if (input) body = JSON.stringify(input);
       break;
     }
     case "get_goal":

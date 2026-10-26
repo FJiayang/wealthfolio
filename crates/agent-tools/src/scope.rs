@@ -12,6 +12,8 @@ use std::collections::BTreeSet;
 /// A single granted or required permission scope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AgentScope {
+    TradeInstructionsRead,
+    TradeInstructionsCreate,
     AccountsRead,
     HoldingsRead,
     PerformanceRead,
@@ -37,6 +39,8 @@ impl AgentScope {
     /// Every scope, in stable display order (read scopes first, then the
     /// draft/write/suggest scopes).
     pub const ALL: &'static [AgentScope] = &[
+        AgentScope::TradeInstructionsRead,
+        AgentScope::TradeInstructionsCreate,
         AgentScope::AccountsRead,
         AgentScope::HoldingsRead,
         AgentScope::PerformanceRead,
@@ -62,6 +66,7 @@ impl AgentScope {
     /// separate from [`AgentScope::ALL`] so adding a write scope never
     /// silently widens read-only tokens.
     pub const READ_SCOPES: &'static [AgentScope] = &[
+        AgentScope::TradeInstructionsRead,
         AgentScope::AccountsRead,
         AgentScope::HoldingsRead,
         AgentScope::PerformanceRead,
@@ -76,6 +81,8 @@ impl AgentScope {
     /// Canonical wire format, e.g. `"accounts:read"`.
     pub fn as_str(&self) -> &'static str {
         match self {
+            AgentScope::TradeInstructionsRead => "trade-instructions:read",
+            AgentScope::TradeInstructionsCreate => "trade-instructions:create",
             AgentScope::AccountsRead => "accounts:read",
             AgentScope::HoldingsRead => "holdings:read",
             AgentScope::PerformanceRead => "performance:read",
@@ -210,6 +217,17 @@ impl AgentScopeSet {
     /// granted scope is missing a prerequisite: committing requires the
     /// matching draft/suggest scope, and quote writes require holdings reads.
     pub fn dependency_error(&self) -> Option<String> {
+        if self.contains(AgentScope::TradeInstructionsCreate) {
+            for required in [
+                AgentScope::TradeInstructionsRead,
+                AgentScope::AccountsRead,
+                AgentScope::AssetsWrite,
+            ] {
+                if !self.contains(required) {
+                    return Some(format!("trade-instructions:create requires {}", required));
+                }
+            }
+        }
         if self.contains(AgentScope::ActivitiesWrite) && !self.contains(AgentScope::ActivitiesDraft)
         {
             return Some(

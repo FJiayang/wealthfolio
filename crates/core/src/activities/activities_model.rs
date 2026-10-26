@@ -307,49 +307,7 @@ impl Activity {
     }
 }
 
-/// Input for asset identification when creating/updating activities.
-/// Consolidates all asset-related fields into a single nested object.
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct AssetResolutionInput {
-    /// Existing asset ID. When provided without natural identity, it must refer to a persisted asset.
-    pub id: Option<String>,
-    /// Symbol (e.g., "AAPL", "BTC") used to resolve or create an asset.
-    pub symbol: Option<String>,
-    /// Exchange MIC code (e.g., "XNAS", "XTSE") for securities.
-    pub exchange_mic: Option<String>,
-    /// Asset kind hint (e.g., "SECURITY", "CRYPTO") - if not provided, inferred.
-    pub kind: Option<String>,
-    /// Asset name hint for custom/manual assets.
-    pub name: Option<String>,
-    /// Quote mode hint: "MARKET" or "MANUAL".
-    pub quote_mode: Option<String>,
-    /// Optional quote currency from symbol search/provider (e.g., "GBp").
-    pub quote_ccy: Option<String>,
-    /// Optional instrument type from symbol search/provider (e.g., "EQUITY", "CRYPTO").
-    pub instrument_type: Option<String>,
-    /// Market data provider that resolved this symbol, if selected.
-    pub provider_id: Option<String>,
-    /// Provider-native symbol/code selected by search/import.
-    pub provider_symbol: Option<String>,
-}
-
-impl AssetResolutionInput {
-    /// An empty object is the explicit PATCH representation for removing an
-    /// activity's optional asset. Omitting the object preserves the asset.
-    pub fn is_empty(&self) -> bool {
-        self.id.is_none()
-            && self.symbol.is_none()
-            && self.exchange_mic.is_none()
-            && self.kind.is_none()
-            && self.name.is_none()
-            && self.quote_mode.is_none()
-            && self.quote_ccy.is_none()
-            && self.instrument_type.is_none()
-            && self.provider_id.is_none()
-            && self.provider_symbol.is_none()
-    }
-}
+pub use crate::assets::ManualAssetInput as AssetResolutionInput;
 
 /// Input model for creating a new activity
 #[derive(Serialize, Deserialize, Debug, Clone)]

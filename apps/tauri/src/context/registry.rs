@@ -52,6 +52,8 @@ pub struct ServiceContext {
     pub settings_service: Arc<dyn settings::SettingsServiceTrait>,
     pub activity_service: Arc<dyn activities::ActivityServiceTrait>,
     pub account_service: Arc<dyn accounts::AccountServiceTrait>,
+    pub trade_instruction_service:
+        Arc<dyn wealthfolio_core::trade_instructions::TradeInstructionServiceTrait>,
     pub goal_service: Arc<dyn goals::GoalServiceTrait>,
     pub asset_service: Arc<dyn assets::AssetServiceTrait>,
     pub quote_service: Arc<dyn quotes::QuoteServiceTrait>,
@@ -170,6 +172,12 @@ impl ServiceContext {
 
     pub fn asset_service(&self) -> Arc<dyn assets::AssetServiceTrait> {
         Arc::clone(&self.asset_service)
+    }
+
+    pub fn trade_instruction_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_core::trade_instructions::TradeInstructionServiceTrait> {
+        self.trade_instruction_service.clone()
     }
 
     pub fn goal_service(&self) -> Arc<dyn goals::GoalServiceTrait> {

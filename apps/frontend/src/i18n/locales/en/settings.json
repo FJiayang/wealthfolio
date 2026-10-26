@@ -1547,6 +1547,14 @@
       "spending_write": {
         "label": "Update spending events and budgets",
         "description": "Update spending events and budgets"
+      },
+      "trade_instructions_read": {
+        "label": "Read trade instructions",
+        "description": "Read trade instructions"
+      },
+      "trade_instructions_create": {
+        "label": "Create trade instructions",
+        "description": "Create trade instructions"
       }
     },
     "preset": {

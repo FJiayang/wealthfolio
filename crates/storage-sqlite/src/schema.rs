@@ -955,3 +955,31 @@ diesel::allow_tables_to_appear_in_same_query!(
     mcp_audit_log,
     allocation_target_constraints,
 );
+
+diesel::table! {
+    trade_instructions (id) {
+        id -> Text,
+        request_id -> Text,
+        request_hash -> Text,
+        account_id -> Text,
+        asset_id -> Text,
+        account_name -> Text,
+        asset_snapshot -> Text,
+        side -> Text,
+        quantity -> Nullable<Text>,
+        amount -> Nullable<Text>,
+        amount_currency -> Nullable<Text>,
+        limit_price -> Nullable<Text>,
+        rationale -> Nullable<Text>,
+        expected_completion_at -> Nullable<Text>,
+        status -> Text,
+        resolution_note -> Nullable<Text>,
+        source -> Text,
+        created_at -> Text,
+        updated_at -> Text,
+        started_at -> Nullable<Text>,
+        closed_at -> Nullable<Text>,
+        completed_at -> Nullable<Text>,
+        version -> Integer,
+    }
+}

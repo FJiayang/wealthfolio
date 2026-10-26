@@ -117,3 +117,34 @@ requires `holdings:read`; activity writes still require activity draft
 permission, and classification writes still require classification suggest
 permission. Tools that read actual holdings additionally require
 `holdings:read`.
+
+## Trade instructions
+
+`create_trade_instruction`, `list_trade_instructions`, and
+`get_trade_instruction` manage local execution instructions independently of
+activities. Creation requires `trade-instructions:create`,
+`trade-instructions:read`, `accounts:read`, and `assets:write`; reads require
+`trade-instructions:read`. Existing tokens are not upgraded automatically. These
+tools are MCP-only and carry no execution or bookkeeping permission. Tool
+arguments are redacted from audit logs.
+
+The UI can create, start, complete, cancel, and correct actual completion time.
+Completion is a human report, not broker verification. Expected completion is an
+optional soft deadline. Actual completion defaults to server time and may be
+corrected; the original system closure time is retained. Updates use optimistic
+versions and creation uses a client-generated request UUID for safe retries.
+
+Architecture impact: instructions use their own SQLite table and existing
+writer, without device-sync outbox entries, Activity writes, manual quote
+writes, or ActivitiesChanged events. Asset identification/creation shares the
+manual-entry resolver and preserves its provider policy. An asset created before
+an instruction write failure remains registered and can be reused on retry.
+Existing activity entry still owns transaction arithmetic, quote-from-activity
+writes, and FX setup.
+
+Validation: trade-instruction core/storage/tool tests, existing
+activity-resolution regressions, adapter parity tests, and
+`e2e/35-trade-instructions.spec.ts` (with `WF_MCP_ENABLED=true`) cover
+persistence, permissions, completion correction and UI/MCP operation including
+RTL. Instructions are not a multi-user approval or broker order system and are
+not replicated to paired devices.
