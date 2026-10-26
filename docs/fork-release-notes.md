@@ -12,6 +12,21 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.11.0.8 — 2026-10-26
+
+- Replace trade instruction cards with an activity-style grid, with buy/sell and
+  expected completion date filters. Default to earliest expected completion
+  first, with missing deadlines last; filtering and sorting run before pagination.
+- Default to 20 instructions per page, offer 50 and 100, and remember the choice
+  in profile-scoped browser preferences. Keep activity-page components unchanged.
+- Freeze the final column with compact Start, Complete and Cancel actions,
+  excluded from column visibility controls. Completion and cancellation retain
+  required resolution notes and version checks; balances stay masked when copied.
+
+Architecture impact: extend local instruction reads through the existing shared
+adapter, Tauri and web paths. Preserve existing polling, status writes, provider
+and synchronization boundaries, without a schema migration or new network calls.
+
 ## v3.11.0.7 — 2026-10-26
 
 - Add goal-scoped trade instructions with account and asset snapshots, buy/sell
