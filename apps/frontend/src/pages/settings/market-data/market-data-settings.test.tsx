@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@/test/render";
 import { QueryClient, QueryClientProvider, useMutation } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { Activity, type ReactNode } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MarketDataProviderSetting } from "@/adapters";
@@ -69,17 +69,6 @@ vi.mock("./use-provider-request-counts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./use-provider-request-counts")>()),
   useProviderRequestCounts: hookMocks.useProviderRequestCounts,
 }));
-vi.mock("./provider-request-counts", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./provider-request-counts")>()),
-  ProviderRequestCountsPanel: ({
-    initialProviderId,
-    days,
-  }: {
-    initialProviderId?: string;
-    days: number;
-  }) => <div data-testid="request-panel" data-provider={initialProviderId} data-days={days} />,
-}));
-
 vi.mock("./market-data-sync-settings", () => ({ MarketDataSyncSettings: () => null }));
 
 vi.mock("./custom-provider-form", () => ({
@@ -123,6 +112,16 @@ function marketDataProvider(
   };
 }
 
+function LocationProbe() {
+  const { pathname, search } = useLocation();
+  return (
+    <output data-testid="navigation-path">
+      {pathname}
+      {search}
+    </output>
+  );
+}
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -135,6 +134,7 @@ function renderPage() {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <MarketDataSettingsPage />
+        <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -198,7 +198,7 @@ describe("MarketDataSettingsPage", () => {
     },
   );
 
-  it("keeps queries in a drawer and prefills the provider and current day from its count", async () => {
+  it("opens the query page and prefills the provider and current day from its count", async () => {
     hookMocks.useProviderRequestCounts.mockReturnValue({
       data: {
         timezone: "Asia/Shanghai",
@@ -215,15 +215,17 @@ describe("MarketDataSettingsPage", () => {
     expect(screen.queryByTestId("request-panel")).not.toBeInTheDocument();
     expect(hookMocks.useProviderRequestCounts).toHaveBeenLastCalledWith(1, "Asia/Shanghai");
     await user.click(screen.getByRole("button", { name: "Query details" }));
-    expect(within(screen.getByRole("dialog")).getByTestId("request-panel")).toHaveAttribute(
-      "data-days",
-      "30",
+    expect(screen.getByTestId("navigation-path")).toHaveTextContent(
+      "/settings/market-data/requests",
     );
-    await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: "Today so far: 4" }));
-    const panel = within(screen.getByRole("dialog")).getByTestId("request-panel");
-    expect(panel).toHaveAttribute("data-days", "1");
-    expect(panel).toHaveAttribute("data-provider", "ALPHA_VANTAGE");
+    const destination = new URL(
+      screen.getByTestId("navigation-path").textContent!,
+      "http://test.local",
+    );
+    expect(destination.searchParams.get("providerId")).toBe("ALPHA_VANTAGE");
+    expect(destination.searchParams.get("from")).toBe("2026-10-27");
+    expect(destination.searchParams.get("to")).toBe("2026-10-27");
     expect(hookMocks.useProviderRequestCounts).toHaveBeenLastCalledWith(1, "Asia/Shanghai");
   });
 
@@ -399,9 +401,13 @@ describe("MarketDataSettingsPage", () => {
       .getByText("General API")
       .closest<HTMLElement>(".flex.items-center.gap-4.px-4.py-3")!;
     await userEvent.setup().click(within(row).getByRole("button", { name: "Today so far: 0" }));
-    const panel = within(screen.getByRole("dialog")).getByTestId("request-panel");
-    expect(panel).toHaveAttribute("data-provider", "CUSTOM_SCRAPER:general");
-    expect(panel).toHaveAttribute("data-days", "1");
+    const destination = new URL(
+      screen.getByTestId("navigation-path").textContent!,
+      "http://test.local",
+    );
+    expect(destination.searchParams.get("providerId")).toBe("CUSTOM_SCRAPER:general");
+    expect(destination.searchParams.get("from")).toBe("2026-10-27");
+    expect(destination.searchParams.get("to")).toBe("2026-10-27");
   });
 
   it("marks fallback providers and counts the securities each one serves", async () => {

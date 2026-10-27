@@ -28,7 +28,6 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wealthfolio/ui/components/ui/tabs";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -37,7 +36,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ResetProviderHistoryDialog } from "@/pages/asset/reset-provider-history-dialog";
 
 import { SettingsHeader } from "../settings-header";
-import { ProviderRequestCountsPanel, ProviderTodayRequests } from "./provider-request-counts";
+import { ProviderTodayRequests } from "./provider-request-counts";
 import { todayRequestCount, useProviderRequestCounts } from "./use-provider-request-counts";
 import { MarketDataSyncSettings } from "./market-data-sync-settings";
 
@@ -776,18 +775,28 @@ function HistoryMenuItem({
 
 export default function MarketDataSettingsPage() {
   const { t } = useTranslation();
-  const [requestQuery, setRequestQuery] = useState<{ providerId?: string; days: number } | null>(
-    null,
-  );
   const { settings } = useSettingsContext();
   const requestTimezone = settings?.providerRequestTimezone ?? "Asia/Shanghai";
-  const requestCounts = useProviderRequestCounts(requestQuery?.days ?? 1, requestTimezone);
+  const requestCounts = useProviderRequestCounts(1, requestTimezone);
   const countData =
     !requestCounts.isError && requestCounts.data?.timezone === requestTimezone
       ? requestCounts.data
       : undefined;
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const openRequests = (providerId?: string) => {
+    const params = new URLSearchParams();
+    const direction = searchParams.get("dir");
+    if (direction) params.set("dir", direction);
+    if (providerId) {
+      params.set("providerId", providerId);
+      if (countData) {
+        params.set("from", countData.endDate);
+        params.set("to", countData.endDate);
+      }
+    }
+    navigate(`/settings/market-data/requests?${params}`);
+  };
   const { data: providers, isLoading, error } = useMarketDataProviderSettings();
   const { mutate: updateSettings } = useUpdateMarketDataProviderSettings();
   const { mutate: updatePortfolio, isPending: isUpdating } = useUpdatePortfolioMutation();
@@ -1080,7 +1089,7 @@ export default function MarketDataSettingsPage() {
         >
           {t("settings:market_data_page.recalculate_local")}
         </Button>
-        <Button variant="outline" onClick={() => setRequestQuery({ days: 30 })}>
+        <Button variant="outline" onClick={() => openRequests()}>
           {t("settings:provider_request_counts.query_details")}
         </Button>
       </div>
@@ -1133,7 +1142,7 @@ export default function MarketDataSettingsPage() {
                   key={provider.id}
                   provider={provider}
                   todayRequests={todayRequestCount(countData, provider.id)}
-                  onQueryRequests={() => setRequestQuery({ providerId: provider.id, days: 1 })}
+                  onQueryRequests={() => openRequests(provider.id)}
                   priorityValue={priorityInputs[provider.id]}
                   onUpdate={(settings) => handleUpdateSetting(provider.id, settings)}
                   onPriorityChange={(value) => handlePriorityInputChange(provider.id, value)}
@@ -1196,9 +1205,7 @@ export default function MarketDataSettingsPage() {
                   key={cp.id}
                   provider={cp}
                   todayRequests={todayRequestCount(countData, `CUSTOM_SCRAPER:${cp.id}`)}
-                  onQueryRequests={() =>
-                    setRequestQuery({ providerId: `CUSTOM_SCRAPER:${cp.id}`, days: 1 })
-                  }
+                  onQueryRequests={() => openRequests(`CUSTOM_SCRAPER:${cp.id}`)}
                   usage={usageByProvider.get(cp.id) ?? EMPTY_USAGE}
                   onEdit={() => {
                     setEditingProvider(cp);
@@ -1219,39 +1226,6 @@ export default function MarketDataSettingsPage() {
           )}
         </TabsContent>
       </Tabs>
-
-      <Sheet
-        open={requestQuery !== null}
-        onOpenChange={(open) => {
-          if (!open) setRequestQuery(null);
-        }}
-      >
-        <SheetContent side="inline-end" className="flex w-full flex-col sm:max-w-2xl">
-          <SheetHeader className="pe-10">
-            <SheetTitle>{t("settings:provider_request_counts.query_details")}</SheetTitle>
-          </SheetHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {requestQuery && (
-              <ProviderRequestCountsPanel
-                initialProviderId={requestQuery.providerId}
-                query={requestCounts}
-                days={requestQuery.days}
-                onDaysChange={(days) => setRequestQuery({ ...requestQuery, days })}
-                providers={[
-                  ...builtinProviders.map((provider) => ({
-                    id: provider.id,
-                    name: getProviderName(t, provider.id, provider.name),
-                  })),
-                  ...customProviders.map((provider) => ({
-                    id: `CUSTOM_SCRAPER:${provider.id}`,
-                    name: provider.name,
-                  })),
-                ]}
-              />
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
 
       <CustomProviderForm
         open={customFormOpen}

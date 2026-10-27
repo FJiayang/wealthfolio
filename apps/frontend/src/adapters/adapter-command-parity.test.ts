@@ -651,6 +651,40 @@ describe("agent token permission editing", () => {
 });
 
 describe("provider request counts routing", () => {
+  it("encodes detail filters and cursor through the web API", async () => {
+    const mock = stubFetch();
+    const query = {
+      providerId: "CUSTOM_SCRAPER:fund",
+      symbol: "A&B",
+      start: "2026-10-27T00:00:00Z",
+      end: "2026-10-28T00:00:00Z",
+      outcome: "failure",
+      recordKind: "http",
+      limit: 50,
+      cursor: "2026-10-27T01:00:00Z|12",
+      unused: undefined,
+    };
+    await invoke("list_provider_requests", { query });
+    const { url, method, body } = lastCall(mock);
+    const parsed = new URL(url, "http://test.local");
+    expect(parsed.pathname).toBe("/api/v1/providers/requests");
+    expect(Object.fromEntries(parsed.searchParams)).toEqual(
+      Object.fromEntries(
+        Object.entries(query)
+          .filter(([, value]) => value !== undefined)
+          .map(([key, value]) => [key, String(value)]),
+      ),
+    );
+    expect(method).toBe("GET");
+    expect(body).toBeUndefined();
+  });
+  it("uses the same detail command and typed payload with Tauri", async () => {
+    const { listProviderRequests } = await import("./shared/market-data");
+    platformInvokeMock.mockResolvedValueOnce({});
+    const query = { providerId: "YAHOO", limit: 50 };
+    await listProviderRequests(query);
+    expect(platformInvokeMock).toHaveBeenLastCalledWith("list_provider_requests", { query });
+  });
   it("forwards relative days through the web API", async () => {
     const mock = stubFetch();
     await invoke("get_provider_request_counts", { days: 30 });

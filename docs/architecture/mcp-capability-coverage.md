@@ -18,6 +18,11 @@ unknown results. Queries do not make provider requests; networking, credentials,
 SDK sessions and retries are unchanged. New business tools belong only to the
 MCP catalog; assistant tools keep their existing names and schemas.
 
+The settings request-detail page reads the same local service through the Tauri
+command and Web GET route. Its filters and cursor pagination stay in the
+frontend adapter; each row opens the stored business parameters and outcome.
+This adds no provider requests, persistence, retries or background execution.
+
 ## Coverage checklist
 
 Each row maps the frontend adapter (shared entries under

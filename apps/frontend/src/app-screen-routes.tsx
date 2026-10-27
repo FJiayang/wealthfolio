@@ -33,6 +33,7 @@ import ExportSettingsPage from "./pages/settings/exports/exports-page";
 import GeneralSettingsPage from "./pages/settings/general/general-page";
 import MarketDataImportPage from "./pages/settings/market-data/market-data-import-page";
 import MarketDataSettingsPage from "./pages/settings/market-data/market-data-settings";
+import { ProviderRequestsPage } from "./pages/settings/market-data/provider-requests-page";
 import TaxonomiesPage from "./pages/settings/taxonomies/taxonomies-page";
 import ConnectSettingsPage from "./pages/settings/wealthfolio-connect/connect-settings-page";
 import SpendingInsightsPage from "./features/spending/pages/spending-insights-page";
@@ -123,6 +124,7 @@ export const AppScreenRoutes = memo(function AppScreenRoutes({ location }: AppSc
         <Route path="spending/rules" element={<SpendingSettingsRulesPage />} />
         <Route path="spending/setup" element={<SpendingSetupPage />} />
         <Route path="market-data" element={<MarketDataSettingsPage />} />
+        <Route path="market-data/requests" element={<ProviderRequestsPage />} />
         <Route path="market-data/import" element={<MarketDataImportPage />} />
         <Route path="securities" element={<AssetsPage />} />
         <Route path="taxonomies" element={<TaxonomiesPage />} />

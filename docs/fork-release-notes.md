@@ -12,6 +12,20 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.11.0.12 — 2026-10-27
+
+- Replace the request summary drawer with a dedicated provider request query
+  page. Show individual security codes, operation, outcome, duration, HTTP
+  status and safe error details, with complete business parameters in each row's
+  detail drawer.
+- Retain provider-and-day shortcuts, statistics timezone settings, cursor
+  pagination and filters. Keep the detail action visible while scrolling wide
+  tables, including on phones and in right-to-left layouts.
+
+Architecture impact: desktop and Web read the existing profile-local diagnostic
+service through thin application endpoints. Provider requests, credentials,
+persistence, retention, retries and synchronization remain unchanged.
+
 ## v3.11.0.11 — 2026-10-27
 
 - Complete missing display translations across supported locales for currency

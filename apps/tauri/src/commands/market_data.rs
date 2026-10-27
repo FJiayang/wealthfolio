@@ -60,6 +60,19 @@ pub async fn get_provider_request_counts(
 }
 
 #[tauri::command]
+pub async fn list_provider_requests(
+    query: wealthfolio_core::quotes::request_counts::RequestQuery,
+    state: ProfileAccess,
+) -> Result<wealthfolio_core::quotes::request_counts::RequestPage, String> {
+    state
+        .context()?
+        .provider_request_service
+        .list_requests(query)
+        .await
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub async fn reset_provider_history(
     asset_id: String,
     state: ProfileAccess,
