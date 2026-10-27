@@ -119,6 +119,8 @@ export {
   saveActivities,
   searchActivities,
   updateActivity,
+  reviewActivitiesSplitEffects,
+  reviewInternalTransferPairSplitEffects,
 } from "../shared/activities";
 export { parseCsv } from "./activities";
 
@@ -416,6 +418,7 @@ export {
   listAgentAuditLog,
   purgeAgentAuditLog,
   deleteAgentAccessToken,
+  updateAgentAccessTokenScopes,
   setMcpAuditEnabled,
   setMcpEnabled,
   setMcpAutoStart,

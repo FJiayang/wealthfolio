@@ -10,6 +10,16 @@ use std::collections::{HashMap, HashSet};
 /// Trait defining the contract for Activity repository operations.
 #[async_trait]
 pub trait ActivityRepositoryTrait: Send + Sync {
+    fn has_spending_splits(&self, _activity_id: &str) -> Result<bool> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
+    fn preview_split_effect(&self, _update: &ActivityUpdate) -> Result<ActivitySplitEffect> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
+    /// Review an unlink-only counterpart without projecting a financial edit.
+    fn preview_unchanged_split_effect(&self, _activity_id: &str) -> Result<ActivitySplitEffect> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
     fn get_activity(&self, activity_id: &str) -> Result<Activity>;
     fn get_activities(&self) -> Result<Vec<Activity>>;
     fn get_activities_by_ids(&self, activity_ids: &[String]) -> Result<Vec<Activity>> {
@@ -231,6 +241,17 @@ pub trait ActivityRepositoryTrait: Send + Sync {
         delete_ids: Vec<String>,
     ) -> Result<ActivityBulkMutationResult>;
     async fn create_activities(&self, activities: Vec<NewActivity>) -> Result<usize>;
+    /// Same insert policy/atomicity as create_activities, returning actual saved
+    /// rows in input order. Never infer persisted IDs from review UUIDs.
+    async fn create_activities_returning(
+        &self,
+        _activities: Vec<NewActivity>,
+    ) -> Result<Vec<Activity>> {
+        Err(crate::Error::Unexpected(
+            "Activity repository does not support returning inserted rows".into(),
+        ))
+    }
+
     /// Returns activities from both active and archived accounts.
     fn get_activities_including_archived_accounts(&self) -> Result<Vec<Activity>> {
         Err(crate::Error::Unexpected(
@@ -439,6 +460,27 @@ pub trait ActivityServiceTrait: Send + Sync {
     /// for the activity and a linked transfer leg, without writing anything.
     /// The asset may only be named by id: resolving a symbol may create one.
     fn preview_activity_update(&self, activity: ActivityUpdate) -> Result<ActivityUpdatePreview>;
+    fn review_activity_split_effects_batch(
+        &self,
+        activities: Vec<ActivityUpdate>,
+    ) -> Result<Vec<Vec<ActivitySplitEffect>>> {
+        activities
+            .into_iter()
+            .map(|activity| self.review_activity_split_effects(activity))
+            .collect()
+    }
+    fn review_activity_split_effects(
+        &self,
+        _activity: ActivityUpdate,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
+    async fn review_internal_transfer_pair_split_effects(
+        &self,
+        _request: InternalTransferPairRequest,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        Err(crate::activities::ActivityError::InvalidData("Split review unavailable".into()).into())
+    }
     async fn delete_activity(&self, activity_id: String) -> Result<Activity>;
     /// Returns the internal transfer pair for the activity, or `None` when the
     /// activity exists but is not part of a valid internal transfer pair.

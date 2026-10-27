@@ -165,9 +165,12 @@ See [ROADMAP.md](./ROADMAP.md).
 
 Ensure you have the following installed on your machine:
 
-- [Node.js](https://nodejs.org/)
-- [pnpm](https://pnpm.io/)
-- [Rust](https://www.rust-lang.org/)
+- [Node.js](https://nodejs.org/), using the version in
+  [`.node-version`](.node-version)
+- [pnpm](https://pnpm.io/), using the `packageManager` version in
+  [`package.json`](package.json)
+- [Rust](https://www.rust-lang.org/), using
+  [`rust-toolchain.toml`](rust-toolchain.toml)
 - [Tauri](https://tauri.app/)
 
 ### Building from Source
@@ -182,8 +185,12 @@ Ensure you have the following installed on your machine:
 2. **Install dependencies using pnpm**:
 
    ```bash
-   pnpm install
+   pnpm install --frozen-lockfile
+   pnpm build:types
    ```
+
+   See [Frontend tooling](docs/frontend-tooling.md) for editor setup, checks,
+   and instructions for updating an existing checkout.
 
 3. **Setup environment configuration**:
 
@@ -818,8 +825,9 @@ for maintained addon examples including:
 
 - **Vite**: Next-generation frontend tooling.
 - **TypeScript**: Typed superset of JavaScript.
-- **ESLint**: Pluggable linting utility for JavaScript and JSX.
-- **Prettier**: Code formatter.
+- **Oxlint**: JavaScript/TypeScript linting with type-aware checks.
+- **ESLint**: Retained checks that need its plugin or parser APIs.
+- **Oxfmt**: Code formatting and Tailwind class sorting.
 - **pnpm**: Fast, disk space efficient package manager.
 - **Turborepo**: High-performance build system for JavaScript and TypeScript
   codebases.

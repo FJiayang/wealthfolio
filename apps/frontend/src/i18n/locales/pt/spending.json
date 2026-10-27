@@ -21,6 +21,9 @@
     "nameRequired": "O nome é obrigatório",
     "namePlaceholder": "Nome da categoria",
     "icon": "Ícone",
+    "parent": "Categoria principal",
+    "topLevel": "Nenhuma (nível superior)",
+    "parentLockedByBudget": "Remova primeiro as metas de orçamento desta categoria. Os orçamentos só se aplicam a categorias de nível superior.",
     "color": "Cor",
     "hex": "Hex",
     "create": "Criar categoria",
@@ -436,6 +439,7 @@
     "customSubtitle": "Transações no período selecionado"
   },
   "split": {
+    "staleTaxonomy": "Estas divisões usam um tipo de categoria anterior. Já não se aplicam a esta transação.",
     "title": "Dividir transação",
     "transactionFallback": "Transação",
     "remainingOf": "Restante de {{amount}}",
@@ -444,7 +448,12 @@
     "removeLine": "Remover linha dividida {{number}}",
     "addLine": "Adicionar linha",
     "distributeEvenly": "Distribuir uniformemente",
-    "clearSplit": "Limpar divisão"
+    "clearSplit": "Limpar divisão",
+    "replaceWithCategory": "Substituir divisões por uma categoria",
+    "replaceDescription_one": "Substituir {{count}} divisão por {{category}}? As divisões existentes serão removidas.",
+    "replaceDescription_other": "Substituir {{count}} divisões por {{category}}? As divisões existentes serão removidas.",
+    "replaceDescription_many": "Substituir {{count}} divisões por {{category}}? As divisões existentes serão removidas.",
+    "categoryProtected": "As divisões estão protegidas. Edite-as ou substitua-as explicitamente no editor de divisões."
   },
   "hierarchy": {
     "noCategorizedSpending": "Não há gastos categorizados neste período.",
@@ -1091,6 +1100,14 @@
     "overridesTitle_other": "Exceções · {{count}}",
     "overridesTitle_many": "Exceções · {{count}}",
     "sourceMonth": "Mês de origem"
+  },
+  "splitEditReview": {
+    "title": "Rever a remoção das divisões",
+    "hiddenCategory": "As categorias existentes são mantidas e podem aplicar-se após remover as divisões.",
+    "confirm": "Guardar e remover divisões",
+    "removed_one": "Esta alteração removerá {{count}} divisão.",
+    "removed_many": "Esta alteração removerá {{count}} divisões.",
+    "removed_other": "Esta alteração removerá {{count}} divisões."
   },
   "budgetErrors": {
     "deleteGroup": "Falha ao excluir o grupo de orçamento.",

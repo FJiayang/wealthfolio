@@ -5,7 +5,10 @@ import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
 import { Icons } from "@wealthfolio/ui";
 import type { BandType, TaxonomyCategory } from "@/lib/types";
-import { allocationTargetColor } from "./allocation-target-colors";
+import {
+  allocationTargetColorForRow,
+  type AllocationTargetColorMap,
+} from "./allocation-target-colors";
 
 export interface WeightDraft {
   categoryId: string;
@@ -18,6 +21,7 @@ interface TargetWeightEditorProps {
   categories: TaxonomyCategory[];
   weights: WeightDraft[];
   currentAllocation?: Record<string, number>; // categoryId → pct 0-100
+  colorByCategory: AllocationTargetColorMap;
   categoryLabel?: string;
   bandType: BandType;
   driftBandBps: number;
@@ -109,12 +113,12 @@ function driftTone(
   if (drift > 0) {
     return {
       label: t("allocation:editor.over", { value: drift.toFixed(1) }),
-      className: "bg-[#eadbd3] text-[#8a5b45]",
+      className: "bg-allocation-over/15 text-allocation-over",
     };
   }
   return {
     label: t("allocation:editor.under", { value: drift.toFixed(1) }),
-    className: "bg-[#dfe8dc] text-[#4f6544]",
+    className: "bg-allocation-under/15 text-allocation-under",
   };
 }
 
@@ -122,6 +126,7 @@ export function TargetWeightEditor({
   categories,
   weights,
   currentAllocation = {},
+  colorByCategory,
   categoryLabel,
   bandType,
   driftBandBps,
@@ -185,7 +190,7 @@ export function TargetWeightEditor({
       targetPct,
       drift,
       bandPct,
-      color: allocationTargetColor(cat.id, cat.name, index),
+      color: allocationTargetColorForRow({ categoryId: cat.id }, colorByCategory, index),
       isLocked: getIsLocked(cat.id),
       isEditing: editingId === cat.id,
     };
@@ -199,7 +204,7 @@ export function TargetWeightEditor({
     <div className="space-y-1 overflow-x-auto">
       <div className="min-w-[58rem]">
         {/* Column headers */}
-        <div className="text-muted-foreground text-2xs grid grid-cols-[minmax(8rem,1fr)_minmax(12rem,2fr)_4.25rem_5rem_6rem_1.75rem] gap-4 border-b px-1 pb-2 font-medium uppercase tracking-wider">
+        <div className="text-muted-foreground text-2xs grid grid-cols-[minmax(8rem,1fr)_minmax(12rem,2fr)_4.25rem_5rem_6rem_1.75rem] gap-4 border-b px-1 pb-2 font-medium tracking-wider uppercase">
           <span>{resolvedCategoryLabel}</span>
           <span>{t("allocation:editor.todayVsTarget")}</span>
           <span className="text-end">{t("allocation:editor.current")}</span>
@@ -284,7 +289,7 @@ export function TargetWeightEditor({
                           setLiveBps(null);
                         }
                       }}
-                      className="border-primary bg-background focus:ring-primary w-12 rounded border px-1.5 py-1 text-end text-sm tabular-nums [appearance:textfield] focus:outline-none focus:ring-1 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      className="border-primary bg-background focus:ring-primary w-12 [appearance:textfield] rounded border px-1.5 py-1 text-end text-sm tabular-nums focus:ring-1 focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
                   ) : (
                     <button

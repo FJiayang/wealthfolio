@@ -9,7 +9,6 @@
   "language_auto": "自動（依系統偵測）",
   "language_updated": "已更新介面語言",
   "language_update_failed": "無法更新介面語言",
-  "theme": "主題",
   "theme_light": "淺色",
   "theme_dark": "深色",
   "theme_system": "系統",
@@ -104,7 +103,15 @@
   "appearance_font_title": "字體",
   "appearance_font_description": "選取整個介面使用的字型。",
   "appearance_theme_title": "主題",
-  "appearance_theme_description": "為應用程式選取你偏好的主題。",
+  "appearance_theme_description": "選擇精心設計的配色方案。每個主題皆提供淺色和深色外觀。",
+  "appearance_mode_title": "外觀模式",
+  "appearance_mode_description": "淺色、深色或跟隨系統。",
+  "appearance_theme_designed_for_dark": "{{theme}} 專為深色模式設計。",
+  "appearance_theme_designed_for_light": "{{theme}} 專為淺色模式設計。",
+  "appearance_switch_to_dark": "切換到深色",
+  "appearance_switch_to_light": "切換到淺色",
+  "appearance_theme_suggests": "{{theme}} 建議使用{{value}}",
+  "appearance_use_theme_defaults": "使用主題預設值",
   "appearance_menu_bar": "顯示選單列",
   "appearance_menu_bar_description": "顯示應用程式選單列。",
   "appearance_theme_required": "請選取一個主題。",
@@ -1247,6 +1254,7 @@
       "update_error": "更新類別失敗。",
       "created": "類別已建立。",
       "create_error": "建立類別失敗。",
+      "duplicate_error": "此類別鍵已被使用，請嘗試其他名稱。",
       "tab_expense_other": "支出（{{count}}）",
       "tab_income_other": "收入（{{count}}）",
       "tab_savings_other": "儲蓄（{{count}}）",
@@ -1500,7 +1508,7 @@
         "description": "讀取投資組合健康度與診斷檢查。"
       },
       "classification_read": {
-        "label": "分類（讀取）",
+        "label": "資產分類（讀取）",
         "description": "讀取金融工具分類與分類法。"
       },
       "activities_draft": {
@@ -1512,28 +1520,50 @@
         "description": "提交交易紀錄、更新現有交易紀錄，並連結或取消連結轉帳。需要草稿範圍。"
       },
       "classification_suggest": {
-        "label": "分類 — 建議",
+        "label": "資產分類 — 建議",
         "description": "為審核建議金融工具分類。"
       },
       "classification_write": {
-        "label": "分類 — 套用／寫入",
+        "label": "資產分類 — 套用/寫入",
         "description": "套用已審核的分類草稿。需要建議範圍。"
       },
       "market_data_write": {
         "label": "市場資料 — 寫入",
         "description": "為現有資產儲存已審核的價格（報價）。需要持有部位與價值（讀取）範圍。"
+      },
+      "spending_read": {
+        "label": "查看支出",
+        "description": "讀取支出帳戶中的交易、類別、拆分、規則、事件、報告和預算。"
+      },
+      "spending_write": {
+        "label": "整理支出",
+        "description": "管理支出類別、分配、拆分、規則和事件。需要查看支出權限。"
+      },
+      "budget_write": {
+        "label": "管理預算",
+        "description": "變更預設和每月預算、群組、緩衝金額及結轉。需要查看支出權限。"
       }
     },
     "preset": {
       "read_only": "僅讀取",
       "read_activity_draft": "讀取 + 草稿",
       "read_activity_write": "讀取 + 寫入",
-      "read_activity_write_classification_suggest": "讀取 + 寫入 + 分類"
+      "read_activity_write_classification_suggest": "讀取 + 交易寫入 + 資產分類",
+      "spending_view": "支出 — 查看",
+      "spending_organize": "支出 — 整理",
+      "spending_budgets": "支出 — 預算"
     },
     "copied_generic": "{{label}} 已複製到剪貼簿。",
     "hero_aria": "AI 代理存取狀態",
     "pat_scope_custom_other": "自訂 · {{count}} 個範圍",
-    "pat_scope_custom_one": "自訂 · {{count}} 個範圍"
+    "pat_scope_custom_one": "自訂 · {{count}} 個範圍",
+    "scope_locked_spending_title": "整理支出或管理預算所必需",
+    "dialog_presets": "存取權限預設",
+    "edit_permissions": "編輯權限",
+    "edit_title": "{{name}} 的權限",
+    "edit_description": "Key 維持不變，新權限對後續請求生效。新增工具可能需要重新整理工具清單或重新連線用戶端。",
+    "edit_success": "權限已更新",
+    "edit_failed": "權限更新失敗"
   },
   "tax_add_category": "新增類別",
   "tax_export": "匯出",

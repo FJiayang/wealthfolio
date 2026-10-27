@@ -31,6 +31,13 @@ pub mod propose_categories;
 pub mod quote_import;
 pub mod record_activities;
 pub mod record_activity;
+pub mod spending_budgets;
+pub mod spending_events;
+pub mod spending_import_metadata;
+pub mod spending_reads;
+pub mod spending_rule_management;
+pub mod spending_splits;
+pub mod transaction_categories;
 pub mod transfer_links;
 pub mod valuation;
 
@@ -142,6 +149,12 @@ pub use activity_updates::{
     PrepareActivityUpdatesOutput, StoredChange, UpdatedActivity,
 };
 
+pub use transaction_categories::{
+    CommitTransactionCategory, CommitTransactionCategoryArgs, ListTransactionCategories,
+    ListTransactionCategoriesArgs, PrepareTransactionCategory, PrepareTransactionCategoryArgs,
+    TransactionCategoryDraft,
+};
+
 // MCP-only CSV import tools (validate + dedup-safe import pipeline).
 pub use activity_import::{
     ActivityImportArgs, ActivityImportRow, CommitActivityImport, CommitActivityImportOutput,
@@ -209,6 +222,12 @@ pub fn categorization_rule_tools() -> Vec<Arc<dyn AgentTool>> {
     vec![
         Arc::new(ListCategorizationRules),
         Arc::new(RerunCategorizationRules),
+        Arc::new(categorization_rules::PreviewCategorizationRules),
+        Arc::new(spending_rule_management::PrepareCategorizationRuleChange),
+        Arc::new(spending_rule_management::CommitCategorizationRuleChange),
+        Arc::new(spending_rule_management::ListCategorizationPresets),
+        Arc::new(spending_rule_management::PrepareCategorizationPreset),
+        Arc::new(spending_rule_management::CommitCategorizationPreset),
     ]
 }
 
@@ -251,9 +270,80 @@ pub fn activity_update_tools() -> Vec<Arc<dyn AgentTool>> {
     ]
 }
 
+/// Spending reads and reviewed workflows remain MCP-only until assistant review
+/// renderers support them. Every tool declares its own read/write scopes.
+pub fn spending_access_tools() -> Vec<Arc<dyn AgentTool>> {
+    vec![
+        Arc::new(spending_reads::GetSpendingContext),
+        Arc::new(spending_reads::SearchSpendingTransactions),
+        Arc::new(spending_reads::GetBudget),
+        Arc::new(spending_reads::ListSpendingEvents),
+        Arc::new(spending_reads::GetSpendingReport),
+        Arc::new(spending_reads::GetSpendingInsight),
+        Arc::new(spending_reads::GetEventSpendingSummaries),
+        Arc::new(spending_splits::PrepareSpendingSplits),
+        Arc::new(spending_splits::CommitSpendingSplits),
+        Arc::new(spending_splits::PrepareSpendingAllocationClear),
+        Arc::new(spending_splits::CommitSpendingAllocationClear),
+        Arc::new(spending_budgets::PrepareBudgetChange),
+        Arc::new(spending_budgets::CommitBudgetChange),
+        Arc::new(spending_events::PrepareSpendingEvent),
+        Arc::new(spending_events::CommitSpendingEvent),
+        Arc::new(spending_events::PrepareSpendingEventTag),
+        Arc::new(spending_events::CommitSpendingEventTag),
+        Arc::new(spending_import_metadata::PrepareSpendingImportMetadata),
+    ]
+}
+
+/// MCP-only category discovery and creation; the assistant has no category
+/// creation confirmation widget.
+pub fn transaction_category_tools() -> Vec<Arc<dyn AgentTool>> {
+    vec![
+        Arc::new(ListTransactionCategories),
+        Arc::new(PrepareTransactionCategory),
+        Arc::new(CommitTransactionCategory),
+        Arc::new(transaction_categories::PrepareTransactionCategoryChange),
+        Arc::new(transaction_categories::CommitTransactionCategoryChange),
+    ]
+}
+
+/// Nullable destructive choices must be explicit: missing is not an instruction
+/// to delete or clear, even when a client bypasses JSON Schema validation.
+pub(crate) fn required_nullable<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    <Option<T> as serde::Deserialize>::deserialize(deserializer)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn spending_workflow_audits_omit_private_payloads_even_when_malformed() {
+        let mut tools = spending_access_tools();
+        tools.extend(categorization_rule_tools());
+        tools.extend(transaction_category_tools());
+        tools.extend([
+            Arc::new(categorization_context::ListCategorizationContext) as Arc<dyn AgentTool>,
+            Arc::new(propose_categories::ProposeCategories),
+            Arc::new(activities::SearchActivities),
+        ]);
+        let args = serde_json::json!({"query":"private-financial-detail","symbol":"private-financial-detail","notes":"private-financial-detail","pattern":"private-financial-detail",
+            "aiProposals":[{"reason":"private-financial-detail"}],"unexpected-private-financial-detail":"private-financial-detail"});
+        for tool in tools {
+            assert!(
+                !tool
+                    .sanitize_args_for_audit(&args)
+                    .to_string()
+                    .contains("private-financial-detail"),
+                "{}",
+                tool.name()
+            );
+        }
+    }
 
     /// The catalog order is LLM-visible (tool listing) and mirrors the
     /// read tools' historical relative order — append-only.

@@ -235,6 +235,9 @@
     "excludedWithParent": "مستبعدة مع {{name}}",
     "hex": "Hex",
     "icon": "الأيقونة",
+    "parent": "الفئة الرئيسية",
+    "topLevel": "بلا (المستوى الأعلى)",
+    "parentLockedByBudget": "احذف أهداف الميزانية لهذه الفئة قبل نقلها. تنطبق الميزانيات على الفئات الرئيسية فقط.",
     "iconLabel": "الأيقونة: {{name}}",
     "namePlaceholder": "اسم الفئة",
     "nameRequired": "الاسم مطلوب",
@@ -880,6 +883,7 @@
     "noHistory": "لا يوجد سجل للفئات لهذه الفترة بعد."
   },
   "split": {
+    "staleTaxonomy": "تستخدم هذه التقسيمات نوع فئة سابقًا. لم تعد تنطبق على هذه المعاملة.",
     "addLine": "إضافة سطر",
     "clearSplit": "مسح التقسيم",
     "distributeEvenly": "التوزيع بالتساوي",
@@ -888,7 +892,15 @@
     "remainingOf": "المتبقي من {{amount}}",
     "removeLine": "إزالة سطر التقسيم {{number}}",
     "title": "تقسيم المعاملة",
-    "transactionFallback": "معاملة"
+    "transactionFallback": "معاملة",
+    "replaceWithCategory": "استبدال التقسيمات بفئة واحدة",
+    "replaceDescription_one": "هل تريد استبدال تقسيم واحد ({{count}}) بالفئة {{category}}؟ ستُحذف التقسيمات الحالية.",
+    "replaceDescription_other": "هل تريد استبدال {{count}} تقسيمات بالفئة {{category}}؟ ستُحذف التقسيمات الحالية.",
+    "replaceDescription_zero": "هل تريد استبدال {{count}} تقسيمات بالفئة {{category}}؟ ستُحذف التقسيمات الحالية.",
+    "replaceDescription_two": "هل تريد استبدال {{count}} تقسيمات بالفئة {{category}}؟ ستُحذف التقسيمات الحالية.",
+    "replaceDescription_few": "هل تريد استبدال {{count}} تقسيمات بالفئة {{category}}؟ ستُحذف التقسيمات الحالية.",
+    "replaceDescription_many": "هل تريد استبدال {{count}} تقسيمات بالفئة {{category}}؟ ستُحذف التقسيمات الحالية.",
+    "categoryProtected": "التقسيمات محمية. عدّلها أو استبدلها صراحةً في محرر التقسيمات."
   },
   "tabContent": {
     "aboutSame": "تقريبًا مثل الفترة السابقة",
@@ -1262,6 +1274,17 @@
     "statusOver": "متجاوز",
     "statusUnder": "أقل من الميزانية",
     "underUsed": "غير مستغلة بالكامل"
+  },
+  "splitEditReview": {
+    "title": "مراجعة إزالة التقسيمات",
+    "hiddenCategory": "تُحفظ تعيينات الفئات الموجودة وقد تُطبّق بعد إزالة التقسيمات.",
+    "confirm": "حفظ وإزالة التقسيمات",
+    "removed_zero": "سيزيل هذا التعديل {{count}} تخصيصات مقسّمة.",
+    "removed_one": "سيزيل هذا التعديل تخصيصًا مقسّمًا واحدًا ({{count}}).",
+    "removed_two": "سيزيل هذا التعديل {{count}} تخصيصات مقسّمة.",
+    "removed_few": "سيزيل هذا التعديل {{count}} تخصيصات مقسّمة.",
+    "removed_many": "سيزيل هذا التعديل {{count}} تخصيصات مقسّمة.",
+    "removed_other": "سيزيل هذا التعديل {{count}} تخصيصات مقسّمة."
   },
   "budgetErrors": {
     "deleteGroup": "فشل حذف مجموعة الميزانية.",

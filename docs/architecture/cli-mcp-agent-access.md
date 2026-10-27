@@ -1,5 +1,26 @@
 # Wealthfolio CLI and MCP Agent Access Design
 
+## Spending access
+
+See [Spending MCP access](spending-mcp-implementation.md) for the implemented
+permission matrix, tools, reviewed writes, compatibility and accounting limits.
+Spending read/organization/budget grants are independent of asset
+classification; old stored tokens require explicit reauthorization. Default and
+monthly budgets share `budget:write` and retain native inheritance semantics.
+
+## Editing API key permissions
+
+Existing API key permissions can be edited from AI Agent Access through the
+application-authenticated management API or profile-scoped Tauri command. Both
+validate the complete scope replacement before updating only `scopes_json`
+through the existing SQLite writer. MCP authentication resolves the token for
+each request, so the next request uses the new permissions, including within an
+existing session. No authorization cache, tool catalog, or session rebuild is
+needed. The credential and expiration stay unchanged; editing an expired key
+does not reactivate it. Calls already authorized continue. Clients caching tool
+lists may need to refresh or reconnect. This operation is not exposed as an MCP
+tool.
+
 ## Overview
 
 This document defines how external AI agents and command line workflows interact
@@ -471,8 +492,41 @@ and account scope. `origin` is `user`, `preset` (with `presetId`,
 the rules page over the accounts opted in to spending tracking, and does nothing
 when tracking is off. With `onlyUncategorized` (default `true`) it only fills
 activities without a category in the rule's taxonomy; with `false` it also
-replaces rule, import and AI categories. Manual categories are never changed. It
-returns the number of spending accounts and of activities a rule matched.
+replaces rule, import and AI categories. Manual categories and split allocations
+are never changed. It returns the number of spending accounts and of activities
+a rule matched.
+
+### MCP-only Transaction Category Management
+
+```text
+list_transaction_categories        -- list categories in the three activity taxonomies
+prepare_transaction_category      -- validate and draft one new category without saving
+commit_transaction_category       -- persist the reviewed category after confirmation
+```
+
+These tools only support `spending_categories`, `income_sources`, and
+`savings_categories`; they never create or modify asset taxonomies. Listing
+requires `spending:read` and works before any accounts or transactions exist.
+Preparation also uses `spending:read`; committing additionally requires
+`spending:write`.
+
+Call `list_transaction_categories` with an optional `taxonomyId` to discover
+existing category IDs, keys, and parent relationships. Prepare a category with
+`taxonomyId`, `name`, `key`, and optional `parentId`, `color` (`#RRGGBB`,
+default `#808080`), and `description`. Show the returned `category` object to
+the user, then pass that object to `commit_transaction_category` after
+confirmation. Committing revalidates the draft against current data, rejects
+duplicate keys and IDs, and requires the parent to belong to the selected
+taxonomy. Keys are case-sensitive, unique within a taxonomy, and cannot contain
+whitespace or control characters. Reusing a committed draft fails rather than
+creating a second category. Creation uses the native taxonomy service and SQLite
+writer. All native `create_category` callers, including REST and Tauri, now
+reject duplicate keys in these three activity taxonomies, including concurrent
+creates. Native updates and moves share the same parent/cycle checks and reject
+changed keys that introduce collisions. Unchanged legacy duplicate keys permit
+cosmetic edits. Bulk import remains unchanged; this is not a global SQL
+uniqueness constraint or a cleanup of existing data. Names, keys, descriptions,
+and parent IDs are redacted from MCP audit arguments.
 
 ### MCP-only CSV Import Tools
 
@@ -639,16 +693,25 @@ activity/taxonomy pairs. It calls the same bulk spending service as the in-app
 Apply action. Activities must belong to eligible, opted-in spending accounts
 with spending enabled; each taxonomy must match the activity's cash-flow bucket,
 and each category must belong to that taxonomy. The entire batch succeeds or
-fails together, including split removal.
+fails together. Split replacement requires explicit intent and the expected
+current split state.
 
 Each confirmed assignment replaces the current category for its
-activity/taxonomy pair and clears splits for that activity. Financial activity
-fields stay unchanged. The result includes `draftStatus: "applied"`,
-`assignmentCount`, the stored `assignments` (source `manual`, weight `10000`),
-and `appliedAt`. Repeating the same payload keeps one assignment with its
-existing ID; timestamps may change. There is no draft-version check: a delayed
-commit or retry can overwrite an intervening category edit or clear newly added
-splits. Refresh the proposals and reconfirm when the intended assignment
+activity/taxonomy pair. Ordinary assignments protect split transactions: if any
+submitted row has splits, the whole batch conflicts and nothing is written. An
+explicit single-category replacement includes `expectedSplits`, the full current
+split rows returned by `search_spending_transactions`. Inside the existing
+SQLite writer transaction, IDs, categories, amounts, notes, sort order and
+timestamps are compared before clearing splits and assigning the category.
+Changed state returns `draftStatus: "conflict"`, `assignmentCount: 0` and
+per-row `conflicts`. Native bulk Apply uses the same guard; the split editor has
+a separate confirmed replacement action. Financial activity fields stay
+unchanged. The result includes `draftStatus: "applied"`, `assignmentCount`, the
+stored `assignments` (source `manual`, weight `10000`), and `appliedAt`.
+Repeating the same payload keeps one assignment with its existing ID; timestamps
+may change. There is no draft-version check: a delayed commit or retry can
+overwrite an intervening single-category edit. New or changed splits are
+protected. Refresh the proposals and reconfirm when the intended assignment
 changes. Audit arguments retain only the assignment count.
 
 For categorization rules, `create_categorization_rule` returns an in-memory
@@ -706,9 +769,11 @@ activities:read          search_activities, get_import_mapping,
                          find_transfer_matches
 financial-planning:read  get_goals, get_contribution_limits
 health:read              get_health_status
-classification:read      list_asset_taxonomies, get_asset_taxonomy_assignments,
-                         list_categorization_context,
-                         list_categorization_rules
+classification:read      list_asset_taxonomies, get_asset_taxonomy_assignments
+spending:read            get_spending_context, search_spending_transactions,
+                         list_transaction_categories, list_categorization_context,
+                         list_categorization_rules, propose_transaction_categories,
+                         create_categorization_rule
 ```
 
 Write / draft / suggest scopes:
@@ -725,17 +790,29 @@ activities:write         commit_activity_draft / commit_activity_drafts,
                          commit_activity_updates
                          (each also requires activities:read and
                          activities:draft)
-classification:suggest   propose_transaction_categories,
-                         create_categorization_rule,
-                         prepare_asset_classification
-classification:write     commit_asset_classification_draft,
-                         commit_categorization_rule,
-                         commit_transaction_categories,
-                         rerun_categorization_rules
+classification:suggest   prepare_asset_classification
+classification:write     commit_asset_classification_draft
                          (also requires classification:suggest)
+spending:write           commit_categorization_rule, commit_transaction_categories,
+                         rerun_categorization_rules (also requires spending:read)
+budget:write             budget management (also requires spending:read;
+                         independent of spending:write)
 market-data:write        prepare_quote_import, commit_quote_import
                          (each also requires holdings:read)
 ```
+
+Spending tools no longer accept `classification:*` or `activities:read` as a
+substitute for `spending:read`. Persisted tokens keep their exact grants; there
+is no automatic scope migration or compatibility alias. Investment and general
+activity tools retain their own scopes. Both Spending writes require
+`spending:read` and neither implies the other.
+
+`get_spending_context` reports disabled/no-account states, effective enrollment,
+exclusions, currency and timezone. `search_spending_transactions` intersects all
+filters with that enrollment and returns native-currency rows, full splits,
+canonical `effectiveAllocations`, a `hasHiddenAssignment` diagnostic for legacy
+dual-state rows, and explicit pagination. It requests no FX. Category discovery
+is independent of transaction history and the enabled toggle.
 
 Dependency rules: `activities:write` requires `activities:draft`, and
 `classification:write` requires `classification:suggest` (you cannot commit
@@ -746,11 +823,16 @@ tool without it. Token creation validates this, and no preset grants
 
 Presets (`AgentScopeSet` constructors):
 
-- `read-only` — all read scopes.
+- `read-only` — all read scopes, including `spending:read` for newly minted
+  tokens.
+- `spending-view` — `spending:read`.
+- `spending-organize` — `spending:read` + `spending:write`.
+- `spending-budgets` — `spending:read` + `budget:write`.
 - `read-activity-draft` — read + `activities:draft`.
 - `read-activity-write` — read + `activities:draft` + `activities:write`.
 - `read-activity-write-classification-suggest` — the above plus
-  `classification:suggest` and `classification:write`.
+  `classification:suggest` and `classification:write` for assets; no Spending
+  writes.
 
 Scope strings are parsed with `AgentScope::parse`, which rejects unknown scopes
 (including the removed `portfolio:read`). Token creation rejects unknown scopes;

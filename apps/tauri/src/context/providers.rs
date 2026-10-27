@@ -367,7 +367,7 @@ async fn build_context(
     let categorization_rules_service = Arc::new(
         wealthfolio_spending::categorization_rules::CategorizationRulesService::new(
             categorization_rules_repo,
-            activity_repository.clone(),
+            cash_activity_service.clone(),
             activity_taxonomy_assignment_service.clone(),
         ),
     );
@@ -703,6 +703,10 @@ async fn build_context(
         cash_activity_service.clone(),
         activity_taxonomy_assignment_service.clone(),
         categorization_rules_service.clone(),
+        budget_service.clone(),
+        events_service.clone(),
+        spending_analytics_service.clone(),
+        spending_insight_service.clone(),
     ));
     let agent_environment: Arc<dyn wealthfolio_agent_tools::AgentEnvironment> =
         ai_environment.clone();

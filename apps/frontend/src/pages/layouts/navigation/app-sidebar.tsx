@@ -35,7 +35,7 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
   return (
     <div
       className={cn({
-        "light:bg-secondary/50 hidden h-full border-e pt-12 transition-[width] duration-300 ease-in-out md:flex md:flex-shrink-0 md:overflow-hidden": true,
+        "light:bg-secondary/50 hidden h-full pt-12 transition-[width] duration-300 ease-in-out md:flex md:flex-shrink-0 md:overflow-hidden": true,
         "md:w-sidebar": !collapsed,
         "md:w-sidebar-collapsed": collapsed,
       })}
@@ -122,7 +122,7 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
                     {t("common:layout.search")}
                   </span>
                   {!collapsed && (
-                    <kbd className="bg-background text-muted-foreground text-2xs pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border px-1.5 font-mono font-medium opacity-100">
+                    <kbd className="bg-background text-muted-foreground text-2xs pointer-events-none inline-flex h-5 items-center gap-1 rounded border px-1.5 font-mono font-medium opacity-100 select-none">
                       <span className="text-xs">{modKey}</span>K
                     </kbd>
                   )}
@@ -187,7 +187,7 @@ export function AppSidebar({ navigation }: AppSidebarProps) {
                   title={t("common:layout.toggle_sidebar")}
                   variant="ghost"
                   onClick={() => setCollapsed(!collapsed)}
-                  className="text-muted-foreground [&_svg]:size-5! cursor-pointer rounded-md hover:bg-transparent"
+                  className="text-muted-foreground cursor-pointer rounded-md hover:bg-transparent [&_svg]:size-5!"
                   aria-label={
                     collapsed
                       ? t("common:layout.expand_sidebar")
@@ -239,7 +239,7 @@ function PinnedAddonNavItem({ item, collapsed, onSetPinned }: PinnedAddonNavItem
               type="button"
               variant="ghost"
               size="icon"
-              className="hover:bg-accent pointer-events-none absolute end-1 top-1/2 z-10 h-8 w-8 -translate-y-1/2 rounded-full opacity-0 transition-opacity focus:pointer-events-auto focus:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
+              className="hover:bg-accent pointer-events-none absolute end-1 top-1/2 z-10 h-8 w-8 -translate-y-1/2 rounded-full opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus:pointer-events-auto focus:opacity-100"
               title={t("common:layout.addon_options", { name: item.title })}
               aria-label={t("common:layout.addon_options", { name: item.title })}
             />
@@ -280,6 +280,8 @@ function NavItem({ item, collapsed, className, ...props }: NavItemProps) {
         buttonVariants({ variant: isActive ? "secondary" : "ghost" }),
         cn(
           "text-foreground [&_svg]:size-5! mb-1 h-12 rounded-md transition-all duration-300",
+          // The selected item is a flat fill, not a raised button.
+          isActive && "bg-secondary hover:bg-secondary/80 border-transparent bg-none shadow-none",
           collapsed ? "justify-center" : "justify-start",
           className,
         ),
@@ -341,7 +343,7 @@ function AddonsMenu({ addons, collapsed, onSetPinned }: AddonsMenuProps) {
       <DropdownMenuContent
         side={collapsed ? "right" : "bottom"}
         align="start"
-        className="w-max min-w-56 max-w-[calc(100vw-2rem)]"
+        className="w-max max-w-[calc(100vw-2rem)] min-w-56"
       >
         {addons.map((addon) => {
           const isActive = isPathActive(location.pathname, addon.href);
@@ -373,7 +375,7 @@ function AddonsMenu({ addons, collapsed, onSetPinned }: AddonsMenuProps) {
               {onSetPinned && (
                 <button
                   type="button"
-                  className="hover:bg-background focus:bg-background group-hover:bg-background hover:ring-border focus:ring-border group-hover:ring-border me-1 flex size-8 shrink-0 items-center justify-center rounded-full opacity-0 outline-none transition-[background-color,box-shadow,opacity] hover:ring-1 focus:opacity-100 focus:ring-1 group-hover:opacity-100 group-hover:ring-1"
+                  className="hover:bg-background focus:bg-background group-hover:bg-background hover:ring-border focus:ring-border group-hover:ring-border me-1 flex size-8 shrink-0 items-center justify-center rounded-full opacity-0 transition-[background-color,box-shadow,opacity] outline-none group-hover:opacity-100 group-hover:ring-1 hover:ring-1 focus:opacity-100 focus:ring-1"
                   title={t("common:layout.pin_to_sidebar")}
                   aria-label={t("common:layout.pin_addon_to_sidebar", { name: addon.title })}
                   onMouseDown={(event) => {

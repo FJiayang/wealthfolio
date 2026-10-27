@@ -21,6 +21,9 @@
     "nameRequired": "Name ist erforderlich",
     "namePlaceholder": "Kategoriename",
     "icon": "Symbol",
+    "parent": "Übergeordnete Kategorie",
+    "topLevel": "Keine (oberste Ebene)",
+    "parentLockedByBudget": "Entferne zuerst die Budgetziele dieser Kategorie. Budgets gelten nur für Kategorien der obersten Ebene.",
     "color": "Farbe",
     "hex": "Hex",
     "create": "Kategorie erstellen",
@@ -417,6 +420,7 @@
     "customSubtitle": "Transaktionen im ausgewählten Zeitraum"
   },
   "split": {
+    "staleTaxonomy": "Diese Aufteilungen verwenden einen früheren Kategorietyp. Sie gelten nicht mehr für diese Transaktion.",
     "title": "Transaktion aufteilen",
     "transactionFallback": "Transaktion",
     "remainingOf": "Verbleibend von {{amount}}",
@@ -425,7 +429,11 @@
     "removeLine": "Aufteilungszeile {{number}} entfernen",
     "addLine": "Zeile hinzufügen",
     "distributeEvenly": "Gleichmäßig verteilen",
-    "clearSplit": "Aufteilung löschen"
+    "clearSplit": "Aufteilung löschen",
+    "replaceWithCategory": "Aufteilungen durch eine Kategorie ersetzen",
+    "replaceDescription_one": "{{count}} Aufteilung durch {{category}} ersetzen? Die bestehenden Aufteilungen werden entfernt.",
+    "replaceDescription_other": "{{count}} Aufteilungen durch {{category}} ersetzen? Die bestehenden Aufteilungen werden entfernt.",
+    "categoryProtected": "Aufteilungen sind geschützt. Bearbeiten oder ersetzen Sie sie ausdrücklich im Aufteilungseditor."
   },
   "hierarchy": {
     "noCategorizedSpending": "Keine kategorisierten Ausgaben in diesem Zeitraum.",
@@ -1034,6 +1042,13 @@
     "overridesTitle_one": "Anpassung · {{count}}",
     "overridesTitle_other": "Anpassungen · {{count}}",
     "sourceMonth": "Quellmonat"
+  },
+  "splitEditReview": {
+    "title": "Entfernen der Aufteilungen prüfen",
+    "hiddenCategory": "Vorhandene Kategoriezuweisungen bleiben erhalten und können nach dem Entfernen der Aufteilungen gelten.",
+    "confirm": "Speichern und Aufteilungen entfernen",
+    "removed_one": "Diese Änderung entfernt {{count}} Aufteilung.",
+    "removed_other": "Diese Änderung entfernt {{count}} Aufteilungen."
   },
   "budgetErrors": {
     "deleteGroup": "Budgetgruppe konnte nicht gelöscht werden.",

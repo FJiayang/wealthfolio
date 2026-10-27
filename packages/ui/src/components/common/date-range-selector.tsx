@@ -160,7 +160,8 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [], asOf = n
           label: range.label,
           title: t("ui:dateRange.presets." + range.label, range.name),
         }))}
-        value={selectedLabel}
+        // Null keeps the group controlled, so a custom range highlights no preset.
+        value={selectedLabel ?? null}
         onValueChange={(newValue) => {
           if (!newValue) {
             return;
@@ -177,7 +178,7 @@ export function DateRangeSelector({ value, onChange, hiddenRanges = [], asOf = n
       {isMobile ? (
         <Sheet open={isCustomPickerOpen} onOpenChange={handleCustomPickerOpenChange}>
           <SheetTrigger render={triggerButton} />
-          <SheetContent side="bottom" className="rounded-t-4xl mx-1 flex max-h-[85vh] flex-col p-0">
+          <SheetContent side="bottom" className="mx-1 flex max-h-[85vh] flex-col rounded-t-4xl p-0">
             <SheetHeader className="border-border border-b px-6 py-4">
               <SheetTitle>{t("ui:dateRange.customRange", "Custom range")}</SheetTitle>
             </SheetHeader>

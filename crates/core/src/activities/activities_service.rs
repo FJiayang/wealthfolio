@@ -2041,6 +2041,8 @@ impl ActivityService {
         };
         let mut updates = vec![
             ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: request.split_review.clone(),
                 id: pair.transfer_out.id.clone(),
                 account_id: request.from_account_id.clone(),
                 asset: None,
@@ -2064,6 +2066,8 @@ impl ActivityService {
                 metadata: metadata.clone(),
             },
             ActivityUpdate {
+                unlink_transfer_pair_id: None,
+                split_review: request.split_review.clone(),
                 id: pair.transfer_in.id.clone(),
                 account_id: request.to_account_id.clone(),
                 asset: None,
@@ -2107,11 +2111,48 @@ impl ActivityService {
         Ok(updates)
     }
 
+    fn build_internal_pair_update_inputs(
+        &self,
+        request: &InternalTransferPairRequest,
+        pair_values: &InternalPairValues,
+    ) -> Result<(TransferPair, Vec<ActivityUpdate>)> {
+        let transfer_out_id = request
+            .transfer_out_id
+            .clone()
+            .ok_or_else(|| Self::invalid_activity_data("Transfer out id is required"))?;
+        let transfer_in_id = request
+            .transfer_in_id
+            .clone()
+            .ok_or_else(|| Self::invalid_activity_data("Transfer in id is required"))?;
+
+        let pair = self.require_internal_transfer_pair_for_activity(&transfer_out_id)?;
+        if pair.transfer_in.id != transfer_in_id {
+            return Err(Self::invalid_activity_data(
+                "Transfer legs do not belong to the same pair",
+            ));
+        }
+        if !Self::is_cash_transfer_pair(&pair) {
+            return Err(Self::invalid_activity_data(
+                "Pair save currently supports internal cash transfers only",
+            ));
+        }
+
+        let mut updates = self.build_internal_pair_updates(request, &pair, pair_values)?;
+        for update in &mut updates {
+            let existing = self.activity_repository.get_activity(&update.id)?;
+            self.hydrate_and_validate_update_against_existing(update, &existing)?;
+        }
+        Ok((pair, updates))
+    }
+
     fn validate_internal_cash_pair_currency_update(
         update: &ActivityUpdate,
         existing: &Activity,
         pair: &TransferPair,
     ) -> Result<()> {
+        if update.unlink_transfer_pair_id.is_some() {
+            return Ok(());
+        }
         if Self::is_cash_transfer_pair(pair)
             && (update.account_id != existing.account_id
                 || (!update.currency.is_empty() && update.currency != existing.currency)
@@ -2143,6 +2184,17 @@ impl ActivityService {
             return Ok(None);
         };
 
+        if let Some(counterpart_id) = &update.unlink_transfer_pair_id {
+            if counterpart_id != &counterpart.id {
+                return Err(Self::invalid_activity_data(
+                    "Transfer pair changed; refresh before editing",
+                ));
+            }
+            // Unlinking changes only link metadata on this leg. It must never
+            // enter financial preparation or projection (including type overrides).
+            return Ok(None);
+        }
+
         // Lifecycle fields are pair-level actions, but only deliberate
         // transitions travel: the grid echoes the primary's current status on
         // every save, and an ordinary edit must not disturb the counterpart's
@@ -2162,10 +2214,12 @@ impl ActivityService {
         });
 
         let mut counterpart_update = ActivityUpdate {
+            unlink_transfer_pair_id: None,
+            split_review: update.split_review.clone(),
             id: counterpart.id.clone(),
             account_id: counterpart.account_id.clone(),
             asset: Self::activity_asset_input(counterpart),
-            activity_type: counterpart.activity_type.clone(),
+            activity_type: counterpart.effective_type().to_string(),
             subtype: None,
             activity_date: update.activity_date.clone(),
             quantity: None,
@@ -5217,24 +5271,31 @@ impl ActivityServiceTrait for ActivityService {
             None => None,
         };
 
+        if activity.unlink_transfer_pair_id.is_some() && pair.is_none() {
+            return Err(Self::invalid_activity_data(
+                "Transfer pair changed; refresh before editing",
+            ));
+        }
         let prepared = self.prepare_update_activity(activity).await?;
 
-        if let Some(mut counterpart_update) = counterpart_update {
-            let counterpart_existing = self
-                .activity_repository
-                .get_activity(&counterpart_update.id)?;
-            self.hydrate_and_validate_update_against_existing(
-                &mut counterpart_update,
-                &counterpart_existing,
-            )?;
-            let prepared_counterpart = self.prepare_update_activity(counterpart_update).await?;
+        if let Some(pair) = pair {
+            let counterpart_id = if existing.id == pair.transfer_in.id {
+                &pair.transfer_out.id
+            } else {
+                &pair.transfer_in.id
+            };
+            let counterpart_existing = self.activity_repository.get_activity(counterpart_id)?;
+            let mut updates = vec![prepared.clone()];
+            if let Some(mut counterpart_update) = counterpart_update {
+                self.hydrate_and_validate_update_against_existing(
+                    &mut counterpart_update,
+                    &counterpart_existing,
+                )?;
+                updates.push(self.prepare_update_activity(counterpart_update).await?);
+            }
             let persisted = self
                 .activity_repository
-                .bulk_mutate_activities(
-                    Vec::new(),
-                    vec![prepared.clone(), prepared_counterpart],
-                    Vec::new(),
-                )
+                .bulk_mutate_activities(Vec::new(), updates, Vec::new())
                 .await?;
 
             let mut account_ids_set: HashSet<String> = HashSet::new();
@@ -5341,6 +5402,11 @@ impl ActivityServiceTrait for ActivityService {
         self.hydrate_and_validate_update_against_existing(&mut activity, &existing)?;
 
         let pair = self.load_internal_transfer_pair_for_activity(&activity.id)?;
+        if activity.unlink_transfer_pair_id.is_some() && pair.is_none() {
+            return Err(Self::invalid_activity_data(
+                "Transfer pair changed; refresh before editing",
+            ));
+        }
         let counterpart_update = match pair.as_ref() {
             Some(pair) => self.build_counterpart_update(&activity, &existing, pair)?,
             None => None,
@@ -5361,6 +5427,134 @@ impl ActivityServiceTrait for ActivityService {
         };
 
         Ok(ActivityUpdatePreview { activity, linked })
+    }
+
+    fn review_activity_split_effects(
+        &self,
+        mut activity: ActivityUpdate,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        let existing = self.activity_repository.get_activity(&activity.id)?;
+        let pair = self.load_internal_transfer_pair_for_activity(&activity.id)?;
+        let counterpart = pair
+            .as_ref()
+            .map(|pair| self.build_counterpart_update(&activity, &existing, pair))
+            .transpose()?
+            .flatten();
+        let unlink_effect = match activity.unlink_transfer_pair_id.as_deref() {
+            Some(counterpart_id) => {
+                if pair.is_none() {
+                    return Err(Self::invalid_activity_data(
+                        "Transfer pair changed; refresh before editing",
+                    ));
+                }
+                Some(
+                    self.activity_repository
+                        .preview_unchanged_split_effect(counterpart_id)?,
+                )
+            }
+            None => None,
+        };
+        // With no allocations on either leg, only capture state. Resolving a
+        // new symbol or deriving its multiplier belongs to the existing write;
+        // it cannot remove splits that are absent at this snapshot.
+        let mut ids = vec![activity.id.as_str()];
+        if let Some(counterpart) = &counterpart {
+            ids.push(&counterpart.id);
+        }
+        let mut any_splits = false;
+        for id in ids {
+            any_splits |= self.activity_repository.has_spending_splits(id)?;
+        }
+        if !any_splits {
+            let mut effects = vec![self.activity_repository.preview_split_effect(&activity)?];
+            if let Some(counterpart) = counterpart {
+                effects.push(
+                    self.activity_repository
+                        .preview_split_effect(&counterpart)?,
+                );
+            }
+            effects.extend(unlink_effect);
+            return Ok(effects);
+        }
+        // Account/type changes already invalidate splits in the financial
+        // writer, independently of a new symbol's resolution or multiplier.
+        // Capture that effect directly and leave asset creation to the write.
+        if activity
+            .get_symbol_id()
+            .is_none_or(|id| id.trim().is_empty())
+            && activity
+                .get_symbol_code()
+                .is_some_and(|s| !s.trim().is_empty())
+            && (activity.account_id != existing.account_id
+                || !activity
+                    .activity_type
+                    .trim()
+                    .eq_ignore_ascii_case(effective_activity_type(
+                        &existing.activity_type,
+                        existing.activity_type_override.as_deref(),
+                    )))
+        {
+            let effect = self.activity_repository.preview_split_effect(&activity)?;
+            if effect.removed_splits > 0 {
+                let mut effects = vec![effect];
+                if let Some(mut counterpart) = counterpart {
+                    let stored = self.activity_repository.get_activity(&counterpart.id)?;
+                    self.hydrate_and_validate_update_against_existing(&mut counterpart, &stored)?;
+                    let preview = self.preview_prepared_update(counterpart, stored)?;
+                    effects.push(
+                        self.activity_repository
+                            .preview_split_effect(&preview.update)?,
+                    );
+                }
+                effects.extend(unlink_effect);
+                return Ok(effects);
+            }
+        }
+        // Stored IDs can be priced locally and must retain their own multiplier.
+        // Symbol-only native inputs still avoid adding provider calls to review.
+        if activity
+            .get_symbol_code()
+            .is_some_and(|symbol| !symbol.trim().is_empty())
+        {
+            activity.asset = match activity.get_symbol_id().filter(|id| !id.trim().is_empty()) {
+                Some(id) => Some(AssetResolutionInput {
+                    id: Some(id.to_string()),
+                    ..Default::default()
+                }),
+                None => Self::activity_asset_input(&existing),
+            };
+        }
+        let preview = self.preview_activity_update(activity)?;
+        let mut effects = vec![self
+            .activity_repository
+            .preview_split_effect(&preview.activity.update)?];
+        if let Some(linked) = preview.linked {
+            effects.push(
+                self.activity_repository
+                    .preview_split_effect(&linked.update)?,
+            );
+        }
+        effects.extend(unlink_effect);
+        Ok(effects)
+    }
+
+    async fn review_internal_transfer_pair_split_effects(
+        &self,
+        request: InternalTransferPairRequest,
+    ) -> Result<Vec<ActivitySplitEffect>> {
+        let values = self.validate_internal_pair_request(&request)?;
+        let (_, updates) = self.build_internal_pair_update_inputs(&request, &values)?;
+        updates
+            .into_iter()
+            .map(|update| {
+                let existing = self.activity_repository.get_activity(&update.id)?;
+                // Cash pair inputs have no asset. This existing pure path shares
+                // save normalization without registering proposed FX currencies.
+                let preview = self.preview_prepared_update(update, existing)?;
+                self.activity_repository
+                    .preview_split_effect(&preview.update)
+            })
+            .collect()
     }
 
     /// Deletes an activity
@@ -5493,25 +5687,10 @@ impl ActivityServiceTrait for ActivityService {
         let mut old_activities: Vec<Activity> = Vec::new();
 
         let persisted = if is_update {
-            let transfer_out_id = request
-                .transfer_out_id
-                .clone()
-                .ok_or_else(|| Self::invalid_activity_data("Transfer out id is required"))?;
-            let transfer_in_id = request
-                .transfer_in_id
-                .clone()
-                .ok_or_else(|| Self::invalid_activity_data("Transfer in id is required"))?;
-
-            let pair = self.require_internal_transfer_pair_for_activity(&transfer_out_id)?;
-            if pair.transfer_in.id != transfer_in_id {
-                return Err(Self::invalid_activity_data(
-                    "Transfer legs do not belong to the same pair",
-                ));
-            }
-            if !Self::is_cash_transfer_pair(&pair) {
-                return Err(Self::invalid_activity_data(
-                    "Pair save currently supports internal cash transfers only",
-                ));
+            let (pair, updates) = self.build_internal_pair_update_inputs(&request, &pair_values)?;
+            let mut prepared_updates = Vec::new();
+            for update in updates {
+                prepared_updates.push(self.prepare_update_activity(update).await?);
             }
 
             for activity in [&pair.transfer_out, &pair.transfer_in] {
@@ -5524,15 +5703,6 @@ impl ActivityServiceTrait for ActivityService {
                 old_activities.push(activity.clone());
             }
 
-            let mut updates = self.build_internal_pair_updates(&request, &pair, &pair_values)?;
-            for update in &mut updates {
-                let existing = self.activity_repository.get_activity(&update.id)?;
-                self.hydrate_and_validate_update_against_existing(update, &existing)?;
-            }
-            let mut prepared_updates = Vec::new();
-            for update in updates {
-                prepared_updates.push(self.prepare_update_activity(update).await?);
-            }
             self.activity_repository
                 .bulk_mutate_activities(Vec::new(), prepared_updates, Vec::new())
                 .await?
@@ -5552,14 +5722,14 @@ impl ActivityServiceTrait for ActivityService {
             .created
             .iter()
             .chain(persisted.updated.iter())
-            .find(|activity| activity.activity_type == ACTIVITY_TYPE_TRANSFER_OUT)
+            .find(|activity| activity.effective_type() == ACTIVITY_TYPE_TRANSFER_OUT)
             .cloned()
             .ok_or_else(|| Self::invalid_activity_data("Transfer out leg was not returned"))?;
         let transfer_in = persisted
             .created
             .iter()
             .chain(persisted.updated.iter())
-            .find(|activity| activity.activity_type == ACTIVITY_TYPE_TRANSFER_IN)
+            .find(|activity| activity.effective_type() == ACTIVITY_TYPE_TRANSFER_IN)
             .cloned()
             .ok_or_else(|| Self::invalid_activity_data("Transfer in leg was not returned"))?;
 
@@ -6242,6 +6412,7 @@ impl ActivityServiceTrait for ActivityService {
 
         if valid.is_empty() {
             return Ok(ImportActivitiesResult {
+                persisted_rows: Vec::new(),
                 activities: ordered.into_iter().flatten().collect(),
                 import_run_id: String::new(),
                 summary: ImportActivitiesSummary {
@@ -6394,6 +6565,7 @@ impl ActivityServiceTrait for ActivityService {
                 ordered[idx] = Some(activity);
             }
             return Ok(ImportActivitiesResult {
+                persisted_rows: Vec::new(),
                 activities: ordered.into_iter().flatten().collect(),
                 import_run_id: String::new(),
                 summary: ImportActivitiesSummary {
@@ -6660,15 +6832,19 @@ impl ActivityServiceTrait for ActivityService {
             .collect();
 
         // ── 9. Insert all non-duplicate activities in one transaction ────────
-        let inserted_count = if insertable_new_activities.is_empty() {
-            0
+        let persisted_sources = insertable_sources
+            .iter()
+            .map(|(index, _)| *index)
+            .collect::<Vec<_>>();
+        let persisted = if insertable_new_activities.is_empty() {
+            Vec::new()
         } else {
             match self
                 .activity_repository
-                .create_activities(insertable_new_activities)
+                .create_activities_returning(insertable_new_activities)
                 .await
             {
-                Ok(n) => n as u32,
+                Ok(rows) => rows,
                 Err(e) => {
                     if let Some(ref repo) = self.import_run_repository {
                         let mut failed_run = import_run.clone();
@@ -6681,6 +6857,16 @@ impl ActivityServiceTrait for ActivityService {
                 }
             }
         };
+
+        let inserted_count = persisted.len() as u32;
+        let persisted_rows = persisted_sources
+            .into_iter()
+            .zip(persisted)
+            .map(|(index, row)| crate::activities::ImportedActivityIdentity {
+                index,
+                activity_id: row.id,
+            })
+            .collect();
 
         // ── 10. Finalize ImportRun ────────────────────────────────────────────
         if let Some(ref repo) = self.import_run_repository {
@@ -6712,6 +6898,7 @@ impl ActivityServiceTrait for ActivityService {
         }
 
         Ok(ImportActivitiesResult {
+            persisted_rows,
             activities: ordered.into_iter().flatten().collect(),
             import_run_id,
             summary: ImportActivitiesSummary {

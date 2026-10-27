@@ -33,7 +33,7 @@ function ProjectionTooltip({
   annualReturn,
 }: {
   active?: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
   payload?: any[];
   currency: string;
   isHidden: boolean;
@@ -291,7 +291,7 @@ export function SaveUpProjectionCard({
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-4">
         <div>
-          <div className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-[0.15em]">
+          <div className="text-muted-foreground mb-1 text-xs font-medium tracking-[0.15em] uppercase">
             {t("goals:projection.kicker")}
           </div>
           <CardTitle className="text-md leading-none tracking-tight">

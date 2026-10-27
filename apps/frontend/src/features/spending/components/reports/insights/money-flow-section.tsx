@@ -13,6 +13,7 @@ import {
 import type { BudgetSnapshot } from "../../../types/budget";
 import type { MonthlyReport } from "../../../types/report";
 import { MoneyFlowChart } from "./money-flow-chart";
+import { Card } from "@wealthfolio/ui/components/ui/card";
 
 /** Zoomed views show every category and income source; nothing folds into "+N more". */
 const UNFOLDED = { maxSources: Infinity, maxCategoriesPerGroup: Infinity, minLeafShare: 0 };
@@ -132,7 +133,7 @@ export function MoneyFlowSection({
         <p className="text-muted-foreground text-xs">{subtitle}</p>
       </header>
 
-      <div className="border-border/60 bg-card/40 rounded-2xl border px-2 py-3 backdrop-blur-xl md:px-4 md:py-4">
+      <Card className="px-2 py-3 md:px-4 md:py-4">
         {focusedNode && (
           // The zoomed node unmounts, so focus lands on the way back: keyed per
           // view so it lands there again one zoom deeper.
@@ -201,14 +202,14 @@ export function MoneyFlowSection({
             {t("spending:whereIAm.noIncome")}
           </p>
         )}
-      </div>
+      </Card>
     </section>
   );
 }
 
 function MoneyFlowSkeleton() {
   return (
-    <div className="h-75 flex items-stretch gap-6 px-2 py-2">
+    <div className="flex h-75 items-stretch gap-6 px-2 py-2">
       <div className="flex w-1/5 flex-col justify-center gap-3">
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-10 w-full" />

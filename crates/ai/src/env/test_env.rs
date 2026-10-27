@@ -281,6 +281,28 @@ pub struct MockTaxonomyService {
 
 #[async_trait]
 impl TaxonomyServiceTrait for MockTaxonomyService {
+    async fn update_category_reviewed(
+        &self,
+        _: wealthfolio_core::taxonomies::Category,
+        _: wealthfolio_core::taxonomies::Category,
+    ) -> wealthfolio_core::Result<wealthfolio_core::taxonomies::Category> {
+        unimplemented!("reviewed categories are not used by this fixture")
+    }
+    async fn delete_category_reviewed(
+        &self,
+        _: wealthfolio_core::taxonomies::Category,
+    ) -> wealthfolio_core::Result<usize> {
+        unimplemented!("reviewed categories are not used by this fixture")
+    }
+
+    fn get_category_references(
+        &self,
+        _: &str,
+        _: &str,
+    ) -> wealthfolio_core::Result<wealthfolio_core::taxonomies::CategoryReferences> {
+        unimplemented!("category references are not used by this fixture")
+    }
+
     fn get_taxonomies(&self) -> CoreResult<Vec<Taxonomy>> {
         Ok(self
             .taxonomies
@@ -406,6 +428,13 @@ pub struct MockActivityService {
 
 #[async_trait]
 impl ActivityServiceTrait for MockActivityService {
+    fn review_activity_split_effects(
+        &self,
+        _activity: ActivityUpdate,
+    ) -> wealthfolio_core::Result<Vec<wealthfolio_core::activities::ActivitySplitEffect>> {
+        Ok(Vec::new()) // This fixture has no persisted split allocations.
+    }
+
     async fn attach_cash_balances(&self, response: &mut ActivitySearchResponse) -> CoreResult<()> {
         for row in &mut response.data {
             if let Some((balance, currency, scope)) = self.cash_balances.get(&row.id) {
@@ -1596,6 +1625,35 @@ pub struct MockCashActivityService {
 
 #[async_trait]
 impl CashActivityServiceTrait for MockCashActivityService {
+    async fn set_event_reviewed(
+        &self,
+        _: &str,
+        _: Option<String>,
+        _: Option<String>,
+    ) -> anyhow::Result<()> {
+        unimplemented!("reviewed tags")
+    }
+
+    async fn validate_splits(
+        &self,
+        _: &str,
+        _: &[wealthfolio_spending::activity_splits::NewActivitySplit],
+    ) -> anyhow::Result<()> {
+        unimplemented!("reviewed splits")
+    }
+    async fn replace_splits_reviewed(
+        &self,
+        _: wealthfolio_spending::activity_splits::SplitReviewState,
+        _: Vec<wealthfolio_spending::activity_splits::NewActivitySplit>,
+    ) -> anyhow::Result<Vec<wealthfolio_spending::activity_splits::ActivitySplit>> {
+        unimplemented!("reviewed splits")
+    }
+
+    async fn context(
+        &self,
+    ) -> anyhow::Result<wealthfolio_spending::cash_activities::SpendingContext> {
+        Ok(wealthfolio_spending::cash_activities::SpendingContext::default())
+    }
     async fn bulk_assign_categories(
         &self,
         _: &[wealthfolio_spending::activity_assignments::BulkCategoryAssignment],
@@ -1645,6 +1703,41 @@ pub struct MockCategorizationRulesService {
 
 #[async_trait]
 impl CategorizationRulesServiceTrait for MockCategorizationRulesService {
+    async fn update_reviewed(
+        &self,
+        _: wealthfolio_spending::categorization_rules::CategorizationRule,
+        _: wealthfolio_spending::categorization_rules::NewCategorizationRule,
+    ) -> anyhow::Result<wealthfolio_spending::categorization_rules::CategorizationRule> {
+        unimplemented!("reviewed rules")
+    }
+    async fn delete_reviewed(
+        &self,
+        _: wealthfolio_spending::categorization_rules::CategorizationRule,
+    ) -> anyhow::Result<()> {
+        unimplemented!("reviewed rules")
+    }
+    async fn list_presets(
+        &self,
+    ) -> anyhow::Result<Vec<wealthfolio_spending::categorization_rules::presets::RulePresetSummary>>
+    {
+        unimplemented!("presets")
+    }
+    async fn import_preset(
+        &self,
+        _: &str,
+        _: &std::collections::HashMap<String, (String, String)>,
+    ) -> anyhow::Result<wealthfolio_spending::categorization_rules::presets::ImportPresetResult>
+    {
+        unimplemented!("presets")
+    }
+    async fn remove_preset(
+        &self,
+        _: &str,
+    ) -> anyhow::Result<wealthfolio_spending::categorization_rules::presets::RemovePresetResult>
+    {
+        unimplemented!("presets")
+    }
+
     async fn list(
         &self,
     ) -> anyhow::Result<Vec<wealthfolio_spending::categorization_rules::CategorizationRule>> {
@@ -1700,6 +1793,22 @@ impl MockEnvironment {
 }
 
 impl AgentEnvironment for MockEnvironment {
+    fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
+    fn spending_events_service(&self) -> Arc<dyn wealthfolio_spending::events::EventsServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
+    fn spending_analytics_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
+    fn spending_insight_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
     fn base_currency(&self) -> String {
         self.base_currency.clone()
     }

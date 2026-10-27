@@ -355,7 +355,7 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
       const next = exchangeDisplay ? `${current} (${exchangeDisplay})` : current;
       setSelected((prev) => (prev === next ? prev : next));
       setSelectedTicker({ symbol: current, name: "", exchangeDisplay: exchangeDisplay || "" });
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // oxlint-disable-next-line react/exhaustive-deps
     }, [defaultValue, selectedExchangeMic, selectedResult, value]);
 
     // Handle "Create custom asset" click
@@ -382,7 +382,7 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
       if (defaultValue && defaultValue.length > 1) {
         setDebouncedQuery(defaultValue);
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // oxlint-disable-next-line react/exhaustive-deps
     }, []);
 
     // Use debounced query for API call
@@ -558,7 +558,7 @@ const TickerSearchInput = forwardRef<HTMLButtonElement, SearchProps>(
           <PopoverContent
             side="bottom"
             align="start"
-            className="w-(--anchor-width) min-w-70 h-auto p-0"
+            className="h-auto w-(--anchor-width) min-w-70 p-0"
             initialFocus={autoFocusSearch ? inputRef : undefined}
             finalFocus={tabCloseDirection === null}
             onWheel={(e) => e.stopPropagation()}

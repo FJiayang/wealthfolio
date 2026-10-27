@@ -29,23 +29,17 @@ const TAX_BUCKET_COLORS: Record<string, string> = {
   tax_free: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
 };
 
+// The theme's series colours, distinct and readable on the card; a long list
+// of accounts reuses them in order.
 const INDICATOR_COLORS = [
-  "var(--color-blue-400)",
-  "var(--color-orange-400)",
-  "var(--color-green-400)",
-  "var(--color-purple-400)",
-  "var(--color-cyan-400)",
-  "var(--color-red-400)",
-  "var(--color-magenta-400)",
-  "var(--color-yellow-400)",
-  "var(--color-blue-600)",
-  "var(--color-orange-600)",
-  "var(--color-green-600)",
-  "var(--color-purple-600)",
-  "var(--color-cyan-600)",
-  "var(--color-red-600)",
-  "var(--color-magenta-600)",
-  "var(--color-yellow-600)",
+  "var(--series-1)",
+  "var(--series-2)",
+  "var(--series-3)",
+  "var(--series-4)",
+  "var(--series-5)",
+  "var(--series-6)",
+  "var(--series-7)",
+  "var(--series-8)",
 ];
 
 const SHARE_EPSILON = 0.01;
@@ -571,7 +565,7 @@ export function GoalFundingEditor({
               {/* Available accounts to add */}
               {availableAccounts.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-muted-foreground text-2xs px-1 uppercase tracking-wider">
+                  <p className="text-muted-foreground text-2xs px-1 tracking-wider uppercase">
                     {t("goals:funding.add_accounts")}
                   </p>
                   {availableAccounts.map((a) => (
@@ -690,9 +684,9 @@ function AllocationDetailsSheet({
             <p className="text-muted-foreground text-sm">{t("goals:funding.no_active_shares")}</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-160 w-full border-separate border-spacing-0 text-sm">
+              <table className="w-full min-w-160 border-separate border-spacing-0 text-sm">
                 <thead>
-                  <tr className="text-muted-foreground text-2xs text-start uppercase tracking-[0.18em]">
+                  <tr className="text-muted-foreground text-2xs text-start tracking-[0.18em] uppercase">
                     <th className="border-border border-b py-2 pe-4 font-medium">
                       {t("common:account")}
                     </th>

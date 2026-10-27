@@ -662,10 +662,29 @@ pub struct ActivityUpdatePreview {
     pub linked: Option<PreviewedActivityUpdate>,
 }
 
+/// Transient review of the existing financial writer's split invalidation.
+/// The fingerprint is opaque: it contains no category or financial details.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ActivitySplitEffect {
+    pub activity_id: String,
+    pub removed_splits: usize,
+    pub has_retained_category_assignment: bool,
+    pub fingerprint: String,
+}
+
 /// Input model for updating an existing activity
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActivityUpdate {
+    /// ID of the other leg to unlink atomically with this financial edit.
+    /// That leg is unlink-only, with both legs reviewed before commit.
+    /// Transient; never persisted. Sync/import callers omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unlink_transfer_pair_id: Option<String>,
+    /// User review only; omitted by non-interactive sync/import callers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub split_review: Option<Vec<ActivitySplitEffect>>,
     pub id: String,
     pub account_id: String,
 
@@ -848,6 +867,9 @@ pub struct ActivityFinalCashMigrationResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InternalTransferPairRequest {
+    /// Optional native review of both existing legs; validated by the shared writer.
+    #[serde(default)]
+    pub split_review: Option<Vec<ActivitySplitEffect>>,
     /// The record whose date and notes the existing activity form is editing.
     #[serde(default)]
     pub edited_activity_id: Option<String>,
@@ -1961,12 +1983,23 @@ pub struct IncomeData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportActivitiesResult {
+    /// Actual writer-assigned IDs in source row order. Review row IDs remain
+    /// untouched; metadata follow-up must use these persisted identities.
+    #[serde(default)]
+    pub persisted_rows: Vec<ImportedActivityIdentity>,
     /// The validated/imported activities
     pub activities: Vec<ActivityImport>,
     /// Import run ID for tracking this batch
     pub import_run_id: String,
     /// Summary statistics for the import
     pub summary: ImportActivitiesSummary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportedActivityIdentity {
+    pub index: usize,
+    pub activity_id: String,
 }
 
 /// Summary statistics for an activity import

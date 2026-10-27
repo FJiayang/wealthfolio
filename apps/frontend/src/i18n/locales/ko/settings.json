@@ -9,7 +9,6 @@
   "language_auto": "자동 (시스템에서 감지)",
   "language_updated": "언어가 변경되었습니다",
   "language_update_failed": "언어 변경에 실패했습니다",
-  "theme": "테마",
   "theme_light": "라이트",
   "theme_dark": "다크",
   "theme_system": "시스템",
@@ -104,7 +103,15 @@
   "appearance_font_title": "글꼴",
   "appearance_font_description": "인터페이스 전체에 사용할 글꼴을 선택하세요.",
   "appearance_theme_title": "테마",
-  "appearance_theme_description": "애플리케이션에서 사용할 테마를 선택하세요.",
+  "appearance_theme_description": "엄선된 색상 팔레트를 선택하세요. 모든 테마는 밝은 화면과 어두운 화면을 지원합니다.",
+  "appearance_mode_title": "화면 모드",
+  "appearance_mode_description": "라이트, 다크 또는 시스템 설정을 따릅니다.",
+  "appearance_theme_designed_for_dark": "{{theme}} 테마는 다크 모드에 맞게 디자인되었습니다.",
+  "appearance_theme_designed_for_light": "{{theme}} 테마는 라이트 모드에 맞게 디자인되었습니다.",
+  "appearance_switch_to_dark": "다크로 전환",
+  "appearance_switch_to_light": "라이트로 전환",
+  "appearance_theme_suggests": "{{theme}} 추천: {{value}}",
+  "appearance_use_theme_defaults": "테마 기본값 사용",
   "appearance_menu_bar": "메뉴 바 표시",
   "appearance_menu_bar_description": "애플리케이션 메뉴 바 표시 여부를 전환합니다.",
   "appearance_theme_required": "테마를 선택하세요.",
@@ -1233,6 +1240,7 @@
       "update_error": "카테고리를 수정하지 못했습니다.",
       "created": "카테고리가 생성되었습니다.",
       "create_error": "카테고리를 생성하지 못했습니다.",
+      "duplicate_error": "다른 카테고리에서 이미 사용 중인 키입니다. 다른 이름을 입력해 주세요.",
       "tab_expense_other": "지출 ({{count}})",
       "tab_income_other": "수입 ({{count}})",
       "tab_savings_other": "저축 ({{count}})"
@@ -1483,7 +1491,7 @@
         "description": "포트폴리오 상태와 진단 점검을 읽습니다."
       },
       "classification_read": {
-        "label": "분류 (읽기)",
+        "label": "자산 분류 (읽기)",
         "description": "상품 분류와 분류 체계를 읽습니다."
       },
       "activities_draft": {
@@ -1495,27 +1503,49 @@
         "description": "거래를 확정하고 기존 거래를 수정하며 이체를 연결하거나 연결 해제합니다. 초안 범위가 필요합니다."
       },
       "classification_suggest": {
-        "label": "분류 — 제안",
+        "label": "자산 분류 — 제안",
         "description": "검토용 상품 분류를 제안합니다."
       },
       "classification_write": {
-        "label": "분류 — 적용/쓰기",
+        "label": "자산 분류 — 적용/쓰기",
         "description": "검토된 분류 초안을 적용합니다. 제안 범위가 필요합니다."
       },
       "market_data_write": {
         "label": "시장 데이터 — 쓰기",
         "description": "기존 자산의 검토된 가격(시세)을 저장합니다. 보유 종목 및 가치 (읽기) 범위가 필요합니다."
+      },
+      "spending_read": {
+        "label": "지출 보기",
+        "description": "지출 계좌의 거래, 카테고리, 분할, 규칙, 이벤트, 보고서 및 예산을 읽습니다."
+      },
+      "spending_write": {
+        "label": "지출 정리",
+        "description": "지출 카테고리, 할당, 분할, 규칙 및 이벤트를 관리합니다. 지출 보기가 필요합니다."
+      },
+      "budget_write": {
+        "label": "예산 관리",
+        "description": "기본 및 월별 예산, 그룹, 여유 자금 및 이월을 변경합니다. 지출 보기가 필요합니다."
       }
     },
     "preset": {
       "read_only": "읽기 전용",
       "read_activity_draft": "읽기 + 초안",
       "read_activity_write": "읽기 + 쓰기",
-      "read_activity_write_classification_suggest": "읽기 + 쓰기 + 분류"
+      "read_activity_write_classification_suggest": "읽기 + 거래 쓰기 + 자산 분류",
+      "spending_view": "지출 — 보기",
+      "spending_organize": "지출 — 정리",
+      "spending_budgets": "지출 — 예산"
     },
     "copied_generic": "{{label}}이(가) 클립보드에 복사되었습니다.",
     "hero_aria": "AI 에이전트 접근 상태",
-    "pat_scope_custom_other": "사용자 지정 · 범위 {{count}}개"
+    "pat_scope_custom_other": "사용자 지정 · 범위 {{count}}개",
+    "scope_locked_spending_title": "지출 정리 또는 예산 관리에 필요",
+    "dialog_presets": "접근 권한 프리셋",
+    "edit_permissions": "권한 편집",
+    "edit_title": "{{name}}의 권한",
+    "edit_description": "키는 변경되지 않습니다. 권한은 이후 요청부터 적용됩니다. 새 도구를 보려면 도구 목록을 새로 고치거나 클라이언트를 다시 연결하세요.",
+    "edit_success": "권한이 업데이트되었습니다",
+    "edit_failed": "권한을 업데이트하지 못했습니다"
   },
   "tax_add_category": "카테고리 추가",
   "tax_export": "내보내기",

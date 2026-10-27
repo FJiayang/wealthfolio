@@ -242,8 +242,8 @@ function useImportReviewColumns({
                       side="inline-end"
                       className={
                         status === "error"
-                          ? "max-w-xs whitespace-pre-wrap text-xs"
-                          : "max-w-xs whitespace-pre-wrap text-xs"
+                          ? "max-w-xs text-xs whitespace-pre-wrap"
+                          : "max-w-xs text-xs whitespace-pre-wrap"
                       }
                     >
                       {title}
@@ -314,7 +314,7 @@ function useImportReviewColumns({
         meta: {
           cell: {
             variant: "select",
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            // oxlint-disable-next-line typescript/no-explicit-any
             options: getSubtypeOptions as any,
             allowEmpty: true,
             emptyLabel: t("activity:import.columns.none"),

@@ -41,6 +41,15 @@ import { useSpendingReport } from "../hooks/use-spending-report";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
 import { SAVINGS_ROW_COLOR, SAVINGS_ROW_ID, buildWhereItWentRows } from "../lib/category-rollup";
 import {
+  DASHBOARD_INTERVAL_STORAGE_KEY,
+  DASHBOARD_PERIOD_STORAGE_KEY,
+  portfolioPresetForSpendingPeriod,
+  rangePick,
+  spendingViewForPick,
+  type DashboardPeriodPick,
+  type SpendingPeriodView,
+} from "../lib/dashboard-period-sync";
+import {
   SPENDING_RANGE_FROM_PARAM,
   SPENDING_RANGE_TO_PARAM,
   spendingRangeFromParams,
@@ -58,15 +67,10 @@ import {
 } from "../lib/month-period";
 import { spendingActivityHref } from "../lib/navigation";
 import {
-  DASHBOARD_PERIOD_UPDATED_AT_STORAGE_KEY,
   INSIGHTS_PERIOD_STORAGE_KEY,
-  INSIGHTS_PERIOD_UPDATED_AT_STORAGE_KEY,
-  normalizeReportsPeriod,
-  periodPreferenceTimestamp,
-  shouldPreferDashboardPeriod,
+  SPENDING_INTERVAL_STORAGE_KEY,
 } from "../lib/period-preferences";
-import type { ReportsPeriod } from "../lib/reports-period";
-import { FOREST_THEME, themeBg, type Palette } from "../lib/theme";
+import { SPENDING_THEME, themeBg, type Palette } from "../lib/theme";
 import {
   addCalendarDays,
   addCalendarMonths,
@@ -84,7 +88,7 @@ import { EventsCard } from "./events-card";
 import { RecentActivityCard } from "./recent-activity-card";
 import { SpendingPeriodSelector } from "./spending-period-toggle";
 
-const FUTURE_BAR = "#E5E7EB";
+const FUTURE_BAR = "var(--muted)";
 const SPENDING_TAXONOMY = "spending_categories";
 type SpendingDashboardPeriod = "MTD" | "LAST_MONTH" | "3M" | "6M" | "YTD" | "1Y";
 
@@ -103,7 +107,6 @@ const SPENDING_DASHBOARD_PERIODS: SpendingDashboardPeriod[] = [
 ];
 
 const DEFAULT_INTERVAL: SpendingDashboardPeriod = "MTD";
-const INTERVAL_STORAGE_KEY = "spending-interval";
 const INTERVAL_DESCRIPTIONS: Record<SpendingDashboardPeriod, string> = {
   MTD: "spending:tabContent.intervalMtd",
   LAST_MONTH: "spending:tabContent.intervalLastMonth",
@@ -135,6 +138,15 @@ const INSIGHT_STAGES = [
     Icon: Icons.Calendar,
   },
 ] as const;
+
+// No period in these links: insights shows the period shown on the tab, which
+// the dashboard tabs and the insights page share.
+const dashboardInsightHref = {
+  where: "/spending/insights?stage=where",
+  changed: "/spending/insights?stage=changed",
+  when: "/spending/insights?stage=when",
+  cashflow: "/spending/insights?stage=where#cashflow",
+} satisfies Record<(typeof INSIGHT_STAGES)[number]["stage"] | "cashflow", string>;
 
 function rangeToReportRequest(range: DateRange | undefined, timezone?: string | null) {
   const from = range?.from ?? new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -197,21 +209,24 @@ function spendingIntervalData(code: SpendingDashboardPeriod, timezone?: string |
   };
 }
 
-function insightPeriodForDashboardInterval(code: SpendingDashboardPeriod): ReportsPeriod {
-  if (code === "LAST_MONTH") return "LAST_MONTH";
-  return code;
-}
-
 function selectionFromParams(
   params: URLSearchParams,
   persistedInterval: string,
   persistedMonth: string | null,
+  shared: SpendingPeriodView | null,
 ): SpendingSelection {
   const intervalParam = params.get("spendingInterval");
   const monthParam = params.get(SPENDING_MONTH_PARAM);
   const restoreCode = normalizeSpendingDashboardPeriod(intervalParam ?? persistedInterval);
   const customRange = spendingRangeFromParams(params);
   if (customRange) return { kind: "range", range: customRange, restoreCode };
+  // Without URL params (a link's are applied once and then removed), follow the
+  // period last picked on any dashboard tab or the insights page.
+  if (intervalParam === null && monthParam === null && shared) {
+    if (shared.kind === "period") return { kind: "period", code: shared.code };
+    if (shared.kind === "month") return { kind: "month", monthKey: shared.monthKey, restoreCode };
+    return { kind: "range", range: shared.range, restoreCode };
+  }
   const monthKey = monthParam ?? (intervalParam === null ? persistedMonth : null);
   if (monthKey && parseMonthKey(monthKey)) return { kind: "month", monthKey, restoreCode };
   return { kind: "period", code: restoreCode };
@@ -248,7 +263,6 @@ function selectionData(
     return {
       range: monthRange(selection.monthKey),
       description: monthLabel(selection.monthKey, formatting),
-      insightPeriod: "LAST_MONTH" as ReportsPeriod,
     };
   }
 
@@ -263,7 +277,6 @@ function selectionData(
     return {
       range: selection.range,
       description: `${format(from)} – ${format(to)}`,
-      insightPeriod: selection.restoreCode,
     };
   }
 
@@ -271,7 +284,6 @@ function selectionData(
   return {
     range: interval.range,
     description: interval.description,
-    insightPeriod: insightPeriodForDashboardInterval(selection.code),
   };
 }
 
@@ -346,47 +358,51 @@ export default function SpendingTabContent() {
   } = useSpendingSettings();
 
   const [searchParams, setSearchParams] = useSearchParams();
-  // URL-driven so `/dashboard?tab=spending&spendingInterval=3M` is shareable
-  // and survives reload. Falls back to the persisted preference, then to
-  // DEFAULT_INTERVAL. The "spendingInterval" prefix avoids colliding with
-  // other dashboard tabs that may want their own `?interval`.
+  // A link such as `/dashboard?tab=spending&spendingInterval=3M` opens on that
+  // period: it is applied once as the shared pick and then removed from the URL,
+  // so back/forward never revives a stale period. Without a link, the tab
+  // follows the shared pick, then the persisted preference, then DEFAULT_INTERVAL.
+  // The "spendingInterval" prefix avoids colliding with other dashboard tabs.
   const [persistedInterval, setPersistedInterval] = usePersistentState<string>(
-    INTERVAL_STORAGE_KEY,
+    SPENDING_INTERVAL_STORAGE_KEY,
     DEFAULT_INTERVAL,
+  );
+  // Kept in step so the insights page falls back to the same preset.
+  const [, setPersistedInsightPeriod] = usePersistentState<string | null>(
+    INSIGHTS_PERIOD_STORAGE_KEY,
+    null,
   );
   const [persistedMonth, setPersistedMonth] = usePersistentState<string | null>(
     SPENDING_MONTH_STORAGE_KEY,
     null,
   );
-  const [persistedInsightPeriod] = usePersistentState<string | null>(
-    INSIGHTS_PERIOD_STORAGE_KEY,
+  const [sharedPick, setSharedPick] = usePersistentState<DashboardPeriodPick | null>(
+    DASHBOARD_PERIOD_STORAGE_KEY,
     null,
   );
-  const [insightPeriodUpdatedAt] = usePersistentState<string>(
-    INSIGHTS_PERIOD_UPDATED_AT_STORAGE_KEY,
-    "0",
-  );
-  const [dashboardPeriodUpdatedAt, setDashboardPeriodUpdatedAt] = usePersistentState<string>(
-    DASHBOARD_PERIOD_UPDATED_AT_STORAGE_KEY,
-    "0",
+  const [, setPortfolioPreset] = usePersistentState<string>(DASHBOARD_INTERVAL_STORAGE_KEY, "3M");
+  const todayISO = formatZonedDateKey(new Date(), appTimezone);
+  const sharedView = useMemo(
+    () => (sharedPick ? spendingViewForPick(sharedPick, todayISO) : null),
+    [sharedPick, todayISO],
   );
   const selection = useMemo(
-    () => selectionFromParams(searchParams, persistedInterval, persistedMonth),
-    [searchParams, persistedInterval, persistedMonth],
+    () => selectionFromParams(searchParams, persistedInterval, persistedMonth, sharedView),
+    [searchParams, persistedInterval, persistedMonth, sharedView],
   );
+  const shareSpendingPeriod = (code: SpendingDashboardPeriod) => {
+    setSharedPick({ kind: "spending", code });
+    setPortfolioPreset(portfolioPresetForSpendingPeriod(code));
+  };
   const selectedPeriod = selection.kind === "period" ? selection.code : null;
   const customMonth = selection.kind === "month" ? selection.monthKey : null;
   const customRange = selection.kind === "range" ? selection.range : undefined;
   const restoreCode = selection.kind === "period" ? selection.code : selection.restoreCode;
-  const {
-    range: dateRange,
-    description: selectedIntervalDescription,
-    insightPeriod,
-  } = useMemo(
+  const { range: dateRange, description: selectedIntervalDescription } = useMemo(
     () => selectionData(selection, dateFormatting, appTimezone),
     [selection, dateFormatting, appTimezone],
   );
-  const theme: Palette = FOREST_THEME;
+  const theme: Palette = SPENDING_THEME;
 
   const [whereItWentView, setWhereItWentView] = usePersistentState<"list" | "map">(
     "spending-where-view",
@@ -539,41 +555,6 @@ export default function SpendingTabContent() {
   // activity's currency (the pre-FX behavior) would mislabel multi-currency
   // accounts. Single-currency users see the same number either way.
   const currency = baseCurrency;
-  const dashboardInsightHref = useMemo(() => {
-    const preferDashboardPeriod =
-      selection.kind === "range" ||
-      shouldPreferDashboardPeriod({
-        persistedInsightPeriod,
-        dashboardUpdatedAt: dashboardPeriodUpdatedAt,
-        insightUpdatedAt: insightPeriodUpdatedAt,
-      });
-    const linkPeriod = preferDashboardPeriod
-      ? insightPeriod
-      : (normalizeReportsPeriod(persistedInsightPeriod) ?? insightPeriod);
-    const monthParams =
-      preferDashboardPeriod && selection.kind === "month"
-        ? `&${SPENDING_MONTH_PARAM}=${selection.monthKey}`
-        : "";
-    const rangeParams =
-      selection.kind === "range"
-        ? `&${SPENDING_RANGE_FROM_PARAM}=${formatDateISO(selection.range.from)}&${SPENDING_RANGE_TO_PARAM}=${formatDateISO(selection.range.to)}`
-        : "";
-    const href = (stage: (typeof INSIGHT_STAGES)[number]["stage"], hash = "") =>
-      `/spending/insights?stage=${stage}&period=${linkPeriod}${monthParams}${rangeParams}${hash}`;
-    const cashflow = href("where", "#cashflow");
-    return {
-      where: href("where"),
-      changed: href("changed"),
-      when: href("when"),
-      cashflow,
-    };
-  }, [
-    dashboardPeriodUpdatedAt,
-    insightPeriod,
-    insightPeriodUpdatedAt,
-    persistedInsightPeriod,
-    selection,
-  ]);
   // "Where it went" deep-links carry the selected period (interval or month)
   // so the activities spending tab opens pre-filtered to the same range.
   const activityHrefFor = useCallback(
@@ -583,7 +564,7 @@ export default function SpendingTabContent() {
         startDate: dateRange?.from ? formatDateISO(dateRange.from) : undefined,
         endDate: dateRange?.to ? formatDateISO(dateRange.to) : undefined,
       }),
-    [dashboardInsightHref.cashflow, dateRange],
+    [dateRange],
   );
   const accountTypeById = useMemo(
     () => new Map(accounts.map((account) => [account.id, account.accountType])),
@@ -611,18 +592,8 @@ export default function SpendingTabContent() {
   const handleIntervalSelect = (code: SpendingDashboardPeriod) => {
     setPersistedInterval(code);
     setPersistedMonth(null);
-    setDashboardPeriodUpdatedAt(periodPreferenceTimestamp());
-    setSearchParams(
-      (prev) => {
-        const p = new URLSearchParams(prev);
-        p.set("spendingInterval", code);
-        p.delete(SPENDING_MONTH_PARAM);
-        p.delete(SPENDING_RANGE_FROM_PARAM);
-        p.delete(SPENDING_RANGE_TO_PARAM);
-        return p;
-      },
-      { replace: true },
-    );
+    setPersistedInsightPeriod(code);
+    shareSpendingPeriod(code);
     if (code === "LAST_MONTH") {
       setBudgetMonthKey(addMonthsToMonthKey(currentBudgetMonthKey, -1));
       setBudgetMonthTouched(true);
@@ -634,23 +605,8 @@ export default function SpendingTabContent() {
 
   const handleCustomMonthSelect = (monthKey: string | null) => {
     setPersistedMonth(monthKey);
-    setDashboardPeriodUpdatedAt(periodPreferenceTimestamp());
-    setSearchParams(
-      (prev) => {
-        const p = new URLSearchParams(prev);
-        if (monthKey) {
-          p.set("spendingInterval", restoreCode);
-          p.set(SPENDING_MONTH_PARAM, monthKey);
-          p.delete(SPENDING_RANGE_FROM_PARAM);
-          p.delete(SPENDING_RANGE_TO_PARAM);
-        } else {
-          p.set("spendingInterval", restoreCode);
-          p.delete(SPENDING_MONTH_PARAM);
-        }
-        return p;
-      },
-      { replace: true },
-    );
+    if (monthKey) setSharedPick({ kind: "month", monthKey });
+    else shareSpendingPeriod(restoreCode);
     if (monthKey && monthKey <= currentBudgetMonthKey) {
       setBudgetMonthKey(monthKey);
       setBudgetMonthTouched(true);
@@ -663,26 +619,39 @@ export default function SpendingTabContent() {
   const handleCustomRangeSelect = (range: DateRange | undefined) => {
     if (range && (!range.from || !range.to)) return;
     setPersistedMonth(null);
-    setDashboardPeriodUpdatedAt(periodPreferenceTimestamp());
+    if (range?.from && range.to) setSharedPick(rangePick({ from: range.from, to: range.to }));
+    else shareSpendingPeriod(restoreCode);
+    setBudgetMonthKey(currentBudgetMonthKey);
+    setBudgetMonthTouched(false);
+  };
+
+  // Apply a period named in the URL once, then drop it from the URL.
+  useEffect(() => {
+    const linked = [
+      "spendingInterval",
+      SPENDING_MONTH_PARAM,
+      SPENDING_RANGE_FROM_PARAM,
+      SPENDING_RANGE_TO_PARAM,
+    ].filter((param) => searchParams.has(param));
+    if (linked.length === 0) return;
+    if (selection.kind === "period") handleIntervalSelect(selection.code);
+    else {
+      setPersistedInterval(selection.restoreCode);
+      setPersistedInsightPeriod(selection.restoreCode);
+      if (selection.kind === "month") handleCustomMonthSelect(selection.monthKey);
+      else handleCustomRangeSelect(selection.range);
+    }
     setSearchParams(
       (prev) => {
         const p = new URLSearchParams(prev);
-        p.set("spendingInterval", restoreCode);
-        p.delete(SPENDING_MONTH_PARAM);
-        if (range?.from && range.to) {
-          p.set(SPENDING_RANGE_FROM_PARAM, formatDateISO(range.from));
-          p.set(SPENDING_RANGE_TO_PARAM, formatDateISO(range.to));
-        } else {
-          p.delete(SPENDING_RANGE_FROM_PARAM);
-          p.delete(SPENDING_RANGE_TO_PARAM);
-        }
+        for (const param of linked) p.delete(param);
         return p;
       },
       { replace: true },
     );
-    setBudgetMonthKey(currentBudgetMonthKey);
-    setBudgetMonthTouched(false);
-  };
+    // Runs only when the URL changes; the handlers read the selection it produced.
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, [searchParams]);
 
   const granularity: "day" | "week" | "month" = useMemo(() => {
     if (selection.kind === "month") return "day";
@@ -958,10 +927,10 @@ export default function SpendingTabContent() {
           </button>
         </div>
       )}
-      <div className="px-4 pb-6 pt-2 md:px-6 md:pb-2 lg:px-8">
+      <div className="px-4 pt-2 pb-6 md:px-6 md:pb-2 lg:px-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-8">
           <div>
-            <div className="text-muted-foreground/80 text-2xs font-semibold uppercase tracking-[0.12em]">
+            <div className="text-muted-foreground/80 text-2xs font-semibold tracking-[0.12em] uppercase">
               {t("spending:tabContent.spentLabel")}
               {selectedIntervalDescription
                 ? ` · ${selectedIntervalDescription.startsWith("spending:") ? t(selectedIntervalDescription) : selectedIntervalDescription}`
@@ -1051,7 +1020,7 @@ export default function SpendingTabContent() {
                   minTickGap={granularity === "day" ? 8 : 16}
                 />
                 <Tooltip
-                  cursor={{ fill: "rgba(0,0,0,0.04)" }}
+                  cursor={{ fill: "var(--muted)", opacity: 0.3 }}
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) return null;
                     const p = payload[0].payload as {
@@ -1138,12 +1107,15 @@ export default function SpendingTabContent() {
           </div>
         </div>
 
-        <div className="grow px-4 pb-[var(--mobile-nav-total-offset)] pt-24 md:px-6 md:pb-6 md:pt-20 lg:px-10 lg:pb-8 lg:pt-24">
-          <div className="flex flex-col gap-6 lg:grid lg:grid-cols-3 lg:gap-20">
-            <div className="contents lg:col-span-2 lg:block lg:space-y-6">
+        {/* Two columns once the content area, not the window (the sidebar may be open),
+            fits the main column beside the 24rem right column; below that the cards
+            interleave in one column (order-*). */}
+        <div className="@container grow px-4 pt-24 pb-[var(--mobile-nav-total-offset)] md:px-6 md:pt-20 md:pb-6 lg:px-10 lg:pt-24 lg:pb-8">
+          <div className="flex flex-col gap-6 @min-[53rem]:grid @min-[53rem]:grid-cols-[minmax(0,2fr)_minmax(24rem,1fr)] @min-[53rem]:gap-20">
+            <div className="contents @min-[53rem]:block @min-[53rem]:space-y-6">
               <DashboardCard
                 title={t("spending:tabContent.whereItWent")}
-                className="order-1 overflow-hidden lg:order-none"
+                className="order-1 overflow-hidden @min-[53rem]:order-none"
                 action={
                   <div className="flex items-center gap-3">
                     <SegmentedToggle
@@ -1188,7 +1160,7 @@ export default function SpendingTabContent() {
                 )}
               </DashboardCard>
 
-              <div className="order-3 lg:order-none">
+              <div className="order-3 @min-[53rem]:order-none">
                 <RecentActivityCard
                   activities={activities}
                   accountTypeById={accountTypeById}
@@ -1197,7 +1169,7 @@ export default function SpendingTabContent() {
                 />
               </div>
 
-              <div className="order-6 lg:order-none">
+              <div className="order-6 @min-[53rem]:order-none">
                 <h2 className="pb-2 text-sm font-semibold tracking-tight">
                   {t("spending:tabContent.digDeeper")}
                 </h2>
@@ -1224,8 +1196,8 @@ export default function SpendingTabContent() {
               </div>
             </div>
 
-            <div className="contents lg:col-span-1 lg:block lg:space-y-6">
-              <div className="order-2 lg:order-none">
+            <div className="contents @min-[53rem]:block @min-[53rem]:space-y-6">
+              <div className="order-2 @min-[53rem]:order-none">
                 <BudgetLineChartCard
                   monthKey={budgetMonthKey}
                   today={todayParts}
@@ -1249,7 +1221,7 @@ export default function SpendingTabContent() {
               </div>
 
               {insights.length > 0 && (
-                <div className="border-border/40 bg-card/70 order-4 rounded-xl border p-4 backdrop-blur-xl md:p-5 lg:order-none">
+                <div className="border-border/40 bg-card/70 order-4 rounded-xl border p-4 backdrop-blur-xl md:p-5 @min-[53rem]:order-none">
                   <div className="mb-2 flex items-center gap-2">
                     <Icons.AlertCircle className="h-4 w-4 shrink-0" style={{ color: theme.deep }} />
                     <h3 className="text-foreground text-sm font-semibold">
@@ -1263,9 +1235,9 @@ export default function SpendingTabContent() {
                     {insights.map((ins, i) => (
                       <div key={i} className="flex gap-2 text-xs">
                         <span
-                          className="w-4 shrink-0 text-base font-bold leading-none"
+                          className="w-4 shrink-0 text-base leading-none font-bold"
                           style={{
-                            color: ins.icon === "!" ? "#C28B47" : theme.deep,
+                            color: ins.icon === "!" ? "var(--status-warn)" : theme.deep,
                           }}
                         >
                           {ins.icon}
@@ -1288,7 +1260,7 @@ export default function SpendingTabContent() {
                 </div>
               )}
 
-              <div className="order-5 lg:order-none">
+              <div className="order-5 @min-[53rem]:order-none">
                 <EventsCard
                   activities={activities}
                   accountTypeById={accountTypeById}
@@ -1489,7 +1461,7 @@ function CategoryTreemapMono({
             }}
           >
             <Tooltip
-              cursor={{ fill: "rgba(0,0,0,0.04)" }}
+              cursor={{ fill: "var(--muted)", opacity: 0.3 }}
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null;
                 const p = payload[0].payload as { name: string; amount: number; pct: number };
@@ -1915,7 +1887,7 @@ function GroupedCategoryBlock({
           className="block h-2.5 w-2.5 shrink-0 rounded-sm"
           style={{ backgroundColor: accent }}
         />
-        <span className="text-foreground min-w-0 flex-1 truncate text-start text-xs font-semibold uppercase tracking-wide">
+        <span className="text-foreground min-w-0 flex-1 truncate text-start text-xs font-semibold tracking-wide uppercase">
           {getBudgetGroupLabel(t, bucket.id, bucket.name)}
         </span>
         <span className="text-muted-foreground/80 text-2xs w-12 text-end font-medium tabular-nums">

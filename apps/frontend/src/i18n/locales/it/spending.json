@@ -21,6 +21,9 @@
     "nameRequired": "Il nome è obbligatorio",
     "namePlaceholder": "Nome categoria",
     "icon": "Icona",
+    "parent": "Categoria principale",
+    "topLevel": "Nessuna (livello superiore)",
+    "parentLockedByBudget": "Rimuovi prima gli obiettivi di budget di questa categoria. I budget valgono solo per le categorie di livello superiore.",
     "color": "Colore",
     "hex": "Hex",
     "create": "Crea categoria",
@@ -436,6 +439,7 @@
     "customSubtitle": "Transazioni nel periodo selezionato"
   },
   "split": {
+    "staleTaxonomy": "Queste suddivisioni usano un tipo di categoria precedente. Non si applicano più a questa transazione.",
     "title": "Dividi transazione",
     "transactionFallback": "Transazione",
     "remainingOf": "Rimanente di {{amount}}",
@@ -444,7 +448,12 @@
     "removeLine": "Rimuovi riga divisa {{number}}",
     "addLine": "Aggiungi riga",
     "distributeEvenly": "Distribuisci equamente",
-    "clearSplit": "Cancella divisione"
+    "clearSplit": "Cancella divisione",
+    "replaceWithCategory": "Sostituisci le suddivisioni con una categoria",
+    "replaceDescription_one": "Sostituire {{count}} suddivisione con {{category}}? Le suddivisioni esistenti saranno rimosse.",
+    "replaceDescription_other": "Sostituire {{count}} suddivisioni con {{category}}? Le suddivisioni esistenti saranno rimosse.",
+    "replaceDescription_many": "Sostituire {{count}} suddivisioni con {{category}}? Le suddivisioni esistenti saranno rimosse.",
+    "categoryProtected": "Le suddivisioni sono protette. Modificale o sostituiscile esplicitamente nel relativo editor."
   },
   "hierarchy": {
     "noCategorizedSpending": "Nessuna spesa categorizzata in questo periodo.",
@@ -1091,6 +1100,14 @@
     "overridesTitle_many": "Eccezioni · {{count}}",
     "overridesTitle_other": "Eccezioni · {{count}}",
     "sourceMonth": "Mese di origine"
+  },
+  "splitEditReview": {
+    "title": "Verifica la rimozione delle suddivisioni",
+    "hiddenCategory": "Le categorie esistenti vengono mantenute e possono essere applicate dopo la rimozione delle suddivisioni.",
+    "confirm": "Salva e rimuovi le suddivisioni",
+    "removed_one": "Questa modifica rimuoverà {{count}} suddivisione.",
+    "removed_many": "Questa modifica rimuoverà {{count}} suddivisioni.",
+    "removed_other": "Questa modifica rimuoverà {{count}} suddivisioni."
   },
   "budgetErrors": {
     "deleteGroup": "Impossibile eliminare il gruppo di budget.",

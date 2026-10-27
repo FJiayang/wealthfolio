@@ -21,6 +21,9 @@
     "nameRequired": "Name is required",
     "namePlaceholder": "Category name",
     "icon": "Icon",
+    "parent": "Parent category",
+    "topLevel": "None (top level)",
+    "parentLockedByBudget": "Remove this category's budget targets before moving it. Budgets only apply to top-level categories.",
     "color": "Color",
     "hex": "Hex",
     "create": "Create Category",
@@ -417,6 +420,7 @@
     "weekOf": "Week of {{date}}"
   },
   "split": {
+    "staleTaxonomy": "These splits use a previous category type. They no longer apply to this transaction.",
     "title": "Split Transaction",
     "transactionFallback": "Transaction",
     "remainingOf": "Remaining of {{amount}}",
@@ -425,7 +429,11 @@
     "removeLine": "Remove split line {{number}}",
     "addLine": "Add line",
     "distributeEvenly": "Distribute evenly",
-    "clearSplit": "Clear split"
+    "clearSplit": "Clear split",
+    "replaceWithCategory": "Replace splits with one category",
+    "replaceDescription_one": "Replace {{count}} split allocation with {{category}}? This removes the existing splits.",
+    "replaceDescription_other": "Replace {{count}} split allocations with {{category}}? This removes the existing splits.",
+    "categoryProtected": "Split allocations are protected. Edit or explicitly replace them in the split editor."
   },
   "hierarchy": {
     "noCategorizedSpending": "No categorized spending in this period.",
@@ -1034,6 +1042,13 @@
     "overridesTitle_one": "Override · {{count}}",
     "overridesTitle_other": "Overrides · {{count}}",
     "sourceMonth": "Source month"
+  },
+  "splitEditReview": {
+    "title": "Review split removal",
+    "hiddenCategory": "Existing category assignments are kept and may apply after the splits are removed.",
+    "confirm": "Save and remove splits",
+    "removed_one": "This edit will remove {{count}} split allocation.",
+    "removed_other": "This edit will remove {{count}} split allocations."
   },
   "budgetErrors": {
     "deleteGroup": "Failed to delete budget group.",

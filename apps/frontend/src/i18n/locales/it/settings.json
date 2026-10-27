@@ -9,7 +9,6 @@
   "language_auto": "Automatica (rileva dal sistema)",
   "language_updated": "Lingua aggiornata correttamente",
   "language_update_failed": "Impossibile aggiornare la lingua",
-  "theme": "Tema",
   "theme_light": "Chiaro",
   "theme_dark": "Scuro",
   "theme_system": "Sistema",
@@ -104,7 +103,15 @@
   "appearance_font_title": "Famiglia di caratteri",
   "appearance_font_description": "Scegli la famiglia di caratteri usata in tutta l'interfaccia.",
   "appearance_theme_title": "Tema",
-  "appearance_theme_description": "Seleziona il tema preferito per l'applicazione.",
+  "appearance_theme_description": "Scegli una palette curata. Ogni tema include una modalità chiara e una scura.",
+  "appearance_mode_title": "Modalità aspetto",
+  "appearance_mode_description": "Chiaro, scuro o come il sistema.",
+  "appearance_theme_designed_for_dark": "{{theme}} è pensato per la modalità scura.",
+  "appearance_theme_designed_for_light": "{{theme}} è pensato per la modalità chiara.",
+  "appearance_switch_to_dark": "Passa a scuro",
+  "appearance_switch_to_light": "Passa a chiaro",
+  "appearance_theme_suggests": "{{theme}} suggerisce {{value}}",
+  "appearance_use_theme_defaults": "Usa le impostazioni del tema",
   "appearance_menu_bar": "Mostra barra dei menu",
   "appearance_menu_bar_description": "Attiva per visualizzare la barra dei menu dell'applicazione.",
   "appearance_theme_required": "Seleziona un tema.",
@@ -1281,6 +1288,7 @@
       "update_error": "Impossibile aggiornare la categoria.",
       "created": "Categoria creata.",
       "create_error": "Impossibile creare la categoria.",
+      "duplicate_error": "Un'altra categoria usa già questa chiave. Prova con un altro nome.",
       "tab_expense_one": "Spesa ({{count}})",
       "tab_expense_many": "Spesa ({{count}})",
       "tab_expense_other": "Spesa ({{count}})",
@@ -1540,7 +1548,7 @@
         "description": "Leggi lo stato di salute del portafoglio e le verifiche diagnostiche."
       },
       "classification_read": {
-        "label": "Classificazione (lettura)",
+        "label": "Classificazione degli asset (lettura)",
         "description": "Leggi le classificazioni e le tassonomie degli strumenti."
       },
       "activities_draft": {
@@ -1552,29 +1560,51 @@
         "description": "Conferma i movimenti, aggiorna quelli esistenti e collega o scollega i trasferimenti. Richiede l'ambito bozza."
       },
       "classification_suggest": {
-        "label": "Classificazione — suggerisci",
+        "label": "Classificazione degli asset — suggerisci",
         "description": "Suggerisci classificazioni degli strumenti per la revisione."
       },
       "classification_write": {
-        "label": "Classificazione — applica/scrittura",
+        "label": "Classificazione degli asset — applica/scrittura",
         "description": "Applica le bozze di classificazione revisionate. Richiede l'ambito suggerimento."
       },
       "market_data_write": {
         "label": "Dati di mercato — scrittura",
         "description": "Salva prezzi (quotazioni) revisionati per asset esistenti. Richiede l'ambito posizioni (lettura)."
+      },
+      "spending_read": {
+        "label": "Visualizza spese",
+        "description": "Leggi transazioni dei conti di spesa, categorie, suddivisioni, regole, eventi, resoconti e budget."
+      },
+      "spending_write": {
+        "label": "Organizza spese",
+        "description": "Gestisci categorie, assegnazioni, suddivisioni, regole ed eventi. Richiede Visualizza spese."
+      },
+      "budget_write": {
+        "label": "Gestisci budget",
+        "description": "Modifica budget predefiniti e mensili, gruppi, riserve e riporti. Richiede Visualizza spese."
       }
     },
     "preset": {
       "read_only": "Solo lettura",
       "read_activity_draft": "Lettura + bozza",
       "read_activity_write": "Lettura + scrittura",
-      "read_activity_write_classification_suggest": "Lettura + scrittura + classificazione"
+      "read_activity_write_classification_suggest": "Lettura + scrittura transazioni + classificazione degli asset",
+      "spending_view": "Spese — visualizzazione",
+      "spending_organize": "Spese — organizzazione",
+      "spending_budgets": "Spese — budget"
     },
     "copied_generic": "{{label}} copiato negli appunti.",
     "hero_aria": "Stato dell'accesso agenti IA",
     "pat_scope_custom_one": "Personalizzato · {{count}} ambito",
     "pat_scope_custom_many": "Personalizzato · {{count}} ambiti",
-    "pat_scope_custom_other": "Personalizzato · {{count}} ambiti"
+    "pat_scope_custom_other": "Personalizzato · {{count}} ambiti",
+    "scope_locked_spending_title": "Richiesto da Organizza spese o Gestisci budget",
+    "dialog_presets": "Preimpostazioni di accesso",
+    "edit_permissions": "Modifica autorizzazioni",
+    "edit_title": "Autorizzazioni per {{name}}",
+    "edit_description": "La chiave resta invariata. Le autorizzazioni si applicano alle richieste successive. Aggiorna gli strumenti o riconnetti il client per vedere i nuovi strumenti autorizzati.",
+    "edit_success": "Autorizzazioni aggiornate",
+    "edit_failed": "Impossibile aggiornare le autorizzazioni"
   },
   "tax_add_category": "Aggiungi categoria",
   "tax_export": "Esporta",

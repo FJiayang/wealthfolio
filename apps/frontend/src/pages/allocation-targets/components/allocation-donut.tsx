@@ -104,7 +104,7 @@ export function AllocationDonut({
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
         {hoveredRow ? (
           <>
-            <div className="text-muted-foreground text-2xs max-w-[75%] truncate uppercase tracking-wider">
+            <div className="text-muted-foreground text-2xs max-w-[75%] truncate tracking-wider uppercase">
               {getCategoryLabel(t, taxonomyId, hoveredRow.categoryId, hoveredRow.categoryName)}
             </div>
             <div
@@ -124,12 +124,12 @@ export function AllocationDonut({
             </div>
             {hoveredRow.status !== "in_band" && (
               <div
-                className="text-2xs mt-1 font-semibold uppercase tracking-wide"
+                className="text-2xs mt-1 font-semibold tracking-wide uppercase"
                 style={{
                   color:
                     hoveredRow.status === "overweight" || hoveredRow.status === "not_targeted"
-                      ? "var(--destructive)"
-                      : "#2563eb",
+                      ? "var(--allocation-over)"
+                      : "var(--allocation-under)",
                 }}
               >
                 {hoveredRow.status === "underweight"
@@ -140,7 +140,7 @@ export function AllocationDonut({
           </>
         ) : (
           <>
-            <div className="text-muted-foreground text-2xs uppercase tracking-wider">
+            <div className="text-muted-foreground text-2xs tracking-wider uppercase">
               {t("allocation:donut.portfolio")}
             </div>
             <div
