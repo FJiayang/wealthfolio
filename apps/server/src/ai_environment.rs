@@ -26,6 +26,7 @@ use wealthfolio_spending::categorization_rules::{
 /// Wraps existing services from AppState to provide access
 /// to the AI crate for tool execution.
 pub struct ServerAiEnvironment {
+    provider_request_service: Arc<wealthfolio_core::quotes::request_counts::ProviderRequestService>,
     base_currency: Arc<RwLock<String>>,
     account_service: Arc<dyn AccountServiceTrait + Send + Sync>,
     activity_service: Arc<dyn ActivityServiceTrait + Send + Sync>,
@@ -111,8 +112,12 @@ impl ServerAiEnvironment {
         spending_settings_service: Arc<wealthfolio_spending::settings::SpendingSettingsService>,
         spending_analytics_service: Arc<wealthfolio_spending::analytics::AnalyticsService>,
         spending_insight_service: Arc<wealthfolio_spending::insight::InsightService>,
+        provider_request_service: Arc<
+            wealthfolio_core::quotes::request_counts::ProviderRequestService,
+        >,
     ) -> Self {
         Self {
+            provider_request_service,
             allocation_target_service,
             drift_service,
             rebalance_service,
@@ -153,6 +158,12 @@ impl ServerAiEnvironment {
 }
 
 impl AgentEnvironment for ServerAiEnvironment {
+    fn provider_request_service(
+        &self,
+    ) -> Arc<wealthfolio_core::quotes::request_counts::ProviderRequestService> {
+        self.provider_request_service.clone()
+    }
+
     fn trade_instruction_service(
         &self,
     ) -> Arc<dyn wealthfolio_core::trade_instructions::TradeInstructionServiceTrait> {

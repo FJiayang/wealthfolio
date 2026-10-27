@@ -221,7 +221,15 @@ impl MarketDataProvider for MetalPriceApiProvider {
             .client
             .get(&url)
             .header("X-API-KEY", &self.api_key)
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(
+                self.id(),
+                self.request_recorder.as_ref(),
+                &crate::RequestContext::http(
+                    "latest",
+                    vec![raw_symbol.clone()],
+                    serde_json::json!({"base": quote_currency, "currencies": base_code}),
+                ),
+            )
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
@@ -310,7 +318,7 @@ impl MarketDataProvider for MetalPriceApiProvider {
             .client
             .get(&url)
             .header("X-API-KEY", &self.api_key)
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(self.id(), self.request_recorder.as_ref(), &crate::RequestContext::http("timeframe", vec![raw_symbol.clone()], serde_json::json!({"base": quote_currency, "currencies": base_code, "start_date": start_date.to_string(), "end_date": end_date.to_string()})))
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
@@ -639,5 +647,43 @@ mod tests {
 
         let result = provider.get_latest_quote(&context, instrument).await;
         assert!(result.is_err());
+    }
+}
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    use crate::request_recorder::tests::{assert_safe_context, offline_client, MemoryRecorder};
+    #[tokio::test]
+    async fn diagnostics_select_business_parameters_without_credentials() {
+        let secret = "diagnostics-test-secret";
+        let recorder = std::sync::Arc::new(MemoryRecorder::default());
+        let mut provider =
+            MetalPriceApiProvider::new(secret.into()).with_request_recorder(recorder.clone());
+        provider.client = offline_client();
+        let context = crate::QuoteContext {
+            instrument: crate::InstrumentId::Metal {
+                code: "XAU".into(),
+                quote: "USD".into(),
+            },
+            identifiers: Default::default(),
+            overrides: None,
+            currency_hint: None,
+            preferred_provider: None,
+            bond_metadata: None,
+            custom_provider_code: None,
+        };
+        assert!(provider
+            .get_latest_quote(
+                &context,
+                crate::ProviderInstrument::MetalSymbol {
+                    symbol: "XAU".into(),
+                    quote: "USD".into()
+                }
+            )
+            .await
+            .is_err());
+        let context = assert_safe_context(&recorder, secret);
+        assert_eq!(context.symbols, ["XAU"]);
+        assert_eq!(context.parameters["base"], "USD");
     }
 }

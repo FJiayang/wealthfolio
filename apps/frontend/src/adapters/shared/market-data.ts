@@ -19,11 +19,16 @@ export interface ProviderRequestCountRow {
   providerId: string;
   day: string;
   requestCount: number;
+  recordKind?: "http" | "sdk";
+  successCount?: number;
+  failureCount?: number;
+  unknownCount?: number;
 }
 
 export interface ProviderRequestCounts {
   timezone: string;
   trackingSince: string;
+  availableSince?: string;
   asOf: string;
   startDate: string;
   endDate: string;

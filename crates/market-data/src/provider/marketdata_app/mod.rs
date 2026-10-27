@@ -122,12 +122,16 @@ impl MarketDataAppProvider {
     }
 
     /// Fetch data from the API with Bearer token authentication.
-    async fn fetch(&self, url: &str) -> Result<String, MarketDataError> {
+    async fn fetch(
+        &self,
+        url: &str,
+        diagnostic: &crate::RequestContext,
+    ) -> Result<String, MarketDataError> {
         let response = self
             .client
             .get(url)
             .bearer_auth(&self.api_key)
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(self.id(), self.request_recorder.as_ref(), diagnostic)
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
@@ -215,7 +219,16 @@ impl MarketDataProvider for MarketDataAppProvider {
         let symbol = Self::extract_symbol(&instrument)?;
         let url = format!("{}/stocks/prices/{}/", BASE_URL, symbol);
 
-        let response_text = self.fetch(&url).await?;
+        let response_text = self
+            .fetch(
+                &url,
+                &crate::RequestContext::http(
+                    "latest",
+                    vec![symbol.clone()],
+                    serde_json::json!({"symbol": symbol}),
+                ),
+            )
+            .await?;
         let price_resp: PriceResponse =
             serde_json::from_str(&response_text).map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
@@ -286,7 +299,7 @@ impl MarketDataProvider for MarketDataAppProvider {
 
         let url = Self::historical_candles_url(&symbol, &start_str, &end_str);
 
-        let response_text = self.fetch(&url).await?;
+        let response_text = self.fetch(&url, &crate::RequestContext::http("candles", vec![symbol.clone()], serde_json::json!({"symbol": symbol, "from": start_str, "to": end_str, "resolution": "D"}))).await?;
         let candles: CandlesResponse =
             serde_json::from_str(&response_text).map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
@@ -552,5 +565,29 @@ mod tests {
         let candles: CandlesResponse = serde_json::from_str(json).unwrap();
         assert_eq!(candles.s, "no_data");
         assert!(candles.c.is_none());
+    }
+}
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    use crate::request_recorder::tests::{assert_safe_context, offline_client, MemoryRecorder};
+    #[tokio::test]
+    async fn diagnostics_select_business_parameters_without_credentials() {
+        let secret = "diagnostics-test-secret";
+        let recorder = std::sync::Arc::new(MemoryRecorder::default());
+        let mut provider =
+            MarketDataAppProvider::new(secret.into()).with_request_recorder(recorder.clone());
+        provider.client = offline_client();
+        let context = crate::RequestContext::http(
+            "latest",
+            vec!["ABC".into()],
+            serde_json::json!({"symbol":"ABC"}),
+        );
+        assert!(provider
+            .fetch("https://example.test/stocks/prices/ABC", &context)
+            .await
+            .is_err());
+        let context = assert_safe_context(&recorder, secret);
+        assert_eq!(context.symbols, ["ABC"]);
     }
 }

@@ -24,6 +24,22 @@ export const counts: ProviderRequestCounts = {
 };
 
 describe("provider request calendar rows", () => {
+  it("marks expired days unavailable and sums distinct HTTP/SDK rows", () => {
+    const data: ProviderRequestCounts = {
+      ...counts,
+      availableSince: "2026-10-23T16:00:00Z",
+      rows: [
+        { providerId: "YAHOO", day: "2026-10-24", recordKind: "http", requestCount: 2 },
+        { providerId: "YAHOO", day: "2026-10-24", recordKind: "sdk", requestCount: 3 },
+      ],
+    };
+    expect(requestCountDays(data, "YAHOO")).toEqual([
+      { day: "2026-10-24", count: 5, partial: true },
+      { day: "2026-10-23", count: null, partial: false },
+      { day: "2026-10-22", count: null, partial: false },
+    ]);
+    expect(todayRequestCount(data, "YAHOO")).toBe(5);
+  });
   it("never zero fills pretracking days, marks first day partial and fills tracked sparse days", () => {
     expect(requestCountDays(counts, "YAHOO")).toEqual([
       { day: "2026-10-24", count: 12, partial: true },

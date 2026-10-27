@@ -208,7 +208,36 @@ impl FinnhubProvider {
         debug!("Finnhub request: {} with {} params", endpoint, params.len());
 
         let response = request
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(
+                self.id(),
+                self.request_recorder.as_ref(),
+                &crate::RequestContext::http(
+                    endpoint,
+                    params
+                        .iter()
+                        .filter(|(k, _)| *k == "symbol")
+                        .map(|(_, v)| v.to_string())
+                        .collect(),
+                    params
+                        .iter()
+                        .filter(|(k, _)| {
+                            [
+                                "symbol",
+                                "resolution",
+                                "from",
+                                "to",
+                                "q",
+                                "exchange",
+                                "isin",
+                                "cusip",
+                            ]
+                            .contains(k)
+                        })
+                        .map(|(k, v)| (k.to_string(), serde_json::json!(v)))
+                        .collect::<serde_json::Map<_, _>>()
+                        .into(),
+                ),
+            )
             .await
             .map_err(|e| {
                 if e.is_timeout() {
@@ -968,5 +997,32 @@ mod tests {
             symbol: "US€D".into(),
         };
         assert_eq!(provider.extract_symbol(&instrument).unwrap(), "US€D");
+    }
+}
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    use crate::request_recorder::tests::{assert_safe_context, offline_client, MemoryRecorder};
+    #[tokio::test]
+    async fn diagnostics_select_business_parameters_without_credentials() {
+        let secret = "diagnostics-test-secret";
+        let recorder = std::sync::Arc::new(MemoryRecorder::default());
+        let mut provider =
+            FinnhubProvider::new(secret.into()).with_request_recorder(recorder.clone());
+        provider.client = offline_client();
+        assert!(provider
+            .fetch(
+                "/quote",
+                &[
+                    ("symbol", "ABC"),
+                    ("token", secret),
+                    ("unexpected_private_field", secret)
+                ]
+            )
+            .await
+            .is_err());
+        let context = assert_safe_context(&recorder, secret);
+        assert_eq!(context.symbols, ["ABC"]);
+        assert_eq!(context.operation, "/quote");
     }
 }

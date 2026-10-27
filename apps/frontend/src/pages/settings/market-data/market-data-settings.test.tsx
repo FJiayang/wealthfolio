@@ -11,6 +11,7 @@ import type { CustomProviderWithSources } from "@/lib/types/custom-provider";
 import MarketDataSettingsPage from "./market-data-settings";
 
 const hookMocks = vi.hoisted(() => ({
+  useProviderRequestCounts: vi.fn(),
   getAssets: vi.fn(),
   getSecret: vi.fn(),
   useCustomProviders: vi.fn(),
@@ -51,11 +52,17 @@ vi.mock("@/lib/settings-provider", () => ({
 
 vi.mock("./use-provider-request-counts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./use-provider-request-counts")>()),
-  useProviderRequestCounts: () => ({ data: undefined, isError: false }),
+  useProviderRequestCounts: hookMocks.useProviderRequestCounts,
 }));
 vi.mock("./provider-request-counts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./provider-request-counts")>()),
-  ProviderRequestCountsPanel: () => null,
+  ProviderRequestCountsPanel: ({
+    initialProviderId,
+    days,
+  }: {
+    initialProviderId?: string;
+    days: number;
+  }) => <div data-testid="request-panel" data-provider={initialProviderId} data-days={days} />,
 }));
 
 vi.mock("./market-data-sync-settings", () => ({ MarketDataSyncSettings: () => null }));
@@ -129,13 +136,14 @@ async function openProviderSettings(): Promise<HTMLInputElement> {
     throw new Error("Provider row not found");
   }
 
-  await user.click(within(providerRow).getAllByRole("button")[0]);
+  await user.click(within(providerRow).getByRole("button", { name: "Alpha Vantage settings" }));
   return screen.findByLabelText<HTMLInputElement>("API Key");
 }
 
 describe("MarketDataSettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    hookMocks.useProviderRequestCounts.mockReturnValue({ data: undefined, isError: false });
     hookMocks.useMarketDataProviderSettings.mockReturnValue({
       data: [marketDataProvider()],
       isLoading: false,
@@ -174,6 +182,35 @@ describe("MarketDataSettingsPage", () => {
       expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
     },
   );
+
+  it("keeps queries in a drawer and prefills the provider and current day from its count", async () => {
+    hookMocks.useProviderRequestCounts.mockReturnValue({
+      data: {
+        timezone: "Asia/Shanghai",
+        trackingSince: "2026-10-25T00:00:00Z",
+        asOf: "2026-10-27T04:00:00Z",
+        startDate: "2026-10-27",
+        endDate: "2026-10-27",
+        rows: [{ providerId: "ALPHA_VANTAGE", day: "2026-10-27", requestCount: 4 }],
+      },
+      isError: false,
+    });
+    const user = userEvent.setup();
+    renderPage();
+    expect(screen.queryByTestId("request-panel")).not.toBeInTheDocument();
+    expect(hookMocks.useProviderRequestCounts).toHaveBeenLastCalledWith(1, "Asia/Shanghai");
+    await user.click(screen.getByRole("button", { name: "Query details" }));
+    expect(within(screen.getByRole("dialog")).getByTestId("request-panel")).toHaveAttribute(
+      "data-days",
+      "30",
+    );
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "Today so far: 4" }));
+    const panel = within(screen.getByRole("dialog")).getByTestId("request-panel");
+    expect(panel).toHaveAttribute("data-days", "1");
+    expect(panel).toHaveAttribute("data-provider", "ALPHA_VANTAGE");
+    expect(hookMocks.useProviderRequestCounts).toHaveBeenLastCalledWith(1, "Asia/Shanghai");
+  });
 
   it("keeps a new market data API key visible while typing or pasting", async () => {
     const user = userEvent.setup();
@@ -254,6 +291,26 @@ describe("MarketDataSettingsPage", () => {
       screen.getByText(name).closest<HTMLElement>(".flex.items-center.gap-4.px-4.py-3")!;
     return { user, row };
   }
+
+  it("opens today's query for the selected custom provider", async () => {
+    hookMocks.useProviderRequestCounts.mockReturnValue({
+      data: {
+        timezone: "Asia/Shanghai",
+        trackingSince: "2026-10-25T00:00:00Z",
+        endDate: "2026-10-27",
+        rows: [],
+      },
+      isError: false,
+    });
+    await openCustomProviders();
+    const row = screen
+      .getByText("General API")
+      .closest<HTMLElement>(".flex.items-center.gap-4.px-4.py-3")!;
+    await userEvent.setup().click(within(row).getByRole("button", { name: "Today so far: 0" }));
+    const panel = within(screen.getByRole("dialog")).getByTestId("request-panel");
+    expect(panel).toHaveAttribute("data-provider", "CUSTOM_SCRAPER:general");
+    expect(panel).toHaveAttribute("data-days", "1");
+  });
 
   it("marks fallback providers and counts the securities each one serves", async () => {
     const { row } = await openCustomProviders();

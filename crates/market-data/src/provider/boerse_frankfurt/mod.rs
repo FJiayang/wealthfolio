@@ -153,12 +153,16 @@ impl BoerseFrankfurtProvider {
         }
     }
 
-    async fn send_get(&self, url: &str) -> Result<reqwest::Response, MarketDataError> {
+    async fn send_get(
+        &self,
+        url: &str,
+        diagnostic: &crate::RequestContext,
+    ) -> Result<reqwest::Response, MarketDataError> {
         let provider_id: ProviderId = Cow::Borrowed(PROVIDER_ID);
         self.request_limiter.acquire(&provider_id).await;
         self.client
             .get(url)
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(self.id(), self.request_recorder.as_ref(), diagnostic)
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
@@ -194,7 +198,16 @@ impl BoerseFrankfurtProvider {
             BASE_URL,
             encode(symbol)
         );
-        let resp = self.send_get(&url).await?;
+        let resp = self
+            .send_get(
+                &url,
+                &crate::RequestContext::http(
+                    "resolve_isin",
+                    vec![symbol.into()],
+                    serde_json::json!({"query": symbol, "limit": 5}),
+                ),
+            )
+            .await?;
 
         if !resp.status().is_success() {
             return Err(MarketDataError::ProviderError {
@@ -382,7 +395,16 @@ impl MarketDataProvider for BoerseFrankfurtProvider {
 
         debug!("BF get_latest_quote: {}", url);
 
-        let resp = self.send_get(&url).await?;
+        let resp = self
+            .send_get(
+                &url,
+                &crate::RequestContext::http(
+                    "latest",
+                    vec![symbol.clone()],
+                    serde_json::json!({"isin": isin, "mic": mic}),
+                ),
+            )
+            .await?;
 
         if !resp.status().is_success() {
             return Err(MarketDataError::ProviderError {
@@ -471,7 +493,7 @@ impl MarketDataProvider for BoerseFrankfurtProvider {
 
         debug!("BF get_historical_quotes: {}", url);
 
-        let resp = self.send_get(&url).await?;
+        let resp = self.send_get(&url, &crate::RequestContext::http("history", vec![symbol.clone()], serde_json::json!({"symbol": tv_symbol, "resolution": "1D", "from": start.timestamp(), "to": end.timestamp()}))).await?;
 
         if !resp.status().is_success() {
             return Err(MarketDataError::ProviderError {
@@ -509,7 +531,16 @@ impl MarketDataProvider for BoerseFrankfurtProvider {
             encode(query)
         );
 
-        let resp = self.send_get(&url).await?;
+        let resp = self
+            .send_get(
+                &url,
+                &crate::RequestContext::http(
+                    "search",
+                    vec![],
+                    serde_json::json!({"query": query, "limit": 10}),
+                ),
+            )
+            .await?;
 
         if !resp.status().is_success() {
             return Err(MarketDataError::ProviderError {
@@ -561,7 +592,16 @@ impl MarketDataProvider for BoerseFrankfurtProvider {
             encode(&tv_symbol)
         );
 
-        let resp = self.send_get(&url).await?;
+        let resp = self
+            .send_get(
+                &url,
+                &crate::RequestContext::http(
+                    "profile",
+                    vec![symbol.into()],
+                    serde_json::json!({"symbol": tv_symbol}),
+                ),
+            )
+            .await?;
 
         if !resp.status().is_success() {
             return Err(MarketDataError::ProviderError {
@@ -926,5 +966,21 @@ mod tests {
             (r_mic == "XPAR").then(|| r_isin.to_string())
         });
         assert!(missing.is_none());
+    }
+}
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    use crate::request_recorder::tests::{assert_safe_context, offline_client, MemoryRecorder};
+    #[tokio::test]
+    async fn diagnostics_select_business_parameters_without_credentials() {
+        let secret = "diagnostics-test-secret";
+        let recorder = std::sync::Arc::new(MemoryRecorder::default());
+        let mut provider = BoerseFrankfurtProvider::new().with_request_recorder(recorder.clone());
+        provider.client = offline_client();
+        assert!(provider.resolve_isin("ABC", "XETR").await.is_err());
+        let context = assert_safe_context(&recorder, secret);
+        assert_eq!(context.symbols, ["ABC"]);
+        assert_eq!(context.parameters["query"], "ABC");
     }
 }

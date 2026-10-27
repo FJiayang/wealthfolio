@@ -276,7 +276,7 @@ async fn wait_for_method(calls: &Mutex<Vec<(String, Instant)>>, method: &str, co
 }
 
 #[tokio::test]
-async fn request_counts_include_handshake_cached_tools_and_session_cleanup() {
+async fn request_counts_sdk_calls_exclude_handshake_and_session_cleanup() {
     let (url, server, calls) = server().await;
     let recorder = Arc::new(MemoryRecorder::default());
     let mut provider = IfindProvider::new("test-key".into())
@@ -290,13 +290,13 @@ async fn request_counts_include_handshake_cached_tools_and_session_cleanup() {
     let before = Utc::now();
     provider.call("stock", "ok", json!({})).await.unwrap();
     wait_for_method(&calls, "GET", 1).await;
-    assert_eq!(recorder.0.lock().unwrap().len(), 4);
+    assert_eq!(recorder.0.lock().unwrap().len(), 1);
     provider.call("stock", "ok", json!({})).await.unwrap();
-    assert_eq!(recorder.0.lock().unwrap().len(), 5);
+    assert_eq!(recorder.0.lock().unwrap().len(), 2);
     // A cached connection has no handshake to count; invalid tool arguments
     // fail before dispatch and must not replay or invalidate the connection.
     assert!(provider.call("stock", "ok", json!(null)).await.is_err());
-    assert_eq!(recorder.0.lock().unwrap().len(), 5);
+    assert_eq!(recorder.0.lock().unwrap().len(), 2);
     let mut connection = provider
         .state
         .lock()
@@ -308,11 +308,11 @@ async fn request_counts_include_handshake_cached_tools_and_session_cleanup() {
     let after = Utc::now();
     let calls = calls.lock().await;
     let events = recorder.0.lock().unwrap();
-    assert_eq!(events.len(), 6);
+    assert_eq!(events.len(), 2);
     assert!(events
         .iter()
         .all(|(id, time)| id == DATA_SOURCE_IFIND && *time >= before && *time <= after));
-    assert_eq!(calls.len(), events.len());
+    assert_eq!(calls.len(), 6);
     assert_eq!(calls.iter().filter(|(m, _)| m == "initialize").count(), 1);
     assert_eq!(
         calls
@@ -326,24 +326,22 @@ async fn request_counts_include_handshake_cached_tools_and_session_cleanup() {
 }
 
 #[tokio::test]
-async fn initialization_failure_counts_only_the_dispatched_attempt() {
+async fn initialization_failure_counts_failed_sdk_calls() {
     let recorder = Arc::new(MemoryRecorder::default());
     let mut provider = IfindProvider::new("test-key".into())
         .unwrap()
         .with_request_recorder(recorder.clone());
     provider.base = "not a URL".into();
     assert!(provider.call("stock", "ok", json!({})).await.is_err());
-    assert!(recorder.0.lock().unwrap().is_empty());
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    provider.base = format!("http://{}", listener.local_addr().unwrap());
-    drop(listener);
-    assert!(provider.call("stock", "ok", json!({})).await.is_err());
     assert_eq!(recorder.0.lock().unwrap().len(), 1);
+    provider.base = "http://127.0.0.1:0".into();
+    assert!(provider.call("stock", "ok", json!({})).await.is_err());
+    assert_eq!(recorder.0.lock().unwrap().len(), 2);
     assert!(provider.state.lock().await.connections.is_empty());
 }
 
 #[tokio::test]
-async fn request_counts_include_sse_reconnects_but_not_stream_events() {
+async fn request_counts_sdk_call_does_not_count_sse_reconnects() {
     let (url, server, calls) = server_with_sse(true).await;
     let recorder = Arc::new(MemoryRecorder::default());
     let mut provider = IfindProvider::new("test-key".into())
@@ -365,7 +363,7 @@ async fn request_counts_include_sse_reconnects_but_not_stream_events() {
     assert_eq!(calls.iter().filter(|(m, _)| m == "tools/call").count(), 1);
     assert_eq!(calls.iter().filter(|(m, _)| m == "DELETE").count(), 1);
     assert_eq!(calls.len(), 6);
-    assert_eq!(recorder.0.lock().unwrap().len(), calls.len());
+    assert_eq!(recorder.0.lock().unwrap().len(), 1);
     server.abort();
 }
 
@@ -391,7 +389,7 @@ async fn request_counts_each_history_window_without_repeating_handshake() {
     assert_eq!(rows[0].timestamp, start);
     assert_eq!(rows[1].timestamp, end);
     wait_for_method(&calls, "GET", 1).await;
-    assert_eq!(recorder.0.lock().unwrap().len(), 5);
+    assert_eq!(recorder.0.lock().unwrap().len(), 2);
     let mut connection = provider
         .state
         .lock()
@@ -404,7 +402,7 @@ async fn request_counts_each_history_window_without_repeating_handshake() {
     assert_eq!(calls.iter().filter(|(m, _)| m == "initialize").count(), 1);
     assert_eq!(calls.iter().filter(|(m, _)| m == "tools/call").count(), 2);
     assert_eq!(calls.len(), 6);
-    assert_eq!(recorder.0.lock().unwrap().len(), calls.len());
+    assert_eq!(recorder.0.lock().unwrap().len(), 2);
     server.abort();
 }
 
@@ -433,7 +431,7 @@ async fn sdk_handshake_session_serialization_and_expiry_without_replay() {
     let tools: Vec<_> = calls.iter().filter(|(m, _)| m == "tools/call").collect();
     assert_eq!(tools.len(), 5);
     assert_eq!(calls.len(), 12);
-    assert_eq!(recorder.0.lock().unwrap().len(), calls.len());
+    assert_eq!(recorder.0.lock().unwrap().len(), 5);
     assert!(tools
         .windows(2)
         .all(|pair| pair[1].1.duration_since(pair[0].1) >= Duration::from_millis(480)));
@@ -567,5 +565,36 @@ async fn qualified_search_preserves_identity_in_provider_and_registry() {
     assert_eq!(tool_count().await, 14);
     // The profile response for this market contains only 600519.SH.
     assert!(provider.search("XSHG:600000").await.is_err());
+    server.abort();
+}
+#[tokio::test]
+async fn sdk_diagnostics_capture_safe_arguments_symbols_and_results() {
+    use crate::request_recorder::tests::assert_safe_context;
+    let (url, server, _) = server().await;
+    let secret = "test-key";
+    let recorder = Arc::new(MemoryRecorder::default());
+    let mut provider = IfindProvider::new(secret.into())
+        .unwrap()
+        .with_request_recorder(recorder.clone());
+    provider.base = url;
+    provider
+        .call_with_symbols(
+            "stock",
+            "ok",
+            json!({"query":"600519.SH的最新价", "token":secret, "unexpected_private_field":secret}),
+            vec!["600519.SH".into()],
+        )
+        .await
+        .unwrap();
+    let context = assert_safe_context(&recorder, secret);
+    assert_eq!(context.record_kind, "sdk");
+    assert_eq!(context.symbols, ["600519.SH"]);
+    assert_eq!(context.parameters["query"], "600519.SH的最新价");
+    assert_eq!(recorder.2.lock().unwrap()[0].1.outcome, "success");
+    assert!(provider
+        .call("stock", "tool-error", json!({}))
+        .await
+        .is_err());
+    assert_eq!(recorder.2.lock().unwrap()[1].1.outcome, "failure");
     server.abort();
 }

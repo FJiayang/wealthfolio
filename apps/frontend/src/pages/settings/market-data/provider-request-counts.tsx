@@ -23,20 +23,36 @@ import { TimezoneInput } from "../general/timezone-input";
 import { getSupportedTimezones } from "../general/timezone-settings";
 import { requestCountDays, useProviderRequestCounts } from "./use-provider-request-counts";
 
-export function ProviderTodayRequests({ count }: { count: number | undefined }) {
+export function ProviderTodayRequests({
+  count,
+  onClick,
+}: {
+  count: number | undefined;
+  onClick?: () => void;
+}) {
   const { t } = useTranslation();
   const formatting = useNumberFormatting();
-  return (
-    <span className="text-muted-foreground text-xs">
-      {t("settings:provider_request_counts.today", {
-        value:
-          count === undefined ? "—" : formatting.formatDecimal(count, { maximumFractionDigits: 0 }),
-      })}
-    </span>
+  const label = t("settings:provider_request_counts.today", {
+    value:
+      count === undefined ? "—" : formatting.formatDecimal(count, { maximumFractionDigits: 0 }),
+  });
+  return onClick ? (
+    <Button
+      variant="link"
+      size="sm"
+      className="text-muted-foreground h-auto p-0 text-xs font-normal"
+      onClick={onClick}
+      disabled={count === undefined}
+    >
+      {label}
+    </Button>
+  ) : (
+    <span className="text-muted-foreground text-xs">{label}</span>
   );
 }
 
 interface ProviderRequestCountsPanelProps {
+  initialProviderId?: string;
   query: ReturnType<typeof useProviderRequestCounts>;
   days: number;
   onDaysChange: (days: number) => void;
@@ -44,6 +60,7 @@ interface ProviderRequestCountsPanelProps {
 }
 
 export function ProviderRequestCountsPanel({
+  initialProviderId,
   query,
   days,
   onDaysChange,
@@ -53,7 +70,7 @@ export function ProviderRequestCountsPanel({
   const dates = useDateFormatting();
   const numbers = useNumberFormatting();
   const { settings, updateSettings } = useSettingsContext();
-  const [selectedProvider, setSelectedProvider] = useState<string>();
+  const [selectedProvider, setSelectedProvider] = useState(initialProviderId);
   const [draftTimezone, setDraftTimezone] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
@@ -66,7 +83,16 @@ export function ProviderRequestCountsPanel({
     const names = new Map(providers.map((provider) => [provider.id, provider.name]));
     for (const row of query.data?.rows ?? [])
       if (!names.has(row.providerId)) names.set(row.providerId, row.providerId);
-    return Array.from(names, ([value, label]) => ({ value, label }));
+    return Array.from(names, ([value, label]) => {
+      const kinds = [
+        ...new Set(
+          (query.data?.rows ?? [])
+            .filter((row) => row.providerId === value)
+            .map((row) => (row.recordKind ?? "http").toUpperCase()),
+        ),
+      ];
+      return { value, label: kinds.length ? `${label} (${kinds.join(" / ")})` : label };
+    });
   }, [providers, query.data]);
   const providerId = choices.some((choice) => choice.value === selectedProvider)
     ? selectedProvider!
@@ -74,11 +100,14 @@ export function ProviderRequestCountsPanel({
   // Never relabel old aggregates with a newly saved timezone while refetching.
   const data = query.data?.timezone === timezone ? query.data : undefined;
   const rows = data && providerId ? requestCountDays(data, providerId) : [];
-  const rangeItems = [7, 30, 90].map((value) => ({
+  const rangeItems = [1, 7, 30].map((value) => ({
     value,
-    label: t("settings:provider_request_counts.days", {
-      value: numbers.formatDecimal(value, { maximumFractionDigits: 0 }),
-    }),
+    label:
+      value === 1
+        ? t("settings:provider_request_counts.today_range")
+        : t("settings:provider_request_counts.days", {
+            value: numbers.formatDecimal(value, { maximumFractionDigits: 0 }),
+          }),
   }));
   const saveTimezone = async () => {
     if (!draftTimezone) return;
@@ -105,7 +134,8 @@ export function ProviderRequestCountsPanel({
             {t("settings:provider_request_counts.title")}
           </h2>
           <p className="text-muted-foreground text-sm">
-            {t("settings:provider_request_counts.description")}
+            {t("settings:provider_request_counts.description")}{" "}
+            {t("settings:provider_request_counts.retention_hint")}
           </p>
         </div>
         <Button

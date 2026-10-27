@@ -36,6 +36,7 @@ impl TencentProvider {
             url,
             params,
             self.request_recorder.as_ref(),
+            &diagnostic_context(url, params),
         )
         .await
     }
@@ -349,6 +350,42 @@ impl MarketDataProvider for TencentProvider {
         result.map_err(|error| response_error(self.id(), error))
     }
 }
+fn diagnostic_context(url: &str, params: &[(&str, String)]) -> crate::RequestContext {
+    let parsed =
+        reqwest::Url::parse(url).expect("provider URL is constructed from a fixed endpoint");
+    let parameters: serde_json::Map<String, serde_json::Value> = parsed
+        .query_pairs()
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .chain(
+            params
+                .iter()
+                .map(|(key, value)| (key.to_string(), value.clone())),
+        )
+        .filter(|(key, _)| ["q", "t", "param", "code"].contains(&key.as_str()))
+        .map(|(key, value)| (key, serde_json::json!(value)))
+        .collect();
+    let mut symbols: Vec<String> = ["q", "code"]
+        .iter()
+        .filter_map(|key| parameters.get(*key).and_then(|value| value.as_str()))
+        .flat_map(|value| value.split(','))
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .collect();
+    if parsed.host_str() == Some("smartbox.gtimg.cn") {
+        symbols.clear();
+    }
+    if let Some(code) = parameters
+        .get("param")
+        .and_then(|value| value.as_str())
+        .and_then(|value| value.split(',').next())
+    {
+        symbols.push(code.into());
+    }
+    symbols.sort();
+    symbols.dedup();
+    crate::RequestContext::http(parsed.path(), symbols, parameters.into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -368,5 +405,25 @@ mod tests {
             parse_history(&value, "usAAPL", "USD").unwrap()[0].volume,
             Some(Decimal::from(100))
         );
+    }
+}
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    #[test]
+    fn diagnostics_select_business_parameters_without_credentials() {
+        let context = diagnostic_context(
+            "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/newfqkline/get?token=private",
+            &[
+                ("param", "sh600519,day,2026-01-01,2026-12-31,640,".into()),
+                ("unexpected_private_field", "private".into()),
+            ],
+        );
+        assert_eq!(context.symbols, ["sh600519"]);
+        let search = diagnostic_context("https://smartbox.gtimg.cn/s3/", &[("q", "Apple".into())]);
+        assert!(search.symbols.is_empty());
+        let encoded = serde_json::to_string(&context).unwrap();
+        assert!(!encoded.contains("private"));
+        assert!(!encoded.contains("unexpected_private_field"));
     }
 }

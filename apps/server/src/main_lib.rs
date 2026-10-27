@@ -1058,6 +1058,7 @@ async fn initialize_profile_state(
         spending_settings_service.clone(),
         spending_analytics_service.clone(),
         spending_insight_service.clone(),
+        provider_request_service.clone(),
     ));
     let agent_environment: Arc<dyn wealthfolio_agent_tools::AgentEnvironment> =
         ai_environment.clone();

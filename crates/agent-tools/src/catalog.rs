@@ -51,6 +51,7 @@ impl AgentToolCatalog {
         tools.extend(crate::tools::holdings_management::tools());
         tools.extend(crate::tools::spending_management::tools());
         tools.extend(crate::tools::market_queries::tools());
+        tools.extend(crate::tools::provider_requests::tools());
         tools.extend(crate::tools::classification_management::tools());
         tools.extend(crate::tools::account_management::tools());
         tools.extend(crate::tools::asset_management::tools());
@@ -117,6 +118,22 @@ mod tests {
     #[derive(Default)]
     struct PanicEnv {
         rules: Option<Arc<TestRuleService>>,
+    }
+
+    #[tokio::test]
+    async fn provider_diagnostics_deny_calls_before_accessing_services() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        for name in ["list_provider_requests", "get_provider_request_counts"] {
+            let result = catalog
+                .execute(
+                    Arc::new(PanicEnv { rules: None }),
+                    &AgentScopeSet::default(),
+                    name,
+                    serde_json::json!({}),
+                )
+                .await;
+            assert!(matches!(result, Err(AgentToolError::ScopeDenied { .. })));
+        }
     }
 
     #[derive(Default)]
@@ -202,6 +219,12 @@ mod tests {
     }
 
     impl AgentEnvironment for PanicEnv {
+        fn provider_request_service(
+            &self,
+        ) -> Arc<wealthfolio_core::quotes::request_counts::ProviderRequestService> {
+            unimplemented!("request diagnostics are not used by this fixture")
+        }
+
         fn trade_instruction_service(
             &self,
         ) -> Arc<dyn wealthfolio_core::trade_instructions::TradeInstructionServiceTrait> {

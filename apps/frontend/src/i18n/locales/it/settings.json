@@ -1884,6 +1884,9 @@
   "cloud_backup_retry_label": "Prossimo tentativo",
   "cloud_backup_retry_now": "Riprova il backup",
   "provider_request_counts": {
+    "today_range": "Oggi",
+    "query_details": "Consulta dettagli",
+    "retention_hint": "I dati vengono conservati per 30 giorni. HTTP e SDK utilizzano ambiti di misurazione diversi.",
     "title": "Richieste ai provider",
     "description": "Tentativi registrati di chiamata alle API dei provider, inclusi i nuovi tentativi e le richieste non riuscite. Non si tratta di un totale di fatturazione.",
     "today": "Oggi finora: {{value}}",

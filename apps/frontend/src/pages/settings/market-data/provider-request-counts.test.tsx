@@ -50,6 +50,36 @@ function panel(overrides = {}) {
   return query;
 }
 describe("provider request counts panel", () => {
+  it("selects the provider supplied by the card entry point", () => {
+    const query = {
+      data,
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useProviderRequestCounts>;
+    render(
+      <ProviderRequestCountsPanel
+        query={query}
+        days={1}
+        initialProviderId="EASTMONEY"
+        onDaysChange={vi.fn()}
+        providers={[
+          { id: "YAHOO", name: "Yahoo" },
+          { id: "EASTMONEY", name: "Eastmoney" },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("combobox", { name: "Provider" })).toHaveTextContent("Eastmoney");
+    expect(screen.getByRole("combobox", { name: "History range" })).toHaveTextContent("Today");
+  });
+  it("keeps zero counts clickable and unavailable counts disabled", () => {
+    const open = vi.fn();
+    const { rerender } = render(<ProviderTodayRequests count={0} onClick={open} />);
+    fireEvent.click(screen.getByRole("button", { name: "Today so far: 0" }));
+    expect(open).toHaveBeenCalledOnce();
+    rerender(<ProviderTodayRequests count={undefined} onClick={open} />);
+    expect(screen.getByRole("button")).toBeDisabled();
+  });
   beforeEach(() => {
     mocks.timezone = "Asia/Shanghai";
     mocks.update.mockReset().mockResolvedValue(undefined);
@@ -60,6 +90,33 @@ describe("provider request counts panel", () => {
     expect(screen.getAllByText("Partial day")).toHaveLength(2);
     expect(screen.getByText("1,234")).toBeInTheDocument();
     expect(screen.getByText("0")).toBeInTheDocument();
+  });
+  it("shows retention and both measurement kinds in RTL", () => {
+    const query = {
+      data: {
+        ...data,
+        rows: [
+          { ...data.rows[0], recordKind: "http" },
+          { ...data.rows[0], recordKind: "sdk", requestCount: 1 },
+        ],
+      },
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useProviderRequestCounts>;
+    render(
+      <div dir="rtl">
+        <ProviderRequestCountsPanel
+          query={query}
+          days={30}
+          onDaysChange={vi.fn()}
+          providers={[{ id: "YAHOO", name: "Yahoo" }]}
+        />
+      </div>,
+    );
+    expect(screen.getByText("Yahoo (HTTP / SDK)")).toBeInTheDocument();
+    expect(screen.getByText(/Records are retained for 30 days/)).toBeInTheDocument();
+    expect(screen.getByText("1,235")).toBeInTheDocument();
   });
   it("saves only the independent timezone field", async () => {
     panel();

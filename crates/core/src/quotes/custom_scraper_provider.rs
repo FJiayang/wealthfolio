@@ -124,12 +124,15 @@ impl CustomScraperProvider {
         &self,
         request: &PreparedCustomProviderRequest,
         provider_id: &str,
+        diagnostic: &wealthfolio_market_data::RequestContext,
     ) -> Result<String, MarketDataError> {
         let provider_id = format!("CUSTOM_SCRAPER:{provider_id}");
         let do_fetch = || {
-            request
-                .request_builder(&self.client)
-                .send_recorded(&provider_id, self.request_recorder.as_ref())
+            request.request_builder(&self.client).send_recorded(
+                &provider_id,
+                self.request_recorder.as_ref(),
+                diagnostic,
+            )
         };
 
         let response = match do_fetch().await {
@@ -325,7 +328,7 @@ impl CustomScraperProvider {
 
         debug!("CustomScraper: dispatching configured source");
 
-        let body = match self.fetch_body(&request, &source.provider_id).await {
+        let body = match self.fetch_body(&request, &source.provider_id, &wealthfolio_market_data::RequestContext::http("custom_source", vec![symbol.into()], serde_json::json!({"symbol": symbol, "currency": currency_hint, "isin": isin, "mic": mic, "from": from, "to": to}))).await {
             Ok(b) => b,
             Err(e) => {
                 // Fall back to default_price on fetch failure
@@ -1342,10 +1345,23 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct CountingRecorder(std::sync::Mutex<Vec<(String, DateTime<Utc>)>>);
+    struct CountingRecorder(
+        std::sync::Mutex<Vec<(String, DateTime<Utc>)>>,
+        std::sync::Mutex<Vec<wealthfolio_market_data::RequestContext>>,
+    );
 
     #[async_trait]
     impl wealthfolio_market_data::RequestRecorder for CountingRecorder {
+        async fn start_request(
+            &self,
+            provider: &str,
+            at: DateTime<Utc>,
+            context: &wealthfolio_market_data::RequestContext,
+        ) -> Option<i64> {
+            self.0.lock().unwrap().push((provider.into(), at));
+            self.1.lock().unwrap().push(context.clone());
+            None
+        }
         async fn record_request(&self, provider_id: &str, at: DateTime<Utc>) {
             self.0.lock().unwrap().push((provider_id.to_string(), at));
         }
@@ -1397,7 +1413,11 @@ mod tests {
         let recorder = Arc::new(CountingRecorder::default());
         let provider = counting_provider(recorder.clone());
         let (url, server) = request_test_server(vec![503, 200]);
-        let source = source_with_url("custom-one", "latest", &url);
+        let source = source_with_url(
+            "custom-one",
+            "latest",
+            &format!("{url}?apikey=diagnostics-test-secret"),
+        );
         let before = Utc::now();
         let quotes = provider
             .fetch_from_source_with_dates(&source, "TEST", None, None, None, None)
@@ -1405,6 +1425,12 @@ mod tests {
             .unwrap();
         server.join().unwrap();
         assert_eq!(quotes.len(), 1);
+        let contexts = recorder.1.lock().unwrap();
+        assert_eq!(contexts.len(), 2);
+        assert_eq!(contexts[0].symbols, ["TEST"]);
+        assert!(!serde_json::to_string(&*contexts)
+            .unwrap()
+            .contains("diagnostics-test-secret"));
         let events = recorder.0.lock().unwrap();
         assert_eq!(events.len(), 2);
         assert!(events

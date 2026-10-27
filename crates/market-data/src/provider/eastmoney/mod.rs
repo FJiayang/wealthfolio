@@ -57,6 +57,7 @@ impl EastmoneyProvider {
                 url,
                 params,
                 self.request_recorder.as_ref(),
+                &diagnostic_context(url, params),
             )
             .await?,
         )
@@ -787,6 +788,95 @@ impl MarketDataProvider for EastmoneyProvider {
     }
 }
 
+fn diagnostic_context(url: &str, params: &[(&str, String)]) -> crate::RequestContext {
+    let parsed =
+        reqwest::Url::parse(url).expect("provider URL is constructed from a fixed endpoint");
+    let mut parameters: serde_json::Map<String, serde_json::Value> = parsed
+        .query_pairs()
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .chain(
+            params
+                .iter()
+                .map(|(key, value)| (key.to_string(), value.clone())),
+        )
+        .filter(|(key, _)| {
+            [
+                "secid",
+                "code",
+                "FCODE",
+                "fundCode",
+                "klt",
+                "fqt",
+                "lmt",
+                "beg",
+                "end",
+                "fields",
+                "fields1",
+                "fields2",
+                "keyword",
+                "pageIndex",
+                "pageSize",
+                "reportName",
+                "columns",
+                "filter",
+                "sortColumns",
+                "sortTypes",
+                "pageNumber",
+                "pageSize",
+                "startDate",
+                "endDate",
+                "param",
+                "fltt",
+                "invt",
+                "source",
+                "client",
+                "clientType",
+                "clientVersion",
+                "plat",
+                "product",
+                "version",
+            ]
+            .contains(&key.as_str())
+        })
+        .map(|(key, value)| (key, serde_json::json!(value)))
+        .collect();
+    let mut symbols: Vec<String> = ["secid", "code", "FCODE", "fundCode"]
+        .iter()
+        .filter_map(|key| parameters.get(*key).and_then(|value| value.as_str()))
+        .flat_map(|value| value.split(','))
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .collect();
+    if parsed.host_str() == Some("search-api-web.eastmoney.com") {
+        let input = parameters
+            .remove("param")
+            .expect("news request supplies param");
+        let input: Value =
+            serde_json::from_str(input.as_str().expect("news param is a JSON string"))
+                .expect("news param is constructed from JSON");
+        let keyword = input["keyword"].as_str().expect("news keyword is a string");
+        symbols.push(keyword.into());
+        parameters.insert("keyword".into(), json!(keyword));
+        parameters.insert("type".into(), input["type"].clone());
+        let options = &input["param"]["cmsArticleWebOld"];
+        parameters.insert("options".into(), json!({"searchScope":options["searchScope"],"sort":options["sort"],"pageIndex":options["pageIndex"],"pageSize":options["pageSize"]}));
+    }
+    if let Some(filter) = parameters.get("filter").and_then(|value| value.as_str()) {
+        for field in ["SECURITY_CODE", "SECUCODE"] {
+            if let Some(code) = filter
+                .split(&format!("{field}=\""))
+                .nth(1)
+                .and_then(|value| value.split('"').next())
+            {
+                symbols.push(code.into());
+            }
+        }
+    }
+    symbols.sort();
+    symbols.dedup();
+    crate::RequestContext::http(parsed.path(), symbols, parameters.into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -911,5 +1001,38 @@ mod tests {
             Some(Decimal::from(5))
         );
         assert!(parse_kline(&data, "CNY", "0.000001").is_err());
+    }
+}
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    #[test]
+    fn news_diagnostics_select_nested_business_parameters() {
+        let param = json!({"keyword":"600519", "uid":"private", "token":"private", "type":["cmsArticleWebOld"], "param":{"cmsArticleWebOld":{"pageIndex":1,"pageSize":10,"unexpected_private_field":"private"}}});
+        let context = diagnostic_context(
+            "https://search-api-web.eastmoney.com/search/jsonp",
+            &[("param", param.to_string())],
+        );
+        assert_eq!(context.symbols, ["600519"]);
+        assert_eq!(context.parameters["options"]["pageSize"], 10);
+        assert!(!serde_json::to_string(&context).unwrap().contains("private"));
+        assert!(context.parameters.get("param").is_none());
+    }
+
+    #[test]
+    fn diagnostics_select_business_parameters_without_credentials() {
+        let context = diagnostic_context(
+            "https://api.fund.eastmoney.com/f10/lsjz?apikey=private",
+            &[
+                ("fundCode", "005827".into()),
+                ("startDate", "2026-10-01".into()),
+                ("unexpected_private_field", "private".into()),
+            ],
+        );
+        assert_eq!(context.symbols, ["005827"]);
+        assert_eq!(context.parameters["startDate"], "2026-10-01");
+        let encoded = serde_json::to_string(&context).unwrap();
+        assert!(!encoded.contains("private"));
+        assert!(!encoded.contains("unexpected_private_field"));
     }
 }

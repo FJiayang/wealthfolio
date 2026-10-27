@@ -1884,6 +1884,9 @@
   "cloud_backup_retry_label": "Prochain essai",
   "cloud_backup_retry_now": "Réessayer la sauvegarde",
   "provider_request_counts": {
+    "today_range": "Aujourd’hui",
+    "query_details": "Consulter les détails",
+    "retention_hint": "Les données sont conservées 30 jours. Les mesures HTTP et SDK ont des périmètres différents.",
     "title": "Requêtes aux fournisseurs",
     "description": "Tentatives d’appels aux API des fournisseurs enregistrées, y compris les nouvelles tentatives et les requêtes ayant échoué. Il ne s’agit pas d’un total de facturation.",
     "today": "Aujourd’hui jusqu’à présent : {{value}}",

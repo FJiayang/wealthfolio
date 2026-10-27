@@ -568,7 +568,45 @@ impl AlphaVantageProvider {
         let response = self
             .client
             .get(url)
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(
+                self.id(),
+                self.request_recorder.as_ref(),
+                &crate::RequestContext::http(
+                    params
+                        .iter()
+                        .find(|(k, _)| *k == "function")
+                        .map(|(_, v)| *v)
+                        .unwrap_or("fetch"),
+                    params
+                        .iter()
+                        .filter(|(k, _)| *k == "symbol")
+                        .map(|(_, v)| v.to_string())
+                        .collect(),
+                    params
+                        .iter()
+                        .filter(|(k, _)| {
+                            [
+                                "function",
+                                "symbol",
+                                "keywords",
+                                "interval",
+                                "outputsize",
+                                "datatype",
+                                "from_symbol",
+                                "to_symbol",
+                                "market",
+                                "date",
+                                "month",
+                                "entitlement",
+                                "contract",
+                            ]
+                            .contains(k)
+                        })
+                        .map(|(k, v)| (k.to_string(), serde_json::json!(v)))
+                        .collect::<serde_json::Map<_, _>>()
+                        .into(),
+                ),
+            )
             .await
             .map_err(|e| {
                 if e.is_timeout() {
@@ -1805,5 +1843,30 @@ mod tests {
         assert_eq!(data[0].last.as_deref(), Some("25.50"));
         assert_eq!(data[0].mark.as_deref(), Some("25.75"));
         assert_eq!(data[0].volume.as_deref(), Some("1500"));
+    }
+}
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    use crate::request_recorder::tests::{assert_safe_context, offline_client, MemoryRecorder};
+    #[tokio::test]
+    async fn diagnostics_select_business_parameters_without_credentials() {
+        let secret = "diagnostics-test-secret";
+        let recorder = std::sync::Arc::new(MemoryRecorder::default());
+        let mut provider =
+            AlphaVantageProvider::new(secret.into()).with_request_recorder(recorder.clone());
+        provider.client = offline_client();
+        assert!(provider
+            .fetch(&[
+                ("function", "TIME_SERIES_DAILY"),
+                ("symbol", "ABC"),
+                ("apikey", secret),
+                ("unexpected_private_field", secret)
+            ])
+            .await
+            .is_err());
+        let context = assert_safe_context(&recorder, secret);
+        assert_eq!(context.symbols, ["ABC"]);
+        assert_eq!(context.parameters["function"], "TIME_SERIES_DAILY");
     }
 }
