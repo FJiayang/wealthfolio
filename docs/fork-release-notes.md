@@ -12,6 +12,26 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.11.0.10 — 2026-10-27
+
+- Record provider-side security codes, explicitly selected business parameters,
+  request duration, HTTP status and safe failure categories. Credentials,
+  signing keys, authorization headers and raw response bodies are excluded.
+- Expose paginated request diagnostics and daily counts through MCP with the
+  existing `market-data:read` permission. Keep HTTP attempts and iFinD SDK calls
+  separately identified; first-call SDK timing includes initialization.
+- Move the request history query into a drawer opened from the market-data page
+  toolbar. Clicking a built-in or custom provider's daily count selects that
+  provider and today in the configured statistics timezone. Support narrow
+  screens and right-to-left layouts.
+
+Architecture impact: extend the existing profile-local SQLite event table and
+writer; delete whole events after 30 rolling days, including their historical
+counts. Older retained events have unavailable detail and unknown outcomes.
+iFinD counts SDK calls rather than session HTTP traffic. Existing provider
+routing, credentials, retries, quote persistence and sync boundaries are
+preserved; diagnostic storage failures do not change provider results.
+
 ## v3.11.0.9 — 2026-10-26
 
 - Add an Actions heading and per-row details, edit and delete menu. Allow content
