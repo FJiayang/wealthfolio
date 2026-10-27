@@ -2,7 +2,6 @@
 mod parse;
 #[cfg(test)]
 mod tests;
-mod transport;
 
 use super::DATA_SOURCE_IFIND;
 use crate::{
@@ -95,81 +94,151 @@ impl IfindProvider {
         tool: &str,
         arguments: Value,
     ) -> Result<Value, MarketDataError> {
+        let symbols = arguments
+            .get("symbols")
+            .and_then(Value::as_str)
+            .map(|value| value.split(',').map(str::to_owned).collect())
+            .unwrap_or_default();
+        self.call_with_symbols(service, tool, arguments, symbols)
+            .await
+    }
+
+    async fn call_with_symbols(
+        &self,
+        service: &'static str,
+        tool: &str,
+        arguments: Value,
+        symbols: Vec<String>,
+    ) -> Result<Value, MarketDataError> {
         // One gate covers every service: the registry's token bucket cannot limit in-flight calls.
         let mut state = self.state.lock().await;
         if let Some(last) = state.last_call {
             tokio::time::sleep_until(last + Duration::from_millis(500)).await;
         }
-        if !state.connections.contains_key(service) {
-            let headers =
-                HashMap::from([(reqwest::header::AUTHORIZATION, self.authorization.clone())]);
-            let config = StreamableHttpClientTransportConfig::with_uri(format!(
-                "{}/hexin-ifind-ds-{service}-mcp",
-                self.base
-            ))
-            .custom_headers(headers)
-            .reinit_on_expired_session(false);
-            let transport = StreamableHttpClientTransport::with_client(
-                transport::RecordedHttpClient::new(
-                    self.client.clone(),
-                    self.request_recorder.clone(),
-                ),
-                config,
+        if !arguments.is_object() {
+            return Err(error("Invalid tool arguments"));
+        }
+        // Only provider-owned business arguments are observable, never SDK headers.
+        let parameters: serde_json::Map<String, Value> = arguments
+            .as_object()
+            .expect("validated arguments")
+            .iter()
+            .filter(|(key, _)| {
+                ["query", "symbols", "indicators", "data_mode", "market"].contains(&key.as_str())
+            })
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect();
+        let context = crate::RequestContext {
+            record_kind: "sdk".into(),
+            operation: format!("{service}/{tool}"),
+            symbols,
+            parameters: parameters.into(),
+        };
+        let id = self
+            .request_recorder
+            .start_request(self.id(), Utc::now(), &context)
+            .await;
+        let started = std::time::Instant::now();
+        let result = async {
+            if !state.connections.contains_key(service) {
+                let headers =
+                    HashMap::from([(reqwest::header::AUTHORIZATION, self.authorization.clone())]);
+                let config = StreamableHttpClientTransportConfig::with_uri(format!(
+                    "{}/hexin-ifind-ds-{service}-mcp",
+                    self.base
+                ))
+                .custom_headers(headers)
+                .reinit_on_expired_session(false);
+                let transport =
+                    StreamableHttpClientTransport::with_client(self.client.clone(), config);
+                let info = ClientInfo::new(
+                    ClientCapabilities::default(),
+                    Implementation::new("wealthfolio", env!("CARGO_PKG_VERSION")),
+                )
+                .with_protocol_version(ProtocolVersion::V_2025_03_26);
+                let connection = tokio::time::timeout(TIMEOUT, info.serve(transport))
+                    .await
+                    .map_err(|_| MarketDataError::Timeout {
+                        provider: self.id().into(),
+                    })?
+                    .map_err(|_| {
+                        error(
+                            "MCP initialization failed; check API key, permissions and connection",
+                        )
+                    })?;
+                state.connections.insert(service, connection);
+            }
+            state.last_call = Some(Instant::now());
+            let params = CallToolRequestParams::new(tool.to_string()).with_arguments(
+                arguments
+                    .as_object()
+                    .cloned()
+                    .ok_or_else(|| error("Invalid tool arguments"))?,
             );
-            let info = ClientInfo::new(
-                ClientCapabilities::default(),
-                Implementation::new("wealthfolio", env!("CARGO_PKG_VERSION")),
-            )
-            .with_protocol_version(ProtocolVersion::V_2025_03_26);
-            let connection = tokio::time::timeout(TIMEOUT, info.serve(transport))
-                .await
-                .map_err(|_| MarketDataError::Timeout {
-                    provider: self.id().into(),
-                })?
-                .map_err(|_| {
-                    error("MCP initialization failed; check API key, permissions and connection")
-                })?;
-            state.connections.insert(service, connection);
+            let result =
+                tokio::time::timeout(TIMEOUT, state.connections[service].call_tool(params)).await;
+            let result = match result {
+                Ok(Ok(result)) => result,
+                Ok(Err(_)) => {
+                    state.connections.remove(service);
+                    return Err(error(
+                        "MCP tool request failed; check permissions and connection",
+                    ));
+                }
+                Err(_) => {
+                    state.connections.remove(service);
+                    return Err(MarketDataError::Timeout {
+                        provider: self.id().into(),
+                    });
+                }
+            };
+            if result.is_error == Some(true) {
+                return Err(error("MCP tool returned an error"));
+            }
+            let value = if let Some(value) = result.structured_content {
+                value
+            } else {
+                if result.content.len() != 1 {
+                    return Err(error("Unexpected tool content"));
+                }
+                let text = result.content[0]
+                    .as_text()
+                    .ok_or_else(|| error("Expected text tool content"))?;
+                serde_json::from_str(&text.text).map_err(|_| error("Invalid tool JSON"))?
+            };
+            parse::data(value)
         }
-        state.last_call = Some(Instant::now());
-        let params = CallToolRequestParams::new(tool.to_string()).with_arguments(
-            arguments
-                .as_object()
-                .cloned()
-                .ok_or_else(|| error("Invalid tool arguments"))?,
-        );
-        let result =
-            tokio::time::timeout(TIMEOUT, state.connections[service].call_tool(params)).await;
-        let result = match result {
-            Ok(Ok(result)) => result,
-            Ok(Err(_)) => {
-                state.connections.remove(service);
-                return Err(error(
-                    "MCP tool request failed; check permissions and connection",
-                ));
-            }
-            Err(_) => {
-                state.connections.remove(service);
-                return Err(MarketDataError::Timeout {
-                    provider: self.id().into(),
-                });
-            }
-        };
-        if result.is_error == Some(true) {
-            return Err(error("MCP tool returned an error"));
+        .await;
+        let failure = result.as_ref().err().map(|error| match error {
+            MarketDataError::Timeout { .. } => ("timeout", "SDK call timed out"),
+            MarketDataError::ProviderError { message, .. } => match message.as_str() {
+                "MCP initialization failed; check API key, permissions and connection" => (
+                    "sdk_initialization",
+                    "SDK initialization failed; check credentials, permissions and connection",
+                ),
+                "MCP tool request failed; check permissions and connection" => (
+                    "sdk_transport",
+                    "SDK tool request failed; check permissions and connection",
+                ),
+                "MCP tool returned an error" => ("sdk_tool", "SDK tool returned an error"),
+                "iFinD rejected the request; check permissions and query" => (
+                    "sdk_rejected",
+                    "SDK rejected the request; check permissions and query",
+                ),
+                "Truncated iFinD answer" => ("sdk_response", "SDK answer was truncated"),
+                "Unexpected tool content"
+                | "Expected text tool content"
+                | "Invalid tool JSON"
+                | "Missing iFinD data" => ("sdk_response", "SDK returned invalid response content"),
+                _ => ("sdk", "SDK call failed"),
+            },
+            _ => ("sdk", "SDK call failed"),
+        });
+        let outcome = crate::RequestOutcome::completed(started, failure, None);
+        if let Some(id) = id {
+            self.request_recorder.finish_request(id, &outcome).await;
         }
-        let value = if let Some(value) = result.structured_content {
-            value
-        } else {
-            if result.content.len() != 1 {
-                return Err(error("Unexpected tool content"));
-            }
-            let text = result.content[0]
-                .as_text()
-                .ok_or_else(|| error("Expected text tool content"))?;
-            serde_json::from_str(&text.text).map_err(|_| error("Invalid tool JSON"))?
-        };
-        parse::data(value)
+        result
     }
 
     async fn query(
@@ -177,8 +246,10 @@ impl IfindProvider {
         service: &'static str,
         tool: &str,
         query: String,
+        code: &str,
     ) -> Result<Value, MarketDataError> {
-        self.call(service, tool, json!({"query": query})).await
+        self.call_with_symbols(service, tool, json!({"query": query}), vec![code.into()])
+            .await
     }
 
     async fn profile(&self, symbol: &str) -> Result<AssetProfile, MarketDataError> {
@@ -197,7 +268,7 @@ impl IfindProvider {
             _ => "股票简称、交易所中文名称、证券类型、交易币种",
         };
         let data = self
-            .query(service, tool, format!("{code}的{fields}"))
+            .query(service, tool, format!("{code}的{fields}"), code)
             .await?;
         parse::profile(&data, kind, code)
     }
@@ -239,6 +310,7 @@ impl IfindProvider {
                         day.format("%Y%m%d"),
                         last.format("%Y%m%d")
                     ),
+                    code,
                 )
                 .await?;
             quotes.extend(parse::history(&data, kind, code, day, last)?);
@@ -370,7 +442,7 @@ impl MarketDataProvider for IfindProvider {
                 )
             };
             let data = self
-                .query(service, tool, format!("{code}的{fields}"))
+                .query(service, tool, format!("{code}的{fields}"), code)
                 .await?;
             return parse::latest_daily(&data, kind, code);
         }

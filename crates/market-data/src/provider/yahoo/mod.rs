@@ -192,7 +192,11 @@ impl YahooProvider {
         // Step 1: Get cookie from fc.yahoo.com
         let response = client
             .get("https://fc.yahoo.com")
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(
+                self.id(),
+                self.request_recorder.as_ref(),
+                &crate::RequestContext::http("cookie", vec![], serde_json::json!({})),
+            )
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -217,7 +221,11 @@ impl YahooProvider {
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             )
             .header(header::COOKIE, &cookie)
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(
+                self.id(),
+                self.request_recorder.as_ref(),
+                &crate::RequestContext::http("crumb", vec![], serde_json::json!({})),
+            )
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -282,7 +290,7 @@ impl YahooProvider {
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             )
             .header(header::COOKIE, &crumb_data.cookie)
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(self.id(), self.request_recorder.as_ref(), &crate::RequestContext::http("dividends", vec![symbol.into()], serde_json::json!({"symbol": symbol, "interval": "1d", "period1": start.timestamp(), "period2": end.timestamp(), "events": "div"})))
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -508,7 +516,15 @@ impl YahooProvider {
                 header::USER_AGENT,
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             )
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(
+                self.id(),
+                self.request_recorder.as_ref(),
+                &crate::RequestContext::http(
+                    "search",
+                    vec![],
+                    serde_json::json!({"q": encoded_query}),
+                ),
+            )
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -572,7 +588,15 @@ impl YahooProvider {
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             )
             .header(header::COOKIE, &crumb.cookie)
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(
+                self.id(),
+                self.request_recorder.as_ref(),
+                &crate::RequestContext::http(
+                    "quote_summary",
+                    vec![symbol.into()],
+                    serde_json::json!({"symbol": symbol, "modules": "price"}),
+                ),
+            )
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -676,7 +700,7 @@ impl YahooProvider {
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             )
             .header(header::COOKIE, &crumb.cookie)
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(self.id(), self.request_recorder.as_ref(), &crate::RequestContext::http("profile", vec![symbol.into()], serde_json::json!({"symbol": symbol, "modules": "price,summaryProfile,summaryDetail,topHoldings"})))
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),

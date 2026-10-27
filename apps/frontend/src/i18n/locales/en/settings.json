@@ -1833,6 +1833,9 @@
   "cloud_backup_retry_label": "Next retry",
   "cloud_backup_retry_now": "Try backup again",
   "provider_request_counts": {
+    "today_range": "Today",
+    "query_details": "Query details",
+    "retention_hint": "Records are retained for 30 days. HTTP and SDK counts use different measurement scopes.",
     "title": "Provider requests",
     "description": "Recorded downstream API attempts, including retries and failed requests. This is not a billing total.",
     "today": "Today so far: {{value}}",

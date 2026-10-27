@@ -3,7 +3,19 @@
 Architecture impact: MCP extends the existing AgentToolCatalog and
 AgentEnvironment. Both hosts reuse their existing services, database writer and
 domain-event consumers. No global provider settings, new background workers,
-migrations, retries or transport lifecycle are added. New business tools belong
+migrations, retries or transport lifecycle are added by the business tools below.
+Provider diagnostics additionally extend the profile-local request-event table
+and expose two read tools under `market-data:read`: `list_provider_requests`
+and `get_provider_request_counts`. Events retain provider-selected business
+parameters, symbols, timing and safe outcome categories for 30 rolling days;
+expired events (including their counts) are deleted through the existing writer
+on recording/querying. They never enter the sync outbox or application logs.
+HTTP events measure send-to-headers and count retries individually. iFinD now
+records SDK calls, including first-call initialization but excluding rate-limit
+waiting, rather than its underlying HTTP/session traffic. Historical events
+without context remain HTTP records with unknown results. Queries do not make
+provider requests; networking, credentials, SDK sessions and retries are unchanged.
+New business tools belong
 only to the MCP catalog; assistant tools keep their existing names and schemas.
 
 ## Coverage checklist

@@ -106,7 +106,15 @@ impl OpenFigiProvider {
             .client
             .post(MAPPING_URL)
             .json(&body)
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(
+                self.id(),
+                self.request_recorder.as_ref(),
+                &crate::RequestContext::http(
+                    "mapping",
+                    vec![id_value.into()],
+                    serde_json::json!({"idType": id_type, "idValue": id_value}),
+                ),
+            )
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
@@ -170,7 +178,11 @@ impl OpenFigiProvider {
             .client
             .post(SEARCH_URL)
             .json(&body)
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(
+                self.id(),
+                self.request_recorder.as_ref(),
+                &crate::RequestContext::http("search", vec![], serde_json::json!({"query": query})),
+            )
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
@@ -538,5 +550,24 @@ mod tests {
         assert_eq!(data.len(), 1);
         assert_eq!(data[0].name.as_deref(), Some("APPLE INC"));
         assert_eq!(data[0].market_sector.as_deref(), Some("Equity"));
+    }
+}
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    use crate::request_recorder::tests::{assert_safe_context, offline_client, MemoryRecorder};
+    #[tokio::test]
+    async fn diagnostics_select_business_parameters_without_credentials() {
+        let secret = "diagnostics-test-secret";
+        let recorder = std::sync::Arc::new(MemoryRecorder::default());
+        let mut provider = OpenFigiProvider::new().with_request_recorder(recorder.clone());
+        provider.client = offline_client();
+        assert!(provider
+            .fetch_mapping("ID_ISIN", "US0378331005")
+            .await
+            .is_err());
+        let context = assert_safe_context(&recorder, secret);
+        assert_eq!(context.symbols, ["US0378331005"]);
+        assert_eq!(context.parameters["idType"], "ID_ISIN");
     }
 }

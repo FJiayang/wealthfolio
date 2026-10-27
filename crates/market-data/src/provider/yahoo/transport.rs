@@ -15,7 +15,7 @@ impl YahooProvider {
         &self,
         symbol: &str,
     ) -> Result<yahoo::YResponse, yahoo::YahooError> {
-        self.chart_request(&latest_url(CHART_URL, symbol)).await
+        self.chart_request(&latest_url(CHART_URL, symbol), &crate::RequestContext::http("chart_latest", vec![symbol.into()], serde_json::json!({"symbol": symbol, "interval": "1d", "range": "1mo", "events": "div|split|capitalGains"}))).await
     }
 
     pub(super) async fn chart_history(
@@ -25,7 +25,7 @@ impl YahooProvider {
         end: OffsetDateTime,
         interval: &str,
     ) -> Result<yahoo::YResponse, yahoo::YahooError> {
-        self.chart_request(&history_url(CHART_URL, symbol, start, end, interval))
+        self.chart_request(&history_url(CHART_URL, symbol, start, end, interval), &crate::RequestContext::http("chart_history", vec![symbol.into()], serde_json::json!({"symbol": symbol, "period1": start.unix_timestamp(), "period2": end.unix_timestamp(), "interval": interval, "events": "div|split|capitalGains"})))
             .await
     }
 
@@ -35,30 +35,43 @@ impl YahooProvider {
     ) -> Result<yahoo::YSearchResult, yahoo::YahooError> {
         // Callers already encode the query. The SDK encoded it again; preserve
         // that existing behavior rather than mixing a search fix into counting.
-        let json = self.sdk_json(&search_url(SEARCH_URL, name)).await?;
+        let json = self
+            .sdk_json(
+                &search_url(SEARCH_URL, name),
+                &crate::RequestContext::http("search", vec![], serde_json::json!({"q": name})),
+            )
+            .await?;
         let result = yahoo::YSearchResultOpt::from_json(json)?;
         Ok(yahoo::YSearchResult::from_opt(&result))
     }
 
-    async fn sdk_json(&self, url: &str) -> Result<Value, yahoo::YahooError> {
+    async fn sdk_json(
+        &self,
+        url: &str,
+        diagnostic: &crate::RequestContext,
+    ) -> Result<Value, yahoo::YahooError> {
         let response = self
             .client
             .get(url)
-            .send_recorded("YAHOO", self.request_recorder.as_ref())
+            .send_recorded("YAHOO", self.request_recorder.as_ref(), diagnostic)
             .await?;
         let status = response.status();
         decode_body(&response.text().await?, status, url)
     }
 
-    async fn chart_request(&self, url: &str) -> Result<yahoo::YResponse, yahoo::YahooError> {
-        let mut result = self.sdk_json(url).await;
+    async fn chart_request(
+        &self,
+        url: &str,
+        diagnostic: &crate::RequestContext,
+    ) -> Result<yahoo::YResponse, yahoo::YahooError> {
+        let mut result = self.sdk_json(url, diagnostic).await;
         if matches!(
             &result,
             Err(yahoo::YahooError::EmptyResponse
                 | yahoo::YahooError::HtmlResponse
                 | yahoo::YahooError::ServerError(_))
         ) {
-            result = self.sdk_json(url).await;
+            result = self.sdk_json(url, diagnostic).await;
         }
         let mut response = yahoo::YResponse::from_json(result?)?;
         // Equivalent to the SDK's private map_error_msg, after public parsing.
@@ -218,7 +231,13 @@ mod tests {
             let recorder = Arc::new(MemoryRecorder::default());
             let provider = provider(recorder.clone());
             let url = latest_url(&server.url, "TEST");
-            provider.chart_request(&url).await.unwrap();
+            provider
+                .chart_request(
+                    &url,
+                    &crate::RequestContext::http("test", vec![], serde_json::json!({})),
+                )
+                .await
+                .unwrap();
             let requests = server.requests.lock().unwrap();
             assert_eq!(requests.len(), 2);
             assert_eq!(requests[0], requests[1]);
@@ -236,7 +255,12 @@ mod tests {
             (503, String::new(), "outage".into()),
         ]);
         let recorder = Arc::new(MemoryRecorder::default());
-        let result = provider(recorder.clone()).chart_request(&server.url).await;
+        let result = provider(recorder.clone())
+            .chart_request(
+                &server.url,
+                &crate::RequestContext::http("test", vec![], serde_json::json!({})),
+            )
+            .await;
         assert!(matches!(result, Err(yahoo::YahooError::ServerError(_))));
         assert_eq!(recorder.0.lock().unwrap().len(), 2);
         assert_eq!(server.requests.lock().unwrap().len(), 2);
@@ -254,7 +278,10 @@ mod tests {
             let server = MockServer::start(vec![(status, String::new(), body.into())]);
             let recorder = Arc::new(MemoryRecorder::default());
             assert!(provider(recorder.clone())
-                .chart_request(&server.url)
+                .chart_request(
+                    &server.url,
+                    &crate::RequestContext::http("test", vec![], serde_json::json!({}))
+                )
                 .await
                 .is_err());
             assert_eq!(recorder.0.lock().unwrap().len(), 1);
@@ -264,12 +291,12 @@ mod tests {
 
     #[tokio::test]
     async fn chart_does_not_retry_connection_failure() {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let url = format!("http://{}", listener.local_addr().unwrap());
-        drop(listener);
         let recorder = Arc::new(MemoryRecorder::default());
         assert!(provider(recorder.clone())
-            .chart_request(&url)
+            .chart_request(
+                "http://127.0.0.1:0",
+                &crate::RequestContext::http("test", vec![], serde_json::json!({}))
+            )
             .await
             .is_err());
         assert_eq!(recorder.0.lock().unwrap().len(), 1);
@@ -335,8 +362,35 @@ mod tests {
             r#"{"chart":{"result":null,"error":{"description":"no data"}}}"#.into(),
         )]);
         let recorder = Arc::new(MemoryRecorder::default());
-        let result = provider(recorder.clone()).chart_request(&server.url).await;
+        let result = provider(recorder.clone())
+            .chart_request(
+                &server.url,
+                &crate::RequestContext::http("test", vec![], serde_json::json!({})),
+            )
+            .await;
         assert!(matches!(result, Err(yahoo::YahooError::ApiError(_))));
         assert_eq!(recorder.0.lock().unwrap().len(), 1);
+    }
+}
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    use crate::request_recorder::tests::{assert_safe_context, offline_client, MemoryRecorder};
+    #[tokio::test]
+    async fn diagnostics_capture_chart_symbols_and_dates_without_credentials() {
+        let recorder = std::sync::Arc::new(MemoryRecorder::default());
+        let provider = YahooProvider {
+            client: offline_client(),
+            request_recorder: recorder.clone(),
+        };
+        let start = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
+        let end = start + time::Duration::days(1);
+        assert!(provider
+            .chart_history("ABC", start, end, "1d")
+            .await
+            .is_err());
+        let context = assert_safe_context(&recorder, "diagnostics-test-secret");
+        assert_eq!(context.symbols, ["ABC"]);
+        assert_eq!(context.parameters["period1"], 1_700_000_000);
     }
 }

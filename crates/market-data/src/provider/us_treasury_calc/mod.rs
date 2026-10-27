@@ -198,7 +198,15 @@ impl UsTreasuryCalcProvider {
             .client
             .get(&url)
             .timeout(REQUEST_TIMEOUT)
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(
+                self.id(),
+                self.request_recorder.as_ref(),
+                &crate::RequestContext::http(
+                    "bond_details",
+                    vec![isin.into()],
+                    serde_json::json!({"cusip": cusip, "format": "json"}),
+                ),
+            )
             .await
             .map_err(|_| treasury_details_error("Treasury details request failed"))?
             .error_for_status()
@@ -250,7 +258,15 @@ impl UsTreasuryCalcProvider {
         let resp = self
             .client
             .get(&url)
-            .send_recorded(self.id(), self.request_recorder.as_ref())
+            .send_recorded(
+                self.id(),
+                self.request_recorder.as_ref(),
+                &crate::RequestContext::http(
+                    "yield_curve",
+                    vec![],
+                    serde_json::json!({"year": year}),
+                ),
+            )
             .await
             .map_err(|e| MarketDataError::ProviderError {
                 provider: PROVIDER_ID.to_string(),
@@ -1444,5 +1460,21 @@ mod tests {
         // Verify it is below par (discounted)
         assert!(price < 1.0);
         assert!(price > 0.97);
+    }
+}
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    use crate::request_recorder::tests::{assert_safe_context, offline_client, MemoryRecorder};
+    #[tokio::test]
+    async fn diagnostics_select_business_parameters_without_credentials() {
+        let secret = "diagnostics-test-secret";
+        let recorder = std::sync::Arc::new(MemoryRecorder::default());
+        let mut provider = UsTreasuryCalcProvider::new().with_request_recorder(recorder.clone());
+        provider.client = offline_client();
+        assert!(provider.fetch_bond_details("US91282CJL63").await.is_err());
+        let context = assert_safe_context(&recorder, secret);
+        assert_eq!(context.symbols, ["US91282CJL63"]);
+        assert_eq!(context.parameters["cusip"], "91282CJL6");
     }
 }

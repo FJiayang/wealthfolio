@@ -1832,6 +1832,9 @@
   "tax_migration_body_one": "{{count}} 자산에는 더 나은 구성 및 분석을 위해 새로운 분류 시스템으로 마이그레이션할 수 있는 기존 부문/국가 데이터가 있습니다.",
   "addon_rating_characters_one": "{{count}}/500자",
   "provider_request_counts": {
+    "today_range": "오늘",
+    "query_details": "상세 조회",
+    "retention_hint": "기록은 30일간 보관됩니다. HTTP와 SDK의 호출 횟수 및 소요 시간 측정 범위는 다릅니다.",
     "title": "공급자 요청",
     "description": "재시도 및 실패한 요청을 포함하여 기록된 하위 API 호출 시도입니다. 청구용 합계가 아닙니다.",
     "today": "오늘 현재까지: {{value}}",

@@ -15,7 +15,7 @@ use crate::{
     registry::{RateLimitConfig, RateLimiter},
     resolver::futu::market_info,
     Coverage, InstrumentKind, NoopRequestRecorder, ProviderInstrument, Quote, QuoteContext,
-    RequestRecorder,
+    RecordedRequest, RequestRecorder,
 };
 use auth::{signing_message, SigningKey};
 
@@ -79,18 +79,51 @@ impl FutuProvider {
         body: &[u8],
     ) -> Result<Value, MarketDataError> {
         let request = self.signed_request(method, path, params, body).await?;
-        self.request_recorder
-            .record_request(DATA_SOURCE_FUTU, Utc::now())
-            .await;
-        let mut response = self.client.execute(request).await.map_err(|err| {
-            if err.is_timeout() {
-                MarketDataError::Timeout {
-                    provider: DATA_SOURCE_FUTU.into(),
-                }
+        let mut parameters: serde_json::Map<String, Value> = params
+            .iter()
+            .filter(|(key, _)| ["start", "end", "ktype", "autype", "num"].contains(key))
+            .map(|(key, value)| (key.to_string(), serde_json::json!(value)))
+            .collect();
+        let symbols: Vec<String> = if path == "/api/v1.0/quote/stock-quote" {
+            let body: Value =
+                serde_json::from_slice(body).expect("Futu quote body is constructed from JSON");
+            let codes = body["code_list"]
+                .as_array()
+                .expect("Futu quote body contains code_list");
+            let symbols: Vec<String> = codes
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect();
+            parameters.insert("code_list".into(), serde_json::json!(symbols));
+            symbols
+        } else {
+            path.strip_prefix("/api/v1.0/quote/")
+                .and_then(|value| value.strip_suffix("/history-kline"))
+                .map(|symbol| vec![symbol.into()])
+                .unwrap_or_default()
+        };
+        let context = crate::RequestContext::http(
+            if path.ends_with("/history-kline") {
+                "history-kline"
             } else {
-                error("Request failed")
-            }
-        })?;
+                "stock-quote"
+            },
+            symbols,
+            parameters.into(),
+        );
+        let mut response = (self.client.clone(), request)
+            .send_recorded(DATA_SOURCE_FUTU, self.request_recorder.as_ref(), &context)
+            .await
+            .map_err(|err| {
+                if err.is_timeout() {
+                    MarketDataError::Timeout {
+                        provider: DATA_SOURCE_FUTU.into(),
+                    }
+                } else {
+                    error("Request failed")
+                }
+            })?;
         if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
             return Err(MarketDataError::RateLimited {
                 provider: DATA_SOURCE_FUTU.into(),
@@ -595,6 +628,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn futu_diagnostics_keep_batch_codes_without_signing_secrets() {
+        use crate::request_recorder::tests::assert_safe_context;
+        let recorder = Arc::new(MemoryRecorder::default());
+        let server = MockServer::start(vec![(
+            200,
+            String::new(),
+            r#"{"ret_code":0,"data":{}}"#.into(),
+        )]);
+        let mut provider = provider().with_request_recorder(recorder.clone());
+        provider.endpoint = Some(server.url.clone());
+        provider
+            .request(
+                Method::POST,
+                "/api/v1.0/quote/stock-quote",
+                &[
+                    ("apikey", "private".into()),
+                    ("unexpected_private_field", "private".into()),
+                ],
+                br#"{"code_list":["US.AAPL","HK.00700"],"token":"private"}"#,
+            )
+            .await
+            .unwrap();
+        let context = assert_safe_context(&recorder, "private");
+        assert_eq!(context.symbols, ["US.AAPL", "HK.00700"]);
+        let encoded = serde_json::to_string(&context).unwrap();
+        assert!(!encoded.contains("synthetic-app"));
+        assert!(!encoded.contains("authorization"));
+        assert_eq!(recorder.2.lock().unwrap()[0].1.http_status, Some(200));
+    }
+
+    #[tokio::test]
     async fn futu_failed_dispatches_count_once_and_local_failures_do_not_count() {
         let recorder = Arc::new(MemoryRecorder::default());
         let mut provider = provider().with_request_recorder(recorder.clone());
@@ -626,9 +690,7 @@ mod tests {
         assert!(provider.request(Method::GET, "/", &[], &[]).await.is_err());
         assert_eq!(server.requests.lock().unwrap().len(), 2);
 
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        provider.endpoint = Some(format!("http://{}", listener.local_addr().unwrap()));
-        drop(listener);
+        provider.endpoint = Some("http://127.0.0.1:0".into());
         assert!(provider.request(Method::GET, "/", &[], &[]).await.is_err());
 
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

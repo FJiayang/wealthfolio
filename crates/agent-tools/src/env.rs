@@ -30,6 +30,10 @@ use wealthfolio_spending::categorization_rules::CategorizationRulesServiceTrait;
 
 /// Data-service surface available to agent tools.
 pub trait AgentEnvironment: Send + Sync {
+    fn provider_request_service(
+        &self,
+    ) -> Arc<wealthfolio_core::quotes::request_counts::ProviderRequestService>;
+
     fn trade_instruction_service(
         &self,
     ) -> Arc<dyn wealthfolio_core::trade_instructions::TradeInstructionServiceTrait>;

@@ -1832,6 +1832,9 @@
   "tax_migration_body_one": "{{count}} アセットには従来のセクター/国データが含まれており、組織化と分析を向上させるために新しい分類システムに移行できます。",
   "addon_rating_characters_one": "{{count}}/500 文字",
   "provider_request_counts": {
+    "today_range": "今日",
+    "query_details": "詳細を確認",
+    "retention_hint": "記録は30日間保持されます。HTTPとSDKでは呼び出し回数と所要時間の測定範囲が異なります。",
     "title": "プロバイダーへのリクエスト",
     "description": "下流 API への呼び出し試行を記録します。再試行や失敗したリクエストも含まれます。請求用の集計ではありません。",
     "today": "今日の現在までの件数：{{value}}",

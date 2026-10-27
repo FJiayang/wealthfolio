@@ -28,6 +28,7 @@ import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@wealthfolio/ui/components/ui/popover";
 import { Separator } from "@wealthfolio/ui/components/ui/separator";
 import { Skeleton } from "@wealthfolio/ui/components/ui/skeleton";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@wealthfolio/ui/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@wealthfolio/ui/components/ui/tabs";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -85,6 +86,7 @@ import { Alert, AlertDescription, AlertTitle } from "@wealthfolio/ui/components/
 
 interface ProviderSettingsProps {
   todayRequests?: number;
+  onQueryRequests: () => void;
   provider: MarketDataProviderSetting;
   priorityValue: number;
   onUpdate: (settings: { priority?: number; enabled?: boolean }) => void;
@@ -95,6 +97,7 @@ interface ProviderSettingsProps {
 
 function ProviderSettings({
   todayRequests,
+  onQueryRequests,
   provider,
   priorityValue,
   onUpdate,
@@ -277,7 +280,7 @@ function ProviderSettings({
                 </Popover>
               )}
             </div>
-            <ProviderTodayRequests count={todayRequests} />
+            <ProviderTodayRequests count={todayRequests} onClick={onQueryRequests} />
             {/* Description - smaller text */}
             {provider.description && (
               <p className="text-muted-foreground mt-0.5 text-xs">
@@ -572,6 +575,7 @@ function ProviderSettings({
 
 function CustomProviderCard({
   todayRequests,
+  onQueryRequests,
   provider,
   usage,
   onEdit,
@@ -582,6 +586,7 @@ function CustomProviderCard({
   isLast = false,
 }: {
   todayRequests?: number;
+  onQueryRequests: () => void;
   provider: CustomProviderWithSources;
   usage: CustomProviderUsage;
   onEdit: () => void;
@@ -621,7 +626,7 @@ function CustomProviderCard({
               </Badge>
             )}
           </div>
-          <ProviderTodayRequests count={todayRequests} />
+          <ProviderTodayRequests count={todayRequests} onClick={onQueryRequests} />
           {provider.description && (
             <p className="text-muted-foreground mt-0.5 text-xs">{provider.description}</p>
           )}
@@ -771,10 +776,12 @@ function HistoryMenuItem({
 
 export default function MarketDataSettingsPage() {
   const { t } = useTranslation();
-  const [requestCountDays, setRequestCountDays] = useState(30);
+  const [requestQuery, setRequestQuery] = useState<{ providerId?: string; days: number } | null>(
+    null,
+  );
   const { settings } = useSettingsContext();
   const requestTimezone = settings?.providerRequestTimezone ?? "Asia/Shanghai";
-  const requestCounts = useProviderRequestCounts(requestCountDays, requestTimezone);
+  const requestCounts = useProviderRequestCounts(requestQuery?.days ?? 1, requestTimezone);
   const countData =
     !requestCounts.isError && requestCounts.data?.timezone === requestTimezone
       ? requestCounts.data
@@ -1065,13 +1072,18 @@ export default function MarketDataSettingsPage() {
       )}
 
       <MarketDataSyncSettings />
-      <Button
-        variant="outline"
-        disabled={localRecalculation.isPending}
-        onClick={() => localRecalculation.mutate()}
-      >
-        {t("settings:market_data_page.recalculate_local")}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="outline"
+          disabled={localRecalculation.isPending}
+          onClick={() => localRecalculation.mutate()}
+        >
+          {t("settings:market_data_page.recalculate_local")}
+        </Button>
+        <Button variant="outline" onClick={() => setRequestQuery({ days: 30 })}>
+          {t("settings:provider_request_counts.query_details")}
+        </Button>
+      </div>
 
       <Tabs value={providersTab} onValueChange={setProvidersTab} className="w-full">
         {/* Narrow screens wrap the button below the tabs so their labels keep full width. */}
@@ -1121,6 +1133,7 @@ export default function MarketDataSettingsPage() {
                   key={provider.id}
                   provider={provider}
                   todayRequests={todayRequestCount(countData, provider.id)}
+                  onQueryRequests={() => setRequestQuery({ providerId: provider.id, days: 1 })}
                   priorityValue={priorityInputs[provider.id]}
                   onUpdate={(settings) => handleUpdateSetting(provider.id, settings)}
                   onPriorityChange={(value) => handlePriorityInputChange(provider.id, value)}
@@ -1183,6 +1196,9 @@ export default function MarketDataSettingsPage() {
                   key={cp.id}
                   provider={cp}
                   todayRequests={todayRequestCount(countData, `CUSTOM_SCRAPER:${cp.id}`)}
+                  onQueryRequests={() =>
+                    setRequestQuery({ providerId: `CUSTOM_SCRAPER:${cp.id}`, days: 1 })
+                  }
                   usage={usageByProvider.get(cp.id) ?? EMPTY_USAGE}
                   onEdit={() => {
                     setEditingProvider(cp);
@@ -1211,21 +1227,38 @@ export default function MarketDataSettingsPage() {
         </TabsContent>
       </Tabs>
 
-      <ProviderRequestCountsPanel
-        query={requestCounts}
-        days={requestCountDays}
-        onDaysChange={setRequestCountDays}
-        providers={[
-          ...builtinProviders.map((provider) => ({
-            id: provider.id,
-            name: getProviderName(t, provider.id, provider.name),
-          })),
-          ...customProviders.map((provider) => ({
-            id: `CUSTOM_SCRAPER:${provider.id}`,
-            name: provider.name,
-          })),
-        ]}
-      />
+      <Sheet
+        open={requestQuery !== null}
+        onOpenChange={(open) => {
+          if (!open) setRequestQuery(null);
+        }}
+      >
+        <SheetContent side="inline-end" className="flex w-full flex-col sm:max-w-2xl">
+          <SheetHeader className="pe-10">
+            <SheetTitle>{t("settings:provider_request_counts.query_details")}</SheetTitle>
+          </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {requestQuery && (
+              <ProviderRequestCountsPanel
+                initialProviderId={requestQuery.providerId}
+                query={requestCounts}
+                days={requestQuery.days}
+                onDaysChange={(days) => setRequestQuery({ ...requestQuery, days })}
+                providers={[
+                  ...builtinProviders.map((provider) => ({
+                    id: provider.id,
+                    name: getProviderName(t, provider.id, provider.name),
+                  })),
+                  ...customProviders.map((provider) => ({
+                    id: `CUSTOM_SCRAPER:${provider.id}`,
+                    name: provider.name,
+                  })),
+                ]}
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <CustomProviderForm
         open={customFormOpen}

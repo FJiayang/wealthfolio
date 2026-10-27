@@ -45,6 +45,7 @@ pub async fn get(
     url: &str,
     params: &[(&str, String)],
     recorder: &dyn crate::RequestRecorder,
+    diagnostic: &crate::RequestContext,
 ) -> Result<String, MarketDataError> {
     let referer = if url.contains("fund.eastmoney.com") {
         "https://fundf10.eastmoney.com/"
@@ -59,7 +60,7 @@ pub async fn get(
         .get(url)
         .header("Referer", referer)
         .query(params)
-        .send_recorded(provider, recorder)
+        .send_recorded(provider, recorder, diagnostic)
         .await
         .map_err(|error| {
             if error.is_timeout() {
@@ -356,7 +357,8 @@ mod tests {
                     provider,
                     &server.url,
                     &[("page", "1".into())],
-                    &recorder
+                    &recorder,
+                    &crate::RequestContext::http("test", vec![], serde_json::json!({})),
                 )
                 .await
                 .unwrap(),

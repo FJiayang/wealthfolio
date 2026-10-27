@@ -54,6 +54,7 @@ impl SinaProvider {
             url,
             params,
             self.request_recorder.as_ref(),
+            &diagnostic_context(url, params),
         )
         .await
     }
@@ -506,6 +507,75 @@ impl MarketDataProvider for SinaProvider {
         result.map_err(|error| response_error(self.id(), error))
     }
 }
+fn diagnostic_context(url: &str, params: &[(&str, String)]) -> crate::RequestContext {
+    let parsed =
+        reqwest::Url::parse(url).expect("provider URL is constructed from a fixed endpoint");
+    let parameters: serde_json::Map<String, serde_json::Value> = parsed
+        .query_pairs()
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .chain(
+            params
+                .iter()
+                .map(|(key, value)| (key.to_string(), value.clone())),
+        )
+        .filter(|(key, _)| {
+            [
+                "list",
+                "symbol",
+                "paperCode",
+                "source",
+                "type",
+                "page",
+                "num",
+                "key",
+                "d",
+                "scale",
+                "datalen",
+                "ma",
+                "rn",
+            ]
+            .contains(&key.as_str())
+        })
+        .map(|(key, value)| (key, serde_json::json!(value)))
+        .collect();
+    let mut symbols: Vec<String> = ["list", "symbol", "paperCode"]
+        .iter()
+        .filter_map(|key| parameters.get(*key).and_then(|value| value.as_str()))
+        .flat_map(|value| value.split(','))
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .collect();
+    if let Some(code) = parsed
+        .path()
+        .split("/stockid/")
+        .nth(1)
+        .and_then(|value| value.strip_suffix(".phtml"))
+    {
+        symbols.push(code.into());
+    }
+    if let Some(code) = parsed.path().strip_prefix("/list=") {
+        symbols.push(code.into());
+    }
+    if let Some(code) = parsed.path().strip_prefix("/staticdata/us/") {
+        symbols.push(format!("gb_{}", code.to_lowercase()));
+    }
+    if let Some(code) = parsed
+        .path()
+        .strip_prefix("/stock/hkstock/")
+        .and_then(|value| value.split('/').next())
+    {
+        symbols.push(format!("hk{code}"));
+    }
+    if let Some(code) = parsed
+        .path()
+        .strip_prefix("/realstock/company/")
+        .and_then(|value| value.split('/').next())
+    {
+        symbols.push(code.into());
+    }
+    crate::RequestContext::http(parsed.path(), symbols, parameters.into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -538,5 +608,20 @@ mod tests {
     #[test]
     fn quote_identity_mismatch_is_rejected() {
         assert!(parse_latest(r#"var hq_str_sh000001="";"#, "sh600519", "CNY").is_err());
+    }
+}
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+    #[test]
+    fn diagnostics_select_business_parameters_without_credentials() {
+        let context = diagnostic_context(
+            "https://hq.sinajs.cn/list=sh600519?token=private",
+            &[("unexpected_private_field", "private".into())],
+        );
+        assert_eq!(context.symbols, ["sh600519"]);
+        let encoded = serde_json::to_string(&context).unwrap();
+        assert!(!encoded.contains("private"));
+        assert!(!encoded.contains("unexpected_private_field"));
     }
 }

@@ -62,7 +62,9 @@ pub mod registry;
 pub mod request_recorder;
 pub mod resolver;
 
-pub use request_recorder::{NoopRequestRecorder, RecordedRequest, RequestRecorder};
+pub use request_recorder::{
+    NoopRequestRecorder, RecordedRequest, RequestContext, RequestOutcome, RequestRecorder,
+};
 
 // Re-export all public types from models
 pub use models::{

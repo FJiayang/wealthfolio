@@ -1833,6 +1833,9 @@
   "cloud_backup_retry_label": "Nächster Versuch",
   "cloud_backup_retry_now": "Backup erneut versuchen",
   "provider_request_counts": {
+    "today_range": "Heute",
+    "query_details": "Details anzeigen",
+    "retention_hint": "Einträge werden 30 Tage aufbewahrt. HTTP und SDK verwenden unterschiedliche Messbereiche.",
     "title": "Anbieteranfragen",
     "description": "Erfasste Aufrufversuche an nachgelagerte APIs, einschließlich Wiederholungen und fehlgeschlagener Anfragen. Dies ist keine Abrechnungssumme.",
     "today": "Heute bisher: {{value}}",

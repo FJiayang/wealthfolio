@@ -1777,6 +1777,12 @@ impl MockEnvironment {
 }
 
 impl AgentEnvironment for MockEnvironment {
+    fn provider_request_service(
+        &self,
+    ) -> Arc<wealthfolio_core::quotes::request_counts::ProviderRequestService> {
+        unimplemented!("request diagnostics are not used by this fixture")
+    }
+
     fn trade_instruction_service(
         &self,
     ) -> Arc<dyn wealthfolio_core::trade_instructions::TradeInstructionServiceTrait> {

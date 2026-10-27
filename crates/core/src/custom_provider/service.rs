@@ -202,6 +202,7 @@ impl CustomProviderService {
             .send_recorded(
                 &format!("CUSTOM_SCRAPER:{provider_id}"),
                 self.request_recorder.as_ref(),
+                &wealthfolio_market_data::RequestContext::http("test_source", vec![tctx.symbol.into()], serde_json::json!({"symbol": tctx.symbol, "currency": tctx.currency, "isin": tctx.isin, "mic": tctx.mic, "from": tctx.from, "to": tctx.to})),
             )
             .await
         {

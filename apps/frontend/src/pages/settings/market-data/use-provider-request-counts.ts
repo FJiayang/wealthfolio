@@ -21,17 +21,18 @@ export function requestTrackingDay(data: ProviderRequestCounts): string {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(new Date(data.trackingSince));
+  }).formatToParts(new Date(data.availableSince ?? data.trackingSince));
   const part = (type: string) => parts.find((value) => value.type === type)?.value;
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 export function requestCountDays(data: ProviderRequestCounts, providerId: string) {
-  const counts = new Map(
-    data.rows
-      .filter((row) => row.providerId === providerId)
-      .map((row) => [row.day, row.requestCount]),
-  );
+  const counts = new Map<string, number>();
+  for (const row of data.rows) {
+    if (row.providerId === providerId) {
+      counts.set(row.day, (counts.get(row.day) ?? 0) + row.requestCount);
+    }
+  }
   const trackingDay = requestTrackingDay(data);
   const result: { day: string; count: number | null; partial: boolean }[] = [];
   // These are calendar labels, not instants in the selected statistics timezone.
@@ -52,8 +53,7 @@ export function requestCountDays(data: ProviderRequestCounts, providerId: string
 
 export function todayRequestCount(data: ProviderRequestCounts | undefined, providerId: string) {
   if (!data || data.endDate < requestTrackingDay(data)) return undefined;
-  return (
-    data.rows.find((row) => row.providerId === providerId && row.day === data.endDate)
-      ?.requestCount ?? 0
-  );
+  return data.rows
+    .filter((row) => row.providerId === providerId && row.day === data.endDate)
+    .reduce((total, row) => total + row.requestCount, 0);
 }
