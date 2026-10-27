@@ -133,7 +133,20 @@ async fn process_event_batch(
         );
     }
 
-    // Asset metadata is fetched only by the daily batch.
+    // Initial profiles are part of creation, not the next daily quote batch.
+    // Await the existing event flow before rebuilding from saved prices.
+    let asset_ids = wealthfolio_core::events::created_asset_ids(events);
+    if !asset_ids.is_empty() {
+        let observer =
+            crate::portfolio_jobs::TauriJobObserver::new(app_handle.clone(), Arc::clone(context));
+        if let Err(error) = context
+            .portfolio_coordinator()
+            .enrich_created_assets(&asset_ids, context.asset_service().as_ref(), &observer)
+            .await
+        {
+            warn!("Initial asset enrichment failed: {error}");
+        }
+    }
 
     // 2. Plan and run portfolio job directly (not via event emission)
     // This ensures the is_processing guard properly tracks completion

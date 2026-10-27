@@ -62,7 +62,7 @@ pub fn plan_asset_classification_change(
 }
 
 /// Plans local recalculation for changed accounts. Market requests belong to
-/// the daily batch or explicit user actions; new assets are discovered by that batch.
+/// the daily batch or explicit user actions. Initial profiles are handled separately.
 pub fn plan_portfolio_job(events: &[DomainEvent]) -> Option<PortfolioRequestPayload> {
     let mut account_ids: HashSet<String> = HashSet::new();
     let mut has_recalc_events = false;
@@ -104,7 +104,7 @@ pub fn plan_portfolio_job(events: &[DomainEvent]) -> Option<PortfolioRequestPayl
                 has_recalc_events = true;
                 recalculate_all_accounts = true;
             }
-            // New assets are discovered by the daily batch.
+            // Initial profiles are handled separately, without quote synchronization.
             DomainEvent::AssetsCreated { .. } => {}
             // Saved prices changed: the quote triggers marked their holders
             // for a revalue; the job only has to run.

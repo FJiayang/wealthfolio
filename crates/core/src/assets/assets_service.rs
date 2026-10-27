@@ -1984,11 +1984,8 @@ impl AssetServiceTrait for AssetService {
     }
 
     async fn delete_asset(&self, asset_id: &str) -> Result<()> {
-        // Clean up sync state before deleting the asset to avoid orphaned records
-        if let Err(e) = self.quote_service.delete_sync_state(asset_id).await {
-            warn!("Failed to delete sync state for {}: {}", asset_id, e);
-        }
-
+        // The repository removes related quote state atomically after validating
+        // deletion constraints, so a rejected delete preserves that state.
         self.asset_repository.delete(asset_id).await
     }
 
@@ -3455,6 +3452,9 @@ mod tests {
                 .unwrap(),
             (0, 1, 0)
         );
+        // A later daily fallback or repeated creation event must not fetch a
+        // profile that the initial enrichment already completed successfully.
+        assert_eq!(quotes.profile_calls.lock().unwrap().len(), 2);
     }
 
     #[tokio::test]

@@ -44,6 +44,25 @@ clear separation between:
 
 ---
 
+## Initial asset profiles and scheduled fallback
+
+Asset creation stays local and emits `AssetsCreated`. Both runtimes await
+initial profile enrichment in the existing debounced event worker before
+rebuilding the portfolio from saved prices; callers do not wait for the next
+daily batch. Only the newly created, active market-priced asset IDs are
+considered. No quote synchronization or automatic schedule change is implied by
+this event.
+
+**Architecture impact:** creation and the existing daily fallback share the
+coordinator's job lock, batching, timeout and observer callbacks. The asset
+service retains provider eligibility, failure isolation, identity revalidation
+and user-edit precedence. Successful enrichment records its timestamp for that
+asset even when no quote sync state exists yet, without changing existing quote
+sync fields. The daily batch only catches assets still missing successful
+initial enrichment. Failures do not roll back creation or add an automatic retry
+loop. No new queue, worker, storage table or synchronization primitive is
+introduced.
+
 ## Module Organization
 
 ### `crates/market-data/` - Provider Integration Layer
