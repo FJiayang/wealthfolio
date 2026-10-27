@@ -38,6 +38,46 @@ export interface ProviderRequestCounts {
 export const getProviderRequestCounts = (days: number): Promise<ProviderRequestCounts> =>
   invoke<ProviderRequestCounts>("get_provider_request_counts", { days });
 
+export interface ProviderRequestEvent {
+  id: number;
+  providerId: string;
+  occurredAt: string;
+  context: {
+    recordKind: "http" | "sdk";
+    operation: string;
+    symbols: string[];
+    parameters: Record<string, unknown>;
+  } | null;
+  result: {
+    durationMs: number;
+    outcome: "success" | "failure";
+    httpStatus: number | null;
+    errorCategory: string | null;
+    errorMessage: string | null;
+  } | null;
+}
+
+export interface ProviderRequestQuery {
+  providerId?: string;
+  symbol?: string;
+  start?: string;
+  end?: string;
+  recordKind?: "http" | "sdk";
+  outcome?: "success" | "failure" | "unknown";
+  cursor?: string;
+  limit?: number;
+}
+
+export interface ProviderRequestPage {
+  rows: ProviderRequestEvent[];
+  nextCursor: string | null;
+  availableSince: string;
+  diagnosticsSince: string;
+}
+
+export const listProviderRequests = (query: ProviderRequestQuery): Promise<ProviderRequestPage> =>
+  invoke<ProviderRequestPage>("list_provider_requests", { query });
+
 export const searchTicker = async (query: string): Promise<SymbolSearchResult[]> => {
   try {
     return await invoke<SymbolSearchResult[]>("search_symbol", { query });

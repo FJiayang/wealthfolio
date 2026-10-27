@@ -97,6 +97,15 @@ async fn get_market_data_providers(
     Ok(Json(infos))
 }
 
+async fn list_provider_requests(
+    axum::Extension(state): axum::Extension<Arc<AppState>>,
+    Query(query): Query<wealthfolio_core::quotes::request_counts::RequestQuery>,
+) -> ApiResult<Json<wealthfolio_core::quotes::request_counts::RequestPage>> {
+    Ok(Json(
+        state.provider_request_service.list_requests(query).await?,
+    ))
+}
+
 async fn get_market_data_provider_settings(
     axum::Extension(state): axum::Extension<Arc<AppState>>,
 ) -> ApiResult<Json<Vec<ProviderInfo>>> {
@@ -381,6 +390,7 @@ pub fn router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     Router::new()
         .route("/exchanges", get(get_exchanges))
         .route("/providers", get(get_market_data_providers))
+        .route("/providers/requests", get(list_provider_requests))
         .route(
             "/providers/request-counts",
             get(get_provider_request_counts),

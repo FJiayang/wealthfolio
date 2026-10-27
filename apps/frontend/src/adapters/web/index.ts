@@ -222,6 +222,7 @@ export {
   getMarketDataProviders,
   getMarketDataProviderSettings,
   getProviderRequestCounts,
+  listProviderRequests,
   getQuoteHistory,
   importManualQuotes,
   resolveSymbolQuote,
@@ -560,6 +561,12 @@ export {
 } from "../shared/cloud-backups";
 export { downloadCloudBackup, previewCloudBackupRestore } from "./cloud-backups";
 
-export type { ProviderRequestCounts, ProviderRequestCountRow } from "../shared/market-data";
+export type {
+  ProviderRequestCounts,
+  ProviderRequestCountRow,
+  ProviderRequestEvent,
+  ProviderRequestPage,
+  ProviderRequestQuery,
+} from "../shared/market-data";
 
 export * from "../shared/trade-instructions";

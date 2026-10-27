@@ -522,6 +522,7 @@ pub fn run() {
             commands::market_data::get_latest_quotes,
             commands::market_data::get_market_data_providers,
             commands::market_data::get_provider_request_counts,
+            commands::market_data::list_provider_requests,
             commands::market_data::check_quotes_import,
             commands::market_data::import_quotes_csv,
             commands::market_data::get_exchanges,

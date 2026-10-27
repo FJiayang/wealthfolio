@@ -142,6 +142,7 @@ export const COMMANDS: CommandMap = {
   // Market data providers
   get_exchanges: { method: "GET", path: "/exchanges" },
   get_provider_request_counts: { method: "GET", path: "/providers/request-counts" },
+  list_provider_requests: { method: "GET", path: "/providers/requests" },
   get_market_data_providers: { method: "GET", path: "/providers" },
   get_market_data_providers_settings: { method: "GET", path: "/providers/settings" },
   update_market_data_provider_settings: { method: "PUT", path: "/providers/settings" },
@@ -1009,6 +1010,15 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     case "get_provider_request_counts": {
       const { days } = payload as { days: number };
       url += `?${new URLSearchParams({ days: String(days) })}`;
+      break;
+    }
+    case "list_provider_requests": {
+      const { query } = payload as { query: Record<string, string | number | undefined> };
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined) params.set(key, String(value));
+      }
+      url += `?${params}`;
       break;
     }
     case "update_market_data_provider_settings": {
