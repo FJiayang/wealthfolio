@@ -281,7 +281,7 @@ export function useActivityColumns({
           cell: {
             variant: "select",
             // Dynamic options based on activity type
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            // oxlint-disable-next-line typescript/no-explicit-any
             options: ((rowData: any) => {
               const activityType = rowData?.activityType?.toUpperCase();
               if (!activityType) return [];
@@ -304,7 +304,7 @@ export function useActivityColumns({
               return (
                 <Badge
                   variant="secondary"
-                  className="min-w-0 max-w-full rounded-sm px-1.5 text-xs"
+                  className="max-w-full min-w-0 rounded-sm px-1.5 text-xs"
                   title={displayLabel}
                 >
                   <span className="min-w-0 truncate">{displayLabel}</span>

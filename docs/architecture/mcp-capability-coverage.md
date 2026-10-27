@@ -3,20 +3,20 @@
 Architecture impact: MCP extends the existing AgentToolCatalog and
 AgentEnvironment. Both hosts reuse their existing services, database writer and
 domain-event consumers. No global provider settings, new background workers,
-migrations, retries or transport lifecycle are added by the business tools below.
-Provider diagnostics additionally extend the profile-local request-event table
-and expose two read tools under `market-data:read`: `list_provider_requests`
-and `get_provider_request_counts`. Events retain provider-selected business
-parameters, symbols, timing and safe outcome categories for 30 rolling days;
-expired events (including their counts) are deleted through the existing writer
-on recording/querying. They never enter the sync outbox or application logs.
-HTTP events measure send-to-headers and count retries individually. iFinD now
-records SDK calls, including first-call initialization but excluding rate-limit
-waiting, rather than its underlying HTTP/session traffic. Historical events
-without context remain HTTP records with unknown results. Queries do not make
-provider requests; networking, credentials, SDK sessions and retries are unchanged.
-New business tools belong
-only to the MCP catalog; assistant tools keep their existing names and schemas.
+migrations, retries or transport lifecycle are added by the business tools
+below. Provider diagnostics additionally extend the profile-local request-event
+table and expose two read tools under `market-data:read`:
+`list_provider_requests` and `get_provider_request_counts`. Events retain
+provider-selected business parameters, symbols, timing and safe outcome
+categories for 30 rolling days; expired events (including their counts) are
+deleted through the existing writer on recording/querying. They never enter the
+sync outbox or application logs. HTTP events measure send-to-headers and count
+retries individually. iFinD now records SDK calls, including first-call
+initialization but excluding rate-limit waiting, rather than its underlying
+HTTP/session traffic. Historical events without context remain HTTP records with
+unknown results. Queries do not make provider requests; networking, credentials,
+SDK sessions and retries are unchanged. New business tools belong only to the
+MCP catalog; assistant tools keep their existing names and schemas.
 
 ## Coverage checklist
 
@@ -25,20 +25,20 @@ Each row maps the frontend adapter (shared entries under
 domain service, MCP tool family, permission and regression coverage. Existing
 tools remain supported.
 
-| Frontend adapter                                                     | Service                                                                                                      | MCP tools                                                                                   | Scope                                                            | Regression focus                                             |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------ |
-| shared/accounts, shared/portfolios                                   | AccountService, PortfolioService                                                                             | get/list/create/update account; get/create/update portfolio                                 | accounts:read/write                                              | account/portfolio integration, scope denials                 |
-| shared/market-data, shared/asset-logos                               | AssetService, AssetLogoService, QuoteService                                                                 | asset profile/create/update, search/resolve, quote mode, logos                              | holdings:read, assets:write, market-data:read/write              | investment creation, disabled providers, quote mode          |
-| shared/goals                                                         | GoalService, CurrentAccountValuationService                                                                  | goal CRUD without delete, funding, plan, summary, overviews                                 | financial-planning:read/write; holdings:read for live valuations | goal funding/plan summary and currency                       |
-| shared/allocation-targets                                            | AllocationTargetService, DriftService, RebalanceService                                                      | targets, weights, constraints, drift, calculate_rebalance_plan                              | financial-planning:read/write; holdings:read for calculations    | target weights/drift/rebalance; no transactions written      |
-| shared/portfolio                                                     | HoldingsService, SnapshotService, ManualSnapshotService                                                      | holdings/lots/valuations/snapshots, prepare/commit holdings                                 | holdings:read/write                                              | preview purity, snapshot overwrite, domain events            |
-| shared/activities                                                    | ActivityService                                                                                              | existing activity tools; templates, mapping, transfer pair, duplicate/asset checks          | activities:read/draft/write                                      | existing regression suite; template/transfer integration     |
-| adapters/tauri/fire-planner, adapters/web/fire-planner               | existing retirement functions, GoalService                                                                   | retirement projection, Monte Carlo, stress/scenario/sorr/sensitivity                        | financial-planning:read; holdings:read for saved goals           | input validation, existing simulation limits                 |
-| shared/exchange-rates, shared/market-data                            | FxService, QuoteService                                                                                      | local quotes, exchange rates, dividends, manual rates; existing manual quote prepare/commit | market-data:read/write                                           | no provider refresh tools; existing quote regression         |
-| shared/taxonomies, shared/spending, features/spending/adapters/rules | TaxonomyService, CategorizationRulesService                                                                  | taxonomy/category create/update/move/import, assignments, rules and presets                 | classification:read/suggest/write                                | rule reruns preserve manual edits                            |
-| features/spending/adapters                                           | CashActivityService, AnalyticsService, InsightService, BudgetService, EventsService, SpendingSettingsService | spending search/reports/insights/splits/events/budget/settings                              | spending:read/write; classification scopes for categories        | business validation, budget periods, assignment restrictions |
-| shared/alternative-assets, shared/contribution-limits                | AlternativeAssetService, loan functions, ContributionLimitService                                            | alternative holdings, loan preview/calculation, deposit calculation                         | holdings:read, financial-planning:read                           | read-only behavior                                           |
-| settings/agent-access                                                | PatRepository, shared scope validator                                                                        | permission editing via app management API only                                              | authenticated application management                             | same-session grant/revoke on desktop and web                 |
+| Frontend adapter                                                     | Service                                                                                                      | MCP tools                                                                                   | Scope                                                                               | Regression focus                                             |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| shared/accounts, shared/portfolios                                   | AccountService, PortfolioService                                                                             | get/list/create/update account; get/create/update portfolio                                 | accounts:read/write                                                                 | account/portfolio integration, scope denials                 |
+| shared/market-data, shared/asset-logos                               | AssetService, AssetLogoService, QuoteService                                                                 | asset profile/create/update, search/resolve, quote mode, logos                              | holdings:read, assets:write, market-data:read/write                                 | investment creation, disabled providers, quote mode          |
+| shared/goals                                                         | GoalService, CurrentAccountValuationService                                                                  | goal CRUD without delete, funding, plan, summary, overviews                                 | financial-planning:read/write; holdings:read for live valuations                    | goal funding/plan summary and currency                       |
+| shared/allocation-targets                                            | AllocationTargetService, DriftService, RebalanceService                                                      | targets, weights, constraints, drift, calculate_rebalance_plan                              | financial-planning:read/write; holdings:read for calculations                       | target weights/drift/rebalance; no transactions written      |
+| shared/portfolio                                                     | HoldingsService, SnapshotService, ManualSnapshotService                                                      | holdings/lots/valuations/snapshots, prepare/commit holdings                                 | holdings:read/write                                                                 | preview purity, snapshot overwrite, domain events            |
+| shared/activities                                                    | ActivityService                                                                                              | existing activity tools; templates, mapping, transfer pair, duplicate/asset checks          | activities:read/draft/write                                                         | existing regression suite; template/transfer integration     |
+| adapters/tauri/fire-planner, adapters/web/fire-planner               | existing retirement functions, GoalService                                                                   | retirement projection, Monte Carlo, stress/scenario/sorr/sensitivity                        | financial-planning:read; holdings:read for saved goals                              | input validation, existing simulation limits                 |
+| shared/exchange-rates, shared/market-data                            | FxService, QuoteService                                                                                      | local quotes, exchange rates, dividends, manual rates; existing manual quote prepare/commit | market-data:read/write                                                              | no provider refresh tools; existing quote regression         |
+| shared/taxonomies, shared/spending, features/spending/adapters/rules | TaxonomyService, CategorizationRulesService                                                                  | taxonomy/category create/update/move/import, assignments, rules and presets                 | classification:read/suggest/write                                                   | rule reruns preserve manual edits                            |
+| features/spending/adapters                                           | CashActivityService, AnalyticsService, InsightService, BudgetService, EventsService, SpendingSettingsService | spending search/reports/insights/splits/events/budget/settings                              | spending:read/write; budget:write for budgets; classification scopes for categories | business validation, budget periods, assignment restrictions |
+| shared/alternative-assets, shared/contribution-limits                | AlternativeAssetService, loan functions, ContributionLimitService                                            | alternative holdings, loan preview/calculation, deposit calculation                         | holdings:read, financial-planning:read                                              | read-only behavior                                           |
+| settings/agent-access                                                | PatRepository, shared scope validator                                                                        | permission editing via app management API only                                              | authenticated application management                                                | same-session grant/revoke on desktop and web                 |
 
 ## Exclusions
 
@@ -88,18 +88,18 @@ are selected by default.
 assistant remains at 16 read and 5 draft tools. Schemas and scope checks are
 owned by the files below in `crates/agent-tools/src/tools/`.
 
-| Implementation                 | Tools                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `account_management.rs`        | `create_account`, `update_account`, `get_account`, `list_accounts`, `create_portfolio`, `update_portfolio_entry`, `get_portfolio`                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `asset_management.rs`          | `create_asset`, `update_asset_profile`, `get_assets`, `get_asset_profile`, `update_quote_mode`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `holdings_management.rs`       | `get_holding`, `get_holdings_list`, `get_asset_holdings`, `get_asset_lots`, `get_snapshots`, `get_snapshot_by_date`, `prepare_holdings_import`, `commit_holdings_import`, `prepare_manual_holdings`, `commit_manual_holdings`, `get_alternative_holdings`, `get_loan_payments`, `calculate_loan`, `recalculate_loan`, `preview_loan_terms`, `calculate_deposits_for_limit`, `get_current_valuation`, `get_historical_valuations`, `get_latest_valuations`                                                                                                                                                  |
-| `activity_management.rs`       | `get_activity`, `get_transfer_pair_for_activity`, `find_transfer_match_candidates`, `save_internal_transfer_pair`, `list_import_templates`, `get_import_template`, `get_account_import_mapping`, `save_import_template`, `save_account_import_mapping`, `link_account_template`, `check_existing_duplicates`, `preview_import_assets`                                                                                                                                                                                                                                                                      |
-| `goal_management.rs`           | `create_goal`, `update_goal`, `get_goal`, `get_goal_funding`, `get_goal_plan`, `save_goal_funding`, `save_goal_plan`, `refresh_goal_summary`, `get_retirement_overview`, `get_save_up_overview`, `refresh_all_goal_summaries`                                                                                                                                                                                                                                                                                                                                                                              |
-| `target_management.rs`         | `create_allocation_target`, `update_allocation_target`, `archive_allocation_target`, `save_allocation_target_weights`, `save_allocation_target_with_weights`, `list_allocation_targets`, `get_allocation_target`, `list_allocation_target_weights`, `list_target_constraints`, `save_target_constraints`, `get_allocation_target_drift`, `calculate_rebalance_plan`                                                                                                                                                                                                                                        |
-| `planning_calculations.rs`     | `prepare_retirement_simulation_input`, `calculate_retirement_projection`, `run_retirement_monte_carlo`, `run_retirement_stress_tests`, `run_retirement_scenario_analysis`, `run_retirement_decision_sensitivity_map`, `run_retirement_sorr`, `preview_save_up_overview`                                                                                                                                                                                                                                                                                                                                    |
-| `market_queries.rs`            | `list_asset_logos`, `get_asset_logo`, `upsert_asset_logo`, `search_symbol`, `resolve_symbol_quote`, `get_quote_history`, `get_latest_quotes`, `get_exchanges`, `fetch_dividends`, `get_exchange_rates`, `get_exchange_rates_for_dates`, `add_exchange_rate`, `update_exchange_rate`                                                                                                                                                                                                                                                                                                                        |
-| `classification_management.rs` | `get_taxonomies`, `get_taxonomy`, `create_taxonomy`, `update_taxonomy`, `create_category`, `update_category`, `move_category`, `import_taxonomy_json`, `assign_asset_to_category`, `replace_asset_taxonomy_assignments`, `list_categorization_rules`, `update_categorization_rule`, `upsert_categorization_rule`, `rerun_categorization_rules`, `list_rule_presets`, `import_rule_preset`                                                                                                                                                                                                                  |
-| `spending_management.rs`       | `list_cash_activities`, `search_cash_activities`, `get_activity_assignments`, `get_activity_splits`, `assign_activity_category`, `replace_activity_splits`, `set_activity_event`, `get_spending_settings`, `update_spending_settings`, `get_spending_report`, `get_spending_insight`, `get_event_spending_summaries`, `list_event_types`, `list_events`, `create_event_type`, `update_event_type`, `create_event`, `update_event`, `get_budget`, `upsert_budget_target`, `upsert_budget_rollover_setting`, `create_budget_group`, `update_budget_group`, `assign_category_to_group`, `copy_budget_targets` |
+| Implementation                 | Tools                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `account_management.rs`        | `create_account`, `update_account`, `get_account`, `list_accounts`, `create_portfolio`, `update_portfolio_entry`, `get_portfolio`                                                                                                                                                                                                                                                                                                                                                                             |
+| `asset_management.rs`          | `create_asset`, `update_asset_profile`, `get_assets`, `get_asset_profile`, `update_quote_mode`                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `holdings_management.rs`       | `get_holding`, `get_holdings_list`, `get_asset_holdings`, `get_asset_lots`, `get_snapshots`, `get_snapshot_by_date`, `prepare_holdings_import`, `commit_holdings_import`, `prepare_manual_holdings`, `commit_manual_holdings`, `get_alternative_holdings`, `get_loan_payments`, `calculate_loan`, `recalculate_loan`, `preview_loan_terms`, `calculate_deposits_for_limit`, `get_current_valuation`, `get_historical_valuations`, `get_latest_valuations`                                                     |
+| `activity_management.rs`       | `get_activity`, `get_transfer_pair_for_activity`, `find_transfer_match_candidates`, `save_internal_transfer_pair`, `list_import_templates`, `get_import_template`, `get_account_import_mapping`, `save_import_template`, `save_account_import_mapping`, `link_account_template`, `check_existing_duplicates`, `preview_import_assets`                                                                                                                                                                         |
+| `goal_management.rs`           | `create_goal`, `update_goal`, `get_goal`, `get_goal_funding`, `get_goal_plan`, `save_goal_funding`, `save_goal_plan`, `refresh_goal_summary`, `get_retirement_overview`, `get_save_up_overview`, `refresh_all_goal_summaries`                                                                                                                                                                                                                                                                                 |
+| `target_management.rs`         | `create_allocation_target`, `update_allocation_target`, `archive_allocation_target`, `save_allocation_target_weights`, `save_allocation_target_with_weights`, `list_allocation_targets`, `get_allocation_target`, `list_allocation_target_weights`, `list_target_constraints`, `save_target_constraints`, `get_allocation_target_drift`, `calculate_rebalance_plan`                                                                                                                                           |
+| `planning_calculations.rs`     | `prepare_retirement_simulation_input`, `calculate_retirement_projection`, `run_retirement_monte_carlo`, `run_retirement_stress_tests`, `run_retirement_scenario_analysis`, `run_retirement_decision_sensitivity_map`, `run_retirement_sorr`, `preview_save_up_overview`                                                                                                                                                                                                                                       |
+| `market_queries.rs`            | `list_asset_logos`, `get_asset_logo`, `upsert_asset_logo`, `search_symbol`, `resolve_symbol_quote`, `get_quote_history`, `get_latest_quotes`, `get_exchanges`, `fetch_dividends`, `get_exchange_rates`, `get_exchange_rates_for_dates`, `add_exchange_rate`, `update_exchange_rate`                                                                                                                                                                                                                           |
+| `classification_management.rs` | `get_taxonomies`, `get_taxonomy`, `create_taxonomy`, `update_taxonomy`, `create_category`, `update_category`, `move_category`, `import_taxonomy_json`, `assign_asset_to_category`, `replace_asset_taxonomy_assignments`, `update_categorization_rule`, `upsert_categorization_rule`, `list_rule_presets`, `import_rule_preset`                                                                                                                                                                                |
+| `spending_management.rs`       | `list_cash_activities`, `search_cash_activities`, `get_activity_assignments`, `get_activity_splits`, `assign_activity_category`, `replace_activity_splits`, `set_activity_event`, `get_spending_settings`, `update_spending_settings`, `list_event_types`, `list_events`, `create_event_type`, `update_event_type`, `create_event`, `update_event`, `upsert_budget_target`, `upsert_budget_rollover_setting`, `create_budget_group`, `update_budget_group`, `assign_category_to_group`, `copy_budget_targets` |
 
 ## Regression entry points
 
@@ -124,22 +124,37 @@ owned by the files below in `crates/agent-tools/src/tools/`.
 
 The seven new categories are `accounts:write`, `assets:write`, `holdings:write`,
 `financial-planning:write`, `market-data:read`, `spending:read` and
-`spending:write`. There are now 19 scopes. Existing `market-data:write` still
+`spending:write`. The upstream `budget:write` scope is independent of
+`spending:write`: both require `spending:read`, and budget mutations require
+`budget:write` explicitly. Existing tokens keep their exact saved grants; no new
+budget permission is added automatically. Existing `market-data:write` still
 requires `holdings:read`; activity writes still require activity draft
 permission, and classification writes still require classification suggest
 permission. Tools that read actual holdings additionally require
 `holdings:read`.
 
+## Categorization rule listing and reruns
+
+`categorization_rules.rs` supplies the upstream `list_categorization_rules` and
+`rerun_categorization_rules` contracts. Listing accepts optional taxonomy/origin
+filters and returns `{ rules, count }` with enriched rule metadata. Reruns use
+the accounts opted in to enabled spending tracking and return
+`{ onlyUncategorized, accounts, matched }`. These replace the fork's earlier
+raw-array/bare-count responses; explicit `onlyUncategorized: null` is no longer
+accepted. Existing classification read versus suggest/write scopes are
+unchanged. Both tools remain MCP-only, and the fork's argument/error audit
+redaction is retained without changing their business results.
+
 ## Trade instructions
 
 The MCP catalog exposes `list_trade_instructions`, `get_trade_instruction`,
-`create_trade_instruction`, `update_trade_instruction`, `start_trade_instruction`,
-`complete_trade_instruction`, `cancel_trade_instruction`,
-`correct_trade_instruction_completion_time`, and `delete_trade_instruction`.
-Reads require `trade-instructions:read`. All mutations share the single
-`trade-instructions:write` permission, whose prerequisites are
-`trade-instructions:read`, `accounts:read`, `assets:write`, and
-`financial-planning:read`. Existing `trade-instructions:create` grants are
+`create_trade_instruction`, `update_trade_instruction`,
+`start_trade_instruction`, `complete_trade_instruction`,
+`cancel_trade_instruction`, `correct_trade_instruction_completion_time`, and
+`delete_trade_instruction`. Reads require `trade-instructions:read`. All
+mutations share the single `trade-instructions:write` permission, whose
+prerequisites are `trade-instructions:read`, `accounts:read`, `assets:write`,
+and `financial-planning:read`. Existing `trade-instructions:create` grants are
 accepted as an alias for the unified write permission; persisted tokens need no
 migration. New grants use the canonical write name. Read-only tokens remain
 read-only. These tools are MCP-only and redact arguments from audit logs.
@@ -150,8 +165,8 @@ any status. Updates replace the full editable content; omitted optional fields
 are cleared. Completion notes are optional; cancellation notes are required.
 Completion records a report, not broker verification or an actual broker order.
 MCP completion defaults to server time when omitted; the UI pre-fills current
-time and uses server time when cleared. Completion time correction preserves
-the original system closure time. Creation retains its request-UUID retry key;
+time and uses server time when cleared. Completion time correction preserves the
+original system closure time. Creation retains its request-UUID retry key;
 permanent deletion removes that key along with the instruction.
 
 Architecture impact: instructions use their own SQLite table and existing
@@ -181,3 +196,12 @@ its local instructions; instructions still do not affect goal valuations or
 bookkeeping. The pre-release migration rebuilds the experimental instruction
 table, intentionally discarding the earlier records without goal associations.
 No legacy association UI or migration backfill is provided.
+
+## Upstream spending read contracts
+
+`spending_reads.rs` supplies `get_spending_report`, `get_spending_insight`,
+`get_event_spending_summaries` and `get_budget`. These use the upstream input
+and output contracts, including read-only budget access. The replaced fork
+tools' audit privacy boundary remains: arguments and detailed failures are not
+stored. The six fork-only budget mutation tools remain available with explicit
+`spending:read` and `budget:write` grants.

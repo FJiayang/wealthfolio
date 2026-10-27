@@ -40,7 +40,10 @@ export function useAddonStore() {
       logger.error(`Failed to fetch store listings: ${String(storeError)}`);
       toast({
         title: i18n.t("common:notifications.failed_to_load_addon_store"),
-        description: storeError instanceof Error ? storeError.message : "Unknown error occurred",
+        description:
+          storeError instanceof Error
+            ? storeError.message
+            : i18n.t("common:globalEvents.unknownError"),
         variant: "destructive",
       });
     }
@@ -89,7 +92,10 @@ export function useAddonStore() {
         }
         toast({
           title: i18n.t("common:notifications.installation_failed"),
-          description: error instanceof Error ? error.message : "Failed to download the addon",
+          description:
+            error instanceof Error
+              ? error.message
+              : i18n.t("settings:messages.addonDownloadFailed"),
           variant: "destructive",
         });
         throw error;
@@ -114,7 +120,10 @@ export function useAddonStore() {
       logger.error(`Failed to clear staging directory: ${String(error)}`);
       toast({
         title: i18n.t("common:notifications.failed_to_clear_staging"),
-        description: error instanceof Error ? error.message : "Failed to clear staging directory",
+        description:
+          error instanceof Error
+            ? error.message
+            : i18n.t("common:notifications.failed_to_clear_staging"),
         variant: "destructive",
       });
     }
@@ -137,7 +146,10 @@ export function useAddonStore() {
         logger.error(`Failed to submit rating: ${String(error)}`);
         toast({
           title: i18n.t("common:notifications.rating_submission_failed"),
-          description: error instanceof Error ? error.message : "Failed to submit rating",
+          description:
+            error instanceof Error
+              ? error.message
+              : i18n.t("common:notifications.rating_submission_failed"),
           variant: "destructive",
         });
         throw error;
@@ -156,7 +168,10 @@ export function useAddonStore() {
         logger.error(`Failed to fetch ratings: ${String(error)}`);
         toast({
           title: i18n.t("common:notifications.failed_to_load_ratings"),
-          description: error instanceof Error ? error.message : "Failed to fetch addon ratings",
+          description:
+            error instanceof Error
+              ? error.message
+              : i18n.t("common:notifications.failed_to_load_ratings"),
           variant: "destructive",
         });
         throw error;

@@ -92,6 +92,19 @@
       "exchangeMic": "XNAS"
     },
     {
+      "symbol": "global:INTU.O",
+      "aliases": ["INTU"],
+      "name": "Intuit iFinD E2E",
+      "provider": "IFIND",
+      "assetType": "EQUITY",
+      "currency": "USD",
+      "exchange": "XNAS",
+      "basePrice": 1.2345,
+      "baseVolume": 0,
+      "seed": 607,
+      "exchangeMic": "XNAS"
+    },
+    {
       "symbol": "FUND:161725",
       "name": "招商中证白酒场外份额",
       "provider": "EASTMONEY",

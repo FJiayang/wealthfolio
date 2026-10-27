@@ -1,4 +1,5 @@
 import i18n from "i18next";
+import { isActivityEditCancelled } from "@/features/spending/components/activity-split-review-provider";
 import { getTransferPairForActivity, logger } from "@/adapters";
 import { buildAssetResolutionInput } from "@/lib/asset-resolution-input";
 import { ActivityStatus, ActivityType } from "@/lib/constants";
@@ -29,7 +30,7 @@ function extractErrorMessage(error: unknown): string {
     if (typeof raw.error === "string" && raw.error.trim()) return raw.error;
     if (typeof raw.message === "string" && raw.message.trim()) return raw.message;
   }
-  return "Failed to save activity. Please check your inputs and try again.";
+  return i18n.t("activity:mobile_form.save_failed_desc");
 }
 
 function transferPairIds(activity: Partial<ActivityDetails> | undefined): {
@@ -87,7 +88,6 @@ export function useActivityForm({
     updateActivityMutation,
     saveActivitiesMutation,
     saveInternalTransferPairMutation,
-    unlinkTransferActivitiesMutation,
   } = useActivityMutations(onSuccess);
 
   const isEditing = !!activity?.id;
@@ -95,20 +95,15 @@ export function useActivityForm({
     addActivityMutation.isPending ||
     updateActivityMutation.isPending ||
     saveActivitiesMutation.isPending ||
-    saveInternalTransferPairMutation.isPending ||
-    unlinkTransferActivitiesMutation.isPending;
+    saveInternalTransferPairMutation.isPending;
   const error =
-    addActivityMutation.error ??
-    updateActivityMutation.error ??
-    saveActivitiesMutation.error ??
-    saveInternalTransferPairMutation.error ??
-    unlinkTransferActivitiesMutation.error;
-  const isError =
-    addActivityMutation.isError ||
-    updateActivityMutation.isError ||
-    saveActivitiesMutation.isError ||
-    saveInternalTransferPairMutation.isError ||
-    unlinkTransferActivitiesMutation.isError;
+    [
+      addActivityMutation.error,
+      updateActivityMutation.error,
+      saveActivitiesMutation.error,
+      saveInternalTransferPairMutation.error,
+    ].find((error) => error != null && !isActivityEditCancelled(error)) ?? null;
+  const isError = error !== null;
 
   // Get config for selected type (undefined if no type selected)
   const config = selectedType ? ACTIVITY_FORM_CONFIG[selectedType] : undefined;
@@ -312,17 +307,22 @@ export function useActivityForm({
                 // Invalid/orphan groups are cleared by the single-row external update below.
               }
             }
-            if (activity.sourceGroupId && transferOutId && transferInId) {
-              await unlinkTransferActivitiesMutation.mutateAsync({
-                activityAId: transferOutId,
-                activityBId: transferInId,
-              });
-            }
+            const unlinkTransferPairId =
+              activity.sourceGroupId && transferOutId && transferInId
+                ? activity.id === transferOutId
+                  ? transferInId
+                  : transferOutId
+                : undefined;
             await updateActivityMutation.mutateAsync({
               id: activity.id,
               currentAssetId: activity.assetId,
+              unlinkTransferPairId,
               ...submitData,
-            } as NewActivityFormValues & { id: string; currentAssetId?: string });
+            } as NewActivityFormValues & {
+              id: string;
+              currentAssetId?: string;
+              unlinkTransferPairId?: string;
+            });
           } else {
             await addActivityMutation.mutateAsync(submitData);
           }
@@ -380,6 +380,7 @@ export function useActivityForm({
           await addActivityMutation.mutateAsync(submitData);
         }
       } catch (err) {
+        if (isActivityEditCancelled(err)) return;
         const message = extractErrorMessage(err);
         toast.error(i18n.t("activity:mobile_form.save_failed"), { description: message });
         logger.error(`Activity Form Submit Error: ${JSON.stringify({ error: err, formData })}`);
@@ -395,7 +396,6 @@ export function useActivityForm({
       updateActivityMutation,
       saveActivitiesMutation,
       saveInternalTransferPairMutation,
-      unlinkTransferActivitiesMutation,
     ],
   );
 

@@ -139,11 +139,11 @@ export function InstructionDetail({ id }: { id: string }) {
         <div className="from-primary/5 to-primary/10 rounded-xl border bg-gradient-to-br p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <div className="text-muted-foreground mb-1 text-xs uppercase tracking-wide">
+              <div className="text-muted-foreground mb-1 text-xs tracking-wide uppercase">
                 {t(row.side)}
               </div>
-              <div className="break-words text-xl font-bold">{row.assetSnapshot.symbol}</div>
-              <div className="text-muted-foreground break-words text-sm">
+              <div className="text-xl font-bold break-words">{row.assetSnapshot.symbol}</div>
+              <div className="text-muted-foreground text-sm break-words">
                 {row.assetSnapshot.name}
               </div>
             </div>
@@ -209,12 +209,12 @@ export function InstructionDetail({ id }: { id: string }) {
             title={t("activity:detail.notes")}
             icon={<Icons.FileText className="h-4 w-4" />}
           >
-            <p className="whitespace-pre-wrap break-words text-sm">{row.notes}</p>
+            <p className="text-sm break-words whitespace-pre-wrap">{row.notes}</p>
           </DetailSection>
         )}
         {row.resolutionNote && (
           <DetailSection title={t("resolutionNote")} icon={<Icons.FileText className="h-4 w-4" />}>
-            <p className="whitespace-pre-wrap break-words text-sm">{row.resolutionNote}</p>
+            <p className="text-sm break-words whitespace-pre-wrap">{row.resolutionNote}</p>
           </DetailSection>
         )}
         <DetailSection

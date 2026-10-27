@@ -115,6 +115,11 @@ export const COMMANDS: CommandMap = {
   // Activities
   search_activities: { method: "POST", path: "/activities/search" },
   create_activity: { method: "POST", path: "/activities" },
+  review_internal_transfer_pair_split_effects: {
+    method: "POST",
+    path: "/activities/transfer-pair/split-effects",
+  },
+  review_activity_split_effects: { method: "POST", path: "/activities/split-effects" },
   update_activity: { method: "PUT", path: "/activities" },
   save_activities: { method: "POST", path: "/activities/bulk" },
   delete_activity: { method: "DELETE", path: "/activities" },
@@ -210,6 +215,8 @@ export const COMMANDS: CommandMap = {
   migrate_legacy_classifications: { method: "POST", path: "/taxonomies/migration/run" },
   // Spending budget
   get_budget: { method: "GET", path: "/spending/budget" },
+  get_budget_readonly: { method: "GET", path: "/spending/budget/snapshot" },
+  get_spending_context: { method: "GET", path: "/spending/context" },
   upsert_budget_target: { method: "POST", path: "/spending/budget/targets" },
   delete_budget_target: { method: "DELETE", path: "/spending/budget/targets" },
   upsert_budget_rollover_setting: { method: "POST", path: "/spending/budget/rollovers" },
@@ -906,6 +913,11 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       body = JSON.stringify(activity);
       break;
     }
+    case "review_activity_split_effects": {
+      const { activities } = payload as { activities: Record<string, unknown>[] };
+      body = JSON.stringify(activities);
+      break;
+    }
     case "update_activity": {
       const { activity } = payload as { activity: Record<string, unknown> };
       body = JSON.stringify(activity);
@@ -931,6 +943,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       body = JSON.stringify(request);
       break;
     }
+    case "review_internal_transfer_pair_split_effects":
     case "save_internal_transfer_pair": {
       const { request } = payload as { request: Record<string, unknown> };
       body = JSON.stringify(request);
@@ -1323,7 +1336,8 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     case "migrate_legacy_classifications":
       break;
     // Spending budget commands
-    case "get_budget": {
+    case "get_budget":
+    case "get_budget_readonly": {
       const { periodKey } = (payload ?? {}) as { periodKey?: string };
       addPeriodKey(periodKey);
       break;
@@ -1414,6 +1428,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       break;
     }
     // Spending settings
+    case "get_spending_context":
     case "get_spending_settings":
       break;
     case "update_spending_settings": {
@@ -1862,7 +1877,7 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
     case "get_broker_sync_states":
     case "get_broker_ingest_states":
     // Device Sync / Enrollment (falls through)
-    // eslint-disable-next-line no-fallthrough
+    // oxlint-disable-next-line no-fallthrough
     case "get_device_sync_state":
     case "enable_device_sync":
     case "clear_device_sync_data":

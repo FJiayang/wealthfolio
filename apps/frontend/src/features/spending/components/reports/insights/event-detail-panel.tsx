@@ -42,6 +42,7 @@ import { useEventDialog } from "../../event-dialog-provider";
 import { getEventColors } from "./event-colors";
 import { formatMonthDay } from "./format";
 import { CARD_CLASS, LABEL_CLASS } from "./insights-shared";
+import { Card } from "@wealthfolio/ui/components/ui/card";
 
 export interface EventDetailPanelProps {
   event: EventSpendingSummary;
@@ -182,7 +183,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
   };
 
   return (
-    <div className={CARD_CLASS}>
+    <Card className={CARD_CLASS}>
       {/* HEADER */}
       <div className="mb-3">
         <div className="flex items-center justify-between gap-2">
@@ -303,7 +304,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
       {/* STAT BLOCK */}
       <div className="mt-2 grid grid-cols-2 gap-y-3 md:grid-cols-4 md:gap-x-0 md:gap-y-4">
         <StatCell label={t("spending:eventDetail.eventTotal")}>
-          <div className="text-foreground text-sm font-semibold tabular-nums tracking-tight md:text-base">
+          <div className="text-foreground text-sm font-semibold tracking-tight tabular-nums md:text-base">
             <PrivacyAmount value={event.totalSpending} currency={currency} />
           </div>
           <div className="text-muted-foreground/80 text-2xs mt-1">
@@ -337,7 +338,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
           }
           divided
         >
-          <div className="text-foreground text-sm font-semibold tabular-nums tracking-tight md:text-base">
+          <div className="text-foreground text-sm font-semibold tracking-tight tabular-nums md:text-base">
             <PrivacyAmount value={dailyDuring} currency={currency} />
           </div>
           <div className="text-muted-foreground/80 text-2xs mt-1">
@@ -351,7 +352,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
           </div>
         </StatCell>
         <StatCell label={t("spending:eventDetail.peakDay")} divided>
-          <div className="text-foreground text-sm font-semibold tabular-nums tracking-tight md:text-base">
+          <div className="text-foreground text-sm font-semibold tracking-tight tabular-nums md:text-base">
             {peak ? <PrivacyAmount value={peak.amount} currency={currency} /> : "—"}
           </div>
           <div className="text-muted-foreground/80 text-2xs mt-1">
@@ -362,7 +363,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
 
       {/* TAKEAWAY */}
       <p className="text-foreground/90 mt-6 text-sm leading-relaxed">
-        <span className="text-primary text-2xs me-2 font-semibold uppercase tracking-[0.12em]">
+        <span className="text-primary text-2xs me-2 font-semibold tracking-[0.12em] uppercase">
           {t("spending:eventDetail.takeaway")}
         </span>
         {caption}
@@ -524,7 +525,7 @@ export const EventDetailPanel: FC<EventDetailPanelProps> = ({
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 };
 
@@ -593,7 +594,7 @@ function DailyBars({
       <div className={cn("relative flex items-end gap-[3px]", compact ? "h-20" : "h-28")}>
         {baseline > 0 && (
           <div
-            className="border-foreground/30 pointer-events-none absolute end-0 start-0 border-t border-dashed"
+            className="border-foreground/30 pointer-events-none absolute start-0 end-0 border-t border-dashed"
             style={{ bottom: `${(baseline / max) * 100}%` }}
           />
         )}

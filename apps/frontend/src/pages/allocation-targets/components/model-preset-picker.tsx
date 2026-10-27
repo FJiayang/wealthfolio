@@ -2,7 +2,10 @@ import { getCategoryLabel } from "@/lib/taxonomy-labels";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { CategoryAllocation } from "@/lib/types";
-import { allocationTargetColor } from "./allocation-target-colors";
+import {
+  allocationTargetColorForRow,
+  type AllocationTargetColorMap,
+} from "./allocation-target-colors";
 import type { ModelPreset } from "./model-preset-data";
 import { BUILT_IN_PRESETS, getPresetName } from "./model-preset-data";
 
@@ -55,7 +58,10 @@ function PresetBar({ weights, colorMap }: PresetBarProps) {
   return (
     <div className="flex h-3.5 w-full overflow-hidden rounded-sm">
       {nonZero.map(([key, pct]) => (
-        <div key={key} style={{ width: `${pct}%`, background: colorMap[key] ?? "#878580" }} />
+        <div
+          key={key}
+          style={{ width: `${pct}%`, background: colorMap[key] ?? "var(--chart-stone)" }}
+        />
       ))}
     </div>
   );
@@ -70,6 +76,7 @@ interface ModelPresetPickerProps {
   selected: string | null;
   onSelect: (presetId: string) => void;
   currentCategories: CategoryAllocation[];
+  colorByCategory: AllocationTargetColorMap;
   compact?: boolean;
 }
 
@@ -78,19 +85,13 @@ export function ModelPresetPicker({
   selected,
   onSelect,
   currentCategories,
+  colorByCategory,
   compact = false,
 }: ModelPresetPickerProps) {
   const { t } = useTranslation();
   const categoryNames = Object.fromEntries(
     currentCategories.map((category) => [category.categoryId, category.categoryName]),
   );
-  const currentColorMap = Object.fromEntries(
-    currentCategories.map((category, index) => [
-      category.categoryId,
-      allocationTargetColor(category.categoryId, category.categoryName, index),
-    ]),
-  );
-
   const currentWeights = Object.fromEntries(
     currentCategories.map((category) => [category.categoryId, category.percentage]),
   );
@@ -118,12 +119,7 @@ export function ModelPresetPicker({
     return Object.fromEntries(
       Object.keys(weights).map((categoryId, index) => [
         categoryId,
-        currentColorMap[categoryId] ??
-          allocationTargetColor(
-            categoryId,
-            categoryNames[categoryId] ?? CATEGORY_LABELS[categoryId] ?? categoryId,
-            index,
-          ),
+        allocationTargetColorForRow({ categoryId }, colorByCategory, index),
       ]),
     );
   }
@@ -224,7 +220,7 @@ export function ModelPresetPicker({
       {(secondaryPresets.length > 0 || compact) && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {secondaryPresets.length > 0 && (
-            <span className="text-muted-foreground text-2xs me-1 font-medium uppercase tracking-wider">
+            <span className="text-muted-foreground text-2xs me-1 font-medium tracking-wider uppercase">
               {t("allocation:presets.moreTemplates")}
             </span>
           )}

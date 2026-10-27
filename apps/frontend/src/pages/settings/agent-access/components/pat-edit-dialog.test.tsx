@@ -18,6 +18,19 @@ const token: AgentAccessToken = {
 };
 
 describe("PatEditDialog", () => {
+  it("edits an existing key to Spending-only grants without adding investment access", async () => {
+    const save = vi.fn().mockResolvedValue({});
+    render(<PatEditDialog token={token} onClose={vi.fn()} onSave={save} isSaving={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Spending — organize" }));
+    expect(screen.getByRole("checkbox", { name: /^View spending/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith(["spending:read", "spending:write"]));
+    expect(screen.getByRole("checkbox", { name: /^Manage budgets/ })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+  });
+
   it("preserves the selection on failure, then saves without exposing a credential", async () => {
     const save = vi.fn().mockRejectedValueOnce(new Error("failed")).mockResolvedValueOnce({});
     const close = vi.fn();
@@ -26,7 +39,9 @@ describe("PatEditDialog", () => {
         <PatEditDialog token={token} onClose={close} onSave={save} isSaving={false} />
       </I18nextProvider>,
     );
-    const assets = screen.getByRole("checkbox", { name: /Register and update investment assets/ });
+    const assets = screen.getByRole("checkbox", {
+      name: /Register and update investment assets/,
+    });
     expect(assets).toHaveAttribute("aria-checked", "false");
     fireEvent.click(assets);
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -47,9 +62,13 @@ describe("PatEditDialog", () => {
       </I18nextProvider>,
     );
     fireEvent.click(
-      screen.getByRole("checkbox", { name: /Commit activities, update existing ones/ }),
+      screen.getByRole("checkbox", {
+        name: /Commit activities, update existing ones/,
+      }),
     );
-    const required = screen.getByRole("checkbox", { name: /Prepare draft activities for review/ });
+    const required = screen.getByRole("checkbox", {
+      name: /Prepare draft activities for review/,
+    });
     expect(required).toBeDisabled();
     expect(required).toHaveAttribute("aria-checked", "true");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -116,7 +135,9 @@ describe("PatEditDialog", () => {
         isSaving={false}
       />,
     );
-    const manage = screen.getByRole("checkbox", { name: /Manage trade instructions/ });
+    const manage = screen.getByRole("checkbox", {
+      name: /Manage trade instructions/,
+    });
     expect(manage).toHaveAttribute("aria-checked", "true");
     fireEvent.click(manage);
     expect(manage).toHaveAttribute("aria-checked", "false");

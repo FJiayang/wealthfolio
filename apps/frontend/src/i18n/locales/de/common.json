@@ -243,7 +243,6 @@
     "asset_type_option": "Option",
     "asset_type_metal": "Metall (Rohstoff)",
     "asset_type_other": "Sonstiges",
-    "select_currency": "Währung auswählen...",
     "select_symbol": "Symbol auswählen...",
     "symbol_type_security": "Wertpapier",
     "symbol_type_crypto": "Krypto",
@@ -1472,5 +1471,11 @@
     "94fc13ed-ac40-466b-8071-64f1e3c72204": "Medizinisch",
     "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "Besonderer Anlass",
     "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "Sonstiges"
+  },
+  "validation": {
+    "accountNameMin": "Der Name muss mindestens 2 Zeichen enthalten.",
+    "accountNameMax": "Der Name darf höchstens 50 Zeichen enthalten.",
+    "accountCurrency": "Bitte wählen Sie eine Währung.",
+    "creditCardTracking": "Kreditkartenkonten können den Bestandsverfolgungsmodus nicht verwenden."
   }
 }

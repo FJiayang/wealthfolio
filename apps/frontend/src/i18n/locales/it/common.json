@@ -246,7 +246,6 @@
     "asset_type_option": "Opzione",
     "asset_type_metal": "Metallo (Materia prima)",
     "asset_type_other": "Altro",
-    "select_currency": "Seleziona valuta...",
     "select_symbol": "Seleziona simbolo...",
     "symbol_type_security": "Titolo",
     "symbol_type_crypto": "Cripto",
@@ -1490,5 +1489,11 @@
     "94fc13ed-ac40-466b-8071-64f1e3c72204": "Salute",
     "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "Occasione speciale",
     "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "Altro"
+  },
+  "validation": {
+    "accountNameMin": "Il nome deve contenere almeno 2 caratteri.",
+    "accountNameMax": "Il nome non deve superare 50 caratteri.",
+    "accountCurrency": "Seleziona una valuta.",
+    "creditCardTracking": "I conti carta di credito non possono usare il monitoraggio delle posizioni."
   }
 }

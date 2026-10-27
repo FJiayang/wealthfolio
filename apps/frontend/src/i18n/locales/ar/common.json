@@ -193,7 +193,6 @@
     "select_account": "اختيار الحساب",
     "select_account_scope": "اختيار نطاق الحساب",
     "select_an_account": "اختر حسابًا",
-    "select_currency": "اختر العملة...",
     "select_symbol": "اختر الرمز...",
     "select_symbol_title": "اختيار الرمز",
     "select_type": "اختر النوع",
@@ -1544,5 +1543,11 @@
     "94fc13ed-ac40-466b-8071-64f1e3c72204": "علاج طبي",
     "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "مناسبة خاصة",
     "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "أخرى"
+  },
+  "validation": {
+    "accountNameMin": "يجب ألا يقل الاسم عن حرفين.",
+    "accountNameMax": "يجب ألا يزيد الاسم على 50 حرفًا.",
+    "accountCurrency": "يرجى اختيار عملة.",
+    "creditCardTracking": "لا يمكن لحسابات بطاقات الائتمان استخدام وضع تتبّع الحيازات."
   }
 }

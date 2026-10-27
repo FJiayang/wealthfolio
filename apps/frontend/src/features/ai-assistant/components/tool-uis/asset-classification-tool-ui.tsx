@@ -450,7 +450,7 @@ function ClassificationComparisonTable({
                         row.categoryName,
                       ),
                     })}
-                    className="h-6 w-full bg-transparent pe-4 ps-1.5 text-end text-xs font-medium outline-none disabled:cursor-not-allowed"
+                    className="h-6 w-full bg-transparent ps-1.5 pe-4 text-end text-xs font-medium outline-none disabled:cursor-not-allowed"
                     disabled={disabled}
                     inputMode="decimal"
                     type="text"
@@ -852,7 +852,7 @@ export function AssetClassificationToolUIContentImpl({
           <Alert variant="error">
             <Icons.AlertCircle className="h-4 w-4" />
             <AlertTitle>{t("ai:assetClassification.failedApplyTitle")}</AlertTitle>
-            <AlertDescription className="break-words text-xs">{applyError}</AlertDescription>
+            <AlertDescription className="text-xs break-words">{applyError}</AlertDescription>
           </Alert>
         ) : null}
 

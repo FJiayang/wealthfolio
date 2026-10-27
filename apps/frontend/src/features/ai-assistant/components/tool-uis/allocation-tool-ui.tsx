@@ -14,6 +14,7 @@ import {
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
+  chartSliceColor,
   useAmountFormatting,
   useNumberFormatting,
 } from "@wealthfolio/ui";
@@ -36,7 +37,6 @@ interface GetAssetAllocationArgs {
 interface AllocationDto {
   categoryId: string;
   categoryName: string;
-  color: string;
   value: number;
   percentage: number;
 }
@@ -109,7 +109,6 @@ function normalizeResult(
         (entry.category_name as string | undefined) ??
         (entry.category as string | undefined) ??
         "Unknown",
-      color: (entry.color as string | undefined) ?? `var(--chart-${(index % 5) + 1})`,
       value: Number(entry.value ?? 0),
       percentage: Number(entry.percentage ?? 0),
     }));
@@ -386,7 +385,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
                         className="flex h-full cursor-default items-center justify-center transition-opacity hover:opacity-80"
                         style={{
                           width: `${widthPercent}%`,
-                          backgroundColor: category.color || `var(--chart-${(index % 5) + 1})`,
+                          backgroundColor: chartSliceColor(index),
                           minWidth: widthPercent >= 1 ? "4px" : undefined,
                         }}
                       />
@@ -435,7 +434,7 @@ function AllocationContentImpl({ args, result, status }: AllocationContentProps)
                     <div
                       className="h-3 w-3 flex-shrink-0 rounded-sm"
                       style={{
-                        backgroundColor: category.color || `var(--chart-${(index % 5) + 1})`,
+                        backgroundColor: chartSliceColor(index),
                       }}
                     />
                     <span className="text-foreground truncate">

@@ -58,7 +58,9 @@ describe("useMcpServer", () => {
     adapterMocks.getMcpStatus.mockResolvedValue(status);
     adapterMocks.setMcpEnabled.mockResolvedValue({ ...status, enabled: true });
 
-    const { result } = renderHook(() => useMcpServer(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMcpServer(), {
+      wrapper: createWrapper(),
+    });
     await waitFor(() => expect(result.current.status).toEqual(status));
 
     await act(async () => {
@@ -70,9 +72,14 @@ describe("useMcpServer", () => {
 
   it("forwards the audit-logging toggle to the adapter", async () => {
     adapterMocks.getMcpStatus.mockResolvedValue(status);
-    adapterMocks.setMcpAuditEnabled.mockResolvedValue({ ...status, auditEnabled: false });
+    adapterMocks.setMcpAuditEnabled.mockResolvedValue({
+      ...status,
+      auditEnabled: false,
+    });
 
-    const { result } = renderHook(() => useMcpServer(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMcpServer(), {
+      wrapper: createWrapper(),
+    });
     await waitFor(() => expect(result.current.status).toEqual(status));
 
     await act(async () => {
@@ -89,29 +96,91 @@ describe("useAccessTokens", () => {
     adapterMocks.listAgentAccessTokens.mockResolvedValue([{ id: "t1", scopes: ["accounts:read"] }]);
     adapterMocks.updateAgentAccessTokenScopes.mockResolvedValue({
       id: "t1",
-      scopes: ["market-data:read"],
+      scopes: ["holdings:read"],
     });
-    const { result } = renderHook(() => useAccessTokens(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAccessTokens(), {
+      wrapper: createWrapper(),
+    });
     await waitFor(() => expect(result.current.tokens).toHaveLength(1));
-    adapterMocks.listAgentAccessTokens.mockResolvedValue([
-      { id: "t1", scopes: ["market-data:read"] },
-    ]);
+    adapterMocks.listAgentAccessTokens.mockResolvedValue([{ id: "t1", scopes: ["holdings:read"] }]);
     await act(async () => {
-      await result.current.updateMutation.mutateAsync({ id: "t1", scopes: ["market-data:read"] });
+      await result.current.updateMutation.mutateAsync({
+        id: "t1",
+        scopes: ["holdings:read"],
+      });
     });
     expect(adapterMocks.updateAgentAccessTokenScopes).toHaveBeenCalledWith("t1", {
-      scopes: ["market-data:read"],
+      scopes: ["holdings:read"],
     });
-    await waitFor(() => expect(result.current.tokens[0].scopes).toEqual(["market-data:read"]));
+    await waitFor(() => expect(result.current.tokens[0].scopes).toEqual(["holdings:read"]));
+    expect(adapterMocks.createAgentAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("updates cached permissions immediately and waits for a delayed refetch before closing", async () => {
+    const initial = [{ id: "t1", scopes: ["accounts:read", "holdings:read"] }];
+    const updated = { id: "t1", scopes: ["accounts:read"] };
+    let finishRefetch: (tokens: typeof initial) => void = () => undefined;
+    const delayedRefetch = new Promise<typeof initial>((resolve) => {
+      finishRefetch = resolve;
+    });
+    adapterMocks.listAgentAccessTokens
+      .mockResolvedValueOnce(initial)
+      .mockReturnValueOnce(delayedRefetch);
+    adapterMocks.updateAgentAccessTokenScopes.mockResolvedValueOnce(updated);
+    const { result } = renderHook(() => useAccessTokens(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.tokens).toHaveLength(1));
+    const closed = vi.fn();
+    let saved: Promise<unknown> = Promise.resolve();
+    act(() => {
+      saved = result.current.updateMutation
+        .mutateAsync({ id: "t1", scopes: ["accounts:read"] })
+        .then(closed);
+    });
+    await waitFor(() => expect(adapterMocks.listAgentAccessTokens).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.tokens[0].scopes).toEqual(["accounts:read"]));
+    expect(result.current.updateMutation.isPending).toBe(true);
+    expect(closed).not.toHaveBeenCalled();
+    await act(async () => {
+      finishRefetch([updated]);
+      await saved;
+    });
+    expect(closed).toHaveBeenCalledOnce();
+    expect(result.current.tokens[0].scopes).toEqual(["accounts:read"]);
+  });
+
+  it("keeps the current permissions when the update fails", async () => {
+    adapterMocks.listAgentAccessTokens.mockResolvedValue([{ id: "t1", scopes: ["accounts:read"] }]);
+    adapterMocks.updateAgentAccessTokenScopes.mockRejectedValueOnce(new Error("Save failed"));
+    const { result } = renderHook(() => useAccessTokens(), {
+      wrapper: createWrapper(),
+    });
+    await waitFor(() => expect(result.current.tokens).toHaveLength(1));
+    await act(async () => {
+      await expect(
+        result.current.updateMutation.mutateAsync({
+          id: "t1",
+          scopes: ["holdings:read"],
+        }),
+      ).rejects.toThrow("Save failed");
+    });
+    expect(result.current.tokens[0].scopes).toEqual(["accounts:read"]);
+    expect(adapterMocks.listAgentAccessTokens).toHaveBeenCalledOnce();
     expect(adapterMocks.createAgentAccessToken).not.toHaveBeenCalled();
   });
 
   it("creates and removes tokens through the adapter", async () => {
     adapterMocks.listAgentAccessTokens.mockResolvedValue([]);
-    adapterMocks.createAgentAccessToken.mockResolvedValue({ token: "wfp_secret", id: "t1" });
+    adapterMocks.createAgentAccessToken.mockResolvedValue({
+      token: "wfp_secret",
+      id: "t1",
+    });
     adapterMocks.deleteAgentAccessToken.mockResolvedValue(undefined);
 
-    const { result } = renderHook(() => useAccessTokens(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAccessTokens(), {
+      wrapper: createWrapper(),
+    });
 
     await act(async () => {
       await result.current.createMutation.mutateAsync({
@@ -140,7 +209,9 @@ describe("useAccessTokens", () => {
       .mockResolvedValueOnce(initial)
       .mockReturnValueOnce(delayedRefetch);
     adapterMocks.updateAgentAccessTokenScopes.mockResolvedValueOnce(updated);
-    const { result } = renderHook(() => useAccessTokens(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAccessTokens(), {
+      wrapper: createWrapper(),
+    });
     await waitFor(() => expect(result.current.tokens).toHaveLength(1));
     const closed = vi.fn();
     let saved: Promise<unknown> = Promise.resolve();
@@ -164,11 +235,16 @@ describe("useAccessTokens", () => {
   it("keeps the current permissions when the update fails", async () => {
     adapterMocks.listAgentAccessTokens.mockResolvedValue([{ id: "t1", scopes: ["accounts:read"] }]);
     adapterMocks.updateAgentAccessTokenScopes.mockRejectedValueOnce(new Error("Save failed"));
-    const { result } = renderHook(() => useAccessTokens(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAccessTokens(), {
+      wrapper: createWrapper(),
+    });
     await waitFor(() => expect(result.current.tokens).toHaveLength(1));
     await act(async () => {
       await expect(
-        result.current.updateMutation.mutateAsync({ id: "t1", scopes: ["holdings:read"] }),
+        result.current.updateMutation.mutateAsync({
+          id: "t1",
+          scopes: ["holdings:read"],
+        }),
       ).rejects.toThrow("Save failed");
     });
     expect(result.current.tokens[0].scopes).toEqual(["accounts:read"]);
@@ -194,7 +270,9 @@ describe("useAgentAudit", () => {
       outcomes: ["success"],
       actorKinds: ["pat"],
     };
-    const { result } = renderHook(() => useAgentAudit(query), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAgentAudit(query), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => expect(adapterMocks.listAgentAuditLog).toHaveBeenCalledWith(query));
 

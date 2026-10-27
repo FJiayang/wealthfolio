@@ -40,14 +40,16 @@ export function useAddonUpdates(options: UseAddonUpdatesOptions = {}) {
       if (criticalUpdates.length > 0) {
         toast({
           title: i18n.t("common:notifications.critical_updates_available"),
-          description: `${criticalUpdates.length} addon${criticalUpdates.length > 1 ? "s have" : " has"} critical security updates available.`,
+          description: i18n.t("settings:messages.addonCriticalUpdates", {
+            count: criticalUpdates.length,
+          }),
           variant: "destructive",
         });
       } else if (hasUpdates) {
         const updateCount = results.filter((r) => r.updateInfo.updateAvailable).length;
         toast({
           title: i18n.t("common:notifications.updates_available"),
-          description: `${updateCount} addon${updateCount > 1 ? "s have" : " has"} updates available.`,
+          description: i18n.t("settings:messages.addonUpdates", { count: updateCount }),
         });
       }
 
@@ -87,7 +89,7 @@ export function useAddonUpdates(options: UseAddonUpdatesOptions = {}) {
         console.error(`Error checking update for addon ${addonId}:`, error);
         toast({
           title: i18n.t("common:notifications.update_check_failed"),
-          description: `Failed to check updates for addon ${addonId}`,
+          description: i18n.t("settings:messages.addonCheckFailed", { addon: addonId }),
           variant: "destructive",
         });
         throw error;
@@ -112,14 +114,16 @@ export function useAddonUpdates(options: UseAddonUpdatesOptions = {}) {
       if (criticalUpdates.length > 0) {
         toast({
           title: i18n.t("common:notifications.critical_updates_available"),
-          description: `${criticalUpdates.length} addon${criticalUpdates.length > 1 ? "s have" : " has"} critical security updates available.`,
+          description: i18n.t("settings:messages.addonCriticalUpdates", {
+            count: criticalUpdates.length,
+          }),
           variant: "destructive",
         });
       } else if (hasUpdates) {
         const updateCount = results.filter((r) => r.updateInfo.updateAvailable).length;
         toast({
           title: i18n.t("common:notifications.updates_available"),
-          description: `${updateCount} addon${updateCount > 1 ? "s have" : " has"} updates available.`,
+          description: i18n.t("settings:messages.addonUpdates", { count: updateCount }),
         });
       }
 

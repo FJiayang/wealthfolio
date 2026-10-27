@@ -51,7 +51,7 @@ export function useUpdateMarketDataProviderSettings() {
         );
       }
       toast({
-        title: `Failed to update settings for provider ${variables.providerId}`,
+        title: i18n.t("settings:messages.providerUpdateFailed", { provider: variables.providerId }),
         description: error.message,
         variant: "destructive",
       });

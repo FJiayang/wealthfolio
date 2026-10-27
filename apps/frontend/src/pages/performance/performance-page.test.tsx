@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   getAccounts: vi.fn(),
   settings: { timezone: "Asia/Shanghai" } as { timezone: string } | null,
   mobile: false,
+  dateRangeChange: undefined as undefined | ((range: { from?: Date; to?: Date }) => void),
 }));
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: mocks.settings }),
@@ -36,11 +37,15 @@ vi.mock("@/components/benchmark-assets", () => ({
 vi.mock("@/hooks/use-portfolios", () => ({
   usePortfolios: () => ({ data: [{ id: "p", name: "Retirement" }] }),
 }));
-vi.mock("@/hooks/use-platform", () => ({ useIsMobileViewport: () => mocks.mobile }));
+vi.mock("@/hooks/use-platform", () => ({
+  useIsMobileViewport: () => mocks.mobile,
+}));
 vi.mock("./hooks/use-performance-data", () => ({
   useCalculatePerformanceHistory: mocks.performance,
 }));
-vi.mock("@/components/account-filter-selector", () => ({ AccountScopeSelector: () => null }));
+vi.mock("@/components/account-filter-selector", () => ({
+  AccountScopeSelector: () => null,
+}));
 vi.mock("@/components/account-selector", () => ({
   AccountSelector: ({
     setSelectedAccount,
@@ -59,8 +64,12 @@ vi.mock("@/components/account-selector", () => ({
     </>
   ),
 }));
-vi.mock("@/components/account-selector-mobile", () => ({ AccountSelectorMobile: () => null }));
-vi.mock("@/components/benchmark-symbol-selector", () => ({ BenchmarkSymbolSelector: () => null }));
+vi.mock("@/components/account-selector-mobile", () => ({
+  AccountSelectorMobile: () => null,
+}));
+vi.mock("@/components/benchmark-symbol-selector", () => ({
+  BenchmarkSymbolSelector: () => null,
+}));
 vi.mock("@/components/benchmark-symbol-selector-mobile", () => ({
   BenchmarkSymbolSelectorMobile: () => null,
 }));
@@ -72,15 +81,27 @@ vi.mock("@wealthfolio/ui", async (importOriginal) => {
     Carousel: Container,
     CarouselContent: Container,
     CarouselItem: Container,
-    DateRangeSelector: () => null,
+    DateRangeSelector: ({ onChange }: { onChange: typeof mocks.dateRangeChange }) => {
+      mocks.dateRangeChange = onChange;
+      return null;
+    },
   };
 });
 
 const accounts = [
   { id: "a", name: "Brokerage", accountType: "SECURITIES", isActive: true },
   { id: "b", name: "Hidden TFSA", accountType: "SECURITIES", isActive: false },
-  { id: "card", name: "Credit Card", accountType: "CREDIT_CARD", isActive: true },
-].map((account) => ({ ...account, isArchived: false, currency: "USD" })) as Account[];
+  {
+    id: "card",
+    name: "Credit Card",
+    accountType: "CREDIT_CARD",
+    isActive: true,
+  },
+].map((account) => ({
+  ...account,
+  isArchived: false,
+  currency: "USD",
+})) as Account[];
 const TWR_WARNING = "Some holdings are missing valuations for part of the period.";
 
 const resultWithWarning = {
@@ -90,7 +111,13 @@ const resultWithWarning = {
   scope: { id: ALL_PORTFOLIO_ITEM.id, currency: "USD" },
   period: { startDate: "2026-01-01", endDate: "2026-03-01" },
   mode: "timeWeighted",
-  returns: { twr: 0.1, annualizedTwr: 0.2, irr: null, annualizedIrr: null, valueReturn: null },
+  returns: {
+    twr: 0.1,
+    annualizedTwr: 0.2,
+    irr: null,
+    annualizedIrr: null,
+    valueReturn: null,
+  },
   attribution: {
     contributions: 0,
     distributions: 0,
@@ -103,7 +130,11 @@ const resultWithWarning = {
     residual: 0,
   },
   risk: { volatility: 0.05, maxDrawdown: -0.02 },
-  dataQuality: { status: "partial", warnings: [TWR_WARNING], notApplicableReasons: [] },
+  dataQuality: {
+    status: "partial",
+    warnings: [TWR_WARNING],
+    notApplicableReasons: [],
+  },
   series: [{ date: "2026-01-01", value: 0 }],
 };
 
@@ -350,7 +381,10 @@ describe("PerformancePage shared scope", () => {
     act(() =>
       client.setQueryData(
         [QueryKeys.ACCOUNTS, true],
-        accounts.map((account) => ({ ...account, isArchived: account.id === "b" })),
+        accounts.map((account) => ({
+          ...account,
+          isArchived: account.id === "b",
+        })),
       ),
     );
     await waitFor(() =>
@@ -438,7 +472,9 @@ describe("PerformancePage shared scope", () => {
     select.focus();
     await userEvent.keyboard("{Enter}");
     expect(
-      screen.getAllByRole("button", { name: new RegExp(`^${ALL_PORTFOLIO_ITEM.name}`) })[0],
+      screen.getAllByRole("button", {
+        name: new RegExp(`^${ALL_PORTFOLIO_ITEM.name}`),
+      })[0],
     ).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -492,7 +528,11 @@ describe("PerformancePage shared scope", () => {
         data: [
           {
             ...resultWithWarning,
-            dataQuality: { status: "partial", warnings: [warning], notApplicableReasons: [] },
+            dataQuality: {
+              status: "partial",
+              warnings: [warning],
+              notApplicableReasons: [],
+            },
             summary: {
               amount: 25,
               amountStatus: "complete",
@@ -509,7 +549,9 @@ describe("PerformancePage shared scope", () => {
         displayDateRange: "",
       });
       renderPage();
-      const trigger = await screen.findByRole("button", { name: /Partial data/i });
+      const trigger = await screen.findByRole("button", {
+        name: /Partial data/i,
+      });
       expect(trigger).toHaveTextContent("25");
       await userEvent.click(trigger);
       const dialog = await screen.findByRole("dialog");
@@ -546,7 +588,11 @@ describe("PerformancePage shared scope", () => {
       data: [
         {
           ...resultWithWarning,
-          dataQuality: { status: quality, warnings, notApplicableReasons: reasons },
+          dataQuality: {
+            status: quality,
+            warnings,
+            notApplicableReasons: reasons,
+          },
           summary: {
             amount: 25,
             amountStatus: "complete",
@@ -563,7 +609,9 @@ describe("PerformancePage shared scope", () => {
       displayDateRange: "",
     });
     renderPage();
-    const trigger = await screen.findByRole("button", { name: /Gain \/ loss/i });
+    const trigger = await screen.findByRole("button", {
+      name: /Gain \/ loss/i,
+    });
     expect(trigger).toHaveTextContent("25");
     expect(screen.queryByText("Partial data")).toBeNull();
     await userEvent.click(trigger);
@@ -601,7 +649,11 @@ describe("PerformancePage shared scope", () => {
             mode: "valueReturn",
             isMixedTrackingMode: true,
             series: [],
-            dataQuality: { status: "partial", warnings, notApplicableReasons: reasons },
+            dataQuality: {
+              status: "partial",
+              warnings,
+              notApplicableReasons: reasons,
+            },
             summary: {
               amount: 0,
               amountStatus: "complete",
@@ -618,7 +670,9 @@ describe("PerformancePage shared scope", () => {
         displayDateRange: "All Time",
       });
       renderPage();
-      const trigger = await screen.findByRole("button", { name: /Gain\s*\/\s*loss/i });
+      const trigger = await screen.findByRole("button", {
+        name: /Gain\s*\/\s*loss/i,
+      });
       expect(trigger).toHaveTextContent("0.00");
       if (!incompleteCashFx) expect(screen.queryByText("Partial data")).toBeNull();
       await userEvent.click(trigger);
@@ -634,7 +688,9 @@ describe("PerformancePage shared scope", () => {
       }
       await userEvent.click(within(dialog).getByRole("button", { name: "Close attribution" }));
       await userEvent.click(
-        screen.getByRole("button", { name: /calculation notes? for value(?: return)?$/i }),
+        screen.getByRole("button", {
+          name: /calculation notes? for value(?: return)?$/i,
+        }),
       );
       expect(await screen.findByText(seriesWarning)).toBeVisible();
     },
@@ -759,7 +815,9 @@ describe("PerformancePage built-in display labels", () => {
     localStorage.setItem("performance:selectedItems", JSON.stringify(items));
     renderPage(true, i18n);
     expect(
-      await screen.findAllByRole("button", { name: new RegExp(`^${zhPerformance.all_portfolio}`) }),
+      await screen.findAllByRole("button", {
+        name: new RegExp(`^${zhPerformance.all_portfolio}`),
+      }),
     ).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: /^All Portfolio/ })).toHaveLength(2);
     expect(
@@ -778,6 +836,68 @@ describe("PerformancePage built-in display labels", () => {
     expect(savedItems()).toEqual(items);
   });
 
+  it("localizes mobile metric explanations while retaining raw calculation notes", async () => {
+    const i18n = await language();
+    mocks.mobile = true;
+    mocks.performance.mockReturnValue({
+      data: [resultWithWarning],
+      isLoading: false,
+      hasErrors: false,
+      errorMessages: [],
+    });
+    renderPage(true, i18n);
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: i18n.t("common:component.calculation_note_for", {
+          label: zhPerformance.metric.twr_short,
+        }),
+      }),
+    );
+    expect(screen.getByText(zhPerformance.metric_info.time_weighted_return)).toBeInTheDocument();
+    expect(screen.getByText(TWR_WARNING)).toBeInTheDocument();
+    await act(() => i18n.changeLanguage("en"));
+    expect(screen.getByText(enPerformance.metric_info.time_weighted_return)).toBeInTheDocument();
+    expect(screen.getByText(TWR_WARNING)).toBeInTheDocument();
+  });
+
+  it("localizes the metric help and updates it when language changes without rewriting warnings", async () => {
+    const i18n = await language();
+    const data = {
+      ...resultWithWarning,
+      returns: { ...resultWithWarning.returns, irr: 0.08 },
+    };
+    const original = structuredClone(data);
+    mocks.performance.mockReturnValue({
+      data: [data],
+      isLoading: false,
+      hasErrors: false,
+      errorMessages: [],
+    });
+    renderPage(true, i18n);
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: zhPerformance.help.aria_label,
+      }),
+    );
+    for (const key of [
+      "time_weighted_return",
+      "money_weighted_return",
+      "annualized_return",
+      "volatility",
+      "max_drawdown",
+    ] as const) {
+      expect(screen.getByText(zhPerformance.metric_info[key])).toBeInTheDocument();
+      expect(screen.queryByText(enPerformance.metric_info[key])).not.toBeInTheDocument();
+    }
+    expect(screen.getByText(TWR_WARNING)).toBeInTheDocument();
+    await act(() => i18n.changeLanguage("en"));
+    expect(screen.getByText(enPerformance.metric_info.time_weighted_return)).toBeInTheDocument();
+    expect(
+      screen.queryByText(zhPerformance.metric_info.time_weighted_return),
+    ).not.toBeInTheDocument();
+    expect(data).toEqual(original);
+  });
+
   it.each([
     {
       raw: "IRR unavailable for holdings-only scopes because transaction cash flows are not tracked.",
@@ -788,7 +908,11 @@ describe("PerformancePage built-in display labels", () => {
     const i18n = await language();
     const data = {
       ...resultWithWarning,
-      dataQuality: { status: "partial", warnings: [], notApplicableReasons: [raw] },
+      dataQuality: {
+        status: "partial",
+        warnings: [],
+        notApplicableReasons: [raw],
+      },
     };
     const original = structuredClone(data);
     mocks.performance.mockReturnValue({
@@ -811,5 +935,75 @@ describe("PerformancePage built-in display labels", () => {
       screen.getAllByText(known ? enPerformance.exclusion.holdings_not_mwr : raw).length,
     ).toBeGreaterThan(0);
     expect(data).toEqual(original);
+  });
+});
+
+describe("PerformancePage period shared with the dashboard", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-03-31T04:00:00Z"));
+    mocks.settings = { timezone: "Asia/Shanghai" };
+    mocks.mobile = false;
+    localStorage.clear();
+    useAccountScopeStore.setState(initialState, true);
+    mocks.performance.mockReturnValue({
+      data: [],
+      isLoading: false,
+      hasErrors: false,
+      errorMessages: [],
+    });
+    mocks.getAccounts.mockResolvedValue(accounts);
+    return () => vi.useRealTimers();
+  });
+
+  it("shows the range Investments shows", () => {
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "portfolio", code: "6M" }));
+    renderPage();
+    expect(mocks.performance).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        dateRange: { from: new Date(2025, 8, 30), to: new Date(2026, 2, 31) },
+      }),
+    );
+  });
+
+  it("shows a week for the dashboard's 1D, which Performance does not offer", () => {
+    localStorage.setItem("dashboard-period", JSON.stringify({ kind: "portfolio", code: "1D" }));
+    renderPage();
+    expect(mocks.performance).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        dateRange: { from: new Date(2026, 2, 24), to: new Date(2026, 2, 31) },
+      }),
+    );
+    expect(JSON.parse(localStorage.getItem("dashboard-period")!)).toEqual({
+      kind: "portfolio",
+      code: "1D",
+    });
+  });
+
+  it("shares a range picked here, as a preset when it matches one", () => {
+    renderPage();
+    act(() =>
+      mocks.dateRangeChange?.({
+        from: new Date(2025, 2, 31),
+        to: new Date(2026, 2, 31),
+      }),
+    );
+    expect(JSON.parse(localStorage.getItem("dashboard-period")!)).toEqual({
+      kind: "portfolio",
+      code: "1Y",
+    });
+    expect(JSON.parse(localStorage.getItem("dashboard-interval")!)).toBe("1Y");
+
+    act(() =>
+      mocks.dateRangeChange?.({
+        from: new Date(2023, 2, 31),
+        to: new Date(2026, 2, 31),
+      }),
+    );
+    expect(JSON.parse(localStorage.getItem("dashboard-period")!)).toEqual({
+      kind: "range",
+      from: "2023-03-31",
+      to: "2026-03-31",
+    });
   });
 });

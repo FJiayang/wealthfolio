@@ -7,7 +7,9 @@ for (const direction of ["ltr", "rtl"]) {
     await loginIfNeeded(page);
     const api = `${BASE_URL}/api/v1`;
     const settings = await (await page.request.get(`${api}/providers/settings`)).json();
+    const existingAssets = await (await page.request.get(`${api}/assets`)).json();
     const created: string[] = [];
+    let failed = false;
     try {
       for (const provider of settings) {
         const updated = await page.request.put(`${api}/providers/settings`, {
@@ -28,7 +30,7 @@ for (const direction of ["ltr", "rtl"]) {
         ["FUND:005827", "FUND:005827", null, "CNY"],
         ["000300", "000300", "XSHG", "CNY"],
         ["XHKG:00700", "00700", "XHKG", "HKD"],
-        ["XNAS:AAPL", "AAPL", "XNAS", "USD"],
+        ["XNAS:INTU", "INTU", "XNAS", "USD"],
       ] as const) {
         await page.goto(`${BASE_URL}/settings/securities?dir=${direction}`);
         await page.getByRole("button", { name: "Add Security", exact: true }).click();
@@ -50,7 +52,8 @@ for (const direction of ["ltr", "rtl"]) {
             row.instrumentSymbol === symbol && (row.instrumentExchangeMic ?? null) === mic,
         );
         expect(asset).toBeDefined();
-        created.push(asset.id);
+        if (!existingAssets.some((row: { id: string }) => row.id === asset.id))
+          created.push(asset.id);
         expect(asset).toMatchObject({ quoteCcy: currency, quoteMode: "MARKET" });
         expect(asset.providerConfig.preferred_provider).toBe("IFIND");
         if (symbol === "000300")
@@ -73,12 +76,40 @@ for (const direction of ["ltr", "rtl"]) {
           )
           .toBe(true);
       }
+    } catch (error) {
+      failed = true;
+      throw error;
     } finally {
-      for (const id of created) await page.request.delete(`${api}/assets/${id}`);
-      for (const provider of settings)
-        await page.request.put(`${api}/providers/settings`, {
-          data: { providerId: provider.id, priority: provider.priority, enabled: provider.enabled },
+      const cleanupErrors: unknown[] = [];
+      const cleanup = async (restore: () => Promise<void>) => {
+        try {
+          await restore();
+        } catch (error) {
+          cleanupErrors.push(error);
+        }
+      };
+      for (const id of created)
+        await cleanup(async () => {
+          expect((await page.request.delete(`${api}/assets/${id}`)).ok()).toBeTruthy();
         });
+      for (const provider of settings)
+        await cleanup(async () => {
+          expect(
+            (
+              await page.request.put(`${api}/providers/settings`, {
+                data: {
+                  providerId: provider.id,
+                  priority: provider.priority,
+                  enabled: provider.enabled,
+                },
+              })
+            ).ok(),
+          ).toBeTruthy();
+        });
+      if (cleanupErrors.length) {
+        if (!failed) throw new AggregateError(cleanupErrors, "Fixture cleanup failed");
+        console.error("Fixture cleanup also failed", cleanupErrors);
+      }
     }
   });
 }

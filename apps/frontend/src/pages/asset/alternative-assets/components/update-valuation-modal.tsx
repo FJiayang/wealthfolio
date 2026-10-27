@@ -26,7 +26,7 @@ import {
 } from "@wealthfolio/ui/components/ui/form";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
-import { useEffect } from "react";
+
 import { useForm, type Resolver } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
@@ -34,9 +34,10 @@ import {} from "@/lib/utils";
 import { useAlternativeAssetMutations } from "../hooks/use-alternative-asset-mutations";
 import {
   getUpdateValuationDefaultValues,
-  updateValuationSchema,
+  createUpdateValuationSchema,
   type UpdateValuationFormValues,
 } from "./update-valuation-schema";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 
 interface UpdateValuationModalProps {
   /** Whether the modal is open */
@@ -78,12 +79,12 @@ export function UpdateValuationModal({
   });
 
   const form = useForm<UpdateValuationFormValues>({
-    resolver: zodResolver(updateValuationSchema) as Resolver<UpdateValuationFormValues>,
+    resolver: zodResolver(createUpdateValuationSchema(t)) as Resolver<UpdateValuationFormValues>,
     defaultValues: getUpdateValuationDefaultValues(currentValue),
   });
 
   // Reset form when modal opens with current values
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (open) {
       form.reset(getUpdateValuationDefaultValues(currentValue));
     }

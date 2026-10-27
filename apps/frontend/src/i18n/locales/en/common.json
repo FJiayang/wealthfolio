@@ -245,7 +245,6 @@
     "asset_type_option": "Option",
     "asset_type_metal": "Metal (Commodity)",
     "asset_type_other": "Other",
-    "select_currency": "Select currency...",
     "select_symbol": "Select symbol...",
     "symbol_type_security": "Security",
     "symbol_type_crypto": "Crypto",
@@ -1472,5 +1471,11 @@
     "94fc13ed-ac40-466b-8071-64f1e3c72204": "Medical",
     "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "Special Occasion",
     "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "Other"
+  },
+  "validation": {
+    "accountNameMin": "Name must be at least 2 characters.",
+    "accountNameMax": "Name must not be longer than 50 characters.",
+    "accountCurrency": "Please select a currency.",
+    "creditCardTracking": "Credit card accounts cannot use holdings tracking mode."
   }
 }

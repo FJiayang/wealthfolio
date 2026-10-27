@@ -187,7 +187,7 @@ async fn permission_edit_preserves_credentials_expiration_and_usage() {
     repo.touch_last_used(&created.id).await.unwrap();
     let before = repo.list().unwrap().remove(0);
     let after = repo
-        .update_scopes(&created.id, vec!["market-data:read".into()])
+        .update_scopes(&created.id, vec!["holdings:read".into()])
         .await
         .unwrap()
         .unwrap();
@@ -199,7 +199,7 @@ async fn permission_edit_preserves_credentials_expiration_and_usage() {
     assert_eq!(after.created_at, before.created_at);
     assert_eq!(after.last_used_at, before.last_used_at);
     assert_eq!(after.name, before.name);
-    assert_eq!(after.scopes_json, r#"["market-data:read"]"#);
+    assert_eq!(after.scopes_json, r#"["holdings:read"]"#);
     assert!(repo
         .update_scopes("missing", vec!["accounts:read".into()])
         .await

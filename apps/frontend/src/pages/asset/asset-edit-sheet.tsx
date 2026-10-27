@@ -1,4 +1,5 @@
 import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { getExchanges, resolveSymbolQuote } from "@/adapters";
 import { MultiSelectTaxonomy } from "@/components/classification/multi-select-taxonomy";
 import { SingleSelectTaxonomy } from "@/components/classification/single-select-taxonomy";
@@ -58,7 +59,7 @@ import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { toast } from "@wealthfolio/ui/components/ui/use-toast";
 import type { TFunction } from "i18next";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { type Path, useFieldArray, useForm, useWatch } from "react-hook-form";
+import { type Path, type Resolver, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 import {
@@ -103,7 +104,11 @@ const assetFormSchema = (t: TFunction) =>
     // Optional/nullable is load-bearing: the Market Data tab submits this same
     // form, and a blocking error here would fail that save with no visible
     // FormMessage on that tab.
-    contractMultiplier: z.coerce.number().positive().optional().nullable(),
+    contractMultiplier: z.coerce
+      .number()
+      .positive({ message: t("activity:form.err_multiplier_gt_zero") })
+      .optional()
+      .nullable(),
     maturityDate: z.date().optional().nullable(),
     // min(0), not positive(): zero-coupon T-bills are valid and common.
     couponRate: z.coerce.number().min(0).optional().nullable(),
@@ -389,7 +394,7 @@ function SymbolMappingRow({
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [symbol, provider, instrumentType, exchangeMic, quoteCcy, fieldId, onValidationChange]); // eslint-disable-line react-hooks/exhaustive-deps -- initialSymbol is intentionally captured at mount time only
+  }, [symbol, provider, instrumentType, exchangeMic, quoteCcy, fieldId, onValidationChange]); // oxlint-disable-line react/exhaustive-deps -- initialSymbol is intentionally captured at mount time only
 
   return (
     <tr className="border-b last:border-b-0">
@@ -574,7 +579,7 @@ export function AssetEditSheet({
   }, [taxonomies]);
 
   const form = useForm<AssetFormValues>({
-    resolver: zodResolver(assetFormSchema(t)),
+    resolver: zodResolver(assetFormSchema(t)) as Resolver<AssetFormValues>,
     defaultValues: {
       name: asset?.name ?? "",
       notes: asset?.notes ?? "",
@@ -609,7 +614,7 @@ export function AssetEditSheet({
   const defaultMultiplier = instrumentDefaultMultiplier(watchedInstrumentType);
 
   // Reset form when asset changes
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (asset) {
       form.reset({
         name: asset.name ?? "",
@@ -632,7 +637,7 @@ export function AssetEditSheet({
   }, [asset, form]);
 
   // Reset tab and validation state when sheet opens
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (open) {
       setActiveTab(defaultTab);
       setSymbolValidations({});

@@ -1,7 +1,7 @@
 import { getEventTypeLabel } from "@/lib/taxonomy-labels";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
@@ -39,9 +39,11 @@ import {
   useDateFormatting,
 } from "@wealthfolio/ui";
 
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import { QueryKeys } from "@/lib/query-keys";
 import type { Activity } from "@/lib/types";
 import { formatDateISO, parseLocalDate } from "@/lib/utils";
+import { requiredError } from "@/lib/zod-errors";
 
 import { useCashActivities, useSetActivityEvent } from "../hooks/use-cash-activities";
 import {
@@ -100,8 +102,8 @@ export function EventFormDialog({
           name: z.string().min(1, t("spending:eventForm.nameRequired")),
           description: z.string().optional(),
           eventTypeId: z.string().min(1, t("spending:eventForm.typeRequired")),
-          startDate: z.date({ required_error: t("spending:eventForm.startRequired") }),
-          endDate: z.date({ required_error: t("spending:eventForm.endRequired") }),
+          startDate: z.date({ error: requiredError(t("spending:eventForm.startRequired")) }),
+          endDate: z.date({ error: requiredError(t("spending:eventForm.endRequired")) }),
         })
         .refine((data) => data.startDate <= data.endDate, {
           message: t("spending:eventForm.startBeforeEnd"),
@@ -138,7 +140,7 @@ export function EventFormDialog({
     },
   });
 
-  useEffect(() => {
+  useEffectOnChange(() => {
     if (!open) return;
     setShowCreateType(false);
     setNewTypeName("");
@@ -220,7 +222,7 @@ export function EventFormDialog({
 
   const selectedCandidateIds = useMemo(
     () => candidates.filter(isCandidateSelected).map((c) => c.id),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
     [candidates, activeOverrides],
   );
   // Selected candidates that are currently tagged to another event. Tagging
@@ -228,7 +230,7 @@ export function EventFormDialog({
   // activity row — surface the count so the user is aware before submit.
   const replacedTagCount = useMemo(
     () => candidates.filter((c) => isCandidateSelected(c) && !!c.eventId).length,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
     [candidates, activeOverrides],
   );
 
@@ -382,7 +384,7 @@ export function EventFormDialog({
                                       })
                                     : t("spending:eventForm.selectEventType")
                                 }
-                                className="border-input bg-input-bg dark:bg-input/30 hover:bg-accent/30 ring-offset-background focus:ring-ring h-input-height flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
+                                className="border-input bg-input-bg dark:bg-input/30 hover:bg-accent/30 ring-offset-background focus:ring-ring h-input-height flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-none"
                               />
                             }
                           >
@@ -714,12 +716,12 @@ function SuggestedTransactions({
                       {c.notes || c.activityType}
                     </span>
                     {c.eventId && checked && (
-                      <span className="text-2xs border-warning-subtle-border bg-warning-subtle text-warning-subtle-foreground shrink-0 rounded border px-1 py-px uppercase tracking-wide">
+                      <span className="text-2xs border-warning-subtle-border bg-warning-subtle text-warning-subtle-foreground shrink-0 rounded border px-1 py-px tracking-wide uppercase">
                         {t("spending:eventForm.willReplaceTag")}
                       </span>
                     )}
                     {c.eventId && !checked && (
-                      <span className="text-muted-foreground/80 border-muted-foreground/30 text-2xs shrink-0 rounded border px-1 py-px uppercase tracking-wide">
+                      <span className="text-muted-foreground/80 border-muted-foreground/30 text-2xs shrink-0 rounded border px-1 py-px tracking-wide uppercase">
                         {t("spending:eventForm.alreadyTagged")}
                       </span>
                     )}

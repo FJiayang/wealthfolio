@@ -108,7 +108,13 @@ export function PatCreateDialog({
         ? undefined
         : new Date(Date.now() + Number(expiry) * 24 * 60 * 60 * 1000).toISOString();
     try {
-      setNewToken(await onCreate({ name: name.trim(), expiresAt, scopes: selectedScopes }));
+      setNewToken(
+        await onCreate({
+          name: name.trim(),
+          expiresAt,
+          scopes: selectedScopes,
+        }),
+      );
     } catch (_error) {
       // Error toast is handled by the mutation; keep the dialog open.
     }
@@ -140,7 +146,7 @@ export function PatCreateDialog({
           <div className="md:grid md:grid-cols-[1fr_22rem]">
             {/* Left: the form */}
             <div className="flex flex-col md:max-h-[85vh]">
-              <div className="space-y-1 px-6 pb-4 pt-6">
+              <div className="space-y-1 px-6 pt-6 pb-4">
                 <DialogTitle>{t("settings:agentAccess.dialog_new_title")}</DialogTitle>
                 <DialogDescription>
                   {t("settings:agentAccess.dialog_new_description")}
@@ -185,14 +191,18 @@ export function PatCreateDialog({
                   </div>
                 </div>
 
-                <ScopeSelector selectedScopes={selectedScopes} onToggle={toggleScope} />
+                <ScopeSelector
+                  selectedScopes={selectedScopes}
+                  onToggle={toggleScope}
+                  onSelectPreset={(scopes) => setSelected(new Set(scopes))}
+                />
               </div>
             </div>
 
             {/* Right: live capability summary + action */}
             <aside className="bg-muted/30 flex flex-col border-t md:max-h-[85vh] md:border-s md:border-t-0">
               <div className="flex-1 space-y-3 overflow-y-auto px-5 py-6">
-                <p className="text-muted-foreground text-2xs font-medium uppercase tracking-wider">
+                <p className="text-muted-foreground text-2xs font-medium tracking-wider uppercase">
                   {t("settings:agentAccess.dialog_capabilities_title")}
                 </p>
                 {selectedScopes.length === 0 ? (
@@ -250,7 +260,7 @@ export function PatCreateDialog({
             <div className="space-y-1.5">
               <Label>{t("settings:agentAccess.dialog_access_token")}</Label>
               <div className="flex items-center gap-2">
-                <p className="bg-muted min-w-0 flex-1 select-all truncate rounded-md px-3 py-2 font-mono text-xs">
+                <p className="bg-muted min-w-0 flex-1 truncate rounded-md px-3 py-2 font-mono text-xs select-all">
                   {newToken}
                 </p>
                 <Button

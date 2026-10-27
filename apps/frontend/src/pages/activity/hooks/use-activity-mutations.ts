@@ -1,5 +1,10 @@
 import i18n from "i18next";
 import {
+  isActivityEditCancelled,
+  useActivitySplitReview,
+  useInternalTransferPairSplitReview,
+} from "@/features/spending/components/activity-split-review-provider";
+import {
   createActivity,
   deleteActivity,
   linkTransferActivities,
@@ -30,6 +35,8 @@ import { buildSameAccountFxDuplicate } from "../utils/duplicate-fx-transfer";
 export function useActivityMutations(
   onSuccess?: (activity: { accountId?: string | null }) => void,
 ) {
+  const reviewEdits = useActivitySplitReview();
+  const reviewPair = useInternalTransferPairSplitReview();
   const queryClient = useQueryClient();
 
   const buildActivityAssetInput = ({
@@ -101,6 +108,7 @@ export function useActivityMutations(
       if (onSuccess) onSuccess(activity);
     },
     onError: (error: string) => {
+      if (isActivityEditCancelled(error)) return;
       logger.error(`Error ${action} activity: ${String(error)}`);
       toast.error(i18n.t(`common:notifications.activity_failed_${action}`), {
         description: String(error),
@@ -192,7 +200,9 @@ export function useActivityMutations(
   });
 
   const updateActivityMutation = useMutation({
-    mutationFn: async (data: NewActivityFormValues & { id: string }) => {
+    mutationFn: async (
+      data: NewActivityFormValues & { id: string; unlinkTransferPairId?: string },
+    ) => {
       // Extract asset-related fields from form data
       const {
         assetId,
@@ -278,7 +288,8 @@ export function useActivityMutations(
         metadata: metadata ? JSON.stringify(metadata) : undefined,
       };
       // Backend handles quote creation for MANUAL pricing mode
-      const result = await updateActivity(updatePayload);
+      const [reviewed] = await reviewEdits([updatePayload]);
+      const result = await updateActivity(reviewed);
 
       if (!result || typeof result !== "object" || !("id" in result)) {
         throw new Error("Failed updating activity");
@@ -309,6 +320,7 @@ export function useActivityMutations(
       });
     },
     onError: (error: string) => {
+      if (isActivityEditCancelled(error)) return;
       logger.error(`Error linking transfers: ${String(error)}`);
       toast.error(i18n.t("common:notifications.failed_to_link_transfers"), {
         description: String(error),
@@ -326,6 +338,7 @@ export function useActivityMutations(
       });
     },
     onError: (error: string) => {
+      if (isActivityEditCancelled(error)) return;
       logger.error(`Error unlinking transfers: ${String(error)}`);
       toast.error(i18n.t("common:notifications.failed_to_unlink_transfers"), {
         description: String(error),
@@ -434,6 +447,7 @@ export function useActivityMutations(
       };
 
       // Backend handles quote creation for MANUAL pricing mode
+      normalizedRequest.updates = await reviewEdits(normalizedRequest.updates ?? []);
       return await saveActivities(normalizedRequest);
     },
     onSuccess: (result: ActivityBulkMutationResult) => {
@@ -454,6 +468,7 @@ export function useActivityMutations(
       }
     },
     onError: (error: string) => {
+      if (isActivityEditCancelled(error)) return;
       logger.error(`Error saving activities: ${String(error)}`);
       toast.error(i18n.t("ai:recordActivities.failedSave"), {
         description: String(error),
@@ -463,13 +478,16 @@ export function useActivityMutations(
 
   const saveInternalTransferPairMutation = useMutation({
     mutationFn: async (request: InternalTransferPairRequest) => {
-      return await saveInternalTransferPair(request);
+      const reviewed =
+        request.transferOutId || request.transferInId ? await reviewPair(request) : request;
+      return await saveInternalTransferPair(reviewed);
     },
     onSuccess: (result: InternalTransferPairResponse) => {
       queryClient.invalidateQueries();
       if (onSuccess) onSuccess({ accountId: result.transferOut.accountId });
     },
     onError: (error: string) => {
+      if (isActivityEditCancelled(error)) return;
       logger.error(`Error saving internal transfer pair: ${String(error)}`);
       toast.error(i18n.t("common:notifications.failed_to_save_transfer"), {
         description: String(error),

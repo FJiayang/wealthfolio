@@ -13,7 +13,6 @@
   "language_auto": "自动（根据系统检测）",
   "language_updated": "语言更新成功",
   "language_update_failed": "语言更新失败",
-  "theme": "主题",
   "theme_light": "浅色",
   "theme_dark": "深色",
   "theme_system": "系统",
@@ -108,7 +107,7 @@
   "appearance_font_title": "字体",
   "appearance_font_description": "选择整个界面所使用的字体。",
   "appearance_theme_title": "主题",
-  "appearance_theme_description": "为应用选择您偏好的主题。",
+  "appearance_theme_description": "选择精心设计的配色方案。每个主题均提供浅色和深色外观。",
   "appearance_menu_bar": "显示菜单栏",
   "appearance_menu_bar_description": "切换以显示应用菜单栏。",
   "appearance_theme_required": "请选择一个主题。",
@@ -1127,7 +1126,8 @@
       "refresh_error": "凭据已存储，但校验或客户端刷新失败。请检查密钥格式后重试。",
       "saved": "凭据已保存。",
       "deleted": "凭据已删除。"
-    }
+    },
+    "validation_priority_min": "优先级必须是大于或等于 1 的整数"
   },
   "addon_permission_none_detected": "未检测到数据访问权限。此插件似乎对系统的访问权限极少。",
   "addon_permission_list_title": "权限",
@@ -1291,7 +1291,8 @@
       "tab_savings_other": "储蓄（{{count}}）",
       "tab_expense_one": "支出（{{count}}）",
       "tab_income_one": "收入（{{count}}）",
-      "tab_savings_one": "储蓄（{{count}}）"
+      "tab_savings_one": "储蓄（{{count}}）",
+      "duplicate_error": "此类别键已被使用，请尝试其他名称。"
     },
     "events": {
       "heading": "支出事件",
@@ -1539,7 +1540,7 @@
         "description": "读取投资组合健康度和诊断检查。"
       },
       "classification_read": {
-        "label": "分类（读取）",
+        "label": "资产分类（读取）",
         "description": "读取金融工具分类和分类法。"
       },
       "activities_draft": {
@@ -1551,11 +1552,11 @@
         "description": "提交活动、更新现有活动，并关联或取消关联转账。需要草稿作用域。"
       },
       "classification_suggest": {
-        "label": "分类——建议",
+        "label": "资产分类 — 建议",
         "description": "为审核建议金融工具分类。"
       },
       "classification_write": {
-        "label": "分类——应用/写入",
+        "label": "资产分类 — 应用/写入",
         "description": "应用已审核的分类草稿。需要建议作用域。"
       },
       "market_data_write": {
@@ -1583,12 +1584,12 @@
         "description": "查询行情和汇率"
       },
       "spending_read": {
-        "label": "查询收支与预算",
-        "description": "查询收支与预算"
+        "label": "查看支出",
+        "description": "读取支出账户中的交易、类别、拆分、规则、事件、报告和预算。"
       },
       "spending_write": {
-        "label": "修改收支事件与预算",
-        "description": "修改收支事件与预算"
+        "label": "整理支出",
+        "description": "管理支出类别、分配、拆分、规则和事件。需要查看支出权限。"
       },
       "trade_instructions_read": {
         "label": "读取交易指令",
@@ -1601,13 +1602,20 @@
       "trade_instructions_write": {
         "label": "管理交易指令",
         "description": "创建、编辑、开始、完成、取消、更正完成时间及永久删除交易指令。"
+      },
+      "budget_write": {
+        "label": "管理预算",
+        "description": "更改默认和月度预算、分组、缓冲金额及结转。需要查看支出权限。"
       }
     },
     "preset": {
       "read_only": "仅读取",
       "read_activity_draft": "读取 + 草稿",
       "read_activity_write": "读取 + 写入",
-      "read_activity_write_classification_suggest": "读取 + 写入 + 分类"
+      "read_activity_write_classification_suggest": "读取 + 交易写入 + 资产分类",
+      "spending_view": "支出 — 查看",
+      "spending_organize": "支出 — 整理",
+      "spending_budgets": "支出 — 预算"
     },
     "copied_generic": "{{label}} 已复制到剪贴板。",
     "hero_aria": "AI 代理访问状态",
@@ -1617,7 +1625,9 @@
     "edit_title": "{{name}} 的权限",
     "edit_description": "Key 保持不变，新权限对后续请求生效。新增工具可能需要刷新工具列表或重新连接客户端。",
     "edit_success": "权限已更新",
-    "edit_failed": "权限更新失败"
+    "edit_failed": "权限更新失败",
+    "scope_locked_spending_title": "整理支出或管理预算所必需",
+    "dialog_presets": "访问权限预设"
   },
   "tax_add_category": "添加类别",
   "tax_export": "导出",
@@ -1858,5 +1868,220 @@
     "save_failed": "无法保存统计时区。",
     "updated": "更新于 {{value}}",
     "stale": "显示的次数可能不是最新数据。"
-  }
+  },
+  "limits_form_group_name_required": "分组名称为必填项",
+  "limits_form_limit_amount_number": "限额金额必须为正数。",
+  "limits_form_limit_amount_non_negative": "限额金额不能为负数。",
+  "limits_form_year_invalid": "年份无效",
+  "messages": {
+    "account": {
+      "created": "账户创建成功。",
+      "creatingFailed": "无法创建此账户。",
+      "updatingFailed": "无法更新此账户。",
+      "deletingFailed": "无法删除此账户。"
+    },
+    "contribution": {
+      "added": "供款额度添加成功。",
+      "updated": "供款额度更新成功。",
+      "deleted": "供款额度删除成功。",
+      "addFailed": "无法添加此供款额度。",
+      "updateFailed": "无法更新此供款额度。",
+      "deleteFailed": "无法删除此供款额度。"
+    },
+    "exchange": {
+      "updatingFailed": "更新汇率时出错：{{error}}",
+      "addingFailed": "添加汇率时出错：{{error}}",
+      "deletingFailed": "删除汇率时出错：{{error}}"
+    },
+    "export": {
+      "empty": {
+        "accounts": "当前没有可导出的账户。",
+        "activities": "当前没有可导出的交易记录。",
+        "holdings": "当前没有可导出的持仓。",
+        "goals": "当前没有可导出的目标。",
+        "portfolio-history": "当前没有可导出的组合历史记录。"
+      }
+    },
+    "providerUpdateFailed": "无法更新数据源 {{provider}} 的设置",
+    "httpFailed": "HTTP 请求失败。",
+    "addonDownloadFailed": "无法下载插件。",
+    "addonPackages": "插件包",
+    "addonInstalled": "{{name}} 已安装并启用。",
+    "addonEnabled": "插件已启用",
+    "addonDisabled": "插件已停用",
+    "addonEnabledDescription": "{{name}} 已启用。",
+    "addonDisabledDescription": "{{name}} 已停用。",
+    "addonRemoved": "{{name}} 已完全移除。",
+    "addonNetworkSaved": "{{name}} 的网络主机授权已保存。",
+    "addonCheckFailed": "无法检查插件 {{addon}} 的更新",
+    "auditRemoved_other": "已移除 {{count}} 条记录。",
+    "addonUpdates_other": "{{count}} 个插件有可用更新。",
+    "addonCriticalUpdates_other": "{{count}} 个插件有重要安全更新。"
+  },
+  "addonPermissions": {
+    "functions": {
+      "accounts_getAll": "查看所有账户",
+      "accounts_create": "创建新账户",
+      "portfolio_getHoldings": "查看投资持仓",
+      "portfolio_getHolding": "查看单项持仓详情",
+      "portfolio_update": "更新投资组合计算",
+      "portfolio_recalculate": "重新计算整个投资组合",
+      "portfolio_getIncomeSummary": "查看收入和股息",
+      "portfolio_getHistoricalValuations": "查看历史投资组合估值",
+      "portfolio_getLatestValuations": "查看当前投资组合估值",
+      "activities_getAll": "查看所有交易",
+      "activities_search": "按条件搜索交易",
+      "activities_searchCashActivities": "搜索已分类的支出交易",
+      "activities_create": "添加新交易",
+      "activities_update": "修改交易",
+      "activities_saveMany": "保存多笔交易",
+      "activities_import": "导入交易数据",
+      "activities_checkImport": "验证导入数据",
+      "activities_getImportMapping": "查看导入设置",
+      "activities_saveImportMapping": "保存导入设置",
+      "activities_getTransferPair": "查看关联的转账配对",
+      "activities_findTransferMatchCandidates": "查找匹配的转账候选",
+      "activities_saveTransferPair": "将交易关联为转账",
+      "activities_linkTransfer": "将交易关联为转账",
+      "activities_unlinkTransfer": "取消转账交易关联",
+      "market_searchTicker": "搜索股票或基金",
+      "market_syncHistory": "下载历史价格",
+      "market_sync": "同步证券代码的行情数据",
+      "market_getProviders": "查看行情数据源",
+      "assets_getProfile": "查看资产资料详情",
+      "assets_updateProfile": "更新资产信息",
+      "assets_updateDataSource": "更改资产数据源",
+      "quotes_update": "更新当前价格",
+      "quotes_getHistory": "查看历史价格",
+      "performance_calculateHistory": "计算历史绩效",
+      "performance_calculateSummary": "计算绩效摘要",
+      "performance_calculateAccountsSimple": "计算基本账户绩效",
+      "currency_getAll": "查看汇率",
+      "currency_update": "更新汇率",
+      "currency_add": "添加新汇率",
+      "currency_getRatesForDates": "查看历史汇率",
+      "exchangeRates_getAll": "查看汇率",
+      "exchangeRates_update": "更新汇率",
+      "exchangeRates_add": "添加新汇率",
+      "exchangeRates_getRatesForDates": "查看历史汇率",
+      "spending_isEnabled": "检查是否已启用支出功能",
+      "spending_getCategories": "查看支出类别",
+      "spending_getReport": "查看汇总支出报告",
+      "spending_getRules": "查看其自身的自动分类规则",
+      "spending_saveRule": "创建或更新自动分类规则",
+      "spending_deleteRule": "删除自动分类规则",
+      "spending_rerunRules": "对交易重新应用分类规则",
+      "contributionLimits_getAll": "查看供款额度",
+      "contributionLimits_create": "设置供款额度",
+      "contributionLimits_update": "修改供款额度",
+      "contributionLimits_calculateDeposits": "计算所需存款",
+      "financial-planning_getAll": "查看财务目标",
+      "financial-planning_create": "创建新目标",
+      "financial-planning_update": "修改目标",
+      "financial-planning_getFunding": "查看目标资金",
+      "financial-planning_saveFunding": "更新目标资金",
+      "financial-planning_updateAllocations": "更新目标分配",
+      "financial-planning_getAllocations": "查看目标分配",
+      "settings_get": "查看应用设置",
+      "settings_update": "修改应用设置",
+      "settings_backupDatabase": "创建数据备份",
+      "files_openCsvDialog": "打开 CSV 文件选择器",
+      "files_openSaveDialog": "将文件保存到磁盘",
+      "secrets_get": "获取已存储的凭据",
+      "secrets_set": "安全存储凭据",
+      "secrets_use": "使用已存储的凭据发起代理请求",
+      "secrets_delete": "移除已存储的凭据",
+      "events_import_onDropHover": "检测文件拖放",
+      "events_import_onDrop": "处理文件拖放",
+      "events_import_onDropCancelled": "处理取消的拖放",
+      "events_portfolio_onUpdateStart": "监测投资组合更新开始",
+      "events_portfolio_onUpdateComplete": "监测投资组合更新完成",
+      "events_portfolio_onUpdateError": "监测投资组合更新错误",
+      "events_market_onSyncStart": "监测行情同步开始",
+      "events_market_onSyncComplete": "监测行情同步完成",
+      "network_request": "发送代理网络请求"
+    },
+    "categories": {
+      "accounts": {
+        "name": "账户管理",
+        "description": "访问账户信息和设置"
+      },
+      "alternative-assets": {
+        "name": "另类资产",
+        "description": "只读访问在投资账户之外跟踪的另类资产及负债（房产、车辆、收藏品、贵金属和其他资产）"
+      },
+      "portfolio": {
+        "name": "投资组合数据",
+        "description": "访问持仓、投资组合绩效和账户估值"
+      },
+      "activities": {
+        "name": "交易历史",
+        "description": "访问交易记录和交易管理"
+      },
+      "market-data": {
+        "name": "行情数据",
+        "description": "访问市场价格、报价和金融数据"
+      },
+      "assets": {
+        "name": "资产管理",
+        "description": "访问资产资料和数据源"
+      },
+      "quotes": {
+        "name": "报价管理",
+        "description": "访问报价和历史数据"
+      },
+      "performance": {
+        "name": "绩效分析",
+        "description": "访问绩效计算和指标"
+      },
+      "currency": {
+        "name": "汇率",
+        "description": "访问货币汇率和兑换数据"
+      },
+      "spending": {
+        "name": "支出",
+        "description": "查看汇总支出报告及类别，并管理自动标记交易的分类规则"
+      },
+      "financial-planning": {
+        "name": "财务规划",
+        "description": "访问财务目标和分配"
+      },
+      "contribution-limits": {
+        "name": "供款额度",
+        "description": "访问供款额度和存款计算"
+      },
+      "settings": {
+        "name": "应用设置",
+        "description": "访问应用设置和配置"
+      },
+      "files": {
+        "name": "文件操作",
+        "description": "访问文件对话框和文件系统操作"
+      },
+      "secrets": {
+        "name": "机密管理",
+        "description": "访问插件机密的安全存储"
+      },
+      "snapshots": {
+        "name": "快照管理",
+        "description": "访问使用持仓跟踪模式的账户持仓快照"
+      },
+      "events": {
+        "name": "事件监听",
+        "description": "访问应用事件和通知"
+      },
+      "network": {
+        "name": "网络访问",
+        "description": "通过主机网络代理访问已声明的外部 HTTPS 主机"
+      }
+    }
+  },
+  "appearance_mode_title": "外观模式",
+  "appearance_mode_description": "浅色、深色或跟随系统。",
+  "appearance_theme_designed_for_dark": "{{theme}} 专为深色模式设计。",
+  "appearance_theme_designed_for_light": "{{theme}} 专为浅色模式设计。",
+  "appearance_switch_to_dark": "切换到深色",
+  "appearance_switch_to_light": "切换到浅色",
+  "appearance_theme_suggests": "{{theme}} 建议使用{{value}}",
+  "appearance_use_theme_defaults": "使用主题默认设置"
 }

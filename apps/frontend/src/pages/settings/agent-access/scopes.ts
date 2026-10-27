@@ -15,6 +15,9 @@ export type ScopeKey =
   | "financial-planning:read"
   | "health:read"
   | "classification:read"
+  | "spending:read"
+  | "spending:write"
+  | "budget:write"
   | "activities:draft"
   | "activities:write"
   | "classification:suggest"
@@ -24,9 +27,7 @@ export type ScopeKey =
   | "assets:write"
   | "holdings:write"
   | "financial-planning:write"
-  | "market-data:read"
-  | "spending:read"
-  | "spending:write";
+  | "market-data:read";
 
 export type ScopeGroup = "read" | "write";
 
@@ -39,12 +40,24 @@ export interface ScopeMeta {
 
 /** Available scopes; only read scopes are selected by default. */
 export const SCOPES: ScopeMeta[] = [
-  { key: "trade-instructions:read", i18n: "trade_instructions_read", group: "read" },
-  { key: "trade-instructions:write", i18n: "trade_instructions_write", group: "write" },
+  {
+    key: "trade-instructions:read",
+    i18n: "trade_instructions_read",
+    group: "read",
+  },
+  {
+    key: "trade-instructions:write",
+    i18n: "trade_instructions_write",
+    group: "write",
+  },
   { key: "accounts:write", i18n: "accounts_write", group: "write" },
   { key: "assets:write", i18n: "assets_write", group: "write" },
   { key: "holdings:write", i18n: "holdings_write", group: "write" },
-  { key: "financial-planning:write", i18n: "financial_planning_write", group: "write" },
+  {
+    key: "financial-planning:write",
+    i18n: "financial_planning_write",
+    group: "write",
+  },
   { key: "market-data:read", i18n: "market_data_read", group: "read" },
   { key: "spending:read", i18n: "spending_read", group: "read" },
   { key: "spending:write", i18n: "spending_write", group: "write" },
@@ -53,14 +66,23 @@ export const SCOPES: ScopeMeta[] = [
   { key: "holdings:read", i18n: "holdings_read", group: "read" },
   { key: "performance:read", i18n: "performance_read", group: "read" },
   { key: "activities:read", i18n: "activities_read", group: "read" },
-  { key: "financial-planning:read", i18n: "financial_planning_read", group: "read" },
+  {
+    key: "financial-planning:read",
+    i18n: "financial_planning_read",
+    group: "read",
+  },
   { key: "health:read", i18n: "health_read", group: "read" },
   { key: "classification:read", i18n: "classification_read", group: "read" },
   { key: "activities:draft", i18n: "activities_draft", group: "write" },
   { key: "activities:write", i18n: "activities_write", group: "write" },
-  { key: "classification:suggest", i18n: "classification_suggest", group: "write" },
+  {
+    key: "classification:suggest",
+    i18n: "classification_suggest",
+    group: "write",
+  },
   { key: "classification:write", i18n: "classification_write", group: "write" },
   { key: "market-data:write", i18n: "market_data_write", group: "write" },
+  { key: "budget:write", i18n: "budget_write", group: "write" },
 ];
 
 /** Read-only preset for newly created tokens. */
@@ -81,6 +103,17 @@ export const SCOPE_PRESETS: ScopePreset[] = [
     key: "read-only",
     i18n: "read_only",
     scopes: [...READ_SCOPES],
+  },
+  { key: "spending-view", i18n: "spending_view", scopes: ["spending:read"] },
+  {
+    key: "spending-organize",
+    i18n: "spending_organize",
+    scopes: ["spending:read", "spending:write"],
+  },
+  {
+    key: "spending-budgets",
+    i18n: "spending_budgets",
+    scopes: ["spending:read", "budget:write"],
   },
   {
     key: "read-activity-draft",
@@ -148,6 +181,9 @@ export function applyScopeDependencies(scopes: Iterable<string>): ScopeKey[] {
   }
   if (set.has("market-data:write")) {
     set.add("holdings:read");
+  }
+  if (set.has("spending:write") || set.has("budget:write")) {
+    set.add("spending:read");
   }
   return SCOPES.filter((scope) => set.has(scope.key)).map((scope) => scope.key);
 }

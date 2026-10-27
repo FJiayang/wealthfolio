@@ -184,64 +184,6 @@ business_tool!(UpdateSpendingSettings, UpdateSpendingSettingsArgs, "update_spend
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct GetSpendingReportArgs {
-    pub request: wealthfolio_spending::analytics::ReportRequest,
-}
-
-business_tool!(GetSpendingReport, GetSpendingReportArgs, "get_spending_report",
-    "Compute the spending monthly report using the configured account scope, timezone and base currency.",
-    json!({"type":"object","properties":{"request":{"type":"object","properties":{"startDate":{"type":"string"},"endDate":{"type":"string"},"accountIds":{"type":"array","items":{"type":"string"},"maxItems":100}},"required":["startDate","endDate"]}},"required":["request"]}), [AgentScope::SpendingRead], Read, |env, args| {
-        output(env.spending_analytics_service().monthly_report(args.request, &timezone(&env)?, &env.base_currency()).await?)
-    });
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct GetSpendingInsightArgs {
-    pub request: wealthfolio_spending::insight::SpendingInsightRequest,
-}
-
-business_tool!(
-    GetSpendingInsight,
-    GetSpendingInsightArgs,
-    "get_spending_insight",
-    "Compute spending comparisons and category analysis using the existing insight service.",
-    json!({"type":"object","properties":{"request":{"type":"object","properties":{"startDate":{"type":"string"},"endDate":{"type":"string"},"accountIds":{"type":"array","items":{"type":"string"},"maxItems":100},"compareStartDate":{"type":"string"},"compareEndDate":{"type":"string"},"compare":{"type":"string","enum":["prior","year_over_year"]}},"required":["startDate","endDate"]}},"required":["request"]}),
-    [AgentScope::SpendingRead],
-    Read,
-    |env, args| {
-        output(
-            env.spending_insight_service()
-                .compute(args.request, &env.base_currency(), &timezone(&env)?)
-                .await?,
-        )
-    }
-);
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct GetEventSpendingSummariesArgs {
-    pub request: wealthfolio_spending::analytics::EventSummariesRequest,
-}
-
-business_tool!(
-    GetEventSpendingSummaries,
-    GetEventSpendingSummariesArgs,
-    "get_event_spending_summaries",
-    "Read spending summaries by event using existing scope and currency conversion.",
-    json!({"type":"object","properties":{"request":{"type":"object","properties":{"startDate":{"type":"string"},"endDate":{"type":"string"},"currency":{"type":"string"}},"required":[]}},"required":["request"]}),
-    [AgentScope::SpendingRead],
-    Read,
-    |env, args| {
-        output(
-            env.spending_analytics_service()
-                .event_spending_summaries(args.request, &timezone(&env)?)
-                .await?,
-        )
-    }
-);
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ListEventTypesArgs {}
 
 business_tool!(
@@ -363,19 +305,6 @@ business_tool!(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct GetBudgetArgs {
-    #[serde(default)]
-    pub period_key: Option<String>,
-}
-
-business_tool!(GetBudget, GetBudgetArgs, "get_budget",
-    "Read a budget period using the existing service, including its normal initialization of built-in budget groups.",
-    json!({"type":"object","properties":{"periodKey":{"type":"string"}},"required":[]}), [AgentScope::SpendingRead], Read, |env, args| {
-        output(env.budget_service().get(args.period_key, &env.base_currency(), &timezone(&env)?).await?)
-    });
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct UpsertBudgetTargetArgs {
     pub input: wealthfolio_spending::budget::NewBudgetTarget,
     #[serde(default)]
@@ -384,8 +313,8 @@ struct UpsertBudgetTargetArgs {
 
 business_tool!(UpsertBudgetTarget, UpsertBudgetTargetArgs, "upsert_budget_target",
     "Save budget configuration through the existing budget service. Cross-period copies overwrite existing targets only when overwrite is true.",
-    json!({"type":"object","properties":{"input":{"type":"object","properties":{"id":{"type":"string"},"periodKey":{"type":"string"},"targetType":{"type":"string","enum":["category","group_buffer"]},"taxonomyId":{"type":"string"},"categoryId":{"type":"string"},"groupId":{"type":"string"},"amount":{"type":"string"}},"required":["periodKey","targetType","amount"]},"periodKey":{"type":"string"}},"required":["input"]}), [AgentScope::SpendingWrite], Write, |env, args| {
-        output(env.budget_service().upsert_target(args.input, args.period_key, &env.base_currency(), &timezone(&env)?).await?)
+    json!({"type":"object","properties":{"input":{"type":"object","properties":{"id":{"type":"string"},"periodKey":{"type":"string"},"targetType":{"type":"string","enum":["category","group_buffer"]},"taxonomyId":{"type":"string"},"categoryId":{"type":"string"},"groupId":{"type":"string"},"amount":{"type":"string"}},"required":["periodKey","targetType","amount"]},"periodKey":{"type":"string"}},"required":["input"]}), [AgentScope::SpendingRead, AgentScope::BudgetWrite], Write, |env, args| {
+        output(env.budget_management_service().upsert_target(args.input, args.period_key, &env.base_currency(), &timezone(&env)?).await?)
     });
 
 #[derive(Deserialize)]
@@ -398,8 +327,8 @@ struct UpsertBudgetRolloverSettingArgs {
 
 business_tool!(UpsertBudgetRolloverSetting, UpsertBudgetRolloverSettingArgs, "upsert_budget_rollover_setting",
     "Save budget configuration through the existing budget service. Cross-period copies overwrite existing targets only when overwrite is true.",
-    json!({"type":"object","properties":{"input":{"type":"object","properties":{"id":{"type":"string"},"targetType":{"type":"string","enum":["category","group"]},"taxonomyId":{"type":"string"},"categoryId":{"type":"string"},"groupId":{"type":"string"},"enabled":{"type":"boolean"},"startMonth":{"type":"string"},"startingBalance":{"type":"string"}},"required":["targetType","startMonth","startingBalance"]},"periodKey":{"type":"string"}},"required":["input"]}), [AgentScope::SpendingWrite], Write, |env, args| {
-        output(env.budget_service().upsert_rollover_setting(args.input, args.period_key, &env.base_currency(), &timezone(&env)?).await?)
+    json!({"type":"object","properties":{"input":{"type":"object","properties":{"id":{"type":"string"},"targetType":{"type":"string","enum":["category","group"]},"taxonomyId":{"type":"string"},"categoryId":{"type":"string"},"groupId":{"type":"string"},"enabled":{"type":"boolean"},"startMonth":{"type":"string"},"startingBalance":{"type":"string"}},"required":["targetType","startMonth","startingBalance"]},"periodKey":{"type":"string"}},"required":["input"]}), [AgentScope::SpendingRead, AgentScope::BudgetWrite], Write, |env, args| {
+        output(env.budget_management_service().upsert_rollover_setting(args.input, args.period_key, &env.base_currency(), &timezone(&env)?).await?)
     });
 
 #[derive(Deserialize)]
@@ -412,8 +341,8 @@ struct CreateBudgetGroupArgs {
 
 business_tool!(CreateBudgetGroup, CreateBudgetGroupArgs, "create_budget_group",
     "Save budget configuration through the existing budget service. Cross-period copies overwrite existing targets only when overwrite is true.",
-    json!({"type":"object","properties":{"input":{"type":"object","properties":{"name":{"type":"string"},"color":{"type":"string"},"icon":{"type":"string"},"sortOrder":{"type":"integer"},"id":{"type":"string"},"key":{"type":"string"}},"required":["name"]},"periodKey":{"type":"string"}},"required":["input"]}), [AgentScope::SpendingWrite], Write, |env, args| {
-        output(env.budget_service().create_group(args.input, args.period_key, &env.base_currency(), &timezone(&env)?).await?)
+    json!({"type":"object","properties":{"input":{"type":"object","properties":{"name":{"type":"string"},"color":{"type":"string"},"icon":{"type":"string"},"sortOrder":{"type":"integer"},"id":{"type":"string"},"key":{"type":"string"}},"required":["name"]},"periodKey":{"type":"string"}},"required":["input"]}), [AgentScope::SpendingRead, AgentScope::BudgetWrite], Write, |env, args| {
+        output(env.budget_management_service().create_group(args.input, args.period_key, &env.base_currency(), &timezone(&env)?).await?)
     });
 
 #[derive(Deserialize)]
@@ -427,8 +356,8 @@ struct UpdateBudgetGroupArgs {
 
 business_tool!(UpdateBudgetGroup, UpdateBudgetGroupArgs, "update_budget_group",
     "Save budget configuration through the existing budget service. Cross-period copies overwrite existing targets only when overwrite is true.",
-    json!({"type":"object","properties":{"id":{"type":"string"},"patch":{"type":"object","properties":{"name":{"type":"string"},"color":{"type":["string","null"]},"icon":{"type":["string","null"]},"sortOrder":{"type":"integer"}},"required":[]},"periodKey":{"type":"string"}},"required":["id","patch"]}), [AgentScope::SpendingWrite], Write, |env, args| {
-        output(env.budget_service().update_group(&args.id, args.patch, args.period_key, &env.base_currency(), &timezone(&env)?).await?)
+    json!({"type":"object","properties":{"id":{"type":"string"},"patch":{"type":"object","properties":{"name":{"type":"string"},"color":{"type":["string","null"]},"icon":{"type":["string","null"]},"sortOrder":{"type":"integer"}},"required":[]},"periodKey":{"type":"string"}},"required":["id","patch"]}), [AgentScope::SpendingRead, AgentScope::BudgetWrite], Write, |env, args| {
+        output(env.budget_management_service().update_group(&args.id, args.patch, args.period_key, &env.base_currency(), &timezone(&env)?).await?)
     });
 
 #[derive(Deserialize)]
@@ -442,8 +371,8 @@ struct AssignCategoryToGroupArgs {
 
 business_tool!(AssignCategoryToGroup, AssignCategoryToGroupArgs, "assign_category_to_group",
     "Save budget configuration through the existing budget service. Cross-period copies overwrite existing targets only when overwrite is true.",
-    json!({"type":"object","properties":{"categoryId":{"type":"string"},"groupId":{"type":"string"},"periodKey":{"type":"string"}},"required":["categoryId","groupId"]}), [AgentScope::SpendingWrite], Write, |env, args| {
-        output(env.budget_service().assign_category_to_group(args.category_id, args.group_id, args.period_key, &env.base_currency(), &timezone(&env)?).await?)
+    json!({"type":"object","properties":{"categoryId":{"type":"string"},"groupId":{"type":"string"},"periodKey":{"type":"string"}},"required":["categoryId","groupId"]}), [AgentScope::SpendingRead, AgentScope::BudgetWrite], Write, |env, args| {
+        output(env.budget_management_service().assign_category_to_group(args.category_id, args.group_id, args.period_key, &env.base_currency(), &timezone(&env)?).await?)
     });
 
 #[derive(Deserialize)]
@@ -456,8 +385,8 @@ struct CopyBudgetTargetsArgs {
 
 business_tool!(CopyBudgetTargets, CopyBudgetTargetsArgs, "copy_budget_targets",
     "Save budget configuration through the existing budget service. Cross-period copies overwrite existing targets only when overwrite is true.",
-    json!({"type":"object","properties":{"sourcePeriodKey":{"type":"string"},"targetPeriodKey":{"type":"string"},"overwrite":{"type":"boolean"}},"required":["sourcePeriodKey","targetPeriodKey","overwrite"]}), [AgentScope::SpendingWrite], Write, |env, args| {
-        output(env.budget_service().copy_period_targets(&args.source_period_key, &args.target_period_key, args.overwrite, &env.base_currency(), &timezone(&env)?).await?)
+    json!({"type":"object","properties":{"sourcePeriodKey":{"type":"string"},"targetPeriodKey":{"type":"string"},"overwrite":{"type":"boolean"}},"required":["sourcePeriodKey","targetPeriodKey","overwrite"]}), [AgentScope::SpendingRead, AgentScope::BudgetWrite], Write, |env, args| {
+        output(env.budget_management_service().copy_period_targets(&args.source_period_key, &args.target_period_key, args.overwrite, &env.base_currency(), &timezone(&env)?).await?)
     });
 
 pub fn tools() -> Vec<Arc<dyn AgentTool>> {
@@ -471,16 +400,12 @@ pub fn tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(SetActivityEvent),
         Arc::new(GetSpendingSettings),
         Arc::new(UpdateSpendingSettings),
-        Arc::new(GetSpendingReport),
-        Arc::new(GetSpendingInsight),
-        Arc::new(GetEventSpendingSummaries),
         Arc::new(ListEventTypes),
         Arc::new(ListEvents),
         Arc::new(CreateEventType),
         Arc::new(UpdateEventType),
         Arc::new(CreateEvent),
         Arc::new(UpdateEvent),
-        Arc::new(GetBudget),
         Arc::new(UpsertBudgetTarget),
         Arc::new(UpsertBudgetRolloverSetting),
         Arc::new(CreateBudgetGroup),

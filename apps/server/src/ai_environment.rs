@@ -287,8 +287,16 @@ impl AgentEnvironment for ServerAiEnvironment {
         self.asset_logo_service.clone()
     }
 
-    fn budget_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
+    fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait> {
         self.budget_service.clone()
+    }
+
+    fn budget_management_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
+        self.budget_service.clone()
+    }
+
+    fn spending_events_service(&self) -> Arc<dyn wealthfolio_spending::events::EventsServiceTrait> {
+        self.events_service.clone()
     }
 
     fn events_service(&self) -> Arc<wealthfolio_spending::events::EventsService> {
@@ -301,11 +309,15 @@ impl AgentEnvironment for ServerAiEnvironment {
         self.spending_settings_service.clone()
     }
 
-    fn spending_analytics_service(&self) -> Arc<wealthfolio_spending::analytics::AnalyticsService> {
+    fn spending_analytics_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait> {
         self.spending_analytics_service.clone()
     }
 
-    fn spending_insight_service(&self) -> Arc<wealthfolio_spending::insight::InsightService> {
+    fn spending_insight_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait> {
         self.spending_insight_service.clone()
     }
 }

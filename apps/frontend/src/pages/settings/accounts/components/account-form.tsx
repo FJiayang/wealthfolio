@@ -7,7 +7,7 @@ import * as z from "zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
 
-import { newAccountSchema } from "@/lib/schemas";
+import { createNewAccountSchema, newAccountSchema } from "@/lib/schemas";
 import { AccountType } from "@/lib/constants";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { cn } from "@/lib/utils";
@@ -176,7 +176,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
   const [pendingFormData, setPendingFormData] = useState<AccountFormOutput | null>(null);
 
   const form = useForm<AccountFormInput, unknown, AccountFormOutput>({
-    resolver: zodResolver(newAccountSchema),
+    resolver: zodResolver(createNewAccountSchema(t)),
     defaultValues: {
       ...defaultValues,
       // Don't default to any mode if account needs setup (must come after spread)
@@ -699,7 +699,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
       {/* Mode Switch Confirmation Dialog */}
       <AlertDialog open={showModeConfirmation} onOpenChange={setShowModeConfirmation}>
         <AlertDialogContent className="max-w-105 gap-0 overflow-hidden p-0">
-          <div className="px-5 pb-4 pt-5">
+          <div className="px-5 pt-5 pb-4">
             <AlertDialogHeader className="space-y-3">
               <div className="flex items-center gap-3">
                 <div className="bg-warning-subtle flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">

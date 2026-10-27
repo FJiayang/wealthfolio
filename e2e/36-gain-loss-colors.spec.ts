@@ -8,15 +8,7 @@ for (const width of [390, 1280]) {
     test.setTimeout(120000);
     await page.setViewportSize({ width, height: 900 });
     await completeOnboardingIfNeeded(page);
-    const waitForStartup = () =>
-      page.waitForResponse(
-        (response) =>
-          response.request().method() === "POST" &&
-          new URL(response.url()).pathname.endsWith("/portfolio/update"),
-      );
-    const startup = waitForStartup();
     await gotoAppPath(page, "/settings/appearance?dir=rtl");
-    await startup;
     const select = page.getByTestId("gain-loss-color-select");
     const refreshes: string[] = [];
     let checkingSave = false;
@@ -35,7 +27,7 @@ for (const width of [390, 1280]) {
       ["Red up, green down", "red-up-green-down"],
       ["Green up, red down", "green-up-red-down"],
     ] as const) {
-      // Startup deliberately requests a portfolio update; only the setting change must not.
+      // The ready control, not an optional startup request, gates this setting change.
       await expect(select).toBeEnabled();
       checkingSave = true;
       await select.click();
@@ -57,9 +49,8 @@ for (const width of [390, 1280]) {
         .toBe(scheme === "red-up-green-down");
       checkingSave = false;
       expect(refreshes).toEqual([]);
-      const restarted = waitForStartup();
       await page.reload();
-      await restarted;
+      await expect(select).toBeEnabled();
       await expect(select).toHaveText(label);
       await expect
         .poll(() =>

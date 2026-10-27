@@ -245,7 +245,6 @@
     "asset_type_option": "옵션",
     "asset_type_metal": "금속 (원자재)",
     "asset_type_other": "기타",
-    "select_currency": "통화 선택...",
     "select_symbol": "심볼 선택...",
     "symbol_type_security": "증권",
     "symbol_type_crypto": "암호화폐",
@@ -1472,5 +1471,11 @@
     "94fc13ed-ac40-466b-8071-64f1e3c72204": "의료",
     "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "특별한 행사",
     "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "기타"
+  },
+  "validation": {
+    "accountNameMin": "이름은 2자 이상이어야 합니다.",
+    "accountNameMax": "이름은 50자를 초과할 수 없습니다.",
+    "accountCurrency": "통화를 선택해 주세요.",
+    "creditCardTracking": "신용카드 계좌는 보유 자산 추적 모드를 사용할 수 없습니다."
   }
 }

@@ -13,7 +13,6 @@
   "language_auto": "Automático (detectar del sistema)",
   "language_updated": "Idioma actualizado correctamente",
   "language_update_failed": "No se pudo actualizar el idioma",
-  "theme": "Tema",
   "theme_light": "Claro",
   "theme_dark": "Oscuro",
   "theme_system": "Sistema",
@@ -108,7 +107,7 @@
   "appearance_font_title": "Tipo de letra",
   "appearance_font_description": "Elige el tipo de letra utilizado en toda la interfaz.",
   "appearance_theme_title": "Tema",
-  "appearance_theme_description": "Selecciona tu tema preferido para la aplicación.",
+  "appearance_theme_description": "Elige una paleta cuidadosamente diseñada. Cada tema incluye una apariencia clara y otra oscura.",
   "appearance_menu_bar": "Mostrar barra de menú",
   "appearance_menu_bar_description": "Activa para mostrar la barra de menú de la aplicación.",
   "appearance_theme_required": "Selecciona un tema.",
@@ -1156,7 +1155,8 @@
       "refresh_error": "Credenciales almacenadas, pero falló la validación o actualización del cliente. Comprueba el formato y reintenta.",
       "saved": "Credenciales guardadas.",
       "deleted": "Credenciales eliminadas."
-    }
+    },
+    "validation_priority_min": "La prioridad debe ser un número entero mayor o igual que 1"
   },
   "addon_permission_none_detected": "No se detectaron permisos de acceso a datos. Este complemento parece tener un acceso mínimo al sistema.",
   "addon_permission_list_title": "Permisos",
@@ -1322,6 +1322,7 @@
       "update_error": "No se pudo actualizar la categoría.",
       "created": "Categoría creada.",
       "create_error": "No se pudo crear la categoría.",
+      "duplicate_error": "Otra categoría ya usa esta clave. Prueba con otro nombre.",
       "tab_expense_one": "Gasto ({{count}})",
       "tab_expense_other": "Gasto ({{count}})",
       "tab_expense_many": "Gasto ({{count}})",
@@ -1581,7 +1582,7 @@
         "description": "Leer la salud de la cartera y las comprobaciones de diagnóstico."
       },
       "classification_read": {
-        "label": "Clasificación (lectura)",
+        "label": "Clasificación de activos (lectura)",
         "description": "Leer las clasificaciones y taxonomías de instrumentos."
       },
       "activities_draft": {
@@ -1593,11 +1594,11 @@
         "description": "Confirmar actividades, actualizar las existentes y vincular o desvincular transferencias. Requiere el ámbito de borrador."
       },
       "classification_suggest": {
-        "label": "Clasificación: sugerir",
+        "label": "Clasificación de activos — Clasificación: sugerir",
         "description": "Sugerir clasificaciones de instrumentos para su revisión."
       },
       "classification_write": {
-        "label": "Clasificación: aplicar/escribir",
+        "label": "Clasificación de activos — Clasificación: aplicar/escribir",
         "description": "Aplicar borradores de clasificación revisados. Requiere el ámbito de sugerencia."
       },
       "market_data_write": {
@@ -1625,12 +1626,12 @@
         "description": "Consultar cotizaciones y tipos de cambio"
       },
       "spending_read": {
-        "label": "Consultar gastos y presupuestos",
-        "description": "Consultar gastos y presupuestos"
+        "label": "Ver gastos",
+        "description": "Leer transacciones de cuentas de gastos, categorías, divisiones, reglas, eventos, informes y presupuestos."
       },
       "spending_write": {
-        "label": "Modificar eventos y presupuestos",
-        "description": "Modificar eventos y presupuestos"
+        "label": "Organizar gastos",
+        "description": "Gestionar categorías, asignaciones, divisiones, reglas y eventos. Requiere Ver gastos."
       },
       "trade_instructions_read": {
         "label": "Leer instrucciones de negociación",
@@ -1643,13 +1644,20 @@
       "trade_instructions_write": {
         "label": "Administrar instrucciones de negociación",
         "description": "Crear, editar, iniciar, completar, cancelar, corregir la hora de finalización y eliminar permanentemente instrucciones de negociación."
+      },
+      "budget_write": {
+        "label": "Gestionar presupuestos",
+        "description": "Modificar presupuestos predeterminados y mensuales, grupos, reservas y saldos transferidos. Requiere Ver gastos."
       }
     },
     "preset": {
       "read_only": "Solo lectura",
       "read_activity_draft": "Lectura + borrador",
       "read_activity_write": "Lectura + escritura",
-      "read_activity_write_classification_suggest": "Lectura + escritura + clasificar"
+      "read_activity_write_classification_suggest": "Lectura + escritura de transacciones + clasificación de activos",
+      "spending_view": "Gastos — consultar",
+      "spending_organize": "Gastos — organizar",
+      "spending_budgets": "Gastos — presupuestos"
     },
     "copied_generic": "{{label}} copiado al portapapeles.",
     "hero_aria": "Estado del acceso de agentes de IA",
@@ -1660,7 +1668,9 @@
     "edit_title": "Permisos de {{name}}",
     "edit_description": "La clave no cambia. Los permisos se aplican a las siguientes solicitudes. Actualiza las herramientas o reconecta el cliente para descubrir las nuevas herramientas autorizadas.",
     "edit_success": "Permisos actualizados",
-    "edit_failed": "No se pudieron actualizar los permisos"
+    "edit_failed": "No se pudieron actualizar los permisos",
+    "scope_locked_spending_title": "Necesario para Organizar gastos o Gestionar presupuestos",
+    "dialog_presets": "Preajustes de acceso"
   },
   "tax_add_category": "Añadir categoría",
   "tax_export": "Exportar",
@@ -1910,5 +1920,226 @@
     "save_failed": "No se pudo guardar la zona horaria de las estadísticas.",
     "updated": "Actualizado: {{value}}",
     "stale": "Las cifras mostradas pueden estar desactualizadas."
-  }
+  },
+  "limits_form_group_name_required": "El nombre del grupo es obligatorio",
+  "limits_form_limit_amount_number": "El importe del límite debe ser un número positivo.",
+  "limits_form_limit_amount_non_negative": "El importe del límite no puede ser negativo.",
+  "limits_form_year_invalid": "Año no válido",
+  "messages": {
+    "account": {
+      "created": "Cuenta creada correctamente.",
+      "creatingFailed": "No se pudo crear esta cuenta.",
+      "updatingFailed": "No se pudo actualizar esta cuenta.",
+      "deletingFailed": "No se pudo eliminar esta cuenta."
+    },
+    "contribution": {
+      "added": "Límite de aportación añadido.",
+      "updated": "Límite de aportación actualizado.",
+      "deleted": "Límite de aportación eliminado.",
+      "addFailed": "No se pudo añadir este límite de aportación.",
+      "updateFailed": "No se pudo actualizar este límite de aportación.",
+      "deleteFailed": "No se pudo eliminar este límite de aportación."
+    },
+    "exchange": {
+      "updatingFailed": "Problema al actualizar el tipo de cambio: {{error}}",
+      "addingFailed": "Problema al añadir el tipo de cambio: {{error}}",
+      "deletingFailed": "Problema al eliminar el tipo de cambio: {{error}}"
+    },
+    "export": {
+      "empty": {
+        "accounts": "No hay cuentas disponibles para exportar.",
+        "activities": "No hay transacciones disponibles para exportar.",
+        "holdings": "No hay posiciones disponibles para exportar.",
+        "goals": "No hay objetivos disponibles para exportar.",
+        "portfolio-history": "No hay registros del historial de cartera disponibles para exportar."
+      }
+    },
+    "providerUpdateFailed": "No se pudo actualizar la configuración del proveedor {{provider}}",
+    "httpFailed": "La solicitud HTTP falló.",
+    "addonDownloadFailed": "No se pudo descargar el complemento.",
+    "addonPackages": "Paquetes de complementos",
+    "addonInstalled": "{{name}} se ha instalado y está activo.",
+    "addonEnabled": "Complemento activado",
+    "addonDisabled": "Complemento desactivado",
+    "addonEnabledDescription": "{{name}} se ha activado.",
+    "addonDisabledDescription": "{{name}} se ha desactivado.",
+    "addonRemoved": "{{name}} se ha eliminado por completo.",
+    "addonNetworkSaved": "Se han guardado las autorizaciones de hosts de red de {{name}}.",
+    "addonCheckFailed": "No se pudieron comprobar las actualizaciones del complemento {{addon}}",
+    "auditRemoved_one": "Se ha eliminado {{count}} entrada.",
+    "auditRemoved_many": "Se han eliminado {{count}} entradas.",
+    "auditRemoved_other": "Se han eliminado {{count}} entradas.",
+    "addonUpdates_one": "{{count}} complemento tiene actualizaciones disponibles.",
+    "addonUpdates_many": "{{count}} complementos tienen actualizaciones disponibles.",
+    "addonUpdates_other": "{{count}} complementos tienen actualizaciones disponibles.",
+    "addonCriticalUpdates_one": "{{count}} complemento tiene actualizaciones de seguridad críticas.",
+    "addonCriticalUpdates_many": "{{count}} complementos tienen actualizaciones de seguridad críticas.",
+    "addonCriticalUpdates_other": "{{count}} complementos tienen actualizaciones de seguridad críticas."
+  },
+  "addonPermissions": {
+    "functions": {
+      "accounts_getAll": "Ver todas las cuentas",
+      "accounts_create": "Crear nuevas cuentas",
+      "portfolio_getHoldings": "Ver sus posiciones de inversión",
+      "portfolio_getHolding": "Ver los detalles de una posición",
+      "portfolio_update": "Actualizar los cálculos de la cartera",
+      "portfolio_recalculate": "Recalcular toda la cartera",
+      "portfolio_getIncomeSummary": "Ver ingresos y dividendos",
+      "portfolio_getHistoricalValuations": "Ver los valores históricos de la cartera",
+      "portfolio_getLatestValuations": "Ver los valores actuales de la cartera",
+      "activities_getAll": "Ver todas las transacciones",
+      "activities_search": "Buscar transacciones con filtros",
+      "activities_searchCashActivities": "Buscar transacciones de gastos categorizadas",
+      "activities_create": "Añadir nuevas transacciones",
+      "activities_update": "Modificar transacciones",
+      "activities_saveMany": "Guardar varias transacciones",
+      "activities_import": "Importar datos de transacciones",
+      "activities_checkImport": "Validar los datos de importación",
+      "activities_getImportMapping": "Ver la configuración de importación",
+      "activities_saveImportMapping": "Guardar la configuración de importación",
+      "activities_getTransferPair": "Ver pares de transferencias vinculadas",
+      "activities_findTransferMatchCandidates": "Buscar posibles coincidencias de transferencias",
+      "activities_saveTransferPair": "Vincular transacciones como una transferencia",
+      "activities_linkTransfer": "Vincular transacciones como una transferencia",
+      "activities_unlinkTransfer": "Desvincular transacciones de transferencias",
+      "market_searchTicker": "Buscar acciones o fondos",
+      "market_syncHistory": "Descargar el historial de precios",
+      "market_sync": "Sincronizar datos de mercado de símbolos",
+      "market_getProviders": "Ver proveedores de datos de mercado",
+      "assets_getProfile": "Ver los detalles del perfil del activo",
+      "assets_updateProfile": "Actualizar la información del activo",
+      "assets_updateDataSource": "Cambiar el proveedor de datos del activo",
+      "quotes_update": "Actualizar los precios actuales",
+      "quotes_getHistory": "Ver el historial de precios",
+      "performance_calculateHistory": "Calcular el historial de rendimiento",
+      "performance_calculateSummary": "Calcular el resumen de rendimiento",
+      "performance_calculateAccountsSimple": "Calcular el rendimiento básico de las cuentas",
+      "currency_getAll": "Ver los tipos de cambio",
+      "currency_update": "Actualizar los tipos de cambio",
+      "currency_add": "Añadir nuevos tipos de cambio",
+      "currency_getRatesForDates": "Ver los tipos de cambio históricos",
+      "exchangeRates_getAll": "Ver los tipos de cambio",
+      "exchangeRates_update": "Actualizar los tipos de cambio",
+      "exchangeRates_add": "Añadir nuevos tipos de cambio",
+      "exchangeRates_getRatesForDates": "Ver los tipos de cambio históricos",
+      "spending_isEnabled": "Comprobar si Gastos está habilitado",
+      "spending_getCategories": "Ver sus categorías de gastos",
+      "spending_getReport": "Ver informes de gastos agregados",
+      "spending_getRules": "Ver sus propias reglas de categorización automática",
+      "spending_saveRule": "Crear o actualizar reglas de categorización automática",
+      "spending_deleteRule": "Eliminar reglas de categorización automática",
+      "spending_rerunRules": "Volver a aplicar reglas de categorización a sus transacciones",
+      "contributionLimits_getAll": "Ver los límites de aportación",
+      "contributionLimits_create": "Establecer límites de aportación",
+      "contributionLimits_update": "Modificar límites de aportación",
+      "contributionLimits_calculateDeposits": "Calcular las aportaciones necesarias",
+      "financial-planning_getAll": "Ver objetivos financieros",
+      "financial-planning_create": "Crear nuevos objetivos",
+      "financial-planning_update": "Modificar objetivos",
+      "financial-planning_getFunding": "Ver la financiación de los objetivos",
+      "financial-planning_saveFunding": "Actualizar la financiación de los objetivos",
+      "financial-planning_updateAllocations": "Actualizar las asignaciones a objetivos",
+      "financial-planning_getAllocations": "Ver las asignaciones a objetivos",
+      "settings_get": "Ver la configuración de la aplicación",
+      "settings_update": "Modificar la configuración de la aplicación",
+      "settings_backupDatabase": "Crear una copia de seguridad de los datos",
+      "files_openCsvDialog": "Abrir el selector de archivos CSV",
+      "files_openSaveDialog": "Guardar archivos en el disco",
+      "secrets_get": "Recuperar credenciales almacenadas",
+      "secrets_set": "Almacenar credenciales de forma segura",
+      "secrets_use": "Usar credenciales almacenadas para solicitudes intermediadas",
+      "secrets_delete": "Eliminar credenciales almacenadas",
+      "events_import_onDropHover": "Detectar archivos arrastrados y soltados",
+      "events_import_onDrop": "Gestionar archivos soltados",
+      "events_import_onDropCancelled": "Gestionar acciones de soltar canceladas",
+      "events_portfolio_onUpdateStart": "Supervisar el inicio de las actualizaciones de la cartera",
+      "events_portfolio_onUpdateComplete": "Supervisar la finalización de las actualizaciones de la cartera",
+      "events_portfolio_onUpdateError": "Supervisar errores de actualización de la cartera",
+      "events_market_onSyncStart": "Supervisar el inicio de la sincronización de mercado",
+      "events_market_onSyncComplete": "Supervisar la finalización de la sincronización de mercado",
+      "network_request": "Enviar solicitudes de red intermediadas"
+    },
+    "categories": {
+      "accounts": {
+        "name": "Gestión de cuentas",
+        "description": "Acceso a la información y configuración de las cuentas"
+      },
+      "alternative-assets": {
+        "name": "Activos alternativos",
+        "description": "Acceso de solo lectura a activos alternativos y pasivos (inmuebles, vehículos, objetos de colección, metales preciosos y otros) registrados fuera de las cuentas de inversión"
+      },
+      "portfolio": {
+        "name": "Datos de la cartera",
+        "description": "Acceso a posiciones, rendimiento de la cartera y valoraciones de cuentas"
+      },
+      "activities": {
+        "name": "Historial de transacciones",
+        "description": "Acceso a registros de transacciones y gestión de operaciones"
+      },
+      "market-data": {
+        "name": "Datos de mercado",
+        "description": "Acceso a precios de mercado, cotizaciones y datos financieros"
+      },
+      "assets": {
+        "name": "Gestión de activos",
+        "description": "Acceso a perfiles de activos y fuentes de datos"
+      },
+      "quotes": {
+        "name": "Gestión de cotizaciones",
+        "description": "Acceso a cotizaciones e históricos de precios"
+      },
+      "performance": {
+        "name": "Análisis de rendimiento",
+        "description": "Acceso a cálculos y métricas de rendimiento"
+      },
+      "currency": {
+        "name": "Tipos de cambio",
+        "description": "Acceso a tipos de cambio y datos de conversión de divisas"
+      },
+      "spending": {
+        "name": "Gastos",
+        "description": "Ver informes agregados y categorías de gastos, y gestionar reglas de categorización que etiquetan automáticamente las transacciones"
+      },
+      "financial-planning": {
+        "name": "Planificación financiera",
+        "description": "Acceso a objetivos financieros y asignaciones"
+      },
+      "contribution-limits": {
+        "name": "Límites de aportación",
+        "description": "Acceso a límites de aportación y cálculos de depósitos"
+      },
+      "settings": {
+        "name": "Configuración de la aplicación",
+        "description": "Acceso a los ajustes y la configuración de la aplicación"
+      },
+      "files": {
+        "name": "Operaciones con archivos",
+        "description": "Acceso a diálogos de archivos y operaciones del sistema de archivos"
+      },
+      "secrets": {
+        "name": "Gestión de secretos",
+        "description": "Acceso al almacenamiento seguro de secretos de los complementos"
+      },
+      "snapshots": {
+        "name": "Gestión de instantáneas",
+        "description": "Acceso a instantáneas de posiciones de cuentas con modo de seguimiento de posiciones"
+      },
+      "events": {
+        "name": "Escuchas de eventos",
+        "description": "Acceso a eventos y notificaciones de la aplicación"
+      },
+      "network": {
+        "name": "Acceso a la red",
+        "description": "Acceso a servidores HTTPS externos declarados a través del intermediario de red de la aplicación anfitriona"
+      }
+    }
+  },
+  "appearance_mode_title": "Modo de apariencia",
+  "appearance_mode_description": "Claro, oscuro o como el sistema.",
+  "appearance_theme_designed_for_dark": "{{theme}} está diseñado para el modo oscuro.",
+  "appearance_theme_designed_for_light": "{{theme}} está diseñado para el modo claro.",
+  "appearance_switch_to_dark": "Cambiar a oscuro",
+  "appearance_switch_to_light": "Cambiar a claro",
+  "appearance_theme_suggests": "{{theme}} sugiere {{value}}",
+  "appearance_use_theme_defaults": "Usar valores del tema"
 }

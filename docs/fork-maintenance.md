@@ -28,8 +28,9 @@ For supported functionality and changes by version, see the
   aliases. Prefer an exact version or image digest for reproducible deployments.
   `latest` is mutable; publishing an older release can move it backwards.
 
-The current upstream base is the stable `v3.11.0` release commit
-`d1fda0b65f69d8557b1ef80e555c799215ad28b3`. Upstream synchronization uses a real
+The current upstream base is commit `3fb05af985b3039ee875065a736cdafd8fc3bd45`,
+integrated through the localization branch after the stable `v3.11.0` release.
+Application manifests remain at 3.11.0. Upstream synchronization uses a real
 merge, retaining the fork's history and compatible fork-only features. When
 behavior is incompatible, upstream takes precedence. The two contributed PR
 branches are merged separately without modifying or closing the upstream PRs. A

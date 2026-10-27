@@ -245,7 +245,6 @@
     "asset_type_option": "選擇權",
     "asset_type_metal": "金屬（商品）",
     "asset_type_other": "其他",
-    "select_currency": "選取幣別…",
     "select_symbol": "選取代號…",
     "symbol_type_security": "有價證券",
     "symbol_type_crypto": "加密貨幣",
@@ -1472,5 +1471,11 @@
     "94fc13ed-ac40-466b-8071-64f1e3c72204": "醫療",
     "1aaab8fb-8fd9-4543-bd46-d9ee4a5a8564": "特殊場合",
     "fa4812ee-e06e-4117-a819-e4d88b7acbaf": "其他"
+  },
+  "validation": {
+    "accountNameMin": "名稱至少需要 2 個字元。",
+    "accountNameMax": "名稱不得超過 50 個字元。",
+    "accountCurrency": "請選擇貨幣。",
+    "creditCardTracking": "信用卡帳戶不能使用持倉追蹤模式。"
   }
 }

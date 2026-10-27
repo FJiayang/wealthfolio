@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next";
+
 /**
  * User-friendly display names for structured addon function names
  * This mapping converts technical API function names to human-readable descriptions
@@ -27,6 +29,14 @@ export const FUNCTION_DISPLAY_NAMES: Record<string, string> = {
   "activities.getAll": "View all transactions",
   "activities.search": "Search transactions with filters",
   "activities.searchCashActivities": "Search categorized spending transactions",
+  "activities.assignCategory": "Categorize spending transactions",
+  "activities.unassignCategory": "Clear a transaction category",
+  "activities.setEvent": "Attach or clear transaction event tags",
+  "spending.getContext": "View enabled spending accounts",
+  "spending.getBudget": "View budgets and groups",
+  "spending.getEvents": "View spending events",
+  "spending.getEventTypes": "View event types",
+  "budgets.upsertBudgetTarget": "Change default and monthly budget targets",
   "activities.create": "Add new transactions",
   "activities.update": "Modify transactions",
   "activities.saveMany": "Save multiple transactions",
@@ -133,9 +143,22 @@ export const FUNCTION_DISPLAY_NAMES: Record<string, string> = {
  * @param functionName The function name (e.g., 'getAll', 'create', 'onDrop')
  * @returns User-friendly description or the original function name if no mapping exists
  */
-export function getFunctionDisplayName(category: string, functionName: string): string {
-  const key = `${category}.${functionName}`;
-  return FUNCTION_DISPLAY_NAMES[key] || functionName;
+export function getFunctionDisplayName(
+  category: string,
+  functionName: string,
+  t?: TFunction,
+): string {
+  const displayCategory =
+    category === "market-data"
+      ? "market"
+      : category === "contribution-limits"
+        ? "contributionLimits"
+        : category;
+  const key = `${displayCategory}.${functionName}`;
+  const label = FUNCTION_DISPLAY_NAMES[key];
+  return label && t
+    ? t(`settings:addonPermissions.functions.${key.replaceAll(".", "_")}`, { defaultValue: label })
+    : label || functionName;
 }
 
 /**

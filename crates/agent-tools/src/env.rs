@@ -110,11 +110,20 @@ pub trait AgentEnvironment: Send + Sync {
         &self,
     ) -> Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait>;
     fn asset_logo_service(&self) -> Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait>;
-    fn budget_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService>;
+    fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait>;
+    /// Fork management compatibility, backed by the same budget service.
+    fn budget_management_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService>;
+
+    fn spending_events_service(&self) -> Arc<dyn wealthfolio_spending::events::EventsServiceTrait>;
+
     fn events_service(&self) -> Arc<wealthfolio_spending::events::EventsService>;
     fn spending_settings_service(
         &self,
     ) -> Arc<wealthfolio_spending::settings::SpendingSettingsService>;
-    fn spending_analytics_service(&self) -> Arc<wealthfolio_spending::analytics::AnalyticsService>;
-    fn spending_insight_service(&self) -> Arc<wealthfolio_spending::insight::InsightService>;
+    fn spending_analytics_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait>;
+    fn spending_insight_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait>;
 }

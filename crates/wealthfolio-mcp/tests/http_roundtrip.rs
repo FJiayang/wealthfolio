@@ -81,10 +81,6 @@ impl AgentEnvironment for StubEnv {
         unimplemented!("unused test service")
     }
 
-    fn budget_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
-        unimplemented!("unused test service")
-    }
-
     fn events_service(&self) -> Arc<wealthfolio_spending::events::EventsService> {
         unimplemented!("unused test service")
     }
@@ -95,14 +91,26 @@ impl AgentEnvironment for StubEnv {
         unimplemented!("unused test service")
     }
 
-    fn spending_analytics_service(&self) -> Arc<wealthfolio_spending::analytics::AnalyticsService> {
-        unimplemented!("unused test service")
+    fn budget_management_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
+        unimplemented!("unused fork management service")
     }
 
-    fn spending_insight_service(&self) -> Arc<wealthfolio_spending::insight::InsightService> {
-        unimplemented!("unused test service")
+    fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait> {
+        unimplemented!("MCP-only service")
     }
-
+    fn spending_events_service(&self) -> Arc<dyn wealthfolio_spending::events::EventsServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
+    fn spending_analytics_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::analytics::AnalyticsServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
+    fn spending_insight_service(
+        &self,
+    ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait> {
+        unimplemented!("MCP-only service")
+    }
     fn base_currency(&self) -> String {
         "USD".to_string()
     }

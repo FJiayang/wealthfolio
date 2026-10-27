@@ -21,6 +21,9 @@
     "nameRequired": "名稱為必填",
     "namePlaceholder": "類別名稱",
     "icon": "圖示",
+    "parent": "父類別",
+    "topLevel": "無（頂層）",
+    "parentLockedByBudget": "移動前請先刪除此類別的預算目標。預算僅適用於頂層類別。",
     "color": "顏色",
     "hex": "十六進位",
     "create": "建立類別",
@@ -105,6 +108,7 @@
     "selectCategory": "選取類別",
     "priorityLabel": "優先順序",
     "priorityHint": "會先檢查優先順序較高的規則（0-100）。",
+    "priorityInvalid": "優先順序必須是大於或等於 0 的整數",
     "updateRule": "更新規則",
     "createRule": "建立規則",
     "scopeLabel": "適用於",
@@ -416,6 +420,7 @@
     "customSubtitle": "所選期間的交易"
   },
   "split": {
+    "staleTaxonomy": "這些拆分使用先前的類別類型，已不再適用於此交易。",
     "title": "拆分交易",
     "transactionFallback": "交易",
     "remainingOf": "剩餘，共 {{amount}}",
@@ -424,7 +429,11 @@
     "removeLine": "移除拆分行 {{number}}",
     "addLine": "新增行",
     "distributeEvenly": "平均分配",
-    "clearSplit": "清除拆分"
+    "clearSplit": "清除拆分",
+    "replaceWithCategory": "將拆分取代為一個類別",
+    "replaceDescription_one": "將 {{count}} 個拆分分配取代為 {{category}}？這將刪除現有拆分。",
+    "replaceDescription_other": "將 {{count}} 個拆分分配取代為 {{category}}？這將刪除現有拆分。",
+    "categoryProtected": "拆分分配受到保護。請在拆分編輯器中編輯或明確取代。"
   },
   "hierarchy": {
     "noCategorizedSpending": "此週期內沒有已歸類的支出。",
@@ -1033,5 +1042,16 @@
     "addSource_one": "新增來源（{{count}} 個可用）",
     "overridesTitle_one": "覆寫 · {{count}}",
     "sourceMonth": "來源月份"
+  },
+  "splitEditReview": {
+    "title": "確認刪除拆分",
+    "hiddenCategory": "現有分類配置會保留，刪除拆分後可能會套用。",
+    "confirm": "儲存並刪除拆分",
+    "removed_one": "此變更將刪除 {{count}} 個拆分配置。",
+    "removed_other": "此變更將刪除 {{count}} 個拆分配置。"
+  },
+  "budgetErrors": {
+    "deleteGroup": "刪除預算群組失敗。",
+    "copyPlan": "複製計畫失敗。"
   }
 }

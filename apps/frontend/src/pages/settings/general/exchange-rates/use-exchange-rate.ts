@@ -1,4 +1,6 @@
 import i18n from "i18next";
+import { useTranslation } from "react-i18next";
+import { useMemo } from "react";
 import {
   logger,
   addExchangeRate as addExchangeRateApi,
@@ -11,29 +13,20 @@ import { QueryKeys } from "@/lib/query-keys";
 import { invalidatePerformanceCaches } from "@/lib/performance-cache";
 import { ExchangeRate } from "@/lib/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { worldCurrencies } from "@wealthfolio/ui";
+import { getCurrencyDisplayName } from "@wealthfolio/ui";
 
 export function useExchangeRates() {
   const queryClient = useQueryClient();
-  const getCurrencyName = (code: string) => {
-    const currency = worldCurrencies.find((c) => c.value === code);
-    return currency ? currency.label.split(" (")[0] : code;
-  };
+  const { t, i18n: translation } = useTranslation();
 
-  const { data: exchangeRates, isLoading: isLoadingRates } = useQuery<ExchangeRate[], Error>({
+  const { data: rawExchangeRates, isLoading: isLoadingRates } = useQuery<ExchangeRate[], Error>({
     queryKey: [QueryKeys.EXCHANGE_RATES],
     queryFn: async () => {
       const rates = await getExchangeRates();
-      const processedRates = rates.map((rate) => ({
-        ...rate,
-        fromCurrencyName: getCurrencyName(rate.fromCurrency),
-        toCurrencyName: getCurrencyName(rate.toCurrency),
-      }));
-
       // For manual rates, keep only from->to and filter out the reverse
-      return processedRates.filter((rate) => {
+      return rates.filter((rate) => {
         if (rate.source === "MANUAL") {
-          const reverseManualRate = processedRates.find(
+          const reverseManualRate = rates.find(
             (r) =>
               r.fromCurrency === rate.toCurrency &&
               r.toCurrency === rate.fromCurrency &&
@@ -46,6 +39,24 @@ export function useExchangeRates() {
     },
   });
 
+  const exchangeRates = useMemo(
+    () =>
+      rawExchangeRates?.map((rate) => ({
+        ...rate,
+        fromCurrencyName: getCurrencyDisplayName(
+          rate.fromCurrency,
+          translation.resolvedLanguage ?? translation.language,
+          t,
+        ),
+        toCurrencyName: getCurrencyDisplayName(
+          rate.toCurrency,
+          translation.resolvedLanguage ?? translation.language,
+          t,
+        ),
+      })),
+    [rawExchangeRates, translation.resolvedLanguage, translation.language, t],
+  );
+
   const updateExchangeRateMutation = useMutation({
     mutationFn: updateExchangeRateApi,
     onSuccess: () => {
@@ -56,7 +67,9 @@ export function useExchangeRates() {
       logger.error(`Error updating exchange rate: ${error}`);
       toast({
         title: i18n.t("settings:settings_update_error_title"),
-        description: `There was a problem updating the exchange rate: ${error?.message}`,
+        description: i18n.t("settings:messages.exchange.updatingFailed", {
+          error: error?.message ?? "",
+        }),
         variant: "destructive",
       });
     },
@@ -72,7 +85,9 @@ export function useExchangeRates() {
       logger.error(`Error adding exchange rate: ${error}`);
       toast({
         title: i18n.t("common:notifications.error_adding_exchange_rate"),
-        description: `There was a problem adding the exchange rate: ${error?.message}`,
+        description: i18n.t("settings:messages.exchange.addingFailed", {
+          error: error?.message ?? "",
+        }),
         variant: "destructive",
       });
     },
@@ -88,7 +103,9 @@ export function useExchangeRates() {
       logger.error(`Error deleting exchange rate: ${error}`);
       toast({
         title: i18n.t("common:notifications.error_deleting_exchange_rate"),
-        description: `There was a problem deleting the exchange rate: ${error?.message}`,
+        description: i18n.t("settings:messages.exchange.deletingFailed", {
+          error: error?.message ?? "",
+        }),
         variant: "destructive",
       });
     },

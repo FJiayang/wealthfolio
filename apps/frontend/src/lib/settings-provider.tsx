@@ -13,6 +13,7 @@ import { setLanguageDirection, useDocumentDirection } from "@/i18n/direction";
 import i18n, { LANGUAGE_STORAGE_KEY } from "@/i18n/i18n";
 import { DEFAULT_LOCALE } from "@/i18n/locales";
 import { Settings, SettingsContextType } from "@/lib/types";
+import { isThemeId, resolveThemeId } from "@/themes/themes";
 import { FormattingProvider, resolveFormattingLocale } from "@wealthfolio/ui";
 
 interface ExtendedSettingsContextType extends SettingsContextType {
@@ -20,6 +21,7 @@ interface ExtendedSettingsContextType extends SettingsContextType {
     updates: Partial<
       Pick<
         Settings,
+        | "themeId"
         | "theme"
         | "font"
         | "gainLossColorScheme"
@@ -67,6 +69,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     updates: Partial<
       Pick<
         Settings,
+        | "themeId"
         | "theme"
         | "font"
         | "gainLossColorScheme"
@@ -88,6 +91,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     >,
   ) => {
     if (!settings) throw new Error("Settings not loaded");
+    if (updates.themeId !== undefined && !isThemeId(updates.themeId)) {
+      throw new Error(`Unknown theme: ${updates.themeId}`);
+    }
     await updateMutation.mutateAsync(updates);
   };
 
@@ -276,14 +282,19 @@ const applySettingsToDocument = async (newSettings: Settings) => {
     "red-up-green-down",
     newSettings.gainLossColorScheme === "red-up-green-down",
   );
+  // Theme (palette and shape); an ID this version doesn't know shows Classic.
+  const themeId = resolveThemeId(newSettings.themeId);
+  document.documentElement.dataset.theme = themeId;
 
   // Font classes
   document.body.classList.remove("font-mono", "font-sans", "font-serif");
   document.body.classList.add(newSettings.font);
 
   // Cache pre-auth presentation settings so bootstrap UI does not flash defaults.
+  // index.html reads these keys before the app loads.
   try {
     localStorage.setItem("wealthfolio-theme", newSettings.theme);
+    localStorage.setItem("wealthfolio-theme-id", themeId);
     localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
   } catch {
     // noop – localStorage may be unavailable

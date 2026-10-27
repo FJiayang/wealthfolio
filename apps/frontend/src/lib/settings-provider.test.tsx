@@ -52,8 +52,10 @@ const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 0)))
 
 beforeEach(() => {
   vi.clearAllMocks();
-  settings = { ...settings, theme: "system", gainLossColorScheme: undefined };
+  settings = { ...settings, theme: "system", gainLossColorScheme: undefined, themeId: undefined };
   document.documentElement.className = "";
+  document.documentElement.removeAttribute("data-theme");
+  localStorage.clear();
   // The OS prefers dark; native window themes report light, as tao does on mobile.
   vi.mocked(window.matchMedia).mockImplementation(
     (query: string) =>
@@ -115,4 +117,25 @@ it("applies gain/loss colors and clears them when another profile uses the defau
   settings = { ...settings, gainLossColorScheme: undefined };
   rerender(<SettingsProvider>content</SettingsProvider>);
   await waitFor(() => expect(document.documentElement).not.toHaveClass("red-up-green-down"));
+});
+
+it("applies the saved theme and caches it for the next start", async () => {
+  settings.themeId = "ember";
+  mocks.platform.mockResolvedValue({ os: "linux", is_mobile: false, is_desktop: true });
+
+  render(<SettingsProvider>content</SettingsProvider>);
+
+  await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "ember"));
+  expect(localStorage.getItem("wealthfolio-theme-id")).toBe("ember");
+});
+
+it("shows Classic for a missing or unknown theme", async () => {
+  mocks.platform.mockResolvedValue({ os: "linux", is_mobile: false, is_desktop: true });
+  for (const themeId of [undefined, "from-a-newer-version"]) {
+    settings.themeId = themeId;
+    const { unmount } = render(<SettingsProvider>content</SettingsProvider>);
+    await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "classic"));
+    unmount();
+    document.documentElement.removeAttribute("data-theme");
+  }
 });

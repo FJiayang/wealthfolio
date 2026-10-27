@@ -1,3 +1,4 @@
+import { ActivitySplitReviewProvider } from "@/features/spending/components/activity-split-review-provider";
 import { ProfileShell } from "@/features/profiles/profile-shell";
 import { NativeDatabaseGate } from "@/features/database-recovery/native-database-gate";
 import { isWeb } from "@/adapters";
@@ -26,6 +27,9 @@ function App() {
           queries: {
             refetchOnWindowFocus: false,
             staleTime: 5 * 60 * 1000,
+            // Phone screens kept under the one on top pause their queries while
+            // hidden; keep that data long enough for the user to come back to it.
+            gcTime: 30 * 60 * 1000,
             retry: false,
           },
         },
@@ -43,10 +47,12 @@ function App() {
           <TooltipProvider>
             <Toaster mobileOffset={{ top: "68px" }} closeButton expand={false} />
             <AddonRuntimeLoader />
-            <EventDialogProvider>
-              <AssetLogoRegistrySync />
-              <AppRoutes />
-            </EventDialogProvider>
+            <ActivitySplitReviewProvider>
+              <EventDialogProvider>
+                <AssetLogoRegistrySync />
+                <AppRoutes />
+              </EventDialogProvider>
+            </ActivitySplitReviewProvider>
           </TooltipProvider>
         </PrivacyProvider>
       </WealthfolioConnectProvider>

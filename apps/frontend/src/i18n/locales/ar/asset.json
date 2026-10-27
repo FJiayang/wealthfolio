@@ -482,6 +482,8 @@
       "amount_exceeds_balance": "لا يمكن أن يتجاوز السداد الرصيد الحالي.",
       "closure_date_invalid": "يجب أن يكون تاريخ الإغلاق بين تاريخ الإنشاء واليوم.",
       "first_payment_after_origination": "يجب أن تكون الدفعة الأولى بعد تاريخ الإنشاء.",
+      "payment_positive": "يجب أن تكون الدفعة أكبر من 0.",
+      "term_too_long": "لا يمكن أن تتجاوز المدة 100 سنة.",
       "required": "مطلوب"
     },
     "years": "السنوات",
@@ -1041,7 +1043,12 @@
     "notes_placeholder": "أضف أي سياق حول هذا التقييم (مثل مصدر التثمين أو ظروف السوق)",
     "optional": "(اختياري)",
     "title": "تحديث القيمة: {{name}}",
-    "update_value": "تحديث القيمة"
+    "update_value": "تحديث القيمة",
+    "validation": {
+      "number": "يجب أن تكون القيمة رقمًا.",
+      "non_negative": "لا يمكن أن تكون القيمة سالبة",
+      "notes": "يجب ألا تتجاوز الملاحظات 500 حرف"
+    }
   },
   "valueHistory": {
     "balance": "الرصيد",
@@ -1083,5 +1090,25 @@
     "to_delete_other": "{{count}} عنصر للحذف",
     "to_delete_two": "عنصران للحذف",
     "to_delete_zero": "{{count}} للحذف"
+  },
+  "notifications": {
+    "profile_updated": "تم تحديث بيانات الأصل.",
+    "quote_mode_updated": "تم تحديث وضع تسعير الأصل.",
+    "profile_failed": "تعذر تحديث بيانات الأصل.",
+    "quote_mode_failed": "تعذر تحديث وضع التسعير.",
+    "quote_added": "تمت إضافة السعر.",
+    "quote_updated": "تم تحديث السعر.",
+    "quote_deleted": "تم حذف السعر.",
+    "quote_save_failed": "تعذر حفظ السعر.",
+    "quote_delete_failed": "تعذر حذف السعر."
+  },
+  "noQuote": {
+    "manual": "وضع التسعير يدوي",
+    "inactive": "الأصل غير نشط",
+    "matured": "استحق السند",
+    "expired": "انتهت صلاحية الخيار",
+    "paused": "تم إيقاف المزامنة مؤقتًا بعد أخطاء متكررة",
+    "pending": "لم تتم مزامنة أي سعر من مزود البيانات بعد",
+    "no_data": "لا تتوفر بيانات من المزود بعد"
   }
 }

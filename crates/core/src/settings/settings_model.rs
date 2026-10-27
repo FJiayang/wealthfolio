@@ -63,10 +63,18 @@ pub fn validate_provider_request_timezone(value: &str) -> crate::errors::Result<
 }
 
 pub const CURRENCY_FORMATTING_REGIONS_KEY: &str = "currency_formatting_regions";
+/// Selected theme (palette and shape). Device-local: sync shares only the keys it
+/// lists. The frontend owns the theme list and shows Classic for an ID it does
+/// not know, so an ID saved by a newer version survives an older one.
+pub const THEME_ID_KEY: &str = "theme_id";
+pub const DEFAULT_THEME_ID: &str = "classic";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
+    #[serde(default = "default_theme_id")]
+    pub theme_id: String,
+    /// Appearance mode: light, dark or system.
     pub theme: String,
     pub font: String,
     #[serde(default = "default_gain_loss_color_scheme")]
@@ -100,9 +108,14 @@ pub struct Settings {
     pub insights_overview_layout: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
+fn default_theme_id() -> String {
+    DEFAULT_THEME_ID.to_string()
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            theme_id: default_theme_id(),
             theme: "light".to_string(),
             font: "font-mono".to_string(),
             gain_loss_color_scheme: default_gain_loss_color_scheme(),
@@ -129,6 +142,7 @@ impl Default for Settings {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsUpdate {
+    pub theme_id: Option<String>,
     pub theme: Option<String>,
     pub font: Option<String>,
     pub gain_loss_color_scheme: Option<String>,

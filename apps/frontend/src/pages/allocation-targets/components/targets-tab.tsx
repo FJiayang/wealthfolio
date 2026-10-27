@@ -1,6 +1,7 @@
 import { getPresetName } from "./model-preset-data";
 import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
 import React, { useState, useEffect } from "react";
+import { useEffectOnChange } from "@/hooks/use-effect-on-change";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,6 +47,7 @@ import { generateId } from "@/lib/id";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { buildAllocationTargetColorMap } from "./allocation-target-colors";
 import { BUILT_IN_PRESETS, ModelPresetPicker, type ModelPreset } from "./model-preset-picker";
 import { TargetWeightEditor, type WeightDraft } from "./target-weight-editor";
 import { DriftBandSlider } from "./drift-band-slider";
@@ -223,7 +225,7 @@ function StepHeader({
         className,
       )}
     >
-      <span className="bg-muted text-2xs inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-semibold tabular-nums tracking-normal">
+      <span className="bg-muted text-2xs inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-semibold tracking-normal tabular-nums">
         {number}
       </span>
       <span>{children}</span>
@@ -333,7 +335,7 @@ function SellProtectionSection({
             {t("allocation:sellProtection.protectedAssets")}
           </span>
           {protectedAssets.length > 0 && (
-            <span className="bg-muted text-muted-foreground text-2xs h-4.5 min-w-4.5 inline-flex items-center justify-center rounded-full px-1.5 font-mono font-semibold">
+            <span className="bg-muted text-muted-foreground text-2xs inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1.5 font-mono font-semibold">
               {protectedAssets.length}
             </span>
           )}
@@ -346,7 +348,7 @@ function SellProtectionSection({
           {protectedAssets.map((a) => (
             <span
               key={a.assetId}
-              className="border-border bg-background text-2xs inline-flex items-center gap-1.5 rounded-full border py-1 pe-1 ps-2 font-mono"
+              className="border-border bg-background text-2xs inline-flex items-center gap-1.5 rounded-full border py-1 ps-2 pe-1 font-mono"
             >
               <span className="bg-muted text-muted-foreground text-2xs flex h-5 w-5 items-center justify-center rounded-full font-bold uppercase">
                 {a.symbol.slice(0, 2)}
@@ -406,7 +408,7 @@ function SellProtectionSection({
                       }}
                       className="hover:bg-muted flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-start"
                     >
-                      <span className="bg-muted text-muted-foreground text-2xs h-5.5 w-5.5 flex shrink-0 items-center justify-center rounded-full font-mono font-bold uppercase">
+                      <span className="bg-muted text-muted-foreground text-2xs flex h-5.5 w-5.5 shrink-0 items-center justify-center rounded-full font-mono font-bold uppercase">
                         {a.symbol.slice(0, 2)}
                       </span>
                       <span className="min-w-0 flex-1">
@@ -432,7 +434,7 @@ function SellProtectionSection({
             {t("allocation:sellProtection.protectedAccounts")}
           </span>
           {protectedAccounts.length > 0 && (
-            <span className="bg-muted text-muted-foreground text-2xs h-4.5 min-w-4.5 inline-flex items-center justify-center rounded-full px-1.5 font-mono font-semibold">
+            <span className="bg-muted text-muted-foreground text-2xs inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1.5 font-mono font-semibold">
               {protectedAccounts.length}
             </span>
           )}
@@ -445,7 +447,7 @@ function SellProtectionSection({
           {protectedAccounts.map((a) => (
             <span
               key={a.id}
-              className="border-border bg-background text-2xs inline-flex items-center gap-1.5 rounded-full border py-1 pe-1 ps-2.5"
+              className="border-border bg-background text-2xs inline-flex items-center gap-1.5 rounded-full border py-1 ps-2.5 pe-1"
             >
               <Icons.Wallet className="text-muted-foreground h-3.5 w-3.5" />
               <span className="text-foreground font-medium">{a.name}</span>
@@ -625,6 +627,19 @@ function TargetEditor({
       Object.fromEntries(categories.map((category) => [category.categoryId, category.percentage])),
     [categories],
   );
+  // One colour per category across the presets, the editor and the target pages. Unknown
+  // counts too: it takes a place among the categories held, as in the drift report.
+  const colorByCategory = React.useMemo(
+    () =>
+      buildAllocationTargetColorMap([
+        ...categoriesForTaxonomy(allocations, taxonomyId).map((category) => ({
+          categoryId: category.categoryId,
+          currentValue: category.value,
+        })),
+        ...targetCategories.map((category) => ({ categoryId: category.id, currentValue: 0 })),
+      ]),
+    [allocations, taxonomyId, targetCategories],
+  );
   const guidedWeightsKey = React.useMemo(() => {
     if (target && startId === "saved") return null;
     const categoryKey = targetCategories.map((category) => category.id).join("|");
@@ -680,7 +695,9 @@ function TargetEditor({
     if (!nameTouched) setTargetName(suggestedTargetName);
   }, [resetTargetId, nameTouched, suggestedTargetName]);
 
-  useEffect(() => {
+  // Starts the editor over for another target, not each time a phone screen
+  // shows it again, which would discard the edits made before leaving.
+  useEffectOnChange(() => {
     if (resetTargetId) {
       setTaxonomyId(resetTargetTaxonomyId);
       setStartId("saved");
@@ -933,7 +950,7 @@ function TargetEditor({
               {t("allocation:editor.step1")}
             </StepHeader>
             <label className="block">
-              <span className="text-muted-foreground text-2xs mb-1.5 block font-medium uppercase tracking-wider">
+              <span className="text-muted-foreground text-2xs mb-1.5 block font-medium tracking-wider uppercase">
                 {t("allocation:editor.targetName")}
               </span>
               <input
@@ -944,11 +961,11 @@ function TargetEditor({
                   markDirty();
                 }}
                 placeholder={t("allocation:editor.targetName")}
-                className="bg-background/70 text-foreground placeholder:text-muted-foreground focus:border-foreground w-full rounded-lg border px-3 py-2.5 text-sm font-semibold outline-none transition-colors placeholder:font-normal"
+                className="bg-background/70 text-foreground placeholder:text-muted-foreground focus:border-foreground w-full rounded-lg border px-3 py-2.5 text-sm font-semibold transition-colors outline-none placeholder:font-normal"
               />
             </label>
             <div className="mt-4">
-              <div className="text-muted-foreground text-2xs mb-1.5 font-medium uppercase tracking-wider">
+              <div className="text-muted-foreground text-2xs mb-1.5 font-medium tracking-wider uppercase">
                 {t("allocation:editor.accountScope")}
               </div>
               {target ? (
@@ -1045,10 +1062,10 @@ function TargetEditor({
           </section>
 
           <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
-            <div className="text-muted-foreground text-2xs mb-4 font-medium uppercase tracking-wider">
+            <div className="text-muted-foreground text-2xs mb-4 font-medium tracking-wider uppercase">
               {t("allocation:editor.rebalanceSettings")}
             </div>
-            <div className="divide-border/50 divide-y [&>*:first-child]:pt-0 [&>*:last-child]:pb-0 [&>*]:py-4">
+            <div className="divide-border/50 divide-y [&>*]:py-4 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
               <div>
                 <div className="text-foreground mb-2 text-xs font-medium">
                   {t("allocation:editor.mode")}
@@ -1189,6 +1206,7 @@ function TargetEditor({
                 markDirty();
               }}
               currentCategories={categories}
+              colorByCategory={colorByCategory}
               compact
             />
           </section>
@@ -1220,6 +1238,7 @@ function TargetEditor({
                 categories={targetCategories}
                 weights={weights}
                 currentAllocation={currentAllocation}
+                colorByCategory={colorByCategory}
                 categoryLabel={categoryLabelForTaxonomy(selectedTaxonomy?.name, t)}
                 bandType={bandType}
                 driftBandBps={Math.round(driftBandPct * 100)}

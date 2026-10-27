@@ -177,7 +177,7 @@ function InlineAmountTooltip({
         {formatting.formatCompactAmount(value, currency)}
       </TooltipTrigger>
       <TooltipContent className="max-w-xs text-xs">
-        <div className="text-2xs font-semibold uppercase tracking-wider">{label}</div>
+        <div className="text-2xs font-semibold tracking-wider uppercase">{label}</div>
         <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 tabular-nums">
           <span className="text-background/70">{t("goals:risk_lab.results.base_plan")}</span>
           <span className="text-end">{fmt(baseline, currency, formatting)}</span>
@@ -299,7 +299,7 @@ function HeroMetric({
 }) {
   return (
     <div className="border-border/70 px-3 py-3 first:rounded-s-lg last:rounded-e-lg md:border-s md:first:border-s-0">
-      <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.18em]">
+      <p className="text-muted-foreground text-2xs font-semibold tracking-[0.18em] uppercase">
         {label}
       </p>
       <div
@@ -401,10 +401,10 @@ function PlanResilienceHero({
         <div className="flex gap-4">
           <div className="min-w-0 space-y-3">
             <div>
-              <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.22em]">
+              <p className="text-muted-foreground text-2xs font-semibold tracking-[0.22em] uppercase">
                 {t("goals:risk_lab.hero.base_case")}
               </p>
-              <h2 className="mt-2 max-w-[95%] font-serif text-2xl font-normal leading-[1.15] tracking-tight">
+              <h2 className="mt-2 max-w-[95%] font-serif text-2xl leading-[1.15] font-normal tracking-tight">
                 {t("goals:risk_lab.hero.your_base_plan_is")}{" "}
                 <span
                   className={cn(
@@ -416,7 +416,7 @@ function PlanResilienceHero({
                 </span>
                 .
               </h2>
-              <p className="text-muted-foreground max-w-155 mt-4 text-sm leading-relaxed xl:max-w-4xl">
+              <p className="text-muted-foreground mt-4 max-w-155 text-sm leading-relaxed xl:max-w-4xl">
                 {risk}
               </p>
             </div>
@@ -558,7 +558,7 @@ function StressMetric({
   const { t } = useTranslation();
   return (
     <div>
-      <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.18em]">
+      <p className="text-muted-foreground text-2xs font-semibold tracking-[0.18em] uppercase">
         {label}
       </p>
       <p className={cn("mt-2 text-sm font-semibold tabular-nums", tone)}>{value}</p>
@@ -582,7 +582,7 @@ function SimulationMetric({
 }) {
   return (
     <div className="border-border/70 px-4 py-4 first:border-s-0 md:border-s">
-      <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.18em]">
+      <p className="text-muted-foreground text-2xs font-semibold tracking-[0.18em] uppercase">
         {label}
       </p>
       <p
@@ -634,10 +634,10 @@ function StressTestsSection({
     <section className="space-y-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="text-muted-foreground/55 text-2xs font-normal uppercase leading-none tracking-[0.24em]">
+          <p className="text-muted-foreground/55 text-2xs leading-none font-normal tracking-[0.24em] uppercase">
             {t("goals:risk_lab.stress.eyebrow_with_count", { count: sorted.length || 6 })}
           </p>
-          <h2 className="mt-2 font-serif text-2xl font-normal leading-[1.05] tracking-[-0.02em]">
+          <h2 className="mt-2 font-serif text-2xl leading-[1.05] font-normal tracking-[-0.02em]">
             {t("goals:risk_lab.stress.heading")}
           </h2>
         </div>
@@ -681,7 +681,7 @@ function StressTestsSection({
                       >
                         <StressIcon id={stress.id} />
                       </span>
-                      <h3 className="text-base font-semibold leading-none">
+                      <h3 className="text-base leading-none font-semibold">
                         {t(`goals:risk_lab.scenarios.${stress.id}.label`)}
                       </h3>
                     </div>
@@ -967,13 +967,13 @@ function MonteCarloDistributionSection({
       <CardHeader className="border-b p-0">
         <div className="flex flex-col gap-5 p-5 md:flex-row md:items-start md:justify-between md:p-6">
           <div className="min-w-0 flex-1">
-            <p className="text-muted-foreground/60 text-2xs font-normal uppercase leading-none tracking-[0.24em]">
+            <p className="text-muted-foreground/60 text-2xs leading-none font-normal tracking-[0.24em] uppercase">
               {t("goals:risk_lab.montecarlo.eyebrow")}
             </p>
-            <CardTitle className="mt-2 font-serif text-2xl font-normal leading-[1.05] tracking-[-0.02em]">
+            <CardTitle className="mt-2 font-serif text-2xl leading-[1.05] font-normal tracking-[-0.02em]">
               {t("goals:risk_lab.montecarlo.heading")}
             </CardTitle>
-            <p className="text-muted-foreground max-w-225 mt-4 text-sm leading-relaxed">
+            <p className="text-muted-foreground mt-4 max-w-225 text-sm leading-relaxed">
               {t("goals:risk_lab.montecarlo.intro")} {moneyLastsCopy}
             </p>
           </div>
@@ -1004,7 +1004,7 @@ function MonteCarloDistributionSection({
         {running && (
           <div className="bg-muted/20 m-5 rounded-xl border md:m-6">
             <div className="flex min-h-44 flex-col items-center justify-center px-5 py-8 text-center">
-              <span className="flex size-11 items-center justify-center rounded-full bg-[hsl(91,34%,29%)]/10 text-[hsl(91,34%,29%)]">
+              <span className="bg-success-subtle text-success-subtle-foreground flex size-11 items-center justify-center rounded-full">
                 <Spinner className="size-5" />
               </span>
               <p className="mt-4 text-sm font-semibold">
@@ -1017,11 +1017,11 @@ function MonteCarloDistributionSection({
           </div>
         )}
         {!running && !result && (
-          <div className="m-5 rounded-xl bg-[hsl(88,45%,84%)] px-4 py-4 text-[hsl(91,31%,24%)] md:m-6 md:px-5">
+          <div className="bg-success-subtle text-success-subtle-foreground m-5 rounded-xl px-4 py-4 md:m-6 md:px-5">
             <div className="flex flex-col gap-4 text-center md:flex-row md:items-center md:justify-between md:text-start">
               <div>
                 <p className="text-sm font-semibold">{t("goals:risk_lab.montecarlo.no_run_yet")}</p>
-                <p className="mt-1 max-w-4xl text-sm leading-relaxed text-[hsl(91,22%,32%)]">
+                <p className="text-success-subtle-foreground/85 mt-1 max-w-4xl text-sm leading-relaxed">
                   {moneyLastsCta}
                 </p>
               </div>
@@ -1030,7 +1030,7 @@ function MonteCarloDistributionSection({
                   size="sm"
                   onClick={() => onRun(10_000)}
                   disabled={running}
-                  className="bg-[hsl(91,34%,29%)] text-white hover:bg-[hsl(91,34%,24%)]"
+                  className="bg-success text-success-foreground hover:bg-success/90"
                 >
                   <Icons.Sparkles className="me-2 size-3.5" />
                   {running && activeSims === 10_000
@@ -1042,7 +1042,7 @@ function MonteCarloDistributionSection({
                   size="sm"
                   onClick={() => onRun(100_000)}
                   disabled={running}
-                  className="text-[hsl(91,31%,24%)] hover:bg-[hsl(91,34%,29%)]/10"
+                  className="text-success-subtle-foreground hover:bg-success-subtle-foreground/10"
                 >
                   {running && activeSims === 100_000
                     ? t("goals:risk_lab.montecarlo.running_short")
@@ -1334,8 +1334,8 @@ function DecisionHeatmap({
   const baseline = useMemo(() => matrixBaselineCell(matrix), [matrix]);
 
   return (
-    <div className="overflow-x-auto px-3 pb-4 pt-4 sm:px-5 sm:pb-5 sm:pt-5">
-      <table className="min-w-120 sm:min-w-135 w-full table-fixed border-separate border-spacing-[2px] text-xs sm:border-spacing-[3px] sm:text-sm">
+    <div className="overflow-x-auto px-3 pt-4 pb-4 sm:px-5 sm:pt-5 sm:pb-5">
+      <table className="w-full min-w-120 table-fixed border-separate border-spacing-[2px] text-xs sm:min-w-135 sm:border-spacing-[3px] sm:text-sm">
         <thead>
           <tr>
             <th className="w-14 sm:w-16" />
@@ -1398,7 +1398,7 @@ function DecisionHeatmap({
                         {decisionCellLabel(t, cell, currency, amountFormatting)}
                       </TooltipTrigger>
                       <TooltipContent className="max-w-xs text-xs">
-                        <div className="text-2xs font-semibold uppercase tracking-wider">
+                        <div className="text-2xs font-semibold tracking-wider uppercase">
                           {localizedBackendLabel(t, matrix.rowLabel)} ×{" "}
                           {localizedBackendLabel(t, matrix.columnLabel)}
                         </div>
@@ -1451,7 +1451,7 @@ function DecisionHeatmap({
               {row === 0 && (
                 <td rowSpan={matrix.rowValues.length} className="w-3 p-0 align-middle sm:w-4">
                   <span
-                    className="text-muted-foreground/80 text-2xs mx-auto block whitespace-nowrap text-center font-normal leading-none sm:text-xs"
+                    className="text-muted-foreground/80 text-2xs mx-auto block text-center leading-none font-normal whitespace-nowrap sm:text-xs"
                     style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
                   >
                     {localizedBackendLabel(t, matrix.rowLabel)}
@@ -1466,7 +1466,7 @@ function DecisionHeatmap({
             <th className="w-14 sm:w-16" />
             <th
               colSpan={matrix.columnValues.length}
-              className="text-muted-foreground/80 text-2xs px-1 pt-1.5 text-center font-normal leading-none sm:text-xs"
+              className="text-muted-foreground/80 text-2xs px-1 pt-1.5 text-center leading-none font-normal sm:text-xs"
             >
               {localizedBackendLabel(t, matrix.columnLabel)}
             </th>
@@ -1511,10 +1511,10 @@ function WhatMovesThePlanSection({
     <section className="space-y-4">
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
-          <p className="text-muted-foreground/55 text-2xs font-normal uppercase leading-none tracking-[0.24em]">
+          <p className="text-muted-foreground/55 text-2xs leading-none font-normal tracking-[0.24em] uppercase">
             {t("goals:risk_lab.moves.eyebrow")}
           </p>
-          <h2 className="mt-2 font-serif text-2xl font-normal leading-[1.05] tracking-[-0.02em]">
+          <h2 className="mt-2 font-serif text-2xl leading-[1.05] font-normal tracking-[-0.02em]">
             {t("goals:risk_lab.moves.heading")}
           </h2>
           <p className="text-muted-foreground mt-2 max-w-4xl text-sm leading-relaxed xl:whitespace-nowrap">
@@ -1743,12 +1743,14 @@ function SorrChart({
   );
 }
 
+// One colour per named scenario, from the theme's series colours; the outcome
+// of each is stated in text, so the colours only tell the lines apart.
 const SORR_COLORS = [
-  "hsl(91,34%,29%)",
-  "hsl(8,55%,45%)",
-  "hsl(38,65%,43%)",
-  "hsl(191,24%,42%)",
-  "hsl(50,4%,45%)",
+  "var(--series-1)",
+  "var(--series-2)",
+  "var(--series-3)",
+  "var(--series-4)",
+  "var(--series-5)",
 ];
 
 function sorrRiskAge(scenario: SorrScenario) {
@@ -1810,7 +1812,7 @@ function AdvancedSection({
         <div className="flex min-w-0 items-start gap-3">
           <Icons.ChevronDown className="text-muted-foreground mt-3 size-3.5 transition-transform group-open:rotate-180" />
           <div className="min-w-0">
-            <p className="text-muted-foreground/60 text-2xs font-normal uppercase leading-none tracking-[0.24em]">
+            <p className="text-muted-foreground/60 text-2xs leading-none font-normal tracking-[0.24em] uppercase">
               {t("goals:risk_lab.advanced.eyebrow")}
             </p>
             <h2 className="mt-1.5 text-lg font-semibold tracking-[-0.01em]">
@@ -1850,7 +1852,7 @@ function AdvancedSection({
             </p>
             <div className="bg-muted/10 grid gap-3 border-y px-4 py-3 text-sm sm:grid-cols-3">
               <div>
-                <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.16em]">
+                <p className="text-muted-foreground text-2xs font-semibold tracking-[0.16em] uppercase">
                   {t("goals:risk_lab.advanced.earliest_shortfall")}
                 </p>
                 <p className="mt-1 font-semibold tabular-nums">
@@ -1860,7 +1862,7 @@ function AdvancedSection({
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.16em]">
+                <p className="text-muted-foreground text-2xs font-semibold tracking-[0.16em] uppercase">
                   {t("goals:risk_lab.advanced.paths_survive")}
                 </p>
                 <p className="mt-1 font-semibold tabular-nums">
@@ -1868,7 +1870,7 @@ function AdvancedSection({
                 </p>
               </div>
               <div>
-                <p className="text-muted-foreground text-2xs font-semibold uppercase tracking-[0.16em]">
+                <p className="text-muted-foreground text-2xs font-semibold tracking-[0.16em] uppercase">
                   {t("goals:risk_lab.advanced.base_case")}
                 </p>
                 <p className="mt-1 font-semibold tabular-nums">

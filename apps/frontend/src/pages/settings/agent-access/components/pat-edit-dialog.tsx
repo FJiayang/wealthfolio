@@ -21,7 +21,12 @@ interface PatEditDialogProps {
 export function PatEditDialog({ token, onClose, onSave, isSaving }: PatEditDialogProps) {
   const { t } = useTranslation();
   const [selected, setSelected] = useState(
-    () => new Set<string>(applyScopeDependencies(token.scopes)),
+    () =>
+      new Set(
+        token.scopes.map((scope) =>
+          scope === "trade-instructions:create" ? "trade-instructions:write" : scope,
+        ),
+      ),
   );
   const scopes = applyScopeDependencies(selected);
   const toggleScope = (key: ScopeKey) =>
@@ -49,7 +54,12 @@ export function PatEditDialog({ token, onClose, onSave, isSaving }: PatEditDialo
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
         <DialogTitle>{t("settings:agentAccess.edit_title", { name: token.name })}</DialogTitle>
         <DialogDescription>{t("settings:agentAccess.edit_description")}</DialogDescription>
-        <ScopeSelector selectedScopes={scopes} onToggle={toggleScope} disabled={isSaving} />
+        <ScopeSelector
+          selectedScopes={scopes}
+          onToggle={toggleScope}
+          disabled={isSaving}
+          onSelectPreset={(scopes) => setSelected(new Set(scopes))}
+        />
         <div className="flex justify-end gap-2">
           <Button variant="ghost" disabled={isSaving} onClick={onClose}>
             {t("common:cancel")}

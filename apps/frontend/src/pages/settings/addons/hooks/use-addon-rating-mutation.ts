@@ -38,7 +38,7 @@ export function useAddonRatingMutation() {
       console.error("Failed to submit rating:", error);
       toast({
         title: i18n.t("common:notifications.rating_submission_failed"),
-        description: error.message || "Failed to submit rating",
+        description: error.message || i18n.t("common:notifications.rating_submission_failed"),
         variant: "destructive",
       });
     },

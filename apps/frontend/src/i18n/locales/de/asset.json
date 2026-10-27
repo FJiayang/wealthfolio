@@ -723,7 +723,12 @@
     "notes_placeholder": "Fügen Sie Kontext zu dieser Bewertung hinzu (z. B. Gutachtenquelle, Marktbedingungen)",
     "cancel": "Abbrechen",
     "update_value": "Wert aktualisieren",
-    "na": "N/V"
+    "na": "N/V",
+    "validation": {
+      "number": "Der Wert muss eine Zahl sein.",
+      "non_negative": "Der Wert darf nicht negativ sein",
+      "notes": "Notizen dürfen höchstens 500 Zeichen enthalten"
+    }
   },
   "valueHistory": {
     "date": "Datum",
@@ -830,7 +835,9 @@
       "amount_exceeds_balance": "Die Rückzahlung darf den aktuellen Saldo nicht überschreiten.",
       "closure_date_invalid": "Das Abschlussdatum muss zwischen Auszahlung und heute liegen.",
       "required": "Erforderlich",
-      "first_payment_after_origination": "Die erste Zahlung muss nach dem Auszahlungsdatum liegen."
+      "first_payment_after_origination": "Die erste Zahlung muss nach dem Auszahlungsdatum liegen.",
+      "payment_positive": "Die Zahlung muss größer als 0 sein.",
+      "term_too_long": "Die Laufzeit darf höchstens 100 Jahre betragen."
     },
     "accelerated_biweekly": "Beschleunigt zweiwöchentlich",
     "first_payment_date": "Erster Zahlungstermin",
@@ -1019,5 +1026,25 @@
     "payment_invalid": "Geben Sie eine Rate über null ein.",
     "payment_unavailable": "Für diese Konditionen lässt sich keine Rate berechnen. Prüfen Sie Betrag, Zinssatz und Tilgungsdauer.",
     "fields_read_only": "Darlehenskonditionen können nur in den Darlehensdetails geändert werden."
+  },
+  "notifications": {
+    "profile_updated": "Anlagenprofil aktualisiert.",
+    "quote_mode_updated": "Kursmodus der Anlage aktualisiert.",
+    "profile_failed": "Das Anlagenprofil konnte nicht aktualisiert werden.",
+    "quote_mode_failed": "Der Kursmodus konnte nicht aktualisiert werden.",
+    "quote_added": "Kurs hinzugefügt.",
+    "quote_updated": "Kurs aktualisiert.",
+    "quote_deleted": "Kurs gelöscht.",
+    "quote_save_failed": "Der Kurs konnte nicht gespeichert werden.",
+    "quote_delete_failed": "Der Kurs konnte nicht gelöscht werden."
+  },
+  "noQuote": {
+    "manual": "Der Kursmodus ist manuell",
+    "inactive": "Die Anlage ist inaktiv",
+    "matured": "Die Anleihe ist fällig geworden",
+    "expired": "Die Option ist abgelaufen",
+    "paused": "Synchronisierung nach wiederholten Fehlern pausiert",
+    "pending": "Noch kein Anbieterkurs synchronisiert",
+    "no_data": "Noch keine Daten vom Anbieter verfügbar"
   }
 }

@@ -24,7 +24,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useBadgeOverflow } from "../../hooks/use-badge-overflow";
 import { useDebouncedCallback } from "../../hooks/use-debounced-callback";
-import { quoteCurrencies } from "../../lib/currencies";
+import { getCurrencyDisplayLabel, quoteCurrencies } from "../../lib/currencies";
 import { generateId } from "../../lib/id";
 import { parseDateTimeInTimezone, parseLocalizedDecimalString } from "../../lib/formatting";
 import { cn, isKeyboardEventComposing } from "../../lib/utils";
@@ -755,7 +755,7 @@ export function UrlCell<TData>({
             href={urlHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-primary decoration-primary/30 hover:decoration-primary/60 data-focused:text-foreground data-invalid:text-destructive data-focused:decoration-foreground/50 data-invalid:decoration-destructive/50 data-focused:hover:decoration-foreground/70 data-invalid:hover:decoration-destructive/70 data-invalid:cursor-not-allowed truncate underline underline-offset-2"
+            className="text-primary decoration-primary/30 hover:decoration-primary/60 data-focused:text-foreground data-invalid:text-destructive data-focused:decoration-foreground/50 data-invalid:decoration-destructive/50 data-focused:hover:decoration-foreground/70 data-invalid:hover:decoration-destructive/70 truncate underline underline-offset-2 data-invalid:cursor-not-allowed"
             onClick={onLinkClick}
           >
             {displayValue}
@@ -987,7 +987,7 @@ export function SelectCell<TData>({
     }
 
     return (
-      <Badge data-slot="grid-cell-content" variant="secondary" className="whitespace-pre-wrap px-1.5 text-xs">
+      <Badge data-slot="grid-cell-content" variant="secondary" className="px-1.5 text-xs whitespace-pre-wrap">
         {displayLabel}
       </Badge>
     );
@@ -1024,7 +1024,7 @@ export function SelectCell<TData>({
         >
           <SelectTrigger className="size-full h-auto items-start border-none p-0 shadow-none focus-visible:outline-none dark:bg-transparent [&_svg]:hidden">
             {displayLabel ? (
-              <Badge variant="secondary" className="whitespace-pre-wrap px-1.5 text-xs">
+              <Badge variant="secondary" className="px-1.5 text-xs whitespace-pre-wrap">
                 <SelectValue />
               </Badge>
             ) : (
@@ -1263,7 +1263,7 @@ export function MultiSelectCell<TData>({
               </div>
               <CommandList className="max-h-full">
                 <CommandEmpty>{t("ui:dataGrid.noOptionsFound", "No options found.")}</CommandEmpty>
-                <CommandGroup className="max-h-75 scroll-py-1 overflow-y-auto overflow-x-hidden">
+                <CommandGroup className="max-h-75 scroll-py-1 overflow-x-hidden overflow-y-auto">
                   {options.map((option) => {
                     const isSelected = selectedValues.includes(option.value);
 
@@ -2346,7 +2346,7 @@ export function FileCell<TData>({
                 data-invalid={error ? "" : undefined}
                 data-disabled={isPending ? "" : undefined}
                 tabIndex={isDragging || isPending ? -1 : 0}
-                className="hover:bg-accent/30 focus-visible:outline-solid focus-visible:outline-ring data-dragging:border-primary/30 data-invalid:border-destructive data-dragging:bg-accent/30 data-invalid:ring-destructive/20 data-disabled:pointer-events-none data-disabled:opacity-50 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed p-6 outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
+                className="hover:bg-accent/30 focus-visible:outline-ring data-dragging:border-primary/30 data-invalid:border-destructive data-dragging:bg-accent/30 data-invalid:ring-destructive/20 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed p-6 transition-colors outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid data-disabled:pointer-events-none data-disabled:opacity-50"
                 ref={dropzoneRef}
                 onClick={onDropzoneClick}
                 onDragEnter={onDropzoneDragEnter}
@@ -2417,7 +2417,7 @@ export function FileCell<TData>({
                         <div
                           key={file.id}
                           data-pending={isFilePending ? "" : undefined}
-                          className="bg-muted/50 data-pending:opacity-60 flex items-center gap-2 rounded-md border px-2 py-1.5"
+                          className="bg-muted/50 flex items-center gap-2 rounded-md border px-2 py-1.5 data-pending:opacity-60"
                         >
                           {FileIcon && <FileIcon className="text-muted-foreground size-4 shrink-0" />}
                           <div className="flex-1 overflow-hidden">
@@ -2835,7 +2835,7 @@ export function CurrencyCell<TData>({
   readOnly,
   cellState,
 }: DataGridCellProps<TData>) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const initialValue = cell.getValue() as string;
   const [value, setValue] = React.useState(initialValue ?? "");
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -2856,9 +2856,14 @@ export function CurrencyCell<TData>({
     }
     const query = searchQuery.toLowerCase();
     return quoteCurrencies.filter(
-      (currency) => currency.value.toLowerCase().includes(query) || currency.label.toLowerCase().includes(query),
+      (currency) =>
+        currency.value.toLowerCase().includes(query) ||
+        currency.label.toLowerCase().includes(query) ||
+        getCurrencyDisplayLabel(currency, i18n.resolvedLanguage ?? i18n.language, t)
+          .toLowerCase()
+          .includes(query),
     );
-  }, [searchQuery]);
+  }, [searchQuery, i18n.language, i18n.resolvedLanguage, t]);
 
   const handleSelect = React.useCallback(
     (currencyValue: string) => {
@@ -2974,7 +2979,9 @@ export function CurrencyCell<TData>({
                     >
                       <div className="flex flex-col">
                         <span className="font-mono text-xs font-semibold">{currency.value}</span>
-                        <span className="text-muted-foreground text-xs">{currency.label}</span>
+                        <span className="text-muted-foreground text-xs">
+                          {getCurrencyDisplayLabel(currency, i18n.resolvedLanguage ?? i18n.language, t)}
+                        </span>
                       </div>
                       {value === currency.value && <Icons.Check className="size-4" />}
                     </CommandItem>

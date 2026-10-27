@@ -12,6 +12,30 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.11.0.11 — 2026-10-27
+
+- Complete missing display translations across supported locales for currency
+  selection, asset metadata, performance explanations, AI and synchronization
+  screens, settings, validation, notifications, and addon permission
+  descriptions. Preserve saved identifiers and user-authored content.
+- Integrate the localization branch and latest upstream changes, including theme
+  support and reviewed spending workflows. Retain fork trade instructions,
+  dual-mode synchronization, diagnostic translations, and the provider request
+  diagnostics and query drawer released in v3.11.0.10.
+- Adopt upstream MCP categorization-rule and spending-read contracts where names
+  overlap, including filtered rule metadata and read-only budget access. Callers
+  must use upstream input and output shapes. Retain the fork audit redaction for
+  replaced tools.
+- Require explicit `spending:read` and `budget:write` grants for the six
+  retained fork budget mutation tools, matching upstream's independent budget
+  permission. Existing tokens receive no additional grants automatically.
+- Retain Docker-only automatic fork tag releases; native jobs remain disabled.
+
+Architecture impact: localization reuses existing i18n boundaries. Integration
+preserves fork features while adopting upstream business contracts and scope
+separation; internal service adapters reuse the same service instances. No new
+permission is silently granted, and audit privacy remains enforced.
+
 ## v3.11.0.10 — 2026-10-27
 
 - Record provider-side security codes, explicitly selected business parameters,
@@ -34,32 +58,37 @@ preserved; diagnostic storage failures do not change provider results.
 
 ## v3.11.0.9 — 2026-10-26
 
-- Add an Actions heading and per-row details, edit and delete menu. Allow content
-  edits only while pending, support confirmed permanent deletion in any status,
-  and show asset names beside codes using account-style badges.
+- Add an Actions heading and per-row details, edit and delete menu. Allow
+  content edits only while pending, support confirmed permanent deletion in any
+  status, and show asset names beside codes using account-style badges.
 - Make completion notes optional while keeping cancellation notes required.
   Prefill actual completion with current application-timezone time; clearing it
-  uses server time at submission. Preserve unchanged deadlines at full precision.
+  uses server time at submission. Preserve unchanged deadlines at full
+  precision.
 - Expose the full instruction lifecycle through MCP, including editing, status
   changes, completion-time correction and deletion. Use one instruction write
   permission; existing creation grants remain compatible with unified writes,
   while read-only tokens cannot mutate instructions.
 
-Architecture impact: UI and MCP reuse the shared local service and version-checked
-writer. Content edits preserve identity and creation retry keys; permanent deletion
-removes the record and its key. No schema migration, broker orders, activity writes
-or device-sync expansion is introduced. Mutation arguments remain audit-redacted.
+Architecture impact: UI and MCP reuse the shared local service and
+version-checked writer. Content edits preserve identity and creation retry keys;
+permanent deletion removes the record and its key. No schema migration, broker
+orders, activity writes or device-sync expansion is introduced. Mutation
+arguments remain audit-redacted.
 
 ## v3.11.0.8 — 2026-10-26
 
 - Replace trade instruction cards with an activity-style grid, with buy/sell and
   expected completion date filters. Default to earliest expected completion
-  first, with missing deadlines last; filtering and sorting run before pagination.
+  first, with missing deadlines last; filtering and sorting run before
+  pagination.
 - Default to 20 instructions per page, offer 50 and 100, and remember the choice
-  in profile-scoped browser preferences. Keep activity-page components unchanged.
+  in profile-scoped browser preferences. Keep activity-page components
+  unchanged.
 - Freeze the final column with compact Start, Complete and Cancel actions,
   excluded from column visibility controls. Completion and cancellation retain
-  required resolution notes and version checks; balances stay masked when copied.
+  required resolution notes and version checks; balances stay masked when
+  copied.
 
 Architecture impact: extend local instruction reads through the existing shared
 adapter, Tauri and web paths. Preserve existing polling, status writes, provider

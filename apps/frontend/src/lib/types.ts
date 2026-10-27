@@ -340,7 +340,16 @@ export interface ActivityCreate {
 /**
  * Payload for updating an EXISTING activity.
  */
+export interface ActivitySplitEffect {
+  activityId: string;
+  removedSplits: number;
+  hasRetainedCategoryAssignment: boolean;
+  fingerprint: string;
+}
+
 export interface ActivityUpdate {
+  unlinkTransferPairId?: string;
+  splitReview?: ActivitySplitEffect[];
   id: string;
   accountId: string;
   activityType: string;
@@ -388,6 +397,7 @@ export interface ActivityBulkMutationResult {
 }
 
 export interface InternalTransferPairRequest {
+  splitReview?: ActivitySplitEffect[];
   editedActivityId?: string;
   transferOutId?: string;
   transferInId?: string;
@@ -939,6 +949,9 @@ export interface Settings {
   insightsOverviewLayout?: Record<string, unknown> | null;
   /** Read-only restore state, absent on older backends. */
   restoreReconnectRequired?: boolean;
+  /** Theme ID (palette and shape); absent on older backends, which show Classic. */
+  themeId?: string;
+  /** Appearance mode: light, dark or system. */
   theme: string;
   gainLossColorScheme?: GainLossColorScheme;
   font: string;
@@ -1645,10 +1658,12 @@ export interface BreakdownItem {
   category: string;
   /** Display name */
   name: string;
-  /** Value in base currency (positive magnitude) as decimal string */
-  value: string;
+  /** Value in base currency (positive magnitude) */
+  value: number;
   /** Optional: asset ID for individual items */
   assetId?: string;
+  /** First day the item carried a balance (YYYY-MM-DD), when known. */
+  firstValueDate?: string;
   /** Individual items rolled up into this category, for drill-down. */
   children?: BreakdownItem[];
 }
@@ -1657,8 +1672,8 @@ export interface BreakdownItem {
  * Assets section of the balance sheet
  */
 export interface AssetsSection {
-  /** Total assets value in base currency as decimal string */
-  total: string;
+  /** Total assets value in base currency */
+  total: number;
   /** Breakdown by category */
   breakdown: BreakdownItem[];
 }
@@ -1667,8 +1682,8 @@ export interface AssetsSection {
  * Liabilities section of the balance sheet
  */
 export interface LiabilitiesSection {
-  /** Total liabilities value in base currency as decimal string */
-  total: string;
+  /** Total liabilities value in base currency */
+  total: number;
   /** Breakdown by individual liability */
   breakdown: BreakdownItem[];
 }
@@ -1683,8 +1698,8 @@ export interface NetWorthResponse {
   assets: AssetsSection;
   /** Liabilities section with total and breakdown */
   liabilities: LiabilitiesSection;
-  /** Net worth (assets - liabilities) as decimal string */
-  netWorth: string;
+  /** Net worth (assets - liabilities) */
+  netWorth: number;
   /** Base currency used for the calculation */
   currency: string;
   /** Oldest valuation date used in the calculation */
@@ -1702,30 +1717,30 @@ export interface NetWorthHistoryPoint {
   date: string;
 
   // Component values
-  /** Portfolio value from aggregated real-account valuations as decimal string */
-  portfolioValue: string;
-  /** Alternative assets value (properties, vehicles, collectibles, etc.) as decimal string */
-  alternativeAssetsValue: string;
-  /** Total liabilities as decimal string (positive magnitude, subtracted for net worth) */
-  totalLiabilities: string;
+  /** Portfolio value from aggregated real-account valuations */
+  portfolioValue: number;
+  /** Alternative assets value (properties, vehicles, collectibles, etc.) */
+  alternativeAssetsValue: number;
+  /** Total liabilities (positive magnitude, subtracted for net worth) */
+  totalLiabilities: number;
 
   // Totals
-  /** Total assets = portfolio_value + alternative_assets_value as decimal string */
-  totalAssets: string;
-  /** Net worth (assets - liabilities) as decimal string */
-  netWorth: string;
+  /** Total assets = portfolio_value + alternative_assets_value */
+  totalAssets: number;
+  /** Net worth (assets - liabilities) */
+  netWorth: number;
 
   // For gain calculation
-  /** Cumulative net contributions (deposits - withdrawals) from portfolio as decimal string */
-  netContribution: string;
+  /** Cumulative net contributions (deposits - withdrawals) from portfolio */
+  netContribution: number;
 
   /**
-   * Per-category / per-liability values at this date as decimal strings.
+   * Per-category / per-liability values at this date.
    * Keys mirror the point-in-time breakdown: asset category keys (`cash`,
    * `investments`, `properties`, ...) for aggregated asset categories, and the
    * individual liability id (matching `BreakdownItem.assetId`) for each liability.
    */
-  breakdown: Record<string, string>;
+  breakdown: Record<string, number>;
 
   /** Currency */
   currency: string;

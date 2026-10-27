@@ -9,7 +9,8 @@ it.each(["daily", "pnl", "return"] as const)(
     expect(getTreemapColor(gain, period, undefined, true)).toEqual(getTreemapColor(loss, period));
     expect(getTreemapColor(loss, period, undefined, true)).toEqual(getTreemapColor(gain, period));
     expect(getTreemapColor(gain, period, undefined, false)).toEqual(getTreemapColor(gain, period));
-    expect(getTreemapColor(0, period, undefined, true).fill).toBe("rgb(233,179,168)");
-    expect(getTreemapColor(0, period).fill).toBe("rgb(205,217,191)");
+    // Zero uses the selected Classic low-stop token without gain/loss intensity.
+    expect(getTreemapColor(0, period, undefined, true).fill).toBe("rgb(250,226,218)");
+    expect(getTreemapColor(0, period).fill).toBe("rgb(230,236,213)");
   },
 );

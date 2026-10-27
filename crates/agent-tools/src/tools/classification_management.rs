@@ -180,24 +180,6 @@ business_tool!(ReplaceAssetTaxonomyAssignments, ReplaceAssetTaxonomyAssignmentsA
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ListCategorizationRulesArgs {}
-
-business_tool!(
-    ListCategorizationRules,
-    ListCategorizationRulesArgs,
-    "list_categorization_rules",
-    "List all categorization rules.",
-    json!({"type":"object","properties":{},"required":[]}),
-    [AgentScope::ClassificationRead],
-    Read,
-    |env, args| {
-        let _ = args;
-        output(env.categorization_rules_service().list().await?)
-    }
-);
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct UpdateCategorizationRuleArgs {
     pub id: String,
     pub patch: wealthfolio_spending::categorization_rules::UpdateCategorizationRule,
@@ -253,20 +235,6 @@ business_tool!(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct RerunCategorizationRulesArgs {
-    #[serde(default)]
-    pub only_uncategorized: Option<bool>,
-}
-
-business_tool!(RerunCategorizationRules, RerunCategorizationRulesArgs, "rerun_categorization_rules",
-    "Reapply rules to configured spending accounts. Manual categorizations are always preserved. onlyUncategorized defaults to true.",
-    json!({"type":"object","properties":{"onlyUncategorized":{"type":"boolean"}},"required":[]}), [AgentScope::ClassificationSuggest, AgentScope::ClassificationWrite], Write, |env, args| {
-        let settings = env.spending_settings_service().get().await?;
-        output(env.categorization_rules_service().rerun_all(&settings.account_ids, args.only_uncategorized.unwrap_or(true)).await?)
-    });
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ListRulePresetsArgs {}
 
 business_tool!(
@@ -311,10 +279,8 @@ pub fn tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(ImportTaxonomyJson),
         Arc::new(AssignAssetToCategory),
         Arc::new(ReplaceAssetTaxonomyAssignments),
-        Arc::new(ListCategorizationRules),
         Arc::new(UpdateCategorizationRule),
         Arc::new(UpsertCategorizationRule),
-        Arc::new(RerunCategorizationRules),
         Arc::new(ListRulePresets),
         Arc::new(ImportRulePreset),
     ]

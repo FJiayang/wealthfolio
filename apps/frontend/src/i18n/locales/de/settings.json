@@ -7,7 +7,6 @@
   "general": "Allgemein",
   "appearance": "Erscheinungsbild",
   "language": "Sprache",
-  "theme": "Design",
   "theme_light": "Hell",
   "theme_dark": "Dunkel",
   "base_currency": "Basiswährung",
@@ -72,7 +71,7 @@
   "appearance_font_title": "Schriftart",
   "appearance_font_description": "Schriftfamilie für die gesamte Oberfläche.",
   "appearance_theme_title": "Design",
-  "appearance_theme_description": "Bevorzugtes Farbschema der Anwendung.",
+  "appearance_theme_description": "Wählen Sie eine sorgfältig abgestimmte Farbpalette. Jedes Design bietet eine helle und eine dunkle Darstellung.",
   "appearance_menu_bar": "Menüleiste anzeigen",
   "appearance_menu_bar_description": "Ein- und Ausblenden der Anwendungsmenüleiste.",
   "appearance_theme_required": "Bitte wählen Sie ein Design.",
@@ -1018,7 +1017,8 @@
       "refresh_error": "Zugangsdaten gespeichert, aber Prüfung oder Client-Aktualisierung fehlgeschlagen. Schlüsselformat prüfen und erneut versuchen.",
       "saved": "Zugangsdaten gespeichert.",
       "deleted": "Zugangsdaten gelöscht."
-    }
+    },
+    "validation_priority_min": "Die Priorität muss eine ganze Zahl ab 1 sein"
   },
   "addon_permission_none_detected": "Keine Datenzugriffsberechtigungen erkannt. Dieses Add-on scheint minimalen Systemzugriff zu haben.",
   "addon_permission_list_title": "Berechtigungen",
@@ -1201,6 +1201,7 @@
       "update_error": "Kategorie konnte nicht aktualisiert werden.",
       "created": "Kategorie erstellt.",
       "create_error": "Kategorie konnte nicht erstellt werden.",
+      "duplicate_error": "Eine andere Kategorie verwendet diesen Schlüssel bereits. Verwenden Sie einen anderen Namen.",
       "tab_expense_one": "Ausgaben ({{count}})",
       "tab_expense_other": "Ausgaben ({{count}})",
       "tab_income_one": "Einnahmen ({{count}})",
@@ -1540,7 +1541,7 @@
         "description": "Portfoliozustand und Diagnoseprüfungen lesen."
       },
       "classification_read": {
-        "label": "Klassifizierung (Lesen)",
+        "label": "Anlageklassifizierung (Lesen)",
         "description": "Instrumentenklassifizierungen und Taxonomien lesen."
       },
       "activities_draft": {
@@ -1552,11 +1553,11 @@
         "description": "Aktivitäten bestätigen, bestehende aktualisieren und Transfers verknüpfen oder trennen. Erfordert die Entwurfs-Berechtigung."
       },
       "classification_suggest": {
-        "label": "Klassifizierung — vorschlagen",
+        "label": "Anlageklassifizierung — vorschlagen",
         "description": "Instrumentenklassifizierungen zur Prüfung vorschlagen."
       },
       "classification_write": {
-        "label": "Klassifizierung — anwenden/schreiben",
+        "label": "Anlageklassifizierung — anwenden/schreiben",
         "description": "Geprüfte Klassifizierungsentwürfe anwenden. Erfordert die Vorschlags-Berechtigung."
       },
       "market_data_write": {
@@ -1584,12 +1585,12 @@
         "description": "Kurse und Wechselkurse lesen"
       },
       "spending_read": {
-        "label": "Ausgaben und Budgets lesen",
-        "description": "Ausgaben und Budgets lesen"
+        "label": "Ausgaben ansehen",
+        "description": "Transaktionen in Ausgabenkonten, Kategorien, Aufteilungen, Regeln, Ereignisse, Berichte und Budgets lesen."
       },
       "spending_write": {
-        "label": "Ausgabenereignisse und Budgets bearbeiten",
-        "description": "Ausgabenereignisse und Budgets bearbeiten"
+        "label": "Ausgaben organisieren",
+        "description": "Ausgabenkategorien, Zuordnungen, Aufteilungen, Regeln und Ereignisse verwalten. Erfordert Ausgaben ansehen."
       },
       "trade_instructions_read": {
         "label": "Handelsanweisungen lesen",
@@ -1602,13 +1603,20 @@
       "trade_instructions_write": {
         "label": "Handelsanweisungen verwalten",
         "description": "Handelsanweisungen erstellen, bearbeiten, starten, abschließen, abbrechen, Abschlusszeiten korrigieren und dauerhaft löschen."
+      },
+      "budget_write": {
+        "label": "Budgets verwalten",
+        "description": "Standard- und Monatsbudgets, Gruppen, Puffer und Überträge ändern. Erfordert Ausgaben ansehen."
       }
     },
     "preset": {
       "read_only": "Nur Lesen",
       "read_activity_draft": "Lesen + Entwurf",
       "read_activity_write": "Lesen + Schreiben",
-      "read_activity_write_classification_suggest": "Lesen + Schreiben + Klassifizieren"
+      "read_activity_write_classification_suggest": "Lesen + Transaktionen schreiben + Anlageklassifizierung",
+      "spending_view": "Ausgaben — ansehen",
+      "spending_organize": "Ausgaben — organisieren",
+      "spending_budgets": "Ausgaben — Budgets"
     },
     "copied_generic": "{{label}} in die Zwischenablage kopiert.",
     "hero_aria": "Status des KI-Agenten-Zugriffs",
@@ -1618,7 +1626,9 @@
     "edit_title": "Berechtigungen für {{name}}",
     "edit_description": "Der Schlüssel bleibt unverändert. Berechtigungen gelten für folgende Anfragen. Aktualisieren Sie die Werkzeuge oder verbinden Sie den Client neu, um neue Werkzeuge zu sehen.",
     "edit_success": "Berechtigungen aktualisiert",
-    "edit_failed": "Berechtigungen konnten nicht aktualisiert werden"
+    "edit_failed": "Berechtigungen konnten nicht aktualisiert werden",
+    "scope_locked_spending_title": "Für Ausgaben organisieren oder Budgets verwalten erforderlich",
+    "dialog_presets": "Zugriffsvorlagen"
   },
   "tax_add_category": "Kategorie hinzufügen",
   "tax_export": "Exportieren",
@@ -1859,5 +1869,223 @@
     "save_failed": "Die Zeitzone der Statistik konnte nicht gespeichert werden.",
     "updated": "Aktualisiert: {{value}}",
     "stale": "Die angezeigten Zahlen sind möglicherweise nicht aktuell."
-  }
+  },
+  "limits_form_group_name_required": "Gruppenname ist erforderlich",
+  "limits_form_limit_amount_number": "Der Höchstbetrag muss eine positive Zahl sein.",
+  "limits_form_limit_amount_non_negative": "Der Höchstbetrag darf nicht negativ sein.",
+  "limits_form_year_invalid": "Ungültiges Jahr",
+  "messages": {
+    "account": {
+      "created": "Konto erfolgreich erstellt.",
+      "creatingFailed": "Dieses Konto konnte nicht erstellt werden.",
+      "updatingFailed": "Dieses Konto konnte nicht aktualisiert werden.",
+      "deletingFailed": "Dieses Konto konnte nicht gelöscht werden."
+    },
+    "contribution": {
+      "added": "Beitragsgrenze erfolgreich hinzugefügt.",
+      "updated": "Beitragsgrenze erfolgreich aktualisiert.",
+      "deleted": "Beitragsgrenze erfolgreich gelöscht.",
+      "addFailed": "Diese Beitragsgrenze konnte nicht hinzugefügt werden.",
+      "updateFailed": "Diese Beitragsgrenze konnte nicht aktualisiert werden.",
+      "deleteFailed": "Diese Beitragsgrenze konnte nicht gelöscht werden."
+    },
+    "exchange": {
+      "updatingFailed": "Problem beim Aktualisieren des Wechselkurses: {{error}}",
+      "addingFailed": "Problem beim Hinzufügen des Wechselkurses: {{error}}",
+      "deletingFailed": "Problem beim Löschen des Wechselkurses: {{error}}"
+    },
+    "export": {
+      "empty": {
+        "accounts": "Derzeit sind keine Konten zum Exportieren verfügbar.",
+        "activities": "Derzeit sind keine Transaktionen zum Exportieren verfügbar.",
+        "holdings": "Derzeit sind keine Bestände zum Exportieren verfügbar.",
+        "goals": "Derzeit sind keine Ziele zum Exportieren verfügbar.",
+        "portfolio-history": "Derzeit ist kein Portfolioverlauf zum Exportieren verfügbar."
+      }
+    },
+    "providerUpdateFailed": "Einstellungen für Anbieter {{provider}} konnten nicht aktualisiert werden",
+    "httpFailed": "HTTP-Anfrage fehlgeschlagen.",
+    "addonDownloadFailed": "Das Add-on konnte nicht heruntergeladen werden.",
+    "addonPackages": "Add-on-Pakete",
+    "addonInstalled": "{{name}} wurde installiert und ist jetzt aktiv.",
+    "addonEnabled": "Add-on aktiviert",
+    "addonDisabled": "Add-on deaktiviert",
+    "addonEnabledDescription": "{{name}} wurde aktiviert.",
+    "addonDisabledDescription": "{{name}} wurde deaktiviert.",
+    "addonRemoved": "{{name}} wurde vollständig entfernt.",
+    "addonNetworkSaved": "Netzwerkhost-Freigaben für {{name}} wurden gespeichert.",
+    "addonCheckFailed": "Updates für Add-on {{addon}} konnten nicht geprüft werden",
+    "auditRemoved_one": "{{count}} Eintrag entfernt.",
+    "auditRemoved_other": "{{count}} Einträge entfernt.",
+    "addonUpdates_one": "Für {{count}} Add-on ist ein Update verfügbar.",
+    "addonUpdates_other": "Für {{count}} Add-ons sind Updates verfügbar.",
+    "addonCriticalUpdates_one": "Für {{count}} Add-on ist ein kritisches Sicherheitsupdate verfügbar.",
+    "addonCriticalUpdates_other": "Für {{count}} Add-ons sind kritische Sicherheitsupdates verfügbar."
+  },
+  "addonPermissions": {
+    "functions": {
+      "accounts_getAll": "Alle Konten anzeigen",
+      "accounts_create": "Neue Konten erstellen",
+      "portfolio_getHoldings": "Ihre Anlagepositionen anzeigen",
+      "portfolio_getHolding": "Details einzelner Positionen anzeigen",
+      "portfolio_update": "Portfolioberechnungen aktualisieren",
+      "portfolio_recalculate": "Gesamtes Portfolio neu berechnen",
+      "portfolio_getIncomeSummary": "Erträge und Dividenden anzeigen",
+      "portfolio_getHistoricalValuations": "Historische Portfoliowerte anzeigen",
+      "portfolio_getLatestValuations": "Aktuelle Portfoliowerte anzeigen",
+      "activities_getAll": "Alle Transaktionen anzeigen",
+      "activities_search": "Transaktionen mit Filtern suchen",
+      "activities_searchCashActivities": "Kategorisierte Ausgabentransaktionen suchen",
+      "activities_create": "Neue Transaktionen hinzufügen",
+      "activities_update": "Transaktionen ändern",
+      "activities_saveMany": "Mehrere Transaktionen speichern",
+      "activities_import": "Transaktionsdaten importieren",
+      "activities_checkImport": "Importdaten prüfen",
+      "activities_getImportMapping": "Importeinstellungen anzeigen",
+      "activities_saveImportMapping": "Importeinstellungen speichern",
+      "activities_getTransferPair": "Verknüpfte Übertragungspaare anzeigen",
+      "activities_findTransferMatchCandidates": "Mögliche Übereinstimmungen für Übertragungen finden",
+      "activities_saveTransferPair": "Transaktionen zu einer Übertragung verknüpfen",
+      "activities_linkTransfer": "Transaktionen zu einer Übertragung verknüpfen",
+      "activities_unlinkTransfer": "Verknüpfung von Übertragungstransaktionen aufheben",
+      "market_searchTicker": "Nach Aktien oder Fonds suchen",
+      "market_syncHistory": "Kursverlauf herunterladen",
+      "market_sync": "Marktdaten für Symbole synchronisieren",
+      "market_getProviders": "Marktdatenanbieter anzeigen",
+      "assets_getProfile": "Details eines Anlageprofils anzeigen",
+      "assets_updateProfile": "Anlageinformationen aktualisieren",
+      "assets_updateDataSource": "Datenanbieter einer Anlage ändern",
+      "quotes_update": "Aktuelle Kurse aktualisieren",
+      "quotes_getHistory": "Kursverlauf anzeigen",
+      "performance_calculateHistory": "Historische Wertentwicklung berechnen",
+      "performance_calculateSummary": "Zusammenfassung der Wertentwicklung berechnen",
+      "performance_calculateAccountsSimple": "Einfache Wertentwicklung der Konten berechnen",
+      "currency_getAll": "Wechselkurse anzeigen",
+      "currency_update": "Wechselkurse aktualisieren",
+      "currency_add": "Neue Wechselkurse hinzufügen",
+      "currency_getRatesForDates": "Historische Wechselkurse anzeigen",
+      "exchangeRates_getAll": "Wechselkurse anzeigen",
+      "exchangeRates_update": "Wechselkurse aktualisieren",
+      "exchangeRates_add": "Neue Wechselkurse hinzufügen",
+      "exchangeRates_getRatesForDates": "Historische Wechselkurse anzeigen",
+      "spending_isEnabled": "Prüfen, ob die Ausgabenfunktion aktiviert ist",
+      "spending_getCategories": "Ihre Ausgabenkategorien anzeigen",
+      "spending_getReport": "Zusammengefasste Ausgabenberichte anzeigen",
+      "spending_getRules": "Eigene Regeln des Add-ons zur automatischen Kategorisierung anzeigen",
+      "spending_saveRule": "Regeln zur automatischen Kategorisierung erstellen oder aktualisieren",
+      "spending_deleteRule": "Regeln zur automatischen Kategorisierung löschen",
+      "spending_rerunRules": "Kategorisierungsregeln erneut auf Ihre Transaktionen anwenden",
+      "contributionLimits_getAll": "Beitragsgrenzen anzeigen",
+      "contributionLimits_create": "Beitragsgrenzen festlegen",
+      "contributionLimits_update": "Beitragsgrenzen ändern",
+      "contributionLimits_calculateDeposits": "Erforderliche Einzahlungen berechnen",
+      "financial-planning_getAll": "Finanzielle Ziele anzeigen",
+      "financial-planning_create": "Neue Ziele erstellen",
+      "financial-planning_update": "Ziele ändern",
+      "financial-planning_getFunding": "Zielfinanzierung anzeigen",
+      "financial-planning_saveFunding": "Zielfinanzierung aktualisieren",
+      "financial-planning_updateAllocations": "Zielzuweisungen aktualisieren",
+      "financial-planning_getAllocations": "Zielzuweisungen anzeigen",
+      "settings_get": "App-Einstellungen anzeigen",
+      "settings_update": "App-Einstellungen ändern",
+      "settings_backupDatabase": "Datensicherung erstellen",
+      "files_openCsvDialog": "Dateiauswahl für CSV-Dateien öffnen",
+      "files_openSaveDialog": "Dateien auf dem Datenträger speichern",
+      "secrets_get": "Gespeicherte Zugangsdaten abrufen",
+      "secrets_set": "Zugangsdaten sicher speichern",
+      "secrets_use": "Gespeicherte Zugangsdaten für vermittelte Anfragen verwenden",
+      "secrets_delete": "Gespeicherte Zugangsdaten entfernen",
+      "events_import_onDropHover": "Ziehen und Ablegen von Dateien erkennen",
+      "events_import_onDrop": "Abgelegte Dateien verarbeiten",
+      "events_import_onDropCancelled": "Abgebrochene Dateiablagen verarbeiten",
+      "events_portfolio_onUpdateStart": "Beginn von Portfolioaktualisierungen überwachen",
+      "events_portfolio_onUpdateComplete": "Abschluss von Portfolioaktualisierungen überwachen",
+      "events_portfolio_onUpdateError": "Fehler bei Portfolioaktualisierungen überwachen",
+      "events_market_onSyncStart": "Beginn der Marktdatensynchronisierung überwachen",
+      "events_market_onSyncComplete": "Abschluss der Marktdatensynchronisierung überwachen",
+      "network_request": "Vermittelte Netzwerkanfragen senden"
+    },
+    "categories": {
+      "accounts": {
+        "name": "Kontoverwaltung",
+        "description": "Zugriff auf Kontoinformationen und -einstellungen"
+      },
+      "alternative-assets": {
+        "name": "Alternative Anlagen",
+        "description": "Schreibgeschützter Zugriff auf alternative Vermögenswerte und Verbindlichkeiten (Immobilien, Fahrzeuge, Sammlerstücke, Edelmetalle und Sonstiges), die außerhalb von Anlagekonten erfasst werden"
+      },
+      "portfolio": {
+        "name": "Portfoliodaten",
+        "description": "Zugriff auf Positionen, Portfoliowertentwicklung und Kontobewertungen"
+      },
+      "activities": {
+        "name": "Transaktionsverlauf",
+        "description": "Zugriff auf Transaktionsaufzeichnungen und deren Verwaltung"
+      },
+      "market-data": {
+        "name": "Marktdaten",
+        "description": "Zugriff auf Marktpreise, Kurse und Finanzdaten"
+      },
+      "assets": {
+        "name": "Anlageverwaltung",
+        "description": "Zugriff auf Anlageprofile und Datenquellen"
+      },
+      "quotes": {
+        "name": "Kursverwaltung",
+        "description": "Zugriff auf Kurse und historische Daten"
+      },
+      "performance": {
+        "name": "Wertentwicklungsanalyse",
+        "description": "Zugriff auf Berechnungen und Kennzahlen zur Wertentwicklung"
+      },
+      "currency": {
+        "name": "Wechselkurse",
+        "description": "Zugriff auf Wechselkurse und Währungsumrechnungsdaten"
+      },
+      "spending": {
+        "name": "Ausgaben",
+        "description": "Zusammengefasste Ausgabenberichte und Kategorien anzeigen sowie Regeln zur automatischen Kategorisierung von Transaktionen verwalten"
+      },
+      "financial-planning": {
+        "name": "Finanzplanung",
+        "description": "Zugriff auf finanzielle Ziele und Zuweisungen"
+      },
+      "contribution-limits": {
+        "name": "Beitragsgrenzen",
+        "description": "Zugriff auf Beitragsgrenzen und Einzahlungsberechnungen"
+      },
+      "settings": {
+        "name": "Anwendungseinstellungen",
+        "description": "Zugriff auf Anwendungseinstellungen und Konfiguration"
+      },
+      "files": {
+        "name": "Dateioperationen",
+        "description": "Zugriff auf Dateidialoge und Dateisystemoperationen"
+      },
+      "secrets": {
+        "name": "Verwaltung geheimer Daten",
+        "description": "Zugriff auf den sicheren Speicher für geheime Daten von Add-ons"
+      },
+      "snapshots": {
+        "name": "Momentaufnahmenverwaltung",
+        "description": "Zugriff auf Positionsmomentaufnahmen für Konten im Positionsverfolgungsmodus"
+      },
+      "events": {
+        "name": "Ereignisüberwachung",
+        "description": "Zugriff auf Anwendungsereignisse und Benachrichtigungen"
+      },
+      "network": {
+        "name": "Netzwerkzugriff",
+        "description": "Zugriff auf deklarierte externe HTTPS-Hosts über die Netzwerkvermittlung der Host-Anwendung"
+      }
+    }
+  },
+  "appearance_mode_title": "Darstellungsmodus",
+  "appearance_mode_description": "Hell, dunkel oder wie das System.",
+  "appearance_theme_designed_for_dark": "{{theme}} ist für den dunklen Modus gestaltet.",
+  "appearance_theme_designed_for_light": "{{theme}} ist für den hellen Modus gestaltet.",
+  "appearance_switch_to_dark": "Zu Dunkel wechseln",
+  "appearance_switch_to_light": "Zu Hell wechseln",
+  "appearance_theme_suggests": "{{theme}} empfiehlt {{value}}",
+  "appearance_use_theme_defaults": "Theme-Standards verwenden"
 }

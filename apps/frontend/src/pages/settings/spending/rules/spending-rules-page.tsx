@@ -182,11 +182,11 @@ export default function SpendingRulesPage() {
     remove.mutate(rule.id);
   };
 
-  const handleSave = (values: RuleFormValues) => {
+  const handleSave = async (values: RuleFormValues) => {
     const { amountOp, amountValue, amountValue2 } = ruleAmountPayload(values);
-    if (selectedRule) {
-      update.mutate(
-        {
+    try {
+      if (selectedRule) {
+        await update.mutateAsync({
           id: selectedRule.id,
           patch: {
             name: values.name,
@@ -204,14 +204,9 @@ export default function SpendingRulesPage() {
             isGlobal: values.accountId === null,
             accountId: values.accountId,
           },
-        },
-        {
-          onSuccess: () => setVisibleModal(false),
-        },
-      );
-    } else {
-      create.mutate(
-        {
+        });
+      } else {
+        await create.mutateAsync({
           name: values.name,
           pattern: values.pattern,
           matchType: values.matchType,
@@ -224,11 +219,11 @@ export default function SpendingRulesPage() {
           priority: values.priority,
           isGlobal: values.accountId === null,
           accountId: values.accountId,
-        },
-        {
-          onSuccess: () => setVisibleModal(false),
-        },
-      );
+        });
+      }
+      setVisibleModal(false);
+    } catch {
+      // The mutation reports the error; the modal stays open to try again.
     }
   };
 

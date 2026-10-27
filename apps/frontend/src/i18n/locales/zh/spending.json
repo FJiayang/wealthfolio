@@ -21,6 +21,9 @@
     "nameRequired": "名称为必填项",
     "namePlaceholder": "类别名称",
     "icon": "图标",
+    "parent": "父类别",
+    "topLevel": "无（顶级）",
+    "parentLockedByBudget": "移动前请先删除此类别的预算目标。预算仅适用于顶级类别。",
     "color": "颜色",
     "hex": "十六进制",
     "create": "创建类别",
@@ -105,6 +108,7 @@
     "selectCategory": "选择类别",
     "priorityLabel": "优先级",
     "priorityHint": "优先级较高的规则会被优先检查（0-100）。",
+    "priorityInvalid": "优先级必须是大于或等于 0 的整数",
     "updateRule": "更新规则",
     "createRule": "创建规则",
     "scopeLabel": "适用于",
@@ -410,6 +414,7 @@
     "customSubtitle": "所选期间内的交易"
   },
   "split": {
+    "staleTaxonomy": "这些拆分使用之前的类别类型，已不再适用于此交易。",
     "title": "拆分交易",
     "transactionFallback": "交易",
     "remainingOf": "剩余，共 {{amount}}",
@@ -418,7 +423,11 @@
     "removeLine": "移除拆分行 {{number}}",
     "addLine": "添加行",
     "distributeEvenly": "平均分配",
-    "clearSplit": "清除拆分"
+    "clearSplit": "清除拆分",
+    "replaceWithCategory": "将拆分替换为一个类别",
+    "replaceDescription_one": "将 {{count}} 个拆分分配替换为 {{category}}？这将删除现有拆分。",
+    "replaceDescription_other": "将 {{count}} 个拆分分配替换为 {{category}}？这将删除现有拆分。",
+    "categoryProtected": "拆分分配受到保护。请在拆分编辑器中编辑或明确替换。"
   },
   "hierarchy": {
     "noCategorizedSpending": "此周期内没有已归类的支出。",
@@ -1022,5 +1031,15 @@
     "addSource_other": "添加来源（{{count}} 个可用）",
     "overridesTitle_other": "覆盖设置 · {{count}}",
     "sourceMonth": "源月份"
+  },
+  "splitEditReview": {
+    "title": "确认删除拆分",
+    "hiddenCategory": "已有分类分配会保留，删除拆分后可能会应用。",
+    "confirm": "保存并删除拆分",
+    "removed_other": "此更改将删除 {{count}} 个拆分分配。"
+  },
+  "budgetErrors": {
+    "deleteGroup": "删除预算分组失败。",
+    "copyPlan": "复制计划失败。"
   }
 }

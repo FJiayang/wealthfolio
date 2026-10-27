@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import * as z from "zod";
 import {
   AccountType,
@@ -15,6 +16,10 @@ import {
   isFeeActivity,
   isSplitActivity,
 } from "./activity-utils";
+import { invalidTypeError, requiredError } from "./zod-errors";
+
+/** An ISO 8601 UTC date-time string, with or without seconds. */
+export const isoDateTimeSchema = z.union([z.iso.datetime(), z.iso.datetime({ precision: -1 })]);
 
 /**
  * Configuration for CSV parsing (delimiter, date format, etc.)
@@ -83,36 +88,47 @@ export const importMappingSchema = z.object({
 
 export const trackingModeSchema = z.enum(["TRANSACTIONS", "HOLDINGS", "NOT_SET"]);
 
-export const newAccountSchema = z
-  .object({
-    id: z.string().uuid().optional(),
-    name: z
-      .string()
-      .min(2, {
-        message: "Name must be at least 2 characters.",
-      })
-      .max(50, {
-        message: "Name must not be longer than 50 characters.",
+export const createNewAccountSchema = (t?: TFunction) =>
+  z
+    .object({
+      id: z.guid().optional(),
+      name: z
+        .string()
+        .min(2, {
+          message: t?.("common:validation.accountNameMin") ?? "Name must be at least 2 characters.",
+        })
+        .max(50, {
+          message:
+            t?.("common:validation.accountNameMax") ??
+            "Name must not be longer than 50 characters.",
+        }),
+      group: z.string().optional(),
+      isDefault: z.boolean().optional(),
+      isActive: z.boolean().optional(),
+      isArchived: z.boolean().optional().default(false),
+      accountType: accountTypeSchema,
+      currency: z.string({
+        error: requiredError(
+          t?.("common:validation.accountCurrency") ?? "Please select a currency.",
+        ),
       }),
-    group: z.string().optional(),
-    isDefault: z.boolean().optional(),
-    isActive: z.boolean().optional(),
-    isArchived: z.boolean().optional().default(false),
-    accountType: accountTypeSchema,
-    currency: z.string({ required_error: "Please select a currency." }),
-    trackingMode: trackingModeSchema.optional().default("NOT_SET"),
-    meta: z.string().nullable().optional(),
-  })
-  .refine(
-    (data) => data.accountType !== AccountType.CREDIT_CARD || data.trackingMode !== "HOLDINGS",
-    {
-      message: "Credit card accounts cannot use holdings tracking mode.",
-      path: ["trackingMode"],
-    },
-  );
+      trackingMode: trackingModeSchema.optional().default("NOT_SET"),
+      meta: z.string().nullable().optional(),
+    })
+    .refine(
+      (data) => data.accountType !== AccountType.CREDIT_CARD || data.trackingMode !== "HOLDINGS",
+      {
+        message:
+          t?.("common:validation.creditCardTracking") ??
+          "Credit card accounts cannot use holdings tracking mode.",
+        path: ["trackingMode"],
+      },
+    );
+
+export const newAccountSchema = createNewAccountSchema();
 
 export const newGoalSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.guid().optional(),
   goalType: z.enum([
     "retirement",
     "education",
@@ -124,10 +140,7 @@ export const newGoalSchema = z.object({
   title: z.string(),
   description: z.string().optional(),
   targetAmount: z.coerce
-    .number({
-      required_error: "Please enter a valid target amount.",
-      invalid_type_error: "Target amount must be a positive number.",
-    })
+    .number({ error: invalidTypeError("Target amount must be a positive number.") })
     .min(0, { message: "Target amount must be a positive number." }),
   coverImageKey: z.string().optional(),
   currency: z.string().optional(),
@@ -161,7 +174,7 @@ const decimalLikeSchema = z.union([
 
 export const importActivitySchema = z
   .object({
-    id: z.string().uuid().optional(),
+    id: z.guid().optional(),
     accountId: z.string().min(1, { message: "Please select an account." }),
     currency: z.string().optional(),
     activityType: activityTypeSchema,
@@ -376,17 +389,38 @@ export const importActivitySchema = z
     },
   );
 
-export const newContributionLimitSchema = z.object({
-  id: z.string().optional(),
-  groupName: z.string().min(1, "Group name is required"),
-  contributionYear: z.number().int().min(1900, "Invalid year"),
-  limitAmount: z.coerce
-    .number({
-      required_error: "Please enter a valid limit amount.",
-      invalid_type_error: "Limit amount must be a positive number.",
-    })
-    .min(0, { message: "Price must be a non-negative number." }),
-  accountIds: z.string().nullable().optional(),
-  startDate: z.union([z.date(), z.string().datetime(), z.null()]).optional(),
-  endDate: z.union([z.date(), z.string().datetime(), z.null()]).optional(),
-});
+// `t` is optional so the exported static schema keeps English messages (tests).
+export const createContributionLimitSchema = (t?: TFunction) => {
+  const msg = (key: string, en: string) => (t ? t(key) : en);
+  const invalidYear = msg("settings:limits_form_year_invalid", "Invalid year");
+  return z.object({
+    id: z.string().optional(),
+    groupName: z
+      .string()
+      .min(1, msg("settings:limits_form_group_name_required", "Group name is required")),
+    contributionYear: z
+      .number({ error: invalidYear })
+      .int({ message: invalidYear })
+      .min(1900, { message: invalidYear }),
+    limitAmount: z.coerce
+      .number({
+        error: invalidTypeError(
+          msg(
+            "settings:limits_form_limit_amount_number",
+            "Limit amount must be a positive number.",
+          ),
+        ),
+      })
+      .min(0, {
+        message: msg(
+          "settings:limits_form_limit_amount_non_negative",
+          "Limit amount must be non-negative.",
+        ),
+      }),
+    accountIds: z.string().nullable().optional(),
+    startDate: z.union([z.date(), isoDateTimeSchema, z.null()]).optional(),
+    endDate: z.union([z.date(), isoDateTimeSchema, z.null()]).optional(),
+  });
+};
+
+export const newContributionLimitSchema = createContributionLimitSchema();

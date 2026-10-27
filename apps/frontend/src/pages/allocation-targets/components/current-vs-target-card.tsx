@@ -68,7 +68,7 @@ export function CurrentVsTargetCard({
 
           <div className="min-w-0">
             {/* Column headers */}
-            <div className="text-muted-foreground text-2xs hidden grid-cols-[minmax(7.5rem,1fr)_minmax(10rem,1.25fr)_3.5rem_3.5rem_5rem] gap-x-3 px-2 pb-2 font-medium uppercase tracking-wider md:grid">
+            <div className="text-muted-foreground text-2xs hidden grid-cols-[minmax(7.5rem,1fr)_minmax(10rem,1.25fr)_3.5rem_3.5rem_5rem] gap-x-3 px-2 pb-2 font-medium tracking-wider uppercase md:grid">
               <span>{t("allocation:vsTarget.category")}</span>
               <span>{t("allocation:vsTarget.currentAllocation")}</span>
               <span className="text-end">{t("allocation:vsTarget.current")}</span>
@@ -87,7 +87,11 @@ export function CurrentVsTargetCard({
                   <div
                     key={row.categoryId}
                     className="grid cursor-default grid-cols-[minmax(0,1fr)_5.25rem] items-center gap-x-3 gap-y-2 rounded-sm px-2 py-3 transition-colors md:grid-cols-[minmax(7.5rem,1fr)_minmax(10rem,1.25fr)_3.5rem_3.5rem_5rem]"
-                    style={{ backgroundColor: isHovered ? `${rowColor}22` : undefined }}
+                    style={{
+                      backgroundColor: isHovered
+                        ? `color-mix(in oklab, ${rowColor} 13%, transparent)`
+                        : undefined,
+                    }}
                     onMouseEnter={() => setHoveredId(row.categoryId)}
                     onMouseLeave={() => setHoveredId(null)}
                   >

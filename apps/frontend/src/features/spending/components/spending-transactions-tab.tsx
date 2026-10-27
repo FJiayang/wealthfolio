@@ -53,6 +53,7 @@ import {
 } from "@wealthfolio/ui";
 
 import { CashActivityForm } from "./cash-activity-form";
+import { isActivityEditCancelled, useActivitySplitReview } from "./activity-split-review-provider";
 import { ActivityForm } from "@/pages/activity/components/activity-form";
 import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
 import { TransferMatchDialog } from "@/pages/activity/components/transfer-match-dialog";
@@ -104,6 +105,7 @@ import { invalidateSpendingCaches } from "../lib/invalidation";
 import type {
   CashActivitySearchRequest,
   CashActivityStatusFilter,
+  ActivitySplit,
   NewActivitySplit,
 } from "../types/cash-activity";
 
@@ -241,6 +243,7 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const urlAmountMax = searchParams.get("amountMax");
 
     const qc = useQueryClient();
+    const reviewEdits = useActivitySplitReview();
     const { settings } = useSettingsContext();
     const appTimezone = settings?.timezone?.trim() || undefined;
     const applyingUrlParamsRef = useRef(false);
@@ -681,17 +684,20 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
     const markReimbursementMutation = useMutation({
       mutationFn: async (row: TransactionRowVM) => {
         const a = row.activity;
-        return updateActivity({
-          id: a.id,
-          accountId: a.accountId,
-          activityType: "CREDIT",
-          subtype: "REIMBURSEMENT",
-          activityDate: a.activityDate,
-          amount: Math.abs(Number.parseFloat(a.amount ?? "0")),
-          currency: a.currency,
-          comment: a.notes ?? null,
-          metadata: cashActivityFlowMetadata("CREDIT", "REIMBURSEMENT", a.metadata),
-        });
+        const [reviewed] = await reviewEdits([
+          {
+            id: a.id,
+            accountId: a.accountId,
+            activityType: "CREDIT",
+            subtype: "REIMBURSEMENT",
+            activityDate: a.activityDate,
+            amount: Math.abs(Number.parseFloat(a.amount ?? "0")),
+            currency: a.currency,
+            comment: a.notes ?? null,
+            metadata: cashActivityFlowMetadata("CREDIT", "REIMBURSEMENT", a.metadata),
+          },
+        ]);
+        return updateActivity(reviewed);
       },
       onSuccess: (_, row) => {
         invalidateSpendingCaches(qc);
@@ -712,7 +718,10 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         setShowForm(true);
         toast.success(t("spending:txTab.markedReimbursement"));
       },
-      onError: () => toast.error(t("spending:txTab.markReimbursementFailed")),
+      onError: (error) => {
+        if (!isActivityEditCancelled(error))
+          toast.error(t("spending:txTab.markReimbursementFailed"));
+      },
     });
 
     const deleteMutation = useMutation({
@@ -739,17 +748,22 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
       async (taxonomyId: string, categoryId: string) => {
         const ids = Array.from(selectedRowIds);
         if (ids.length === 0) return;
+        if (rows.some((row) => selectedRowIds.has(row.activity.id) && row.splitCount > 0)) {
+          toast.error(t("spending:split.categoryProtected"));
+          return;
+        }
         try {
           const result = await bulkAssignMutation.mutateAsync(
             ids.map((activityId) => ({ activityId, taxonomyId, categoryId })),
           );
           toast.success(t("spending:txTab.categorizedCount", { count: result.length }));
+          setSelectedRowIds(new Set());
         } catch {
           // Hook already toasts on error.
         }
-        setSelectedRowIds(new Set());
+        // Keep the selection on conflict so the user can review a corrected batch.
       },
-      [selectedRowIds, bulkAssignMutation, t],
+      [selectedRowIds, rows, bulkAssignMutation, t],
     );
 
     const handleBulkSetEvent = useCallback(
@@ -804,6 +818,20 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
         toast.success(t("spending:txTab.splitSaved"));
       },
       [replaceSplitsMutation, t],
+    );
+    const handleReplaceSplitsWithCategory = useCallback(
+      async (
+        activityId: string,
+        taxonomyId: string,
+        categoryId: string,
+        expectedSplits: ActivitySplit[],
+      ) => {
+        await bulkAssignMutation.mutateAsync([
+          { activityId, taxonomyId, categoryId, expectedSplits },
+        ]);
+        toast.success(t("spending:txTab.categorizedCount", { count: 1 }));
+      },
+      [bulkAssignMutation, t],
     );
     const handleClearSplits = useCallback(
       async (activityId: string) => {
@@ -1355,12 +1383,17 @@ export const SpendingTransactionsTab = forwardRef<SpendingTransactionsTabHandle>
           open={!!splittingActivity}
           row={splittingActivity}
           categories={allCategories}
-          isSaving={replaceSplitsMutation.isPending || clearSplitsMutation.isPending}
+          isSaving={
+            replaceSplitsMutation.isPending ||
+            clearSplitsMutation.isPending ||
+            bulkAssignMutation.isPending
+          }
           onOpenChange={(open) => {
             if (!open) setSplittingActivity(null);
           }}
           onSave={handleSaveSplits}
           onClear={handleClearSplits}
+          onReplace={handleReplaceSplitsWithCategory}
         />
 
         {showTransferForm &&

@@ -27,9 +27,9 @@ export function useAccountMutations({ onSuccess = () => undefined }: UseAccountM
     });
   };
 
-  const handleError = (action: string) => {
+  const handleError = (action: "creating" | "updating" | "deleting") => {
     toast({
-      title: `Uh oh! Something went wrong ${action} this account.`,
+      title: i18n.t(`settings:messages.account.${action}Failed`),
       description: i18n.t("activity:import.errors.importErrorDescription"),
       variant: "destructive",
     });
@@ -38,7 +38,7 @@ export function useAccountMutations({ onSuccess = () => undefined }: UseAccountM
   const createAccountMutation = useMutation({
     mutationFn: createAccount,
     onSuccess: () => {
-      handleSuccess("Account created successfully.");
+      handleSuccess(i18n.t("settings:messages.account.created"));
       invalidateAccountDependentQueries();
     },
     onError: (e) => {

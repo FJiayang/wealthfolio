@@ -231,6 +231,7 @@ export { streamAiChat } from "./ai-streaming";
 
 // Event Listeners (Tauri listen() implementation)
 export {
+  listenBackButton,
   listenFileDropHover,
   listenFileDrop,
   listenFileDropCancelled,

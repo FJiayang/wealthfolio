@@ -34,7 +34,8 @@ export function useMcpServer() {
       logger.error(`Error updating Agent Access: ${String(error)}`);
       toast({
         title: i18n.t("common:notifications.failed_to_update_agent_access"),
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description:
+          error instanceof Error ? error.message : i18n.t("common:globalEvents.unknownError"),
         variant: "destructive",
       });
     },
@@ -47,7 +48,8 @@ export function useMcpServer() {
       logger.error(`Error updating MCP auto-start: ${String(error)}`);
       toast({
         title: i18n.t("common:notifications.failed_to_update_auto_start"),
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description:
+          error instanceof Error ? error.message : i18n.t("common:globalEvents.unknownError"),
         variant: "destructive",
       });
     },
@@ -60,7 +62,8 @@ export function useMcpServer() {
       logger.error(`Error starting MCP server: ${String(error)}`);
       toast({
         title: i18n.t("common:notifications.failed_to_start_server"),
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description:
+          error instanceof Error ? error.message : i18n.t("common:globalEvents.unknownError"),
         variant: "destructive",
       });
     },
@@ -73,7 +76,8 @@ export function useMcpServer() {
       logger.error(`Error stopping MCP server: ${String(error)}`);
       toast({
         title: i18n.t("common:notifications.failed_to_stop_server"),
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description:
+          error instanceof Error ? error.message : i18n.t("common:globalEvents.unknownError"),
         variant: "destructive",
       });
     },
@@ -86,7 +90,8 @@ export function useMcpServer() {
       logger.error(`Error updating MCP audit logging: ${String(error)}`);
       toast({
         title: i18n.t("common:notifications.failed_to_update_audit_logging"),
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description:
+          error instanceof Error ? error.message : i18n.t("common:globalEvents.unknownError"),
         variant: "destructive",
       });
     },

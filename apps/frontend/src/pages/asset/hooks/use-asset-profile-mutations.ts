@@ -23,7 +23,7 @@ export const useAssetProfileMutations = () => {
   const handleError = (action: string, description?: string) => {
     toast({
       title: i18n.t("settings:settings_update_error_title"),
-      description: description ?? `There was a problem ${action}.`,
+      description: description ?? i18n.t(`asset:notifications.${action}`),
       variant: "destructive",
     });
   };
@@ -32,13 +32,13 @@ export const useAssetProfileMutations = () => {
     mutationFn: updateAssetProfile,
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_LOGO_INDEX] });
-      handleSuccess("Asset profile updated successfully.", result.id);
+      handleSuccess(i18n.t("asset:notifications.profile_updated"), result.id);
     },
     onError: (error) => {
       logger.error(`Error updating asset profile: ${error}`);
       const message = error instanceof Error ? error.message : String(error);
       handleError(
-        "updating the asset profile",
+        "profile_failed",
         message.includes("ASSET_IDENTITY_CONFLICT:") ? t("editSheet.identity_conflict") : undefined,
       );
     },
@@ -48,11 +48,11 @@ export const useAssetProfileMutations = () => {
     mutationFn: ({ assetId, quoteMode }: { assetId: string; quoteMode: string }) =>
       updateQuoteMode(assetId, quoteMode),
     onSuccess: (result) => {
-      handleSuccess("Asset quote mode updated successfully.", result.id);
+      handleSuccess(i18n.t("asset:notifications.quote_mode_updated"), result.id);
     },
     onError: (error) => {
       logger.error(`Error updating asset quote mode: ${error}`);
-      handleError("updating the asset quote mode");
+      handleError("quote_mode_failed");
     },
   });
 

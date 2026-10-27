@@ -138,6 +138,7 @@ it("translates template names and keeps selected IDs unchanged", async () => {
       taxonomyId="asset_classes"
       selected="balanced_60_40"
       onSelect={onSelect}
+      colorByCategory={new Map()}
       currentCategories={[]}
     />,
     { wrapper },

@@ -21,6 +21,9 @@
     "nameRequired": "El nombre es obligatorio",
     "namePlaceholder": "Nombre de la categoría",
     "icon": "Icono",
+    "parent": "Categoría principal",
+    "topLevel": "Ninguna (nivel superior)",
+    "parentLockedByBudget": "Elimina primero los objetivos de presupuesto de esta categoría. Los presupuestos solo se aplican a categorías de nivel superior.",
     "color": "Color",
     "hex": "Hex",
     "create": "Crear categoría",
@@ -106,6 +109,7 @@
     "selectCategory": "Selecciona una categoría",
     "priorityLabel": "Prioridad",
     "priorityHint": "Las reglas de mayor prioridad se comprueban primero (0-100).",
+    "priorityInvalid": "La prioridad debe ser un número entero mayor o igual que 0",
     "updateRule": "Actualizar regla",
     "createRule": "Crear regla",
     "scopeLabel": "Se aplica a",
@@ -435,6 +439,7 @@
     "customSubtitle": "Transacciones en el período seleccionado"
   },
   "split": {
+    "staleTaxonomy": "Estas divisiones usan un tipo de categoría anterior. Ya no se aplican a esta transacción.",
     "title": "Dividir transacción",
     "transactionFallback": "Transacción",
     "remainingOf": "Restante de {{amount}}",
@@ -443,7 +448,12 @@
     "removeLine": "Quitar línea dividida {{number}}",
     "addLine": "Añadir línea",
     "distributeEvenly": "Distribuir uniformemente",
-    "clearSplit": "Borrar división"
+    "clearSplit": "Borrar división",
+    "replaceWithCategory": "Reemplazar divisiones por una categoría",
+    "replaceDescription_one": "¿Reemplazar {{count}} división por {{category}}? Se eliminarán las divisiones actuales.",
+    "replaceDescription_other": "¿Reemplazar {{count}} divisiones por {{category}}? Se eliminarán las divisiones actuales.",
+    "replaceDescription_many": "¿Reemplazar {{count}} divisiones por {{category}}? Se eliminarán las divisiones actuales.",
+    "categoryProtected": "Las divisiones están protegidas. Edítelas o reemplácelas explícitamente en el editor de divisiones."
   },
   "hierarchy": {
     "noCategorizedSpending": "No hay gastos categorizados en este periodo.",
@@ -1090,5 +1100,17 @@
     "overridesTitle_other": "Excepciones · {{count}}",
     "overridesTitle_many": "Excepciones · {{count}}",
     "sourceMonth": "Mes de origen"
+  },
+  "splitEditReview": {
+    "title": "Revisar la eliminación de divisiones",
+    "hiddenCategory": "Las categorías existentes se conservan y pueden aplicarse después de eliminar las divisiones.",
+    "confirm": "Guardar y eliminar divisiones",
+    "removed_one": "Este cambio eliminará {{count}} división.",
+    "removed_many": "Este cambio eliminará {{count}} divisiones.",
+    "removed_other": "Este cambio eliminará {{count}} divisiones."
+  },
+  "budgetErrors": {
+    "deleteGroup": "No se pudo eliminar el grupo de presupuesto.",
+    "copyPlan": "No se pudo copiar el plan."
   }
 }

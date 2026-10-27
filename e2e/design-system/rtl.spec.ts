@@ -64,7 +64,9 @@ test("the side sheet comes in from the left edge", async ({ page }) => {
   const sheet = overlay("sheet").content(page);
   await expect(sheet).toBeVisible();
   await settle(page);
-  expect((await sheet.boundingBox())!.x).toBe(0);
+  // WebKit can expose the transition after getAnimations() was sampled above.
+  // Keep the exact final-edge assertion, but wait for that real geometry.
+  await expect.poll(async () => (await sheet.boundingBox())!.x).toBe(0);
 });
 
 test("switching direction live re-mirrors keyboard and layout", async ({ page }) => {

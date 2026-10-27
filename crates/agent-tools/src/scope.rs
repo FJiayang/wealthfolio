@@ -21,6 +21,7 @@ pub enum AgentScope {
     FinancialPlanningRead,
     HealthRead,
     ClassificationRead,
+    SpendingRead,
     ActivitiesDraft,
     ActivitiesWrite,
     ClassificationSuggest,
@@ -31,8 +32,8 @@ pub enum AgentScope {
     HoldingsWrite,
     FinancialPlanningWrite,
     MarketDataRead,
-    SpendingRead,
     SpendingWrite,
+    BudgetWrite,
 }
 
 impl AgentScope {
@@ -48,6 +49,7 @@ impl AgentScope {
         AgentScope::FinancialPlanningRead,
         AgentScope::HealthRead,
         AgentScope::ClassificationRead,
+        AgentScope::SpendingRead,
         AgentScope::ActivitiesDraft,
         AgentScope::ActivitiesWrite,
         AgentScope::ClassificationSuggest,
@@ -58,8 +60,8 @@ impl AgentScope {
         AgentScope::HoldingsWrite,
         AgentScope::FinancialPlanningWrite,
         AgentScope::MarketDataRead,
-        AgentScope::SpendingRead,
         AgentScope::SpendingWrite,
+        AgentScope::BudgetWrite,
     ];
 
     /// The read-only scopes — what the `read-only` preset grants. Kept
@@ -102,6 +104,7 @@ impl AgentScope {
             AgentScope::MarketDataRead => "market-data:read",
             AgentScope::SpendingRead => "spending:read",
             AgentScope::SpendingWrite => "spending:write",
+            AgentScope::BudgetWrite => "budget:write",
         }
     }
 
@@ -181,7 +184,8 @@ impl AgentScopeSet {
         set
     }
 
-    /// Read-only + activity writes + classification suggestions/writes.
+    /// All reads + activity writes + asset-classification suggestions/writes.
+    /// Does not grant Spending organization or budget writes.
     pub fn read_activity_write_classification_suggest() -> Self {
         let mut set = Self::read_activity_write();
         set.insert(AgentScope::ClassificationSuggest);
@@ -253,6 +257,11 @@ impl AgentScopeSet {
                     .to_string(),
             );
         }
+        for scope in [AgentScope::SpendingWrite, AgentScope::BudgetWrite] {
+            if self.contains(scope) && !self.contains(AgentScope::SpendingRead) {
+                return Some(format!("{scope} requires spending:read"));
+            }
+        }
         None
     }
 }
@@ -269,6 +278,8 @@ mod tests {
 
     #[test]
     fn round_trips_canonical_strings() {
+        let unique: BTreeSet<_> = AgentScope::ALL.iter().copied().collect();
+        assert_eq!(unique.len(), AgentScope::ALL.len());
         for scope in AgentScope::ALL {
             assert_eq!(AgentScope::parse(scope.as_str()), Some(*scope));
         }
@@ -315,6 +326,31 @@ mod tests {
         assert!(full.contains(AgentScope::ClassificationWrite));
         // Quote writes are only granted explicitly, never by a preset.
         assert!(!full.contains(AgentScope::MarketDataWrite));
+    }
+
+    #[test]
+    fn spending_writes_require_read_but_are_independent() {
+        for write in [AgentScope::SpendingWrite, AgentScope::BudgetWrite] {
+            let mut set = AgentScopeSet::from_iter([write]);
+            assert!(set.dependency_error().is_some());
+            set.insert(AgentScope::SpendingRead);
+            assert!(set.dependency_error().is_none());
+            assert!(!set.contains(AgentScope::ActivitiesRead));
+            assert!(!set.contains(AgentScope::ClassificationSuggest));
+        }
+        let old = AgentScopeSet::from_strs([
+            "classification:read",
+            "classification:suggest",
+            "classification:write",
+        ]);
+        assert!(!old.contains(AgentScope::SpendingRead));
+        assert!(!old.contains(AgentScope::SpendingWrite));
+        let existing = AgentScopeSet::from_strs(["spending:read", "spending:write"]);
+        assert!(!existing.contains(AgentScope::BudgetWrite));
+        let reads = AgentScopeSet::read_only();
+        assert!(reads.contains(AgentScope::SpendingRead));
+        assert!(!reads.contains(AgentScope::SpendingWrite));
+        assert!(!reads.contains(AgentScope::BudgetWrite));
     }
 
     #[test]
@@ -402,6 +438,12 @@ mod request_validation_tests {
         assert!(validate_requested_scopes(&["activities:write".into()]).is_err());
         assert!(validate_requested_scopes(&["classification:write".into()]).is_err());
         assert!(validate_requested_scopes(&["market-data:write".into()]).is_err());
+        assert!(validate_requested_scopes(&["spending:write".into()]).is_err());
+        assert!(validate_requested_scopes(&["budget:write".into()]).is_err());
+        assert_eq!(
+            validate_requested_scopes(&["budget:write".into(), "spending:read".into()]).unwrap(),
+            vec!["spending:read", "budget:write"]
+        );
         assert_eq!(
             validate_requested_scopes(&["assets:write".into(), "assets:write".into()]).unwrap(),
             vec!["assets:write"]

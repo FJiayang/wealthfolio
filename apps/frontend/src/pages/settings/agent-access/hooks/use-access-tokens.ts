@@ -29,7 +29,8 @@ export function useAccessTokens() {
       logger.error(`Error creating personal access token: ${String(error)}`);
       toast({
         title: i18n.t("common:notifications.failed_to_create_token"),
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description:
+          error instanceof Error ? error.message : i18n.t("common:globalEvents.unknownError"),
         variant: "destructive",
       });
     },
@@ -64,7 +65,8 @@ export function useAccessTokens() {
       logger.error(`Error removing personal access token: ${String(error)}`);
       toast({
         title: i18n.t("common:notifications.failed_to_remove_token"),
-        description: error instanceof Error ? error.message : "An unknown error occurred",
+        description:
+          error instanceof Error ? error.message : i18n.t("common:globalEvents.unknownError"),
         variant: "destructive",
       });
     },

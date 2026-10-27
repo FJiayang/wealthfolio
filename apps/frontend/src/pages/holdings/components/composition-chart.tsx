@@ -332,7 +332,7 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div className="flex items-center space-x-2">
             <Icons.LayoutDashboard className="text-muted-foreground h-4 w-4" />
-            <CardTitle className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
+            <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
               {t("holdings:composition")}
             </CardTitle>
           </div>
@@ -357,7 +357,7 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
             <CardTitle className="text-md font-medium">{t("holdings:composition")}</CardTitle>
           </div>
         </CardHeader>
-        <CardContent className="h-125 flex items-center justify-center">
+        <CardContent className="flex h-125 items-center justify-center">
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">{<Icons.BarChart className="size-10" />}</EmptyMedia>
@@ -374,7 +374,7 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
     <Card>
       <CardHeader className="flex shrink-0 flex-row flex-wrap items-center justify-between gap-2 space-y-0">
         <div className="flex items-center space-x-2">
-          <CardTitle className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
+          <CardTitle className="text-muted-foreground text-sm font-medium tracking-wider uppercase">
             {t("holdings:composition")}
           </CardTitle>
         </div>
@@ -399,7 +399,7 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
             height={200}
             data={data}
             dataKey="marketValueConverted"
-            animationDuration={100}
+            isAnimationActive={false}
             content={(props: TreemapNode) => (
               <CustomizedContent
                 {...props}
