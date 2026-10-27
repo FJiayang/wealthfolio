@@ -442,25 +442,44 @@ impl SyncStateStore for QuoteSyncStateRepository {
     }
 
     async fn mark_profile_enriched(&self, asset_id: &str) -> Result<()> {
-        let asset_id_owned = asset_id.to_string();
-        let now = Utc::now().to_rfc3339();
+        // Initial profile enrichment can finish before a quote sync has created
+        // its state. Use domain defaults without attributing a quote provider.
+        let mut state = QuoteSyncState::new(asset_id.to_string(), String::new());
+        state.profile_enriched_at = Some(state.updated_at);
+        let db_state = QuoteSyncStateDB::from(&state);
 
         debug!("Marking profile enriched for asset {}", asset_id);
 
         self.writer
             .exec(move |conn: &mut SqliteConnection| -> Result<()> {
+                // quote_sync_state has no asset foreign key. Check inside the
+                // writer's transaction so deletion cannot leave an orphan row.
+                use crate::schema::assets::dsl as assets_dsl;
+                let exists = diesel::select(diesel::dsl::exists(
+                    assets_dsl::assets.filter(assets_dsl::id.eq(&db_state.asset_id)),
+                ))
+                .get_result::<bool>(conn)
+                .map_err(StorageError::from)?;
+                if !exists {
+                    return Err(wealthfolio_core::errors::DatabaseError::NotFound(format!(
+                        "Asset {} not found",
+                        db_state.asset_id
+                    ))
+                    .into());
+                }
+
                 let update = QuoteSyncStateUpdateDB {
-                    profile_enriched_at: Some(Some(now.clone())),
-                    updated_at: Some(now),
+                    profile_enriched_at: Some(db_state.profile_enriched_at.clone()),
+                    updated_at: Some(db_state.updated_at.clone()),
                     ..Default::default()
                 };
-
-                diesel::update(
-                    qss_dsl::quote_sync_state.filter(qss_dsl::asset_id.eq(&asset_id_owned)),
-                )
-                .set(&update)
-                .execute(conn)
-                .map_err(StorageError::from)?;
+                diesel::insert_into(qss_dsl::quote_sync_state)
+                    .values(&db_state)
+                    .on_conflict(qss_dsl::asset_id)
+                    .do_update()
+                    .set(&update)
+                    .execute(conn)
+                    .map_err(StorageError::from)?;
 
                 Ok(())
             })

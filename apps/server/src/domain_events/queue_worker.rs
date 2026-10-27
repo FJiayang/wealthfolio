@@ -163,7 +163,22 @@ async fn process_event_batch(events: &[DomainEvent], deps: Arc<QueueWorkerDeps>)
             ));
     }
 
-    // Asset metadata is fetched only by the daily batch.
+    // Initial profiles are part of creation, not the next daily quote batch.
+    // Await the existing event flow before rebuilding from saved prices.
+    let asset_ids = wealthfolio_core::events::created_asset_ids(events);
+    if !asset_ids.is_empty() {
+        let observer = crate::api::shared::ServerJobObserver::with_parts(
+            deps.event_bus.clone(),
+            deps.health_service.clone(),
+        );
+        if let Err(error) = deps
+            .portfolio_coordinator
+            .enrich_created_assets(&asset_ids, deps.asset_service.as_ref(), &observer)
+            .await
+        {
+            tracing::warn!("Initial asset enrichment failed: {error}");
+        }
+    }
 
     // 2. Plan and trigger portfolio job
     if let Some(config) = plan_portfolio_job(events) {

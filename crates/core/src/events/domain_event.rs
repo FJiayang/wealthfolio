@@ -188,10 +188,41 @@ impl DomainEvent {
     }
 }
 
+/// Unique newly-created asset IDs whose initial profiles should be enriched.
+/// Other domain events only rebuild from local data.
+pub fn created_asset_ids(events: &[DomainEvent]) -> Vec<String> {
+    events
+        .iter()
+        .filter_map(|event| match event {
+            DomainEvent::AssetsCreated { asset_ids } => Some(asset_ids),
+            _ => None,
+        })
+        .flatten()
+        .filter(|id| !id.is_empty())
+        .cloned()
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::TimeZone;
+
+    #[test]
+    fn created_asset_ids_only_select_new_assets_and_deduplicate() {
+        let events = vec![
+            DomainEvent::assets_created(vec!["b".into(), "a".into(), "".into()]),
+            DomainEvent::assets_created(vec!["a".into()]),
+            DomainEvent::assets_updated(vec!["updated".into()]),
+            DomainEvent::device_sync_pull_complete(),
+            DomainEvent::PriceHistoryChanged,
+        ];
+        assert_eq!(created_asset_ids(&events), vec!["a", "b"]);
+        assert!(created_asset_ids(&[]).is_empty());
+        assert!(created_asset_ids(&events[2..]).is_empty());
+    }
 
     #[test]
     fn test_domain_event_serialization() {

@@ -647,6 +647,71 @@ impl PortfolioCoordinator {
         Ok(asset)
     }
 
+    /// Restore initial profile enrichment after creation without quote requests or
+    /// changing the automatic schedule. Both admission paths share the job lock,
+    /// so daily fallback rechecks successful enrichment before requesting again.
+    pub async fn enrich_created_assets(
+        &self,
+        asset_ids: &[String],
+        assets: &dyn crate::assets::AssetServiceTrait,
+        observer: &dyn JobObserver,
+    ) -> Result<()> {
+        if asset_ids.is_empty() {
+            return Ok(());
+        }
+        let _job = self.job.lock().await;
+        let ids: Vec<_> = self
+            .deps
+            .sources
+            .assets
+            .list_by_asset_ids(asset_ids)?
+            .into_iter()
+            .filter(|asset| asset.is_active && asset.quote_mode == crate::assets::QuoteMode::Market)
+            .map(|asset| asset.id)
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        if !ids.is_empty() {
+            Self::enrich_profiles(&ids, assets, observer).await;
+        }
+        Ok(())
+    }
+
+    /// Called only while holding the existing coordinator job lock. Individual
+    /// failures remain isolated and do not prevent the following local rebuild.
+    async fn enrich_profiles(
+        asset_ids: &[String],
+        assets: &dyn crate::assets::AssetServiceTrait,
+        observer: &dyn JobObserver,
+    ) {
+        observer.enrichment_started(asset_ids.len());
+        let (mut enriched, mut skipped, mut failed) = (0, 0, 0);
+        for chunk in asset_ids.chunks(5) {
+            match tokio::time::timeout(
+                std::time::Duration::from_secs(30),
+                assets.enrich_assets(chunk.to_vec()),
+            )
+            .await
+            {
+                Ok(Ok((e, s, f))) => {
+                    enriched += e;
+                    skipped += s;
+                    failed += f;
+                }
+                Ok(Err(error)) => {
+                    failed += chunk.len();
+                    warn!("Asset enrichment failed: {error}");
+                }
+                Err(_) => {
+                    failed += chunk.len();
+                    warn!("Asset enrichment timed out");
+                }
+            }
+            observer.enrichment_progress(enriched + skipped + failed, asset_ids.len());
+        }
+        observer.enrichment_completed(enriched, skipped, failed);
+    }
+
     pub async fn update_if_due(
         &self,
         settings: &dyn SettingsServiceTrait,
@@ -681,32 +746,7 @@ impl PortfolioCoordinator {
             .filter(|asset| asset.is_active && asset.quote_mode == crate::assets::QuoteMode::Market)
             .map(|asset| asset.id)
             .collect();
-        observer.enrichment_started(pending.len());
-        let (mut enriched, mut skipped, mut failed) = (0, 0, 0);
-        for chunk in pending.chunks(5) {
-            match tokio::time::timeout(
-                std::time::Duration::from_secs(30),
-                assets.enrich_assets(chunk.to_vec()),
-            )
-            .await
-            {
-                Ok(Ok((e, s, f))) => {
-                    enriched += e;
-                    skipped += s;
-                    failed += f;
-                }
-                Ok(Err(error)) => {
-                    failed += chunk.len();
-                    warn!("Scheduled asset enrichment failed: {error}");
-                }
-                Err(_) => {
-                    failed += chunk.len();
-                    warn!("Scheduled asset enrichment timed out");
-                }
-            }
-            observer.enrichment_progress(enriched + skipped + failed, pending.len());
-        }
-        observer.enrichment_completed(enriched, skipped, failed);
+        Self::enrich_profiles(&pending, assets, observer).await;
         let benchmarks: Vec<String> = settings
             .get_setting_value(crate::settings::MARKET_DATA_BENCHMARK_IDS_KEY)?
             .map(|value| serde_json::from_str(&value))

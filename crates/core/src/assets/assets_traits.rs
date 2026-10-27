@@ -205,6 +205,8 @@ pub trait AssetRepositoryTrait: Send + Sync {
     fn get_by_id(&self, asset_id: &str) -> Result<Asset>;
     fn list(&self) -> Result<Vec<Asset>>;
     fn list_by_asset_ids(&self, asset_ids: &[String]) -> Result<Vec<Asset>>;
+    /// Delete an asset and its quotes/sync state atomically after validating
+    /// activity constraints. A rejected deletion must preserve all saved data.
     async fn delete(&self, asset_id: &str) -> Result<()>;
 
     /// Search for assets by symbol (case-insensitive partial match).
