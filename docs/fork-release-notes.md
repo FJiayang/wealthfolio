@@ -12,6 +12,24 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.11.0.13 — 2026-10-27
+
+- Restore initial provider metadata after asset creation through the existing
+  asynchronous creation event flow. Newly created bonds receive their security
+  terms without waiting for the daily batch; manual assets remain local-only.
+- Share coordinator serialization with the scheduled pending-profile fallback,
+  and record successful initial enrichment before the first quote sync so it is
+  not fetched again unnecessarily. Preserve user-entered fields and existing
+  provider validation and failure isolation.
+- Remove asset quote state in the same transaction as asset deletion after
+  validating activity constraints, preserving saved data when deletion fails.
+- Retain the provider request detail page and all changes from v3.11.0.12.
+
+Architecture impact: reuse the existing event worker, coordinator lock, profile
+service and SQLite writer. Creation does not trigger global quote
+synchronization or change automatic scheduling. No new worker, retry loop or
+storage table.
+
 ## v3.11.0.12 — 2026-10-27
 
 - Replace the request summary drawer with a dedicated provider request query
