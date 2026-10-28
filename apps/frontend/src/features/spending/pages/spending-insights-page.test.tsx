@@ -1,5 +1,6 @@
-import { act, render, screen, fireEvent } from "@/test/render";
+import { act, render, screen, fireEvent, within } from "@/test/render";
 import userEvent from "@testing-library/user-event";
+import { useState, type ReactNode } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createInstance } from "i18next";
@@ -103,6 +104,38 @@ beforeEach(() => {
   vi.clearAllMocks();
   testSettings.timezone = "America/Toronto";
   taxonomyData.categories = [];
+});
+
+it("keeps desktop toolbar controls in sync and clears them when leaving the tab", async () => {
+  function ToolbarHost() {
+    const [actions, setActions] = useState<ReactNode | null>(null);
+    const [showSpending, setShowSpending] = useState(true);
+    return (
+      <>
+        <div data-testid="spending-toolbar">{actions}</div>
+        <button onClick={() => setShowSpending(false)}>Leave Spending</button>
+        {showSpending && <SpendingInsightsPage onToolbarActionsChange={setActions} />}
+      </>
+    );
+  }
+
+  const user = userEvent.setup();
+  render(
+    <MemoryRouter initialEntries={["/insights?tab=spending&period=MTD"]}>
+      <ToolbarHost />
+    </MemoryRouter>,
+  );
+  const toolbar = screen.getByTestId("spending-toolbar");
+  const ytd = () => within(toolbar).getByRole("button", { name: "YTD" });
+  expect(screen.getAllByRole("button", { name: "YTD" })).toHaveLength(1);
+  await user.click(ytd());
+  expect(ytd()).toHaveAttribute("aria-pressed", "true");
+  expect(sharedPick()).toEqual({ kind: "spending", code: "YTD" });
+  await user.click(within(toolbar).getByRole("button", { name: /This month/ }));
+  expect(ytd()).toHaveAttribute("aria-pressed", "false");
+  expect(sharedPick()).toEqual({ kind: "spending", code: "MTD" });
+  await user.click(screen.getByRole("button", { name: "Leave Spending" }));
+  expect(toolbar).toBeEmptyDOMElement();
 });
 
 describe("This month comparisons", () => {

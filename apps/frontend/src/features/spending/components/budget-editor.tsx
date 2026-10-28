@@ -249,7 +249,7 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
 
   if (mode === "monthly") {
     return (
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
           <BudgetSummary budget={budget} currency={currency} mode={mode} />
           <BudgetFxNote budget={budget} currency={currency} />
@@ -354,7 +354,9 @@ function BudgetSummary({
 
       <SegmentedGroupBar groupRows={groupRows} total={planned} hasPlan={hasPlan} />
 
-      <div className="mt-2.5 grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Up to three columns on large screens, but none under 10rem, so larger
+          text drops to two before the amounts are cut. */}
+      <div className="mt-2.5 grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(max(10rem,calc((100%-2rem)/3)),1fr))]">
         {groupRows.map((row) => (
           <GroupSummaryCell
             key={row.group.id}
@@ -566,7 +568,8 @@ function GroupBudgetSection({
           <div className="text-foreground truncate text-sm font-semibold">
             {getBudgetGroupLabel(t, row.group.id, row.group.name)}
           </div>
-          <div className="mt-0.5 flex items-center gap-1.5">
+          {/* Spent of planned wraps under the bar rather than ending in an ellipsis. */}
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
             <div className="bg-muted/40 h-1 w-16 shrink-0 overflow-hidden rounded-full sm:w-20">
               <div
                 className="h-full rounded-full transition-all"
@@ -576,7 +579,7 @@ function GroupBudgetSection({
                 }}
               />
             </div>
-            <span className="text-muted-foreground text-2xs truncate tabular-nums">
+            <span className="text-muted-foreground text-2xs tabular-nums">
               <PrivacyAmount value={row.actual} currency={currency} /> /{" "}
               <PrivacyAmount value={row.plannedTotal} currency={currency} />
             </span>

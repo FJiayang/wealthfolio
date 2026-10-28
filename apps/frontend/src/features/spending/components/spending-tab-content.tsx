@@ -117,7 +117,7 @@ const INTERVAL_DESCRIPTIONS: Record<SpendingDashboardPeriod, string> = {
 };
 
 // The three insights stages, surfaced as a "Dig deeper" strip under Recent
-// activity. Mirrors the StageNav on /spending/insights.
+// activity. Mirrors the StageNav on the /insights spending tab.
 const INSIGHT_STAGES = [
   {
     stage: "where",
@@ -142,10 +142,10 @@ const INSIGHT_STAGES = [
 // No period in these links: insights shows the period shown on the tab, which
 // the dashboard tabs and the insights page share.
 const dashboardInsightHref = {
-  where: "/spending/insights?stage=where",
-  changed: "/spending/insights?stage=changed",
-  when: "/spending/insights?stage=when",
-  cashflow: "/spending/insights?stage=where#cashflow",
+  where: "/insights?tab=spending&stage=where",
+  changed: "/insights?tab=spending&stage=changed",
+  when: "/insights?tab=spending&stage=when",
+  cashflow: "/insights?tab=spending&stage=where#cashflow",
 } satisfies Record<(typeof INSIGHT_STAGES)[number]["stage"] | "cashflow", string>;
 
 function rangeToReportRequest(range: DateRange | undefined, timezone?: string | null) {

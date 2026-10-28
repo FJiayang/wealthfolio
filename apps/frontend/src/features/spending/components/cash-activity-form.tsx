@@ -18,7 +18,13 @@ import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { QueryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { invalidateSpendingCaches } from "../lib/invalidation";
-import type { Account, Activity, ActivityCreate, ActivityUpdate } from "@/lib/types";
+import type {
+  Account,
+  Activity,
+  ActivityCreate,
+  ActivityUpdate,
+  TaxonomyCategory,
+} from "@/lib/types";
 import { invalidTypeError, requiredError } from "@/lib/zod-errors";
 
 import {
@@ -65,6 +71,7 @@ import { useEventTypes, useSpendingEvents } from "../hooks/use-spending-events";
 import { useSettings } from "@/hooks/use-settings";
 import { AdvancedOptionsSection } from "@/pages/activity/components/forms/fields/advanced-options-section";
 import { useSpendingSettings } from "../hooks/use-spending-settings";
+import { CategoryIconTile } from "./category-chips";
 import { QuickCategorizePopover } from "./quick-categorize-popover";
 import { QuickEventPopover } from "./quick-event-popover";
 import type { ActivitySplit, CashFlowBucket } from "../types/cash-activity";
@@ -215,30 +222,14 @@ export function CashActivityForm({
   const savings = useTaxonomy(SAVINGS_TAXONOMY);
 
   const allCategoriesById = useMemo(() => {
-    const map = new Map<string, { name: string; color: string | null; parentId: string | null }>();
-    (spending.data?.categories ?? []).forEach((c) =>
-      map.set(c.id, {
-        name: getCategoryLabel(t, c.taxonomyId, c.id, c.name),
-        color: c.color,
-        parentId: c.parentId ?? null,
-      }),
-    );
-    (income.data?.categories ?? []).forEach((c) =>
-      map.set(c.id, {
-        name: getCategoryLabel(t, c.taxonomyId, c.id, c.name),
-        color: c.color,
-        parentId: c.parentId ?? null,
-      }),
-    );
-    (savings.data?.categories ?? []).forEach((c) =>
-      map.set(c.id, {
-        name: getCategoryLabel(t, c.taxonomyId, c.id, c.name),
-        color: c.color,
-        parentId: c.parentId ?? null,
-      }),
-    );
+    const map = new Map<string, TaxonomyCategory>();
+    [
+      ...(spending.data?.categories ?? []),
+      ...(income.data?.categories ?? []),
+      ...(savings.data?.categories ?? []),
+    ].forEach((c) => map.set(c.id, c));
     return map;
-  }, [spending.data?.categories, income.data?.categories, savings.data?.categories, t]);
+  }, [spending.data?.categories, income.data?.categories, savings.data?.categories]);
 
   // Event lookup for the trigger label. Errors surface only via the
   // QuickEventPopover the user opens to pick an event (handled there);
@@ -742,6 +733,22 @@ export function CashActivityForm({
                         const currentParent = currentCat?.parentId
                           ? allCategoriesById.get(currentCat.parentId)
                           : null;
+                        const currentCatLabel = currentCat
+                          ? getCategoryLabel(
+                              t,
+                              currentCat.taxonomyId,
+                              currentCat.id,
+                              currentCat.name,
+                            )
+                          : "";
+                        const currentParentLabel = currentParent
+                          ? getCategoryLabel(
+                              t,
+                              currentParent.taxonomyId,
+                              currentParent.id,
+                              currentParent.name,
+                            )
+                          : "";
                         return (
                           <FormItem>
                             <FormLabel>
@@ -769,23 +776,22 @@ export function CashActivityForm({
                                       aria-label={
                                         currentCat
                                           ? t("spending:transactions.changeCategory", {
-                                              name: currentCat.name,
+                                              name: currentCatLabel,
                                             })
                                           : t("spending:cashForm.pickCategory")
                                       }
                                     >
                                       {currentCat ? (
                                         <span className="flex min-w-0 items-center gap-2">
-                                          {currentCat.color && (
-                                            <span
-                                              className="h-2.5 w-2.5 shrink-0 rounded-full"
-                                              style={{ backgroundColor: currentCat.color }}
-                                              aria-hidden="true"
-                                            />
-                                          )}
+                                          <CategoryIconTile
+                                            icon={currentCat.icon ?? null}
+                                            color={currentCat.color ?? null}
+                                            className="h-5 w-5"
+                                            iconClassName="h-3 w-3"
+                                          />
                                           <span className="truncate">
-                                            {currentParent ? `${currentParent.name} / ` : ""}
-                                            {currentCat.name}
+                                            {currentParent ? `${currentParentLabel} / ` : ""}
+                                            {currentCatLabel}
                                           </span>
                                         </span>
                                       ) : (

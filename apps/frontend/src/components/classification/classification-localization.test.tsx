@@ -17,6 +17,7 @@ import zhAllocation from "@/i18n/locales/zh/allocation.json";
 import type { TaxonomyCategory } from "@/lib/types";
 import { SingleSelectTaxonomy } from "./single-select-taxonomy";
 import { CategoryForm } from "@/pages/settings/taxonomies/components/category-form";
+import { modelPresetTitle } from "@/pages/allocation-targets/components/model-preset-data";
 import { ModelPresetPicker } from "@/pages/allocation-targets/components/model-preset-picker";
 import { DrillableDonutChart } from "@/pages/holdings/components/drillable-donut-chart";
 
@@ -129,7 +130,7 @@ it.each(["Low", "My low-risk bucket"])(
   },
 );
 
-it("translates template names and keeps selected IDs unchanged", async () => {
+it("translates weight-only example titles and keeps selected IDs unchanged", async () => {
   const { i18n, wrapper } = await setup();
   const onSelect = vi.fn();
   const user = userEvent.setup();
@@ -143,12 +144,28 @@ it("translates template names and keeps selected IDs unchanged", async () => {
     />,
     { wrapper },
   );
-  const name = zhAllocation.builtInPresets.balanced_60_40.name;
+  const name = `60% ${zhCommon.categoryNames.asset_classes.EQUITY} / 40% ${zhCommon.categoryNames.asset_classes.FIXED_INCOME}`;
   expect(screen.getByText(name)).toBeVisible();
   await user.click(screen.getByText(name));
   expect(onSelect).toHaveBeenCalledWith("balanced_60_40");
   await act(() => i18n.changeLanguage("en"));
-  expect(screen.getByText("Balanced 60 / 40")).toBeVisible();
+  expect(screen.getByText("60% Equity / 40% Fixed Income")).toBeVisible();
+});
+
+it("preserves renamed and custom categories in weight-only titles", async () => {
+  const { i18n } = await setup();
+  const preset = {
+    id: "custom",
+    taxonomyId: "asset_classes",
+    weights: { EQUITY: 60, MY_CLASS: 40 },
+  };
+  const categories = [
+    { id: "EQUITY", name: "My Equity" },
+    { id: "MY_CLASS", name: "我的分类" },
+  ];
+  const original = structuredClone({ preset, categories });
+  expect(modelPresetTitle(preset, categories, i18n.t)).toBe("60% My Equity / 40% 我的分类");
+  expect({ preset, categories }).toEqual(original);
 });
 
 it("refreshes chart labels on language changes and preserves the source allocation", async () => {

@@ -398,7 +398,14 @@ export const COMMANDS: CommandMap = {
   get_allocation_target_drift: { method: "POST", path: "/allocation-targets" },
   list_target_constraints: { method: "GET", path: "/allocation-targets" },
   save_target_constraints: { method: "POST", path: "/allocation-targets" },
-  calculate_rebalance_plan: { method: "POST", path: "/allocation-targets/rebalance/calculate" },
+  generate_calculated_adjustments: {
+    method: "POST",
+    path: "/allocation-targets/worksheet/generate",
+  },
+  calculate_allocation_worksheet: {
+    method: "POST",
+    path: "/allocation-targets/worksheet/calculate",
+  },
   // Alternative Assets
   create_alternative_asset: { method: "POST", path: "/alternative-assets" },
   update_alternative_asset_valuation: { method: "PUT", path: "/alternative-assets" },
@@ -439,14 +446,14 @@ export const logger: Logger = {
  */
 export function toBase64(data: Uint8Array | number[]): string {
   const bytes = Array.isArray(data) ? new Uint8Array(data) : data;
-  // Fast base64 encoding without TextEncoder for binary
-  let binary = "";
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  // Bound each call to avoid argument limits and per-byte string concatenation.
+  const chunkSize = 32 * 1024;
+  const chunks: string[] = [];
+  for (let i = 0; i < bytes.byteLength; i += chunkSize) {
+    chunks.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)));
   }
   // btoa expects binary string
-  return btoa(binary);
+  return btoa(chunks.join(""));
 }
 
 /**
@@ -2019,21 +2026,47 @@ export const invoke = async <T>(command: string, payload?: Record<string, unknow
       body = JSON.stringify(constraints);
       break;
     }
-    case "calculate_rebalance_plan": {
-      const { targetId, availableCash, filter, scenarioMode, eligibleAssetIds } = payload as {
+    case "generate_calculated_adjustments": {
+      const {
+        targetId,
+        mode,
+        rule,
+        cash,
+        selectedAccountIds,
+        filter,
+        eligibleAssetIds,
+        sellableAssetIds,
+      } = payload as {
         targetId: string;
-        availableCash: number;
+        mode: string;
+        rule: string;
+        cash: unknown;
+        selectedAccountIds: string[];
         filter: unknown;
-        scenarioMode: string;
         eligibleAssetIds?: string[];
+        sellableAssetIds?: string[];
       };
       body = JSON.stringify({
         targetId,
-        availableCash,
+        mode,
+        rule,
+        cash,
+        selectedAccountIds,
         filter,
-        scenarioMode,
         ...(eligibleAssetIds === undefined ? {} : { eligibleAssetIds }),
+        ...(sellableAssetIds === undefined ? {} : { sellableAssetIds }),
       });
+      break;
+    }
+    case "calculate_allocation_worksheet": {
+      const { targetId, cash, lines, selectedAccountIds, filter } = payload as {
+        targetId: string;
+        cash: unknown;
+        lines: unknown[];
+        selectedAccountIds: string[];
+        filter: unknown;
+      };
+      body = JSON.stringify({ targetId, cash, lines, selectedAccountIds, filter });
       break;
     }
     // AI Providers

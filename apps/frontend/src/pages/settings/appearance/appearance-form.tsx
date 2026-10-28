@@ -5,6 +5,7 @@ import * as z from "zod";
 
 import { FontSelector } from "@/components/font-selector";
 import { NavigationStyleSelector } from "@/components/navigation-style-selector";
+import { TextSizeSelector } from "@/components/text-size-selector";
 import { ThemePicker } from "@/components/theme-picker";
 import { ThemeSelector } from "@/components/theme-selector";
 import { Button, Icons } from "@wealthfolio/ui";
@@ -22,6 +23,7 @@ import {
   ItemActions,
   ItemContent,
   ItemDescription,
+  ItemSeparator,
   ItemTitle,
 } from "@wealthfolio/ui/components/ui/item";
 import { usePlatform } from "@/hooks/use-platform";
@@ -37,6 +39,10 @@ interface AppearanceFormValues {
   font: "font-mono" | "font-sans" | "font-serif";
   menuBarVisible: boolean;
 }
+
+// A row's text keeps this width, so on a phone its control wraps below it
+// rather than squeezing the title.
+const controlRowContentClassName = "min-w-48";
 
 const switchModeKeys = {
   dark: "settings:appearance_switch_to_dark",
@@ -95,7 +101,7 @@ export function AppearanceForm() {
           name="theme"
           render={({ field }) => (
             <Item variant="outline" size="sm">
-              <ItemContent>
+              <ItemContent className={controlRowContentClassName}>
                 <ItemTitle>{t("settings:appearance_mode_title")}</ItemTitle>
                 <ItemDescription>{t("settings:appearance_mode_description")}</ItemDescription>
               </ItemContent>
@@ -147,48 +153,64 @@ export function AppearanceForm() {
               </Button>
             </div>
           )}
-        </section>
-
-        <FormField
-          control={form.control}
-          name="font"
-          render={({ field }) => (
-            <Item variant="outline" size="sm">
-              <ItemContent>
-                <ItemTitle>{t("settings:appearance_font_title")}</ItemTitle>
-                <ItemDescription>
-                  {activeTheme?.font
-                    ? t("settings:appearance_theme_suggests", {
-                        theme: activeTheme.name,
-                        value: t(fontLabelKeys[activeTheme.font]),
-                      })
-                    : t("settings:appearance_font_description")}
-                </ItemDescription>
-                {fontDiffersFromTheme && activeTheme && (
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    className="h-auto self-start px-0"
-                    onClick={() => handlePartialUpdate(themeSelectionUpdate(activeTheme.id))}
-                  >
-                    {t("settings:appearance_use_theme_defaults")}
-                  </Button>
-                )}
+          <div className="rounded-md border">
+            <FormField
+              control={form.control}
+              name="font"
+              render={({ field }) => (
+                <Item size="sm">
+                  <ItemContent className={controlRowContentClassName}>
+                    <ItemTitle>{t("settings:appearance_font_title")}</ItemTitle>
+                    <ItemDescription>
+                      {activeTheme?.font
+                        ? t("settings:appearance_theme_suggests", {
+                            theme: activeTheme.name,
+                            value: t(fontLabelKeys[activeTheme.font]),
+                          })
+                        : t("settings:appearance_font_description")}
+                    </ItemDescription>
+                    {fontDiffersFromTheme && activeTheme && (
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="h-auto self-start px-0"
+                        onClick={() => handlePartialUpdate(themeSelectionUpdate(activeTheme.id))}
+                      >
+                        {t("settings:appearance_use_theme_defaults")}
+                      </Button>
+                    )}
+                  </ItemContent>
+                  <ItemActions>
+                    <FontSelector
+                      aria-label={t("settings:appearance_font_title")}
+                      value={field.value}
+                      onChange={(value) => {
+                        field.onChange(value);
+                        handlePartialUpdate({ font: value });
+                      }}
+                    />
+                  </ItemActions>
+                </Item>
+              )}
+            />
+            <ItemSeparator />
+            {/* A container: the size names show when this row has room for them. */}
+            <Item size="sm" className="@container">
+              <ItemContent className={controlRowContentClassName}>
+                <ItemTitle>{t("settings:appearance_text_size_title")}</ItemTitle>
+                <ItemDescription>{t("settings:appearance_text_size_description")}</ItemDescription>
               </ItemContent>
               <ItemActions>
-                <FontSelector
-                  aria-label={t("settings:appearance_font_title")}
-                  value={field.value}
-                  onChange={(value) => {
-                    field.onChange(value);
-                    handlePartialUpdate({ font: value });
-                  }}
+                <TextSizeSelector
+                  aria-label={t("settings:appearance_text_size_title")}
+                  value={settings?.textSize}
+                  onChange={(textSize) => handlePartialUpdate({ textSize })}
                 />
               </ItemActions>
             </Item>
-          )}
-        />
+          </div>
+        </section>
 
         {!isMobile && (
           <div className="space-y-3">

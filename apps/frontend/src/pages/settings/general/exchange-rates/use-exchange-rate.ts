@@ -19,7 +19,11 @@ export function useExchangeRates() {
   const queryClient = useQueryClient();
   const { t, i18n: translation } = useTranslation();
 
-  const { data: rawExchangeRates, isLoading: isLoadingRates } = useQuery<ExchangeRate[], Error>({
+  const {
+    data: rawExchangeRates,
+    isLoading: isLoadingRates,
+    dataUpdatedAt,
+  } = useQuery<ExchangeRate[], Error>({
     queryKey: [QueryKeys.EXCHANGE_RATES],
     queryFn: async () => {
       const rates = await getExchangeRates();
@@ -126,6 +130,7 @@ export function useExchangeRates() {
   return {
     exchangeRates,
     isLoadingRates,
+    dataUpdatedAt,
     updateExchangeRate,
     addExchangeRate,
     deleteExchangeRate,
