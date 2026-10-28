@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import i18n from "i18next";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import zhSettings from "@/i18n/locales/zh/settings.json";
 import type { CategoryNode } from "@/features/spending/components/category-item";
 import SpendingCategoriesPage from "./spending-categories-page";
@@ -228,6 +229,7 @@ it.each([
   ["My dining", "My dining"],
 ])("reports a hidden-screen delete with the display name for %s", async (name, label) => {
   i18n.addResourceBundle("zh", "common", zhCommon);
+  i18n.addResourceBundle("zh", "taxonomies", zhTaxonomies);
   i18n.addResourceBundle("zh", "settings", zhSettings);
   await i18n.changeLanguage("zh");
   mocks.category = { id: "cat_food", name };

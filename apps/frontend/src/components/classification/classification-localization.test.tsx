@@ -135,7 +135,7 @@ it.each(["Low", "My low-risk bucket"])(
     await user.type(screen.getByRole("textbox", { name: "描述" }), "My description");
     await act(() => i18n.changeLanguage("en"));
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(name);
-    await user.click(screen.getByRole("button", { name: "Save Changes" }));
+    await user.click(screen.getByRole("button", { name: enSettings.tax_save_changes }));
     await waitFor(() =>
       expect(updateCategory).toHaveBeenCalledWith(
         expect.objectContaining({ id: "LOW", key: "LOW", name, description: "My description" }),
