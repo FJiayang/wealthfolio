@@ -1,4 +1,4 @@
-import { getEventTypeLabel } from "@/lib/taxonomy-labels";
+import { getEventTypeLabel } from "@/features/spending/lib/labels";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 

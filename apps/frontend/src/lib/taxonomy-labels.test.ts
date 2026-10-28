@@ -4,8 +4,6 @@ import en from "@/i18n/locales/en/common.json";
 import zh from "@/i18n/locales/zh/common.json";
 import type { TaxonomyAllocation } from "./types";
 import {
-  getBudgetGroupLabel,
-  getEventTypeLabel,
   getCategoryLabel,
   getCategoryPathLabel,
   getTaxonomyLabel,
@@ -41,12 +39,8 @@ describe("built-in taxonomy labels", () => {
     expect(getCategoryLabel(i18n.getFixedT("zh"), taxonomyId, id, name)).toBe(name);
   });
 
-  it("preserves renamed budget groups and financial terminology", () => {
+  it("preserves financial terminology", () => {
     const t = i18n.getFixedT("zh");
-    const id = "032ecb02-5912-42e8-9724-2cd566fc08d5";
-    expect(getBudgetGroupLabel(t, id, "Needs")).toBe("必要支出");
-    expect(getBudgetGroupLabel(t, id, "My needs")).toBe("My needs");
-    expect(getBudgetGroupLabel(t, "custom", "Needs")).toBe("Needs");
     expect(getCategoryLabel(t, "instrument_type", "FUND", "Funds")).toBe("基金");
     expect(getCategoryLabel(t, "instrument_type", "STRUCTURED", "Structured Notes")).toBe(
       "结构化票据",
@@ -105,20 +99,6 @@ describe("built-in taxonomy labels", () => {
     expect(localizeAllocation(i18n.getFixedT("en"), allocation).categories[0].categoryName).toBe(
       "Equity",
     );
-  });
-});
-
-describe("built-in event type labels", () => {
-  it("translates all unchanged seeded types and preserves renamed or custom types", () => {
-    const t = i18n.getFixedT("zh");
-    for (const [id, name] of Object.entries(en.eventTypeNames)) {
-      expect(getEventTypeLabel(t, id, name)).toBe(
-        zh.eventTypeNames[id as keyof typeof zh.eventTypeNames],
-      );
-      expect(getEventTypeLabel(t, id, `My ${name}`)).toBe(`My ${name}`);
-      expect(getEventTypeLabel(t, `custom-${id}`, name)).toBe(name);
-      expect(getEventTypeLabel(i18n.getFixedT("en"), id, name)).toBe(name);
-    }
   });
 });
 

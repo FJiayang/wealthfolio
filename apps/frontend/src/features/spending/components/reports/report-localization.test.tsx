@@ -9,7 +9,8 @@ import enSpending from "@/i18n/locales/en/spending.json";
 import zhSpending from "@/i18n/locales/zh/spending.json";
 import enSettings from "@/i18n/locales/en/settings.json";
 import zhSettings from "@/i18n/locales/zh/settings.json";
-import { getBudgetGroupLabel, getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getBudgetGroupLabel } from "@/features/spending/lib/labels";
 import type { TaxonomyCategory } from "@/lib/types";
 import { BudgetOverviewCard } from "@/pages/settings/spending/components/budget-overview-card";
 import {

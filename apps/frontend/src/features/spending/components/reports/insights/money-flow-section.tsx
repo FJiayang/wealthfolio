@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TaxonomyCategory } from "@/lib/types";
-import { getBudgetGroupLabel, getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getBudgetGroupLabel } from "@/features/spending/lib/labels";
 import { Button, Icons, Skeleton } from "@wealthfolio/ui";
 
 import {

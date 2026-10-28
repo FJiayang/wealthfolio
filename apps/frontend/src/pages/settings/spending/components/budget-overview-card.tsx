@@ -7,7 +7,7 @@ import { Icons, useAmountFormatting, buttonVariants } from "@wealthfolio/ui";
 import { useBudget } from "@/features/spending/hooks/use-budget";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { cn } from "@/lib/utils";
-import { getBudgetGroupLabel } from "@/lib/taxonomy-labels";
+import { getBudgetGroupLabel } from "@/features/spending/lib/labels";
 
 import { formatAmountWhole } from "./format";
 import { badgeVariants } from "@wealthfolio/ui";
