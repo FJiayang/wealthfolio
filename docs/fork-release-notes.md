@@ -12,6 +12,24 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.11.0.15 — 2026-10-28
+
+- Add declarative `investment-import` and `spending-import` addon slots to
+  the corresponding activity menus and mobile import pickers.
+- Support import-only addons without sidebar entries, including lazy activation,
+  disabled-entry removal, re-enabling, and uninstall cleanup.
+- Connect the local Ant Fund PDF and unified statement importers to their
+  respective investment and spending menus. Updated addon ZIPs are distributed
+  separately and require this fork release for their menu entries.
+
+Architecture impact: extend frontend contribution discovery and navigation only;
+reuse existing addon routes, sandbox permissions and import/save workflows. No
+new backend API, persistence, network access, background worker or retry mechanism.
+
+Validation: 35 focused host unit tests and five application E2E tests passed,
+including desktop/mobile, LTR/RTL, addon lifecycle and host draft import. Type,
+lint, translation, Web/Tauri frontend build and both addon package checks passed.
+
 ## v3.11.0.14 — 2026-10-28
 
 - Share the import wizard layout, upload, navigation, cancellation and result
