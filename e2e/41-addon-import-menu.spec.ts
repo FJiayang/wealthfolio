@@ -10,13 +10,13 @@ const addons = [
     id: "ant-fund-pdf-import-addon",
     route: "ant-fund-pdf-import",
     tab: "investments",
-    upload: "Choose PDF file",
+    upload: "选择 PDF 文件",
   },
   {
     id: "unified-statement-import-addon",
     route: "statement-import",
     tab: "spending",
-    upload: "Choose a statement file",
+    upload: "选择账单文件",
   },
 ];
 
@@ -24,7 +24,7 @@ for (const mobile of [false, true]) {
   for (const direction of ["ltr", "rtl"]) {
     test(`local import addons open from activity menus (${mobile ? "mobile" : "desktop"}, ${direction})`, async ({
       page,
-    }) => {
+    }, testInfo) => {
       test.skip(
         !addonDirectory,
         "Set WF_E2E_IMPORT_ADDONS_DIR to the packaged local addon directory",
@@ -98,6 +98,123 @@ for (const mobile of [false, true]) {
         await expect(
           page.frameLocator("iframe").getByRole("button", { name: addon.upload, exact: true }),
         ).toBeVisible({ timeout: 30_000 });
+
+        if (addon.id === "ant-fund-pdf-import-addon") {
+          const frame = page.frameLocator("iframe");
+          await frame
+            .locator('input[type="file"]')
+            .setInputFiles(join(addonDirectory!, addon.id, "src/fixtures/statement.pdf"));
+          const edit = frame.getByRole("button", { name: "编辑", exact: true }).first();
+          await expect(edit).toBeVisible({ timeout: 30_000 });
+          await edit.scrollIntoViewIfNeeded();
+          const fits = await edit.evaluate((element) => {
+            const button = element.getBoundingClientRect();
+            const cell = element.closest('[role="gridcell"]')!.getBoundingClientRect();
+            return button.top >= cell.top && button.bottom <= cell.bottom;
+          });
+          expect(fits).toBe(true);
+          await edit.click();
+          await frame
+            .getByRole("dialog")
+            .getByRole("button", { name: "取消", exact: true })
+            .click();
+          await frame
+            .getByRole("banner")
+            .getByRole("button", { name: "取消", exact: true })
+            .click();
+          await frame
+            .getByRole("alertdialog")
+            .getByRole("button", { name: "继续编辑", exact: true })
+            .click();
+          await expect(edit).toBeVisible();
+          await frame
+            .getByRole("banner")
+            .getByRole("button", { name: "取消", exact: true })
+            .click();
+          await frame
+            .getByRole("alertdialog")
+            .getByRole("button", { name: "取消", exact: true })
+            .click();
+          await expect(
+            frame.getByRole("button", { name: addon.upload, exact: true }),
+          ).toBeVisible();
+        }
+
+        if (addon.id === "unified-statement-import-addon") {
+          await page.goto(`${BASE_URL}/addons/${addon.id}?dir=${direction}`);
+          const frame = page.frameLocator("iframe");
+          await frame
+            .locator('input[type="file"]')
+            .setInputFiles(join(addonDirectory!, addon.id, "src/fixtures/alipay-synthetic.csv"));
+          await frame.getByRole("button", { name: "保存映射并预览" }).click();
+          const cards = frame.locator("dl");
+          await expect(cards.locator("dt")).toHaveText([
+            "待导入",
+            "重复",
+            "排除",
+            "待确认",
+            "错误",
+          ]);
+          await expect(cards.locator("div.bg-success-subtle")).toBeVisible();
+          await expect(cards.locator("div.bg-destructive-subtle")).toBeVisible();
+          const successCard = cards.locator("div.bg-success-subtle");
+          const lightColor = await successCard.evaluate(
+            (element) => getComputedStyle(element).backgroundColor,
+          );
+          await page.screenshot({ path: testInfo.outputPath("statement-light.png") });
+          await page.evaluate(() => document.documentElement.classList.add("dark"));
+          await expect
+            .poll(() =>
+              successCard.evaluate((element) => getComputedStyle(element).backgroundColor),
+            )
+            .not.toBe(lightColor);
+          await page.screenshot({ path: testInfo.outputPath("statement-dark.png") });
+          await page.evaluate(() => document.documentElement.classList.remove("dark"));
+          const choice = frame.getByRole("combobox", { name: /第 .+ 行性质/ }).first();
+          await choice.scrollIntoViewIfNeeded();
+          const cell = await choice.evaluate((element) => {
+            const control = element.getBoundingClientRect();
+            const cell = element.closest('[role="gridcell"]')!.getBoundingClientRect();
+            return {
+              top: control.top - cell.top,
+              bottom: cell.bottom - control.bottom,
+              height: element.closest('[data-slot="grid-row"]')!.getBoundingClientRect().height,
+              width: cell.width,
+              x: cell.x,
+            };
+          });
+          expect(cell.height).toBe(56);
+          expect(cell.width).toBe(150);
+          const header = await frame
+            .getByRole("columnheader", { name: "记账性质", exact: true })
+            .evaluate((element) => {
+              const rect = element.getBoundingClientRect();
+              return { width: rect.width, x: rect.x };
+            });
+          expect(header.width).toBe(150);
+          expect(header.x).toBeCloseTo(cell.x, 0);
+          expect(cell.top).toBeGreaterThanOrEqual(0);
+          expect(cell.bottom).toBeGreaterThanOrEqual(0);
+          await choice.click();
+          await expect(frame.getByRole("option", { name: "支出退款", exact: true })).toBeVisible();
+          await expect(
+            frame.getByRole("option", { name: "支出退款", exact: true }),
+          ).toBeInViewport();
+          await page.screenshot({ path: testInfo.outputPath("statement-select.png") });
+          await page.keyboard.press("Escape");
+          const next = await frame
+            .getByRole("button", { name: "提交确认", exact: true })
+            .boundingBox();
+          expect(next!.y + next!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+          await frame.getByRole("button", { name: "结束 / 取消本次导入" }).click();
+          await frame
+            .getByRole("alertdialog")
+            .getByRole("button", { name: "取消本次导入", exact: true })
+            .click();
+          await expect(
+            frame.getByRole("button", { name: addon.upload, exact: true }),
+          ).toBeVisible();
+        }
       }
 
       // Reload rebuilds menu contributions from enabled manifests, without sidebar links.

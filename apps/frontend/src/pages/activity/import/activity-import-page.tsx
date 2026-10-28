@@ -1,6 +1,5 @@
 import { getImportHandoff, clearImportHandoff, type ImportHandoff } from "@/addons/import-handoff";
-import { ImportWizardLayout } from "@wealthfolio/ui";
-import { getAccounts } from "@/adapters";
+import { getAccounts, logger } from "@/adapters";
 import { usePlatform } from "@/hooks/use-platform";
 import { shouldResolveImportAsset } from "@/lib/activity-utils";
 import { canImportCSV } from "@/lib/activity-restrictions";
@@ -9,6 +8,7 @@ import type { Account } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import { AlertFeedback, Page, PageContent, PageHeader } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
+import { Card, CardHeader } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { AnimatePresence, motion } from "motion/react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -706,7 +706,7 @@ function ImportWizardContent({ handoff }: { handoff?: ImportHandoff }) {
   }
 
   return (
-    <Page className="flex h-full min-h-0 flex-col">
+    <Page>
       <PageHeader
         heading={pageTitle}
         text={handoff?.sourceLabel}
@@ -734,48 +734,57 @@ function ImportWizardContent({ handoff }: { handoff?: ImportHandoff }) {
         }
       />
 
-      <PageContent
-        withPadding={false}
-        className="min-h-0 flex-1 md:min-h-0 [&>div]:h-full [&>div]:min-h-0"
-      >
-        <div className="h-full min-h-0 px-2 pt-2 pb-6 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
-          <ImportWizardLayout
-            isResult={state.step === "result"}
-            steps={<WizardStepIndicator steps={steps} currentStep={state.step} />}
-            navigation={
-              showNavigation ? (
-                <StepNavigation
-                  onNext={handleNext}
-                  onBack={handleBack}
-                  canGoBack={canGoBack}
-                  canGoNext={canGoNext}
-                  nextLabel={getNextLabel()}
-                  isNextLoading={isNextLoading || isHoldingsValidationLoading}
-                  nextLoadingLabel={
-                    isHoldingsValidationLoading
-                      ? t("activity:import.holdings.validating")
-                      : undefined
-                  }
-                />
-              ) : undefined
-            }
-          >
-            {/* Step content — scrollable */}
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={state.step}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <CurrentStepComponent />
-                </motion.div>
-              </AnimatePresence>
-            </div>
-          </ImportWizardLayout>
-        </div>
+      <PageContent withPadding={false}>
+        <ErrorBoundary fallbackTitle={t("activity:import.page.somethingWentWrong")}>
+          <div className="px-2 pt-2 pb-6 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
+            <Card
+              data-import-wizard
+              className="flex max-h-[calc(100dvh-9rem)] w-full flex-col overflow-hidden"
+            >
+              {/* Step indicator — hidden on result step */}
+              {state.step !== "result" && (
+                <CardHeader className="shrink-0 border-b px-3 py-3 sm:px-6 sm:py-4">
+                  <WizardStepIndicator steps={steps} currentStep={state.step} />
+                </CardHeader>
+              )}
+
+              {/* Step content — scrollable */}
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={state.step}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.3 }}
+                    className="p-3 sm:p-6"
+                  >
+                    <CurrentStepComponent />
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+
+              {/* Navigation buttons — always visible */}
+              {showNavigation && (
+                <div className="shrink-0 px-3 pb-3 sm:px-6 sm:pb-6">
+                  <StepNavigation
+                    onNext={handleNext}
+                    onBack={handleBack}
+                    canGoBack={canGoBack}
+                    canGoNext={canGoNext}
+                    nextLabel={getNextLabel()}
+                    nextLoadingLabel={
+                      isHoldingsValidationLoading
+                        ? t("activity:import.holdings.validating")
+                        : undefined
+                    }
+                    isNextLoading={isNextLoading || isHoldingsValidationLoading}
+                  />
+                </div>
+              )}
+            </Card>
+          </div>
+        </ErrorBoundary>
       </PageContent>
 
       {/* Cancel confirmation dialog */}
@@ -787,6 +796,38 @@ function ImportWizardContent({ handoff }: { handoff?: ImportHandoff }) {
       />
     </Page>
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Error Boundary
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallbackTitle: string },
+  ErrorBoundaryState
+> {
+  override state: ErrorBoundaryState = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  override componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    logger.error(`Caught error: ${error}, info: ${errorInfo.componentStack}`);
+  }
+
+  override render() {
+    if (this.state.hasError) {
+      return <AlertFeedback variant="error" title={this.props.fallbackTitle} />;
+    }
+
+    return this.props.children;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
