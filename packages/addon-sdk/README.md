@@ -1907,10 +1907,10 @@ If you're still experiencing issues:
    - Error messages with stack traces
    - Minimal reproduction steps
 
-### Hand off parsed activities to the host import wizard (3.11.1+)
+### Hand off parsed activities to the host import wizard (fork v3.11.0.14+)
 
 Declare `activities.openImport` in the manifest's activities permissions and
-require Wealthfolio 3.11.1 or newer. Call
+require the fork build v3.11.0.14 or newer with this import extension. Call
 `context.api.activities.openImport({ sourceLabel, accountId, rows })`, where
 each row contains `{ activity, sourceLine, rawRow, excluded }` and `activity`
 uses the SDK's `ActivityImport` shape. Asset binding may remain unresolved.
@@ -1929,5 +1929,6 @@ after reload. Explicit cancel/reset controls must use `CancelConfirmationDialog`
 as well.
 
 Build the SDK and UI packages in the sibling Wealthfolio checkout before
-building local addons that link to them. New addons require 3.11.1 host
-dependencies; addons compiled against older exports remain supported.
+building local addons that link to them. Application, SDK and UI versions stay
+at the upstream 3.11.0; addons using this extension require the matching fork
+build. Addons compiled against older exports remain supported.

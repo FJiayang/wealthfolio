@@ -20,6 +20,9 @@ For supported functionality and changes by version, see the
   `apps/tauri/tauri.conf.json` at the upstream version. Four-component release
   names are not SemVer and must not be copied into these manifests or
   Cargo.lock.
+- SDK and UI package versions and the version displayed in the application are
+  also managed by upstream. Do not bump them for fork-only features; identify
+  those capabilities by the fork release tag instead.
 - Published fork tags use `vMAJOR.MINOR.PATCH.REVISION`; no leading zeros, zero
   revisions, prerelease suffixes, or reused tags. The tag must exactly match the
   release manifest at that commit.

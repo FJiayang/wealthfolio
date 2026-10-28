@@ -12,6 +12,21 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.11.0.14 — 2026-10-28
+
+- Share the import wizard layout, upload, navigation, cancellation and result
+  components between the host and local statement importers.
+- Let the Ant Fund PDF addon hand normalized drafts to the host for asset
+  resolution, validation, duplicate review and confirmed import. Keep unified
+  statement provenance and reconciliation in its addon.
+- Add route-scoped mobile leave protection and exact decimal quantity input.
+  Preserve hidden rows when editing a filtered grid and protect locked cells.
+- Keep application, SDK and UI versions at upstream 3.11.0; only the fork
+  revision advances. These new addon APIs require this fork build.
+
+Architecture impact: add frontend SDK and iframe bridges; reuse the host import
+services. No new Rust API, database table, background worker or retry mechanism.
+
 ## v3.11.0.13 — 2026-10-27
 
 - Restore initial provider metadata after asset creation through the existing
