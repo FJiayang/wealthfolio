@@ -12,10 +12,36 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.11.0.16 — 2026-10-28
+
+- Restore the native import page's internal UI components and remove the shared
+  import wizard exports from the host UI package. Addon wizard compositions now
+  live in the addons repository's `packages/import-wizard-ui` and are bundled
+  into the separately distributed plugin ZIPs.
+- Upgrade the local Ant Fund PDF importer to 0.1.2 and unified statement
+  importer to 0.1.3 together with this host. Older addon versions depend on the
+  removed UI exports. Both plugins use Simplified Chinese and host theme tokens,
+  with status cards, correctly sized editable rows and aligned narrow-screen
+  columns.
+- The Ant Fund addon also fixes its packaged font/CMap resource paths; files
+  continue to be parsed locally through the existing host asset interface.
+
+Architecture impact: move addon UI ownership out of the host while preserving
+draft handoff, permission checks, route cleanup, leave protection, read-only
+grid support and precise quantity input. Statement source metadata and
+reconciliation, backend APIs, persistence, provider access and background
+execution stay unchanged.
+
+Validation: 44 focused host unit tests, addon/shared unit tests, both ZIP
+checks, types, lint, formatting, translations and Web/Tauri frontend builds
+passed. 25 browser cases passed across native CSV import, draft handoff, real
+PDF and statement previews, desktop/mobile LTR/RTL, themes and the addon
+sandbox. Three optional addon tests and native hardware validation were not run.
+
 ## v3.11.0.15 — 2026-10-28
 
-- Add declarative `investment-import` and `spending-import` addon slots to
-  the corresponding activity menus and mobile import pickers.
+- Add declarative `investment-import` and `spending-import` addon slots to the
+  corresponding activity menus and mobile import pickers.
 - Support import-only addons without sidebar entries, including lazy activation,
   disabled-entry removal, re-enabling, and uninstall cleanup.
 - Connect the local Ant Fund PDF and unified statement importers to their
@@ -24,11 +50,13 @@ Git tag alone does not establish Docker image availability.
 
 Architecture impact: extend frontend contribution discovery and navigation only;
 reuse existing addon routes, sandbox permissions and import/save workflows. No
-new backend API, persistence, network access, background worker or retry mechanism.
+new backend API, persistence, network access, background worker or retry
+mechanism.
 
 Validation: 35 focused host unit tests and five application E2E tests passed,
 including desktop/mobile, LTR/RTL, addon lifecycle and host draft import. Type,
-lint, translation, Web/Tauri frontend build and both addon package checks passed.
+lint, translation, Web/Tauri frontend build and both addon package checks
+passed.
 
 ## v3.11.0.14 — 2026-10-28
 
