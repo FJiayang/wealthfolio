@@ -7,7 +7,7 @@ import * as z from "zod";
 import { Button } from "@wealthfolio/ui/components/ui/button";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
 
-import { createNewAccountSchema, newAccountSchema } from "@/lib/schemas";
+import { newAccountSchema } from "@/lib/schemas";
 import { AccountType } from "@/lib/constants";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import { cn } from "@/lib/utils";
@@ -42,7 +42,7 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
+  useFormField,
 } from "@wealthfolio/ui/components/ui/form";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Input } from "@wealthfolio/ui/components/ui/input";
@@ -176,7 +176,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
   const [pendingFormData, setPendingFormData] = useState<AccountFormOutput | null>(null);
 
   const form = useForm<AccountFormInput, unknown, AccountFormOutput>({
-    resolver: zodResolver(createNewAccountSchema(t)),
+    resolver: zodResolver(newAccountSchema),
     defaultValues: {
       ...defaultValues,
       // Don't default to any mode if account needs setup (must come after spread)
@@ -366,7 +366,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                           {...field}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <AccountFormMessage />
                     </FormItem>
                   )}
                 />
@@ -382,7 +382,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                           {...field}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <AccountFormMessage />
                     </FormItem>
                   )}
                 />
@@ -404,7 +404,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                           triggerClassName="h-11"
                         />
                       </FormControl>
-                      <FormMessage />
+                      <AccountFormMessage />
                     </FormItem>
                   )}
                 />
@@ -422,7 +422,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                             onChange={(value: string) => field.onChange(value)}
                           />
                         </FormControl>
-                        <FormMessage />
+                        <AccountFormMessage />
                       </FormItem>
                     )}
                   />
@@ -480,7 +480,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                             {t("settings:accounts.form_hide_hint")}
                           </span>
                         </FormLabel>
-                        <FormMessage />
+                        <AccountFormMessage />
                       </div>
                       <FormControl>
                         <Switch
@@ -505,7 +505,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                               {t("settings:accounts.form_archive_hint")}
                             </span>
                           </FormLabel>
-                          <FormMessage />
+                          <AccountFormMessage />
                         </div>
                         <FormControl>
                           <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -607,7 +607,7 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
                       </AlertDescription>
                     </Alert>
                   )}
-                  <FormMessage />
+                  <AccountFormMessage />
                   {showsCostBasisMethod && (
                     <div className="border-border border-t pt-4">
                       <button
@@ -779,5 +779,18 @@ export function AccountForm({ defaultValues, onSuccess = () => undefined }: Acco
         </AlertDialogContent>
       </AlertDialog>
     </Form>
+  );
+}
+
+/** Translate stored schema message keys at render time, without revalidating the draft. */
+function AccountFormMessage() {
+  const { t } = useTranslation();
+  const { error, formMessageId } = useFormField();
+  const message = error?.message;
+  if (!message) return null;
+  return (
+    <p id={formMessageId} className="text-destructive text-xs font-light">
+      {message.startsWith("common:validation.") ? t(message) : message}
+    </p>
   );
 }
