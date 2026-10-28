@@ -400,7 +400,7 @@ function ProviderSettings({
               {/* Right column - Settings */}
               <div className="space-y-4">
                 <h4 className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                  {t("settings:market_data_page.settings")}
+                  {t("common:settings")}
                 </h4>
                 <div className="space-y-4">
                   {provider.requiresApiKey && (
@@ -454,7 +454,7 @@ function ProviderSettings({
                           className="h-8"
                           disabled={provider.hasApiKey && !hasLoadedKey}
                         >
-                          {t("settings:common_save")}
+                          {t("common:save")}
                         </Button>
                       </div>
                     </div>
@@ -658,7 +658,7 @@ function CustomProviderCard({
                     variant="ghost"
                     size="icon"
                     className="text-muted-foreground hover:text-destructive h-8 w-8"
-                    aria-label={t("settings:common_delete")}
+                    aria-label={t("common:delete")}
                   />
                 }
               >
@@ -712,15 +712,15 @@ function CustomProviderCard({
               confirmMessage={t("settings:market_data_page.delete_provider_message", {
                 name: provider.name,
               })}
-              confirmButtonText={t("settings:common_delete")}
-              cancelButtonText={t("settings:common_cancel")}
+              confirmButtonText={t("common:delete")}
+              cancelButtonText={t("common:cancel")}
               confirmButtonVariant="destructive"
               button={
                 <Button
                   variant="ghost"
                   size="icon"
                   className="text-muted-foreground hover:text-destructive h-8 w-8"
-                  aria-label={t("settings:common_delete")}
+                  aria-label={t("common:delete")}
                 >
                   <Icons.Trash className="h-4 w-4" />
                 </Button>
@@ -846,7 +846,7 @@ export default function MarketDataSettingsPage() {
     return (
       <div className="text-foreground space-y-6">
         <SettingsHeader
-          heading={t("settings:market_data_page.heading")}
+          heading={t("settings:nav.items.market_data")}
           text={t("settings:market_data_page.subtitle")}
         />
         <Separator />
@@ -881,7 +881,7 @@ export default function MarketDataSettingsPage() {
     return (
       <div className="text-foreground space-y-6">
         <SettingsHeader
-          heading={t("settings:market_data_page.heading")}
+          heading={t("settings:nav.items.market_data")}
           text={t("settings:market_data_page.subtitle")}
         />
         <Separator />
@@ -900,7 +900,7 @@ export default function MarketDataSettingsPage() {
                 className="text-foreground"
               >
                 <Icons.Refresh className="me-2 h-4 w-4" />
-                {t("settings:market_data_page.retry")}
+                {t("common:retry")}
               </Button>
             </div>
           </AlertDescription>
@@ -912,7 +912,7 @@ export default function MarketDataSettingsPage() {
   return (
     <div className="text-foreground space-y-6">
       <SettingsHeader
-        heading={t("settings:market_data_page.heading")}
+        heading={t("settings:nav.items.market_data")}
         text={t("settings:market_data_page.subtitle")}
         actionsInline
       >
@@ -1007,7 +1007,7 @@ export default function MarketDataSettingsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t("settings:common_cancel")}</AlertDialogCancel>
+            <AlertDialogCancel>{t("common:cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={() => recalculatePortfolio()}>
               {t("settings:market_data_page.rebuild_confirm_button")}
             </AlertDialogAction>
@@ -1035,7 +1035,7 @@ export default function MarketDataSettingsPage() {
               )
             }
           >
-            {t("settings:health_banner_clear")}
+            {t("common:clear")}
           </Button>
         </div>
       )}

@@ -4,11 +4,20 @@ import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
 import { FontSelector } from "@/components/font-selector";
+import { gainColorLabelKeys, GainColorsSelector } from "@/components/gain-colors-selector";
 import { NavigationStyleSelector } from "@/components/navigation-style-selector";
 import { TextSizeSelector } from "@/components/text-size-selector";
 import { ThemePicker } from "@/components/theme-picker";
 import { ThemeSelector } from "@/components/theme-selector";
 import { Button, Icons } from "@wealthfolio/ui";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@wealthfolio/ui/components/ui/card";
 import {
   Form,
   FormControl,
@@ -31,6 +40,7 @@ import { useSettingsContext } from "@/lib/settings-provider";
 import { cn } from "@/lib/utils";
 import { requiredError } from "@/lib/zod-errors";
 import { useNavigationMode } from "@/pages/layouts/navigation/navigation-mode-context";
+import { resolveGainColors } from "@/themes/gain-colors";
 import { designedForKeys, fontLabelKeys, themeSelectionUpdate } from "@/themes/selection";
 import { isThemeId, resolveThemeId, themes } from "@/themes/themes";
 
@@ -43,6 +53,11 @@ interface AppearanceFormValues {
 // A row's text keeps this width, so on a phone its control wraps below it
 // rather than squeezing the title.
 const controlRowContentClassName = "min-w-48";
+// On a phone the segmented controls under their text span the row, each option an
+// equal share, so the page's controls line up and give larger targets.
+const controlRowActionsClassName = "max-sm:w-full";
+const controlRowControlClassName =
+  "max-sm:w-full max-sm:[&_button]:flex-1 max-sm:[&_button>span]:justify-center";
 
 const switchModeKeys = {
   dark: "settings:appearance_switch_to_dark",
@@ -95,70 +110,78 @@ export function AppearanceForm() {
 
   return (
     <Form {...form}>
-      <div className="max-w-4xl space-y-8">
-        <FormField
-          control={form.control}
-          name="theme"
-          render={({ field }) => (
-            <Item variant="outline" size="sm">
-              <ItemContent className={controlRowContentClassName}>
-                <ItemTitle>{t("settings:appearance_mode_title")}</ItemTitle>
-                <ItemDescription>{t("settings:appearance_mode_description")}</ItemDescription>
-              </ItemContent>
-              <ItemActions>
-                <ThemeSelector
-                  aria-label={t("settings:appearance_mode_title")}
-                  value={field.value}
-                  onChange={(value) => {
-                    field.onChange(value);
-                    handlePartialUpdate({ theme: value });
-                  }}
-                />
-              </ItemActions>
-            </Item>
-          )}
-        />
-
-        <section className="space-y-3">
-          <div className="space-y-1">
-            <h2 className="text-base font-medium">{t("settings:appearance_theme_title")}</h2>
-            <p className="text-muted-foreground text-sm">
-              {t("settings:appearance_theme_description")}
-            </p>
-          </div>
-          <ThemePicker value={settings?.themeId} font={settings?.font} onChange={selectTheme} />
-          {activeTheme?.mode && (
-            // Shown only while the other mode is in effect, including through System.
-            <div
-              className={cn(
-                "bg-muted/40 items-center gap-3 rounded-lg border px-4 py-3",
-                activeTheme.mode === "dark" ? "flex dark:hidden" : "hidden dark:flex",
-              )}
-            >
-              <ModeIcon className="text-muted-foreground size-4 shrink-0" />
-              <p className="min-w-0 flex-1 text-sm">
-                {t(designedForKeys[activeTheme.mode], { theme: activeTheme.name })}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                onClick={() => {
-                  const mode = activeTheme.mode;
-                  if (mode) handlePartialUpdate({ theme: mode });
-                }}
+      <div className="max-w-4xl space-y-6">
+        <Card>
+          {/* The mode belongs with the theme: every theme has a light and a dark
+              appearance. On a phone the header is one column and the mode spans it,
+              under the text; the header is the container the mode names check. */}
+          <CardHeader className="@container max-sm:has-data-[slot=card-action]:grid-cols-1">
+            <CardTitle role="heading" aria-level={2} className="text-lg">
+              {t("settings:appearance_theme_title")}
+            </CardTitle>
+            <CardDescription>{t("settings:appearance_theme_description")}</CardDescription>
+            <CardAction className="max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-stretch max-sm:pt-1.5">
+              <FormField
+                control={form.control}
+                name="theme"
+                render={({ field }) => (
+                  <ThemeSelector
+                    aria-label={t("settings:appearance_mode_title")}
+                    className={controlRowControlClassName}
+                    value={field.value}
+                    onChange={(value) => {
+                      field.onChange(value);
+                      handlePartialUpdate({ theme: value });
+                    }}
+                  />
+                )}
+              />
+            </CardAction>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <ThemePicker value={settings?.themeId} font={settings?.font} onChange={selectTheme} />
+            {activeTheme?.mode && (
+              // Shown only while the other mode is in effect, including through System.
+              <div
+                className={cn(
+                  "bg-muted/40 items-center gap-3 rounded-lg border px-4 py-3",
+                  activeTheme.mode === "dark" ? "flex dark:hidden" : "hidden dark:flex",
+                )}
               >
-                {t(switchModeKeys[activeTheme.mode])}
-              </Button>
-            </div>
-          )}
-          <div className="rounded-md border">
+                <ModeIcon className="text-muted-foreground size-4 shrink-0" />
+                <p className="min-w-0 flex-1 text-sm">
+                  {t(designedForKeys[activeTheme.mode], { theme: activeTheme.name })}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => {
+                    const mode = activeTheme.mode;
+                    if (mode) handlePartialUpdate({ theme: mode });
+                  }}
+                >
+                  {t(switchModeKeys[activeTheme.mode])}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle role="heading" aria-level={2} className="text-lg">
+              {t("settings:appearance_text_numbers_title")}
+            </CardTitle>
+            <CardDescription>{t("settings:appearance_text_numbers_description")}</CardDescription>
+          </CardHeader>
+          <CardContent>
             <FormField
               control={form.control}
               name="font"
               render={({ field }) => (
-                <Item size="sm">
+                <Item size="sm" className="px-0">
                   <ItemContent className={controlRowContentClassName}>
                     <ItemTitle>{t("settings:appearance_font_title")}</ItemTitle>
                     <ItemDescription>
@@ -181,9 +204,10 @@ export function AppearanceForm() {
                       </Button>
                     )}
                   </ItemContent>
-                  <ItemActions>
+                  <ItemActions className={controlRowActionsClassName}>
                     <FontSelector
                       aria-label={t("settings:appearance_font_title")}
+                      className={controlRowControlClassName}
                       value={field.value}
                       onChange={(value) => {
                         field.onChange(value);
@@ -195,69 +219,101 @@ export function AppearanceForm() {
               )}
             />
             <ItemSeparator />
-            {/* A container: the size names show when this row has room for them. */}
-            <Item size="sm" className="@container">
+            {/* A container: the size names show when this row has room for them. The
+                description wraps: at the larger sizes two lines can't hold it in some languages. */}
+            <Item size="sm" className="@container px-0">
               <ItemContent className={controlRowContentClassName}>
                 <ItemTitle>{t("settings:appearance_text_size_title")}</ItemTitle>
-                <ItemDescription>{t("settings:appearance_text_size_description")}</ItemDescription>
+                <ItemDescription className="line-clamp-none">
+                  {t("settings:appearance_text_size_description")}
+                </ItemDescription>
               </ItemContent>
-              <ItemActions>
+              <ItemActions className={controlRowActionsClassName}>
                 <TextSizeSelector
                   aria-label={t("settings:appearance_text_size_title")}
+                  className={controlRowControlClassName}
                   value={settings?.textSize}
                   onChange={(textSize) => handlePartialUpdate({ textSize })}
                 />
               </ItemActions>
             </Item>
-          </div>
-        </section>
+            <ItemSeparator />
+            {/* The control shows each option's arrows only, so the selected option's
+                name sits under the description, which wraps rather than clamps. */}
+            <Item size="sm" className="px-0">
+              <ItemContent className={controlRowContentClassName}>
+                <ItemTitle>{t("settings:appearance_gain_colors_title")}</ItemTitle>
+                <ItemDescription className="line-clamp-none">
+                  {t("settings:appearance_gain_colors_description")}
+                </ItemDescription>
+                <p className="text-sm font-medium">
+                  {t(gainColorLabelKeys[resolveGainColors(settings?.gainColors)])}
+                </p>
+              </ItemContent>
+              <ItemActions className={controlRowActionsClassName}>
+                <GainColorsSelector
+                  aria-label={t("settings:appearance_gain_colors_title")}
+                  className={controlRowControlClassName}
+                  value={settings?.gainColors}
+                  onChange={(gainColors) => handlePartialUpdate({ gainColors })}
+                />
+              </ItemActions>
+            </Item>
+          </CardContent>
+        </Card>
 
         {!isMobile && (
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <p className="text-base font-medium">{t("settings:appearance_navigation_title")}</p>
-              <p className="text-muted-foreground text-sm">
-                {t("settings:appearance_navigation_description")}
-              </p>
-            </div>
-            <NavigationStyleSelector
-              value={navigationMode}
-              onChange={setNavigationMode}
-              className="max-w-md"
-            />
-          </div>
-        )}
-
-        {!isMobile && !(isTauri && isMacOS) && (
-          <FormField
-            control={form.control}
-            name="menuBarVisible"
-            render={({ field }) => (
-              <FormItem>
-                <Item variant="outline" size="sm">
-                  <ItemContent>
-                    <ItemTitle>
-                      <FormLabel>{t("settings:appearance_menu_bar")}</FormLabel>
-                    </ItemTitle>
-                    <FormDescription>
-                      {t("settings:appearance_menu_bar_description")}
-                    </FormDescription>
-                  </ItemContent>
-                  <ItemActions>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={(value) => {
-                          field.onChange(value);
-                          handlePartialUpdate({ menuBarVisible: value });
-                        }}
-                      />
-                    </FormControl>
-                  </ItemActions>
-                </Item>
-              </FormItem>
-            )}
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle role="heading" aria-level={2} className="text-lg">
+                {t("settings:appearance_navigation_title")}
+              </CardTitle>
+              <CardDescription>{t("settings:appearance_navigation_description")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* The same grid, card width and about the same height as the themes above. */}
+              <NavigationStyleSelector
+                value={navigationMode}
+                onChange={setNavigationMode}
+                className="sm:gap-3 lg:grid-cols-4"
+                compact
+              />
+              {!(isTauri && isMacOS) && (
+                <>
+                  <ItemSeparator className="mt-4" />
+                  <FormField
+                    control={form.control}
+                    name="menuBarVisible"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Item size="sm" className="px-0 pb-0">
+                          <ItemContent>
+                            <ItemTitle>
+                              <FormLabel>{t("settings:appearance_menu_bar")}</FormLabel>
+                            </ItemTitle>
+                            <FormDescription>
+                              {t("settings:appearance_menu_bar_description")}
+                            </FormDescription>
+                          </ItemContent>
+                          <ItemActions>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={(value) => {
+                                  field.onChange(value);
+                                  handlePartialUpdate({ menuBarVisible: value });
+                                }}
+                              />
+                            </FormControl>
+                          </ItemActions>
+                        </Item>
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+            </CardContent>
+          </Card>
         )}
       </div>
     </Form>

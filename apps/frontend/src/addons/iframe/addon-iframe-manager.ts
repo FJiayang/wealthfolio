@@ -1238,7 +1238,7 @@ export class AddonIframeManager {
 
     this.themeObserver = new MutationObserver(this.scheduleThemeBroadcast);
     this.themeObserver.observe(document.documentElement, {
-      attributeFilter: ["class", "style", "data-theme", "data-text-size"],
+      attributeFilter: ["class", "style", "data-theme", "data-text-size", "data-gain-colors"],
       attributes: true,
     });
     this.themeObserver.observe(document.body, {

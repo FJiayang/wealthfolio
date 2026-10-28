@@ -72,6 +72,7 @@ import ActivityTableMobile from "@/pages/activity/components/activity-table/acti
 import { BulkHoldingsModal } from "@/pages/activity/components/forms/bulk-holdings-modal";
 import { MobileActivityForm } from "@/pages/activity/components/mobile-forms/mobile-activity-form";
 import { useActivityActionDialogs } from "@/pages/activity/hooks/use-activity-action-dialogs";
+import { isConversionActivity } from "@/pages/activity/utils/conversion-counterpart";
 import { useActivitySearch } from "@/pages/activity/hooks/use-activity-search";
 import { PortfolioUpdateTrigger } from "@/pages/dashboard/portfolio-update-trigger";
 import { HoldingsEditMode } from "@/pages/holdings/components/holdings-edit-mode";
@@ -102,6 +103,7 @@ import { format } from "date-fns";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useBackNavigation } from "@/pages/layouts/mobile-stack/use-mobile-stack";
 import { AccountContributionLimit } from "./account-contribution-limit";
+import { AccountHeaderDetails } from "./account-header-details";
 import AccountHoldings from "./account-holdings";
 import AccountMetrics from "./account-metrics";
 import {
@@ -1043,11 +1045,7 @@ const AccountPage = () => {
                 </Sheet>
               </div>
             </div>
-            {!account?.group && account?.currency && (
-              <p className="text-muted-foreground text-xs leading-tight md:text-sm">
-                {account?.currency}
-              </p>
-            )}
+            <AccountHeaderDetails account={account} />
           </div>
         </div>
       </PageHeader>
@@ -1279,6 +1277,7 @@ const AccountPage = () => {
         isOpen={showActivityDeleteAlert}
         isDeleting={isActivityDeleting}
         linkedTransfer={!!selectedActivity?.sourceGroupId}
+        conversion={isConversionActivity(selectedActivity)}
         onConfirm={handleActivityDeleteConfirm}
         onCancel={handleActivityDeleteCancel}
       />

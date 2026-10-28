@@ -107,7 +107,7 @@ export default function PortfoliosPage() {
     <>
       <div className="space-y-6">
         <SettingsHeader
-          heading={t("settings:portfolios.title")}
+          heading={t("settings:nav.items.portfolios")}
           text={t("settings:portfolios.description")}
           actionsInline
         >
@@ -346,7 +346,7 @@ function PortfolioDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>{t("settings:portfolios.accounts_label")}</Label>
+            <Label>{t("common:accounts")}</Label>
             <div className="divide-border max-h-56 overflow-y-auto rounded-md border">
               {accountOptions.length === 0 ? (
                 <p className="text-muted-foreground p-3 text-sm">

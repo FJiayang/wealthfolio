@@ -118,6 +118,7 @@ import {
   type WorksheetPosition,
 } from "./allocation-worksheet-utils";
 import { accountScopeKey } from "./target-scope";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 const DISCLOSURE_STORAGE_KEY = "wealthfolio:rebalancing-worksheet-disclosure:v2";
 const DRAFT_STORAGE_PREFIX = "wealthfolio:rebalancing-worksheet-draft:v3";
@@ -2093,7 +2094,7 @@ export function AllocationWorksheetTab({
           `rebalancing-worksheet-${result.calculatedAt.slice(0, 10)}.csv`,
         );
       } else {
-        await navigator.clipboard.writeText(toTsv(table, decimalSeparator));
+        await copyText(toTsv(table, decimalSeparator));
         toast.success(t("allocation:worksheet.tableCopied"));
       }
     } catch {

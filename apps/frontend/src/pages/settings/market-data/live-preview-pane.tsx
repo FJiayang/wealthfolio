@@ -26,6 +26,7 @@ import {
 } from "./template-placeholders";
 import type { MappingField, SourceRuntime } from "./use-source-runtime";
 import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 interface LivePreviewPaneProps {
   form: UseFormReturn<FormValues>;
@@ -53,7 +54,7 @@ const MAPPING_META: {
   },
   {
     field: "currencyPath",
-    labelKey: "settings:market_data_page.field_currency",
+    labelKey: "common:currency",
     color: "bg-amber-500",
     required: false,
   },
@@ -167,7 +168,7 @@ function StatusPill({
     return (
       <span className="text-destructive-subtle-foreground bg-destructive-subtle inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent px-3 py-1 text-xs whitespace-nowrap">
         <span className="bg-destructive h-1.5 w-1.5 rounded-full" />
-        {t("settings:market_data_page.status_error")}
+        {t("common:error")}
       </span>
     );
   }
@@ -516,7 +517,7 @@ function CopyButton({ text, disabled }: { text: string; disabled?: boolean }) {
   const handleCopy = async () => {
     if (disabled || !text) return;
     try {
-      await navigator.clipboard.writeText(text);
+      await copyText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {

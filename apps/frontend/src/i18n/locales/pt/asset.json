@@ -12,7 +12,6 @@
     "more": "Mais"
   },
   "securities": {
-    "heading": "Valores mobiliários",
     "subtitle": "Explore e gerencie os ativos disponíveis na sua carteira.",
     "add_security": "Adicionar ativo",
     "delete_title": "Excluir ativo",
@@ -69,7 +68,7 @@
       "currency_required": "A moeda é obrigatória"
     },
     "instrumentType": {
-      "equity": "Renda variável (Ação, ETF, Fundo)",
+      "equity": "Renda variável (ação, ETF, fundo)",
       "crypto": "Criptomoeda",
       "bond": "Título",
       "option": "Opção",
@@ -308,7 +307,7 @@
     "data_provider_sheet_description": "Selecione o provedor de dados para este mapeamento de símbolo",
     "invalid_mappings_warning": "Alguns mapeamentos de símbolo não puderam ser validados. Os preços podem não ser atualizados para essas entradas.",
     "instrumentType": {
-      "equity": "Renda variável (Ação, ETF, Fundo)",
+      "equity": "Renda variável (ação, ETF, fundo)",
       "crypto": "Criptomoeda",
       "bond": "Título",
       "option": "Opção",

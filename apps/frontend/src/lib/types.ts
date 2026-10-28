@@ -268,6 +268,11 @@ export interface ActivityDetails {
   counterpartAmount?: string | null;
   counterpartCurrency?: string | null;
   counterpartFxRate?: string | null;
+  /** A conversion's other row: its asset and units (see conversion-counterpart). */
+  counterpartAssetId?: string | null;
+  counterpartAssetSymbol?: string | null;
+  counterpartQuantity?: string | null;
+  counterpartDate?: string | null;
   subRows?: ActivityDetails[];
   /**
    * The account's cash in `cashBalanceCurrency`, as `cashBalanceScope` says:
@@ -949,6 +954,9 @@ export interface Settings {
   restoreReconnectRequired?: boolean;
   /** Theme ID (palette and shape); absent on older backends, which show Classic. */
   themeId?: string;
+  /** Gain and loss colours (green-up, red-up, red-up-blue-down), synced across devices;
+   * absent on older backends, which show green up. */
+  gainColors?: string;
   /** Appearance mode: light, dark or system. */
   theme: string;
   font: string;
@@ -1002,6 +1010,11 @@ export interface Goal {
   createdAt: string;
   updatedAt: string;
   summaryTargetAmount?: number;
+}
+
+/** Omission keeps the existing deadline; explicit null removes it. */
+export interface GoalUpdate extends Omit<Goal, "targetDate"> {
+  targetDate?: string | null;
 }
 
 export interface NewGoal {
