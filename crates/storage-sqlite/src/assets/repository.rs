@@ -11,7 +11,7 @@ use wealthfolio_core::{Error, Result};
 use super::model::{AssetDB, InsertableAssetDB};
 use crate::db::{get_connection, WriteHandle};
 use crate::errors::StorageError;
-use crate::schema::{activities, assets, quotes};
+use crate::schema::{activities, assets, quote_sync_state, quotes};
 use crate::utils::chunk_for_sqlite;
 
 /// Repository for managing asset data in the database
@@ -347,6 +347,15 @@ impl AssetRepositoryTrait for AssetRepository {
                         "Cannot delete asset: it has existing activities. Please delete all associated activities first.".to_string()
                     ));
                 }
+
+                // Sync state has no asset foreign key. Delete it in the same
+                // transaction as the asset so late profile completion cannot
+                // recreate an orphan between separate cleanup operations.
+                diesel::delete(
+                    quote_sync_state::table.filter(quote_sync_state::asset_id.eq(&asset_id_owned)),
+                )
+                .execute(tx.conn())
+                .map_err(StorageError::from)?;
 
                 // Delete all quotes for this asset (by asset_id)
                 diesel::delete(quotes::table.filter(quotes::asset_id.eq(&asset_id_owned)))
