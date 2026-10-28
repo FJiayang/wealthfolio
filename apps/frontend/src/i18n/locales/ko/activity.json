@@ -818,6 +818,7 @@
       "somethingWentWrong": "문제가 발생했습니다."
     },
     "toolbar": {
+      "returnToSource": "원본 거래 수정으로 돌아가기",
       "cancel": "취소",
       "configureMapping": "매핑 구성",
       "continue": "계속",
@@ -827,6 +828,7 @@
       "back": "뒤로"
     },
     "dialog": {
+      "returnToSourceDescription": "돌아가면 Wealthfolio에서 편집한 내용은 삭제됩니다. 원본 명세서와 수정 내용은 유지됩니다.",
       "cancelTitle": "가져오기를 취소하시겠습니까?",
       "cancelDescription": "취소하시겠습니까? 모든 진행 상황이 사라지며 처음부터 다시 시작해야 합니다.",
       "continueImporting": "가져오기 계속",

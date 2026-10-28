@@ -130,6 +130,8 @@ declare module "@tanstack/react-table" {
   // biome-ignore lint/correctness/noUnusedVariables: TData and TValue are used in the ColumnMeta interface
   interface ColumnMeta<TData extends RowData, TValue> {
     label?: string;
+    /** Prevent editing derived or locked records. */
+    readOnly?: boolean | ((row: TData) => boolean);
     helpText?: string;
     /** Primitive dependency used to invalidate a memoized cell when display configuration changes. */
     renderKey?: string | number | boolean;

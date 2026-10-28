@@ -94,7 +94,7 @@ export function ReviewStep() {
   const { state, dispatch, validateDrafts } = useImportContext();
   const { t } = useTranslation();
   const compareNames = useNameComparator();
-  const { parsedRows, mapping, draftActivities } = state;
+  const { parsedRows, draftActivities } = state;
   const isValidating = state.isValidating;
   const { accounts = [] } = useAccounts({ filterActive: true, includeArchived: false });
 
@@ -385,23 +385,12 @@ export function ReviewStep() {
   }
 
   // Show error if no data
-  if (parsedRows.length === 0) {
+  if (parsedRows.length === 0 && draftActivities.length === 0) {
     return (
       <ImportAlert
         variant="destructive"
         title={t("activity:import.review.noDataTitle")}
         description={t("activity:import.review.noDataDescription")}
-      />
-    );
-  }
-
-  // Show error if no mapping
-  if (!mapping || Object.keys(mapping.fieldMappings).length === 0) {
-    return (
-      <ImportAlert
-        variant="warning"
-        title={t("activity:import.review.missingMappingTitle")}
-        description={t("activity:import.review.missingMappingDescription")}
       />
     );
   }

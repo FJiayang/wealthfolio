@@ -840,6 +840,7 @@
       "somethingWentWrong": "Une erreur est survenue."
     },
     "toolbar": {
+      "returnToSource": "Revenir aux opérations d’origine",
       "cancel": "Annuler",
       "configureMapping": "Configurer la correspondance",
       "continue": "Continuer",
@@ -849,6 +850,7 @@
       "back": "Retour"
     },
     "dialog": {
+      "returnToSourceDescription": "Le retour annule les modifications dans Wealthfolio. Le relevé d’origine et ses corrections sont conservés.",
       "cancelTitle": "Annuler l'import ?",
       "cancelDescription": "Êtes-vous sûr de vouloir annuler ? Toute la progression sera perdue et vous devrez recommencer.",
       "continueImporting": "Continuer l'import",

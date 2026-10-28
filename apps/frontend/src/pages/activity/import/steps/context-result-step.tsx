@@ -1,3 +1,5 @@
+import { ImportResultSummary, useNumberFormatting } from "@wealthfolio/ui";
+import { getImportHandoff, clearImportHandoff } from "@/addons/import-handoff";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
@@ -41,58 +43,6 @@ const itemVariants = {
   },
 } as const;
 
-const checkmarkVariants = {
-  hidden: { scale: 0, opacity: 0 },
-  visible: {
-    scale: 1,
-    opacity: 1,
-    transition: {
-      type: "spring",
-      stiffness: 200,
-      damping: 15,
-      delay: 0.2,
-    },
-  },
-} as const;
-
-const checkIconVariants = {
-  hidden: { pathLength: 0, opacity: 0 },
-  visible: {
-    pathLength: 1,
-    opacity: 1,
-    transition: {
-      delay: 0.4,
-      duration: 0.4,
-      ease: "easeOut",
-    },
-  },
-} as const;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface StatItemProps {
-  label: string;
-  value: number;
-  variant?: "default" | "success" | "muted";
-}
-
-function StatItem({ label, value, variant = "default" }: StatItemProps) {
-  const colorClasses = {
-    default: "text-foreground",
-    success: "text-success",
-    muted: "text-muted-foreground",
-  };
-
-  return (
-    <div className="text-center">
-      <div className={`text-3xl font-semibold tabular-nums ${colorClasses[variant]}`}>{value}</div>
-      <div className="text-muted-foreground mt-1 text-sm">{label}</div>
-    </div>
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,6 +51,7 @@ export function ContextResultStep() {
   const { state, dispatch } = useImportContext();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { formatDecimal } = useNumberFormatting();
 
   const { importResult, accountId } = state;
 
@@ -131,7 +82,11 @@ export function ContextResultStep() {
   };
 
   const handleImportAnother = () => {
-    dispatch(reset());
+    const handoff = getImportHandoff();
+    if (handoff) {
+      clearImportHandoff();
+      void navigate(handoff.returnRoute, { replace: true });
+    } else dispatch(reset());
   };
 
   // Handle case where there's no import result
@@ -171,82 +126,30 @@ export function ContextResultStep() {
   }
 
   return (
-    <motion.div
-      className="flex flex-col items-center py-8"
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
+    <ImportResultSummary
+      title={t("activity:import.result.completeTitle")}
+      description={
+        isHoldingsMode
+          ? t("activity:import.result.holdingsSuccess")
+          : t("activity:import.result.activitiesSuccess")
+      }
+      statistics={[
+        { label: t("activity:import.result.imported"), value: formatDecimal(stats.imported) },
+        { label: t("activity:import.result.duplicates"), value: formatDecimal(stats.duplicates) },
+        { label: t("activity:import.result.skipped"), value: formatDecimal(stats.skipped) },
+        { label: t("activity:import.result.total"), value: formatDecimal(stats.total) },
+      ]}
     >
-      {/* Success icon with animated checkmark */}
-      <motion.div className="relative mb-8" variants={checkmarkVariants}>
-        {/* Outer glow ring */}
-        <div className="bg-success-subtle absolute inset-0 rounded-full blur-xl" />
-
-        {/* Background circle */}
-        <div className="from-success/80 to-success shadow-success/25 relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br shadow-lg">
-          <motion.svg
-            className="h-12 w-12 text-white"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <motion.path d="M5 13l4 4L19 7" variants={checkIconVariants} />
-          </motion.svg>
-        </div>
-      </motion.div>
-
-      {/* Title and description */}
-      <motion.div className="mb-10 text-center" variants={itemVariants}>
-        <h2 className="text-2xl font-semibold tracking-tight">
-          {t("activity:import.result.completeTitle")}
-        </h2>
-        <p className="text-muted-foreground mt-2 max-w-sm">
-          {isHoldingsMode
-            ? t("activity:import.result.holdingsSuccess")
-            : t("activity:import.result.activitiesSuccess")}
-        </p>
-      </motion.div>
-
-      {/* Stats row */}
-      <motion.div className="mb-10 flex items-center justify-center gap-12" variants={itemVariants}>
-        <StatItem
-          label={t("activity:import.result.imported")}
-          value={stats.imported}
-          variant="success"
-        />
-
-        {stats.duplicates > 0 && (
-          <>
-            <div className="bg-border h-12 w-px" />
-            <StatItem
-              label={t("activity:import.result.duplicates")}
-              value={stats.duplicates}
-              variant="muted"
-            />
-          </>
-        )}
-
-        <div className="bg-border h-12 w-px" />
-
-        <StatItem
-          label={t("activity:import.result.skipped")}
-          value={stats.skipped}
-          variant="muted"
-        />
-
-        <div className="bg-border h-12 w-px" />
-
-        <StatItem label={t("activity:import.result.total")} value={stats.total} />
-      </motion.div>
-
       {/* Action buttons */}
-      <motion.div className="flex gap-3" variants={itemVariants}>
+      <motion.div
+        className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row"
+        variants={itemVariants}
+      >
         <Button variant="outline" size="lg" onClick={handleImportAnother}>
           <Icons.Import className="me-2 h-4 w-4" />
-          {t("activity:import.result.importAnother")}
+          {getImportHandoff()
+            ? t("activity:import.toolbar.returnToSource")
+            : t("activity:import.result.importAnother")}
         </Button>
 
         <Button size="lg" onClick={handleViewResult}>
@@ -268,7 +171,7 @@ export function ContextResultStep() {
           </Link>
         </motion.p>
       )}
-    </motion.div>
+    </ImportResultSummary>
   );
 }
 

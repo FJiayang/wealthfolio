@@ -818,6 +818,7 @@
       "somethingWentWrong": "出错了。"
     },
     "toolbar": {
+      "returnToSource": "返回原始交易修正",
       "cancel": "取消",
       "configureMapping": "配置映射",
       "continue": "继续",
@@ -827,6 +828,7 @@
       "back": "返回"
     },
     "dialog": {
+      "returnToSourceDescription": "返回将放弃宿主阶段的编辑，保留原始账单及其修正内容。",
       "cancelTitle": "取消导入？",
       "cancelDescription": "您确定要取消吗？所有进度都将丢失，您需要重新开始。",
       "continueImporting": "继续导入",

@@ -840,6 +840,7 @@
       "somethingWentWrong": "Algo salió mal."
     },
     "toolbar": {
+      "returnToSource": "Volver a las operaciones originales",
       "cancel": "Cancelar",
       "configureMapping": "Configurar asignación",
       "continue": "Continuar",
@@ -849,6 +850,7 @@
       "back": "Atrás"
     },
     "dialog": {
+      "returnToSourceDescription": "Al volver se descartan los cambios realizados en Wealthfolio. Se conservan el extracto original y sus correcciones.",
       "cancelTitle": "¿Cancelar la importación?",
       "cancelDescription": "¿Seguro que quieres cancelar? Se perderá todo el progreso y tendrás que empezar de nuevo.",
       "continueImporting": "Continuar importando",

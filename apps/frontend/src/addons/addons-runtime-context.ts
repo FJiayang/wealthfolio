@@ -641,6 +641,9 @@ export function createAddonContext(addonId: string, permissions?: Permission[]):
       },
     },
     router: {
+      setLeaveGuard: async () => {
+        throw new Error("Leave guards require an active sandbox route");
+      },
       add: (route) => {
         registerAddonRoute(addonId, {
           path: route.path,

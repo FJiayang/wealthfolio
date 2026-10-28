@@ -8,6 +8,16 @@ and this project adheres to
 
 ### Added
 
+- Activity import drafts can be handed to the host wizard with
+  `activities.openImport(request)` (requires its own activities function grant).
+  The promise resolves after navigation, before any activities are saved.
+- `router.setLeaveGuard(enabled)` protects an active addon route through the
+  host mobile leave confirmation. It does not intercept browser history or
+  restore work after a reload.
+- Shared import wizard layout, steps, navigation, dropzone, cancellation and
+  result presentation in `@wealthfolio/ui`; `QuantityInput.onValueStringChange`
+  preserves exact decimal strings.
+
 - `Settings.themeId`: the host's theme (Classic, Signature, Ember or Cupertino),
   absent on hosts without themes. Addon pages get the theme's colours through
   the host's CSS variables and its `data-theme` attribute on `<html>`, and

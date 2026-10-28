@@ -818,6 +818,7 @@
       "somethingWentWrong": "問題が発生しました。"
     },
     "toolbar": {
+      "returnToSource": "元の取引の修正に戻る",
       "cancel": "キャンセル",
       "configureMapping": "マッピングを設定",
       "continue": "続行",
@@ -827,6 +828,7 @@
       "back": "戻る"
     },
     "dialog": {
+      "returnToSourceDescription": "戻ると Wealthfolio での編集は破棄されます。元の明細とその修正内容は保持されます。",
       "cancelTitle": "インポートをキャンセルしますか?",
       "cancelDescription": "本当にキャンセルしますか?すべての進行状況が失われ、最初からやり直す必要があります。",
       "continueImporting": "インポートを続行",

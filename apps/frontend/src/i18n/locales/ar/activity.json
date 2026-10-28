@@ -616,6 +616,7 @@
       "validationErrors": "أخطاء التحقق"
     },
     "dialog": {
+      "returnToSourceDescription": "ستؤدي العودة إلى تجاهل التعديلات في Wealthfolio مع الاحتفاظ بكشف الحساب الأصلي وتصحيحاته.",
       "cancelDescription": "هل أنت متأكد من أنك تريد الإلغاء؟ سيُفقد كل التقدم وستحتاج إلى البدء من جديد.",
       "cancelImport": "إلغاء الاستيراد",
       "cancelTitle": "هل تريد إلغاء الاستيراد؟",
@@ -1103,6 +1104,7 @@
       "update": "تحديث القالب"
     },
     "toolbar": {
+      "returnToSource": "العودة إلى المعاملات الأصلية",
       "back": "رجوع",
       "cancel": "إلغاء",
       "configureMapping": "إعداد التعيين",

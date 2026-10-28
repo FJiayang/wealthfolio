@@ -213,6 +213,7 @@ function useImportReviewColumns({
             errors,
             warnings,
             rowIndex,
+            sourceLine,
             forceImport,
           } = row.original;
           const isForcedDuplicate = status === "duplicate" && forceImport;
@@ -233,7 +234,9 @@ function useImportReviewColumns({
           ) : null;
           return (
             <div className="flex items-center gap-1.5">
-              <span className="text-muted-foreground shrink-0 text-xs">{rowIndex + 1}</span>
+              <span className="text-muted-foreground shrink-0 text-xs">
+                {sourceLine ?? rowIndex + 1}
+              </span>
               {dot && title ? (
                 <TooltipProvider delay={200}>
                   <Tooltip>

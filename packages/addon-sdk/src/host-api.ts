@@ -17,6 +17,7 @@ import type {
   ActivityCreate,
   ActivityDetails,
   ActivityImport,
+  OpenActivityImportRequest,
   ActivitySearchResponse,
   ActivityUpdate,
   AccountValuation,
@@ -202,6 +203,9 @@ export interface ActivitiesAPI {
    * @returns Promise resolving to import result with activities, run ID, and summary
    */
   import(activities: ActivityImport[]): Promise<ImportActivitiesResult>;
+
+  /** Opens the host wizard with drafts; resolves after handoff, before saving. */
+  openImport(request: OpenActivityImportRequest): Promise<void>;
 
   /**
    * Check activities before import (read-only validation/preview)

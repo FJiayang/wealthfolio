@@ -42,6 +42,7 @@ export const FUNCTION_DISPLAY_NAMES: Record<string, string> = {
   "activities.saveMany": "Save multiple transactions",
   "activities.import": "Import transaction data",
   "activities.checkImport": "Validate import data",
+  "activities.openImport": "Open import wizard",
   "activities.getImportMapping": "View import settings",
   "activities.saveImportMapping": "Save import settings",
   "activities.getTransferPair": "View linked transfer pairs",

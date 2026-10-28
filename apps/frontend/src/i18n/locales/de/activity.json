@@ -825,6 +825,7 @@
       "somethingWentWrong": "Etwas ist schiefgelaufen."
     },
     "toolbar": {
+      "returnToSource": "Zu den ursprünglichen Buchungen",
       "cancel": "Abbrechen",
       "configureMapping": "Zuordnung konfigurieren",
       "continue": "Weiter",
@@ -834,6 +835,7 @@
       "back": "Zurück"
     },
     "dialog": {
+      "returnToSourceDescription": "Beim Zurückkehren werden Änderungen in Wealthfolio verworfen. Der ursprüngliche Kontoauszug und seine Korrekturen bleiben erhalten.",
       "cancelTitle": "Import abbrechen?",
       "cancelDescription": "Möchten Sie wirklich abbrechen? Der gesamte Fortschritt geht verloren und Sie müssen von vorne beginnen.",
       "continueImporting": "Import fortsetzen",

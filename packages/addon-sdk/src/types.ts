@@ -114,6 +114,8 @@ export interface SidebarManager {
  * Router management interface
  */
 export interface RouterManager {
+  /** Protect the active route using the host mobile leave confirmation. */
+  setLeaveGuard(enabled: boolean): Promise<void>;
   /**
    * Register a new route in the application
    * @param route Route configuration

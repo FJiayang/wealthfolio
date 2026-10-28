@@ -840,6 +840,7 @@
       "somethingWentWrong": "Qualcosa è andato storto."
     },
     "toolbar": {
+      "returnToSource": "Torna alle operazioni originali",
       "cancel": "Annulla",
       "configureMapping": "Configura associazione",
       "continue": "Continua",
@@ -849,6 +850,7 @@
       "back": "Indietro"
     },
     "dialog": {
+      "returnToSourceDescription": "Il ritorno annulla le modifiche in Wealthfolio. L’estratto originale e le sue correzioni vengono conservati.",
       "cancelTitle": "Annullare l'importazione?",
       "cancelDescription": "Sei sicuro di voler annullare? Tutti i progressi andranno persi e dovrai ricominciare da capo.",
       "continueImporting": "Continua l'importazione",

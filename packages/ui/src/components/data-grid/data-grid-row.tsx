@@ -248,7 +248,12 @@ function DataGridRowImpl<TData>({
                 isSelected={isCellSelected}
                 isSearchMatch={isSearchMatch}
                 isActiveSearchMatch={isActiveSearchMatch}
-                readOnly={readOnly}
+                readOnly={
+                  readOnly ||
+                  (typeof cell.column.columnDef.meta?.readOnly === "function"
+                    ? cell.column.columnDef.meta.readOnly(row.original)
+                    : cell.column.columnDef.meta?.readOnly) === true
+                }
                 cellState={cellState}
               />
             )}

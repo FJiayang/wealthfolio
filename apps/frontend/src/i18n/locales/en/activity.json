@@ -825,6 +825,7 @@
       "somethingWentWrong": "Something went wrong."
     },
     "toolbar": {
+      "returnToSource": "Return to original transactions",
       "cancel": "Cancel",
       "configureMapping": "Configure Mapping",
       "continue": "Continue",
@@ -834,6 +835,7 @@
       "back": "Back"
     },
     "dialog": {
+      "returnToSourceDescription": "Returning discards edits made in Wealthfolio. The original statement and its corrections remain available.",
       "cancelTitle": "Cancel Import?",
       "cancelDescription": "Are you sure you want to cancel? All progress will be lost and you'll need to start over.",
       "continueImporting": "Continue Importing",

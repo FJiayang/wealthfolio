@@ -1686,3 +1686,15 @@ export interface SpendingContext {
   accountIds: string[];
   excludedCategoryIds: string[];
 }
+
+/** In-memory handoff to the host's activity import wizard. No activities are saved. */
+export interface OpenActivityImportRequest {
+  sourceLabel: string;
+  accountId: string;
+  rows: {
+    activity: ActivityImport;
+    sourceLine: number;
+    rawRow: string[];
+    excluded: boolean;
+  }[];
+}

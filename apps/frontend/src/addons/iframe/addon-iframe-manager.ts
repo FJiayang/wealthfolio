@@ -1,3 +1,5 @@
+import { clearImportHandoff } from "../import-handoff";
+import { setAddonLeaveGuard } from "../leave-guard";
 import i18n from "i18next";
 import type { AddonManifest, Permission, SidebarItemConfig } from "@wealthfolio/addon-sdk";
 import type { AddonAsset, AddonFile } from "@/adapters/types";
@@ -77,6 +79,7 @@ interface Runtime {
   loadAsset: (assetId: string) => Promise<Blob>;
   api: unknown;
   activeContainer?: HTMLElement;
+  leaveGuard?: boolean;
   containerResizeObserver?: ResizeObserver;
   activeRoute?: {
     location: AddonRouteLocation;
@@ -339,6 +342,7 @@ export const ALLOWED_API_METHODS = new Set([
   "activities.saveMany",
   "activities.import",
   "activities.checkImport",
+  "activities.openImport",
   "activities.getImportMapping",
   "activities.saveImportMapping",
   "activities.getTransferPair",
@@ -658,6 +662,7 @@ export class AddonIframeManager {
     }
 
     runtime.activeContainer = container;
+    setAddonLeaveGuard(addonId, runtime.leaveGuard ?? false);
     runtime.iframe.style.visibility = runtime.lastRenderedRouteKey ? "visible" : "hidden";
     this.ensureLayoutListener();
     this.updateFrameBounds(runtime);
@@ -673,6 +678,10 @@ export class AddonIframeManager {
       throw new Error(`Addon '${addonId}' is not loaded`);
     }
 
+    if (runtime.activeRoute?.routeId !== routeId) {
+      runtime.leaveGuard = false;
+      setAddonLeaveGuard(addonId, false);
+    }
     runtime.activeRoute = { routeId, location };
     this.renderActiveRoute(runtime);
   }
@@ -689,6 +698,7 @@ export class AddonIframeManager {
     runtime.containerResizeObserver?.disconnect();
     runtime.containerResizeObserver = undefined;
     runtime.activeContainer = undefined;
+    setAddonLeaveGuard(addonId, false);
     runtime.activeRouteRequestId = undefined;
     clearPendingRouteRender(runtime);
     this.hideFrame(runtime);
@@ -719,6 +729,8 @@ export class AddonIframeManager {
   }
 
   private async stopRuntime(runtime: Runtime) {
+    clearImportHandoff(runtime.addonId);
+    setAddonLeaveGuard(runtime.addonId, false);
     this.clearLoadTimeout(runtime);
     runtime.activeRouteRequestId = undefined;
     clearPendingRouteRender(runtime);
@@ -992,6 +1004,14 @@ export class AddonIframeManager {
         case "sidebar.removeItem":
           this.handleSidebarRemove(runtime, message);
           break;
+        case "router.setLeaveGuard":
+          if (!message.requestId || typeof message.args?.[0] !== "boolean") {
+            throw new Error("Leave guards require a boolean");
+          }
+          runtime.leaveGuard = message.args[0];
+          setAddonLeaveGuard(runtime.addonId, !!runtime.activeContainer && runtime.leaveGuard);
+          this.respond(runtime, message.requestId, true, undefined);
+          break;
         case "router.add":
           this.handleRouterAdd(runtime, message);
           break;
@@ -1090,6 +1110,9 @@ export class AddonIframeManager {
   }
 
   private async handleApiCall(runtime: Runtime, message: SandboxMessage) {
+    if (message.method === "activities.openImport" && !runtime.activeContainer) {
+      throw new Error("Import handoff requires an active addon route");
+    }
     if (!message.requestId || !message.method) {
       return;
     }

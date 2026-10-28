@@ -12,6 +12,8 @@ export interface QuantityInputProps {
    * Preferred API - receives number directly.
    */
   onValueChange?: (value: number | undefined) => void;
+  /** Receives the exact decimal string without converting through Number. */
+  onValueStringChange?: (value: string) => void;
   /**
    * Legacy onChange handler for backward compatibility.
    * Receives a synthetic event with value in e.target.value.
@@ -51,6 +53,7 @@ const QuantityInput = React.forwardRef<HTMLInputElement, QuantityInputProps>(
     {
       value,
       onValueChange,
+      onValueStringChange,
       onChange,
       maxDecimalPlaces = 8,
       allowNegative = false,
@@ -77,7 +80,8 @@ const QuantityInput = React.forwardRef<HTMLInputElement, QuantityInputProps>(
         useGrouping: false,
       });
     // Normalize value to number or empty string
-    const numericValue = value === null || value === undefined || value === "" ? "" : Number(value);
+    const numericValue =
+      value === null || value === undefined || value === "" ? "" : onValueStringChange ? String(value) : Number(value);
 
     return (
       <NumericFormat
@@ -99,11 +103,13 @@ const QuantityInput = React.forwardRef<HTMLInputElement, QuantityInputProps>(
         thousandSeparator={formatting.groupSeparator}
         decimalSeparator={formatting.decimalSeparator}
         allowedDecimalSeparators={Array.from(new Set([formatting.decimalSeparator, ".", ","]))}
-        valueIsNumericString={false}
+        valueIsNumericString={!!onValueStringChange}
         value={numericValue}
         onValueChange={(values) => {
           // Prefer onValueChange if provided
-          if (onValueChange) {
+          if (onValueStringChange) {
+            onValueStringChange(values.value);
+          } else if (onValueChange) {
             onValueChange(values.floatValue);
           }
           // Fall back to legacy onChange for backward compatibility
@@ -117,6 +123,7 @@ const QuantityInput = React.forwardRef<HTMLInputElement, QuantityInputProps>(
         }}
         inputMode="decimal"
         onPaste={(event) => {
+          if (onValueStringChange) return;
           const clipboardValue = event.clipboardData.getData("text");
           const input = event.currentTarget;
           const hasSelection =

@@ -1,3 +1,5 @@
+import { getAddonLeaveGuard, setAddonLeaveGuard } from "../leave-guard";
+import { getImportHandoff, prepareImportHandoff } from "../import-handoff";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/adapters", () => ({
@@ -860,5 +862,78 @@ describe("ALLOWED_API_METHODS", () => {
     }
 
     expect(missing).toEqual([]);
+  });
+});
+
+describe("addon import route controls", () => {
+  it("scopes leave protection to the visible route and clears it and handoff state on shutdown", async () => {
+    const manager = new AddonIframeManager();
+    const runtime = {
+      addonId: "import-controls",
+      nonce: "nonce",
+      iframe: document.createElement("iframe"),
+      activeContainer: document.createElement("div"),
+      leaveGuard: false,
+      subscriptions: new Map(),
+      assetLoads: new Map(),
+      rejectLoad: vi.fn(),
+      isLoaded: false,
+    };
+    document.body.append(runtime.iframe);
+    const internals = manager as unknown as {
+      runtimes: Map<string, unknown>;
+      dispatchMessage: (runtime: unknown, message: unknown) => Promise<void>;
+    };
+    internals.runtimes.set(runtime.addonId, runtime);
+    await internals.dispatchMessage(runtime, {
+      type: "router.setLeaveGuard",
+      requestId: "guard",
+      args: [true],
+    });
+    expect(getAddonLeaveGuard(runtime.addonId)).toBe(true);
+    manager.detachRoute(runtime.addonId);
+    expect(getAddonLeaveGuard(runtime.addonId)).toBe(false);
+    prepareImportHandoff(
+      runtime.addonId,
+      {
+        accountId: "account",
+        sourceLabel: "source",
+        rows: [
+          {
+            sourceLine: 1,
+            rawRow: [],
+            excluded: false,
+            activity: { activityType: "BUY", accountId: "account", isValid: false, isDraft: true },
+          },
+        ],
+      },
+      "/addons/import-controls",
+    );
+    await manager.stopAddon(runtime.addonId);
+    expect(getImportHandoff()).toBeUndefined();
+    expect(getAddonLeaveGuard(runtime.addonId)).toBe(false);
+  });
+  it("rejects inactive import handoffs before calling the API", async () => {
+    const manager = new AddonIframeManager();
+    const invoke = vi.fn();
+    const runtime = {
+      addonId: "inactive-import",
+      nonce: "nonce",
+      api: { activities: { openImport: invoke } },
+      iframe: document.createElement("iframe"),
+    };
+    document.body.append(runtime.iframe);
+    const internals = manager as unknown as {
+      dispatchMessage: (runtime: unknown, message: unknown) => Promise<void>;
+    };
+    await internals.dispatchMessage(runtime, {
+      type: "api",
+      method: "activities.openImport",
+      requestId: "import",
+      args: [{}],
+    });
+    expect(invoke).not.toHaveBeenCalled();
+    runtime.iframe.remove();
+    setAddonLeaveGuard(runtime.addonId, false);
   });
 });

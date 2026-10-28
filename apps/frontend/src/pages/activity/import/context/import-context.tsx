@@ -46,6 +46,7 @@ export type DraftCurrencySource = "csv" | "default" | "manual" | "resolved";
 
 export interface DraftActivity {
   rowIndex: number;
+  sourceLine?: number;
   rawRow: string[];
 
   // Normalized fields
@@ -528,13 +529,22 @@ function mergeIssueMaps(
 interface ImportProviderProps {
   children: ReactNode;
   initialAccountId?: string;
+  initialDrafts?: DraftActivity[];
 }
 
-export function ImportProvider({ children, initialAccountId }: ImportProviderProps) {
+export function ImportProvider({ children, initialAccountId, initialDrafts }: ImportProviderProps) {
   const { t } = useTranslation();
   const [state, dispatch] = useReducer(importReducer, {
     ...INITIAL_STATE,
     accountId: initialAccountId ?? "",
+    ...(initialDrafts
+      ? {
+          draftActivities: initialDrafts,
+          draftRevision: 1,
+          step: "assets" as const,
+          stepOrder: ["assets", "review", "confirm", "result"] as ImportStep[],
+        }
+      : {}),
   });
 
   const validationRunRef = useRef(0);

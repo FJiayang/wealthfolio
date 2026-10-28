@@ -380,6 +380,10 @@ function useDataGrid<TData>({
       const rowUpdatesMap = new Map<number, Omit<UpdateCell, "rowIndex">[]>();
 
       for (const update of updateArray) {
+        const rowData = rows?.[update.rowIndex]?.original ?? currentData[update.rowIndex];
+        const readOnly = currentTable?.getColumn(update.columnId)?.columnDef.meta?.readOnly;
+        if (readOnly === true || (typeof readOnly === "function" && rowData && readOnly(rowData)))
+          continue;
         if (!rows || !currentTable) {
           const existingUpdates = rowUpdatesMap.get(update.rowIndex) ?? [];
           existingUpdates.push({
@@ -405,7 +409,9 @@ function useDataGrid<TData>({
         }
       }
 
-      const tableRowCount = rows?.length ?? currentData.length;
+      if (rowUpdatesMap.size === 0) return;
+
+      const tableRowCount = currentData.length;
       const newData: TData[] = new Array(tableRowCount);
 
       for (let i = 0; i < tableRowCount; i++) {
@@ -1630,6 +1636,11 @@ function useDataGrid<TData>({
     (rowIndex: number, columnId: string) => {
       if (propsRef.current.readOnly) return;
 
+      const table = tableRef.current;
+      const row = table?.getRowModel().rows[rowIndex];
+      const readOnly = table?.getColumn(columnId)?.columnDef.meta?.readOnly;
+      if (readOnly === true || (typeof readOnly === "function" && row && readOnly(row.original)))
+        return;
       store.batch(() => {
         store.setState("focusedCell", { rowIndex, columnId });
         store.setState("editingCell", { rowIndex, columnId });

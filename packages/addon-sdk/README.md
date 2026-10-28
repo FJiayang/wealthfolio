@@ -1906,3 +1906,28 @@ If you're still experiencing issues:
    - Operating system
    - Error messages with stack traces
    - Minimal reproduction steps
+
+### Hand off parsed activities to the host import wizard (3.11.1+)
+
+Declare `activities.openImport` in the manifest's activities permissions and
+require Wealthfolio 3.11.1 or newer. Call
+`context.api.activities.openImport({ sourceLabel, accountId, rows })`, where
+each row contains `{ activity, sourceLine, rawRow, excluded }` and `activity`
+uses the SDK's `ActivityImport` shape. Asset binding may remain unresolved.
+Amounts and quantities should be decimal strings.
+
+The promise resolves after opening the host wizard; it does not confirm a write.
+The host derives fresh validation, duplicate and force-import state and owns
+asset resolution, review, confirmation and persistence. Source rows and excluded
+records remain available for review. Drafts live only in memory. Returning to
+the source requires confirmation and discards edits made in the host.
+
+Use `context.router.setLeaveGuard(hasUnsavedWork)` for the host's mobile leave
+confirmation. The host scopes this to the active route and removes it on detach
+or runtime shutdown. It does not intercept browser Back/Forward or restore work
+after reload. Explicit cancel/reset controls must use `CancelConfirmationDialog`
+as well.
+
+Build the SDK and UI packages in the sibling Wealthfolio checkout before
+building local addons that link to them. New addons require 3.11.1 host
+dependencies; addons compiled against older exports remain supported.

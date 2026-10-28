@@ -1,4 +1,6 @@
-import { getAccounts, logger } from "@/adapters";
+import { getImportHandoff, clearImportHandoff, type ImportHandoff } from "@/addons/import-handoff";
+import { ImportWizardLayout } from "@wealthfolio/ui";
+import { getAccounts } from "@/adapters";
 import { usePlatform } from "@/hooks/use-platform";
 import { shouldResolveImportAsset } from "@/lib/activity-utils";
 import { canImportCSV } from "@/lib/activity-restrictions";
@@ -7,7 +9,6 @@ import type { Account } from "@/lib/types";
 import { useQuery } from "@tanstack/react-query";
 import { AlertFeedback, Page, PageContent, PageHeader } from "@wealthfolio/ui";
 import { Button } from "@wealthfolio/ui/components/ui/button";
-import { Card, CardHeader } from "@wealthfolio/ui/components/ui/card";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { AnimatePresence, motion } from "motion/react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -303,7 +304,7 @@ function useStepValidation(
 // Wizard Content Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-function ImportWizardContent() {
+function ImportWizardContent({ handoff }: { handoff?: ImportHandoff }) {
   const { state, dispatch, validateDrafts, previewAssets } = useImportContext();
   const navigate = useNavigate();
   const goBack = useBackNavigation();
@@ -428,18 +429,31 @@ function ImportWizardContent() {
   ]);
 
   // Select the appropriate steps and components based on mode
-  const steps = isHoldingsMode
-    ? holdingsHasAssets
-      ? HOLDINGS_STEPS
-      : HOLDINGS_STEPS_CASH_ONLY
-    : isTransactionImport
-      ? TRANSACTION_STEPS
-      : STEPS;
+  const addonSteps = useMemo(
+    () => STEPS.filter((step) => !["upload", "mapping"].includes(step.id)),
+    [STEPS],
+  );
+  const steps = handoff
+    ? addonSteps
+    : isHoldingsMode
+      ? holdingsHasAssets
+        ? HOLDINGS_STEPS
+        : HOLDINGS_STEPS_CASH_ONLY
+      : isTransactionImport
+        ? TRANSACTION_STEPS
+        : STEPS;
   const stepComponents = isHoldingsMode ? HOLDINGS_STEP_COMPONENTS : STEP_COMPONENTS;
 
   useEffect(() => {
     dispatch(setStepOrder([...steps.map((step) => step.id), "result"]));
   }, [dispatch, steps]);
+
+  const handoffStarted = useRef(false);
+  useEffect(() => {
+    if (!handoff || handoffStarted.current) return;
+    handoffStarted.current = true;
+    void previewAssets(state.draftActivities, { revision: state.draftRevision });
+  }, [handoff, previewAssets, state.draftActivities, state.draftRevision]);
 
   // Step navigation
   const currentStepIndex = useMemo(
@@ -624,10 +638,17 @@ function ImportWizardContent() {
   }, [state.step, goBack]);
 
   const handleConfirmCancel = useCallback(() => {
-    const leave = heldLeave.current ?? goBack;
+    const leave =
+      heldLeave.current ??
+      (handoff
+        ? () => {
+            clearImportHandoff();
+            void navigate(handoff.returnRoute, { replace: true });
+          }
+        : goBack);
     heldLeave.current = null;
     leave();
-  }, [goBack]);
+  }, [goBack, handoff, navigate]);
 
   // Get step-specific next button label
   const getNextLabel = useCallback(() => {
@@ -685,9 +706,10 @@ function ImportWizardContent() {
   }
 
   return (
-    <Page>
+    <Page className="flex h-full min-h-0 flex-col">
       <PageHeader
         heading={pageTitle}
+        text={handoff?.sourceLabel}
         onBack={isMobile ? handleCancelClick : undefined}
         actions={
           <div className="flex items-center gap-2">
@@ -703,61 +725,57 @@ function ImportWizardContent() {
                 className="hidden sm:flex"
               >
                 <Icons.X className="me-2 h-4 w-4" />
-                {t("activity:import.toolbar.cancel")}
+                {handoff
+                  ? t("activity:import.toolbar.returnToSource")
+                  : t("activity:import.toolbar.cancel")}
               </Button>
             )}
           </div>
         }
       />
 
-      <PageContent withPadding={false}>
-        <ErrorBoundary fallbackTitle={t("activity:import.page.somethingWentWrong")}>
-          <div className="px-2 pt-2 pb-6 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
-            <Card className="flex max-h-[calc(100dvh-9rem)] w-full flex-col overflow-hidden">
-              {/* Step indicator — hidden on result step */}
-              {state.step !== "result" && (
-                <CardHeader className="shrink-0 border-b px-3 py-3 sm:px-6 sm:py-4">
-                  <WizardStepIndicator steps={steps} currentStep={state.step} />
-                </CardHeader>
-              )}
-
-              {/* Step content — scrollable */}
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={state.step}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.3 }}
-                    className="p-3 sm:p-6"
-                  >
-                    <CurrentStepComponent />
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-
-              {/* Navigation buttons — always visible */}
-              {showNavigation && (
-                <div className="shrink-0 px-3 pb-3 sm:px-6 sm:pb-6">
-                  <StepNavigation
-                    onNext={handleNext}
-                    onBack={handleBack}
-                    canGoBack={canGoBack}
-                    canGoNext={canGoNext}
-                    nextLabel={getNextLabel()}
-                    nextLoadingLabel={
-                      isHoldingsValidationLoading
-                        ? t("activity:import.holdings.validating")
-                        : undefined
-                    }
-                    isNextLoading={isNextLoading || isHoldingsValidationLoading}
-                  />
-                </div>
-              )}
-            </Card>
-          </div>
-        </ErrorBoundary>
+      <PageContent
+        withPadding={false}
+        className="min-h-0 flex-1 md:min-h-0 [&>div]:h-full [&>div]:min-h-0"
+      >
+        <div className="h-full min-h-0 px-2 pt-2 pb-6 sm:px-4 sm:pt-4 md:px-6 md:pt-6">
+          <ImportWizardLayout
+            isResult={state.step === "result"}
+            steps={<WizardStepIndicator steps={steps} currentStep={state.step} />}
+            navigation={
+              showNavigation ? (
+                <StepNavigation
+                  onNext={handleNext}
+                  onBack={handleBack}
+                  canGoBack={canGoBack}
+                  canGoNext={canGoNext}
+                  nextLabel={getNextLabel()}
+                  isNextLoading={isNextLoading || isHoldingsValidationLoading}
+                  nextLoadingLabel={
+                    isHoldingsValidationLoading
+                      ? t("activity:import.holdings.validating")
+                      : undefined
+                  }
+                />
+              ) : undefined
+            }
+          >
+            {/* Step content — scrollable */}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={state.step}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <CurrentStepComponent />
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </ImportWizardLayout>
+        </div>
       </PageContent>
 
       {/* Cancel confirmation dialog */}
@@ -765,41 +783,10 @@ function ImportWizardContent() {
         open={showCancelDialog}
         onOpenChange={setShowCancelDialog}
         onConfirm={handleConfirmCancel}
+        description={handoff ? t("activity:import.dialog.returnToSourceDescription") : undefined}
       />
     </Page>
   );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Error Boundary
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-}
-
-class ErrorBoundary extends React.Component<
-  { children: React.ReactNode; fallbackTitle: string },
-  ErrorBoundaryState
-> {
-  override state: ErrorBoundaryState = { hasError: false, error: null };
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  override componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    logger.error(`Caught error: ${error}, info: ${errorInfo.componentStack}`);
-  }
-
-  override render() {
-    if (this.state.hasError) {
-      return <AlertFeedback variant="error" title={this.props.fallbackTitle} />;
-    }
-
-    return this.props.children;
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -810,9 +797,21 @@ export function ActivityImportPageV2() {
   const [searchParams] = useSearchParams();
   const accountId = searchParams.get("account") || "";
 
+  const [handoff] = useState(() =>
+    searchParams.has("addonImport") ? getImportHandoff() : undefined,
+  );
+  useEffect(
+    () => () => {
+      if (handoff) clearImportHandoff(handoff.addonId);
+    },
+    [handoff],
+  );
   return (
-    <ImportProvider initialAccountId={accountId}>
-      <ImportWizardContent />
+    <ImportProvider
+      initialAccountId={handoff?.accountId ?? accountId}
+      initialDrafts={handoff?.drafts}
+    >
+      <ImportWizardContent handoff={handoff} />
     </ImportProvider>
   );
 }

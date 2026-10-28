@@ -825,6 +825,7 @@
       "somethingWentWrong": "發生錯誤了。"
     },
     "toolbar": {
+      "returnToSource": "返回原始交易修正",
       "cancel": "取消",
       "configureMapping": "設定對應",
       "continue": "繼續",
@@ -834,6 +835,7 @@
       "back": "返回"
     },
     "dialog": {
+      "returnToSourceDescription": "返回將放棄宿主階段的編輯，保留原始帳單及其修正內容。",
       "cancelTitle": "取消匯入？",
       "cancelDescription": "你確定要取消嗎？所有進度都會遺失，之後必須重新開始。",
       "continueImporting": "繼續匯入",

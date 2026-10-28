@@ -1,3 +1,6 @@
+import { getAddonLeaveGuard, subscribeAddonLeaveGuard } from "../leave-guard";
+import { useLeaveGuard } from "@/pages/layouts/mobile-stack/use-mobile-stack";
+import { CancelConfirmationDialog } from "@/pages/activity/import/components/cancel-confirmation-dialog";
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -12,6 +15,13 @@ interface AddonIframeRouteProps {
 
 export function AddonIframeRoute({ addonId, routeId }: AddonIframeRouteProps) {
   const { t } = useTranslation();
+  const guard = useSyncExternalStore(subscribeAddonLeaveGuard, () => getAddonLeaveGuard(addonId));
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const heldLeave = useRef<(() => void) | null>(null);
+  useLeaveGuard(guard, (proceed) => {
+    heldLeave.current = proceed;
+    setCancelOpen(true);
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const params = useParams();
@@ -134,6 +144,14 @@ export function AddonIframeRoute({ addonId, routeId }: AddonIframeRouteProps) {
         )}
         data-addon-id={addonId}
         data-addon-route-id={routeId}
+      />
+      <CancelConfirmationDialog
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        onConfirm={() => {
+          heldLeave.current?.();
+          heldLeave.current = null;
+        }}
       />
       {isColdLoading ? <AddonRouteSkeleton /> : null}
       {isError ? (

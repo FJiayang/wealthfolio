@@ -1,3 +1,5 @@
+import { prepareImportHandoff, clearImportHandoff } from "./import-handoff";
+import type { OpenActivityImportRequest } from "@wealthfolio/addon-sdk";
 /**
  * Type utilities for bridging between main app and addon SDK types
  * These utilities help convert between the main app's internal types and the SDK's public types
@@ -556,6 +558,19 @@ export function createSDKHostAPIBridge(
             : { updates: request.updates.map(addonActivityUpdate) }),
           ...(request.deleteIds === undefined ? {} : { deleteIds: request.deleteIds }),
         });
+      },
+      openImport: async (request: OpenActivityImportRequest) => {
+        prepareImportHandoff(
+          addonId || "unknown-addon",
+          request,
+          window.location.pathname + window.location.search,
+        );
+        try {
+          await internalAPI.navigateToRoute("/import?addonImport=1");
+        } catch (error) {
+          clearImportHandoff(addonId);
+          throw error;
+        }
       },
       import: (activities: ActivityImport[]) => internalAPI.importActivities({ activities }),
       checkImport: (activities: ActivityImport[]) =>

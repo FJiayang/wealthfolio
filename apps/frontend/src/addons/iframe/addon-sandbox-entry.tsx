@@ -612,6 +612,8 @@ function createContext() {
       },
     },
     router: {
+      setLeaveGuard: (enabled: boolean) =>
+        callHost("router.setLeaveGuard", { args: [enabled] }).then(() => undefined),
       add(route: LegacyRouteConfig) {
         const normalizedRoute = normalizeRoute(route);
         // `component` is preferred (host manages the single React root); `render`

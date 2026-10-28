@@ -99,6 +99,7 @@ export const PERMISSION_CATEGORIES: PermissionCategory[] = [
       'saveMany',
       'import',
       'checkImport',
+      'openImport',
       'getImportMapping',
       'saveImportMapping',
       'getTransferPair',
