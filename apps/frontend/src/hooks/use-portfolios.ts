@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import { createPortfolio, deletePortfolio, getPortfolios, updatePortfolioEntry } from "@/adapters";
 import { QueryKeys } from "@/lib/query-keys";
 import { invalidatePerformanceCaches } from "@/lib/performance-cache";
@@ -25,27 +24,27 @@ export function usePortfolioMutations() {
     mutationFn: (portfolio: NewPortfolio) => createPortfolio(portfolio),
     onSuccess: () => {
       invalidate();
-      toast.success(i18n.t("common:notifications.portfolio_created_successfully"));
+      toast.success("Portfolio created successfully.");
     },
-    onError: () => toast.error(i18n.t("common:notifications.failed_to_create_portfolio")),
+    onError: () => toast.error("Failed to create portfolio."),
   });
 
   const updateMutation = useMutation({
     mutationFn: (portfolio: PortfolioWithAccounts) => updatePortfolioEntry(portfolio),
     onSuccess: () => {
       invalidate();
-      toast.success(i18n.t("common:notifications.portfolio_updated_successfully"));
+      toast.success("Portfolio updated successfully.");
     },
-    onError: () => toast.error(i18n.t("common:notifications.failed_to_update_portfolio")),
+    onError: () => toast.error("Failed to update portfolio."),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (portfolioId: string) => deletePortfolio(portfolioId),
     onSuccess: () => {
       invalidate();
-      toast.success(i18n.t("common:notifications.portfolio_deleted_successfully"));
+      toast.success("Portfolio deleted successfully.");
     },
-    onError: () => toast.error(i18n.t("common:notifications.failed_to_delete_portfolio")),
+    onError: () => toast.error("Failed to delete portfolio."),
   });
 
   return { createMutation, updateMutation, deleteMutation };

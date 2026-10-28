@@ -1,9 +1,7 @@
 {
   "carousel": {
     "previous": "Vorherige Folie",
-    "next": "Nächste Folie",
-    "role": "Karussell",
-    "slide": "Folie"
+    "next": "Nächste Folie"
   },
   "currency": {
     "selectTitle": "Währung auswählen",
@@ -16,15 +14,7 @@
     "searchPrompt": "Suchen Sie eine beliebige Währung oder wählen Sie eine aus den beliebten Optionen oben.",
     "useCustom": "„{{value}}“ als benutzerdefinierte Währung verwenden",
     "noneFound": "Keine Währungen gefunden für „{{query}}“.",
-    "noneFoundShort": "Keine Währung gefunden.",
-    "units": {
-      "GBp": "Britische Pence",
-      "GBX": "Britische Pence",
-      "ILA": "Israelische Agorot",
-      "USX": "US-Cent",
-      "ZAc": "Südafrikanische Cent",
-      "KWF": "Kuwaitische Fils"
-    }
+    "noneFoundShort": "Keine Währung gefunden."
   },
   "dataGrid": {
     "label": "Datenraster",
@@ -85,12 +75,7 @@
     "clearSymbol": "Symbol löschen",
     "currency": "Währung",
     "searchCurrency": "Währung suchen...",
-    "noCurrencyFound": "Keine Währung gefunden.",
-    "copyFailed": "Kopieren in die Zwischenablage fehlgeschlagen",
-    "cutFailed": "Ausschneiden in die Zwischenablage fehlgeschlagen",
-    "pasteFailed": "Einfügen fehlgeschlagen. Bitte versuchen Sie es erneut.",
-    "cellsSkipped_one": "{{count}} Zelle wegen ungültiger Daten beim Einfügen übersprungen",
-    "cellsSkipped_other": "{{count}} Zellen wegen ungültiger Daten beim Einfügen übersprungen"
+    "noCurrencyFound": "Keine Währung gefunden."
   },
   "dataTable": {
     "noResults": "Keine Ergebnisse",
@@ -212,27 +197,5 @@
   "page": {
     "back": "Zurück"
   },
-  "remove": "{{label}} entfernen",
-  "actionConfirm": {
-    "pending": "In Bearbeitung…"
-  },
-  "select": {
-    "placeholder": "Option auswählen"
-  },
-  "progress": {
-    "title": "Verarbeitung",
-    "message": "Wird verarbeitet…",
-    "description": "Bitte warten Sie, während Ihre Anfrage verarbeitet wird. Dies kann einen Moment dauern."
-  },
-  "navigation": {
-    "view": "Ansicht {{number}}",
-    "goTo": "Zu {{name}} wechseln"
-  },
-  "quoteImport": {
-    "noFile": "Keine Datei ausgewählt",
-    "validateFailed": "CSV-Validierung fehlgeschlagen",
-    "validateFirst": "Keine Kurse zum Importieren. Bitte validieren Sie zuerst die Datei.",
-    "noValid": "Keine gültigen Kurse zum Importieren. Alle Kurse weisen Validierungsfehler auf.",
-    "importFailed": "Kursimport fehlgeschlagen"
-  }
+  "remove": "{{label}} entfernen"
 }

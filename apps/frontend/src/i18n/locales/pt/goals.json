@@ -721,8 +721,7 @@
     "needed": "Necessário",
     "finish": "Finalizar",
     "not_reached": "Não alcançado",
-    "edit_aria": "Editar {{title}}",
-    "highReturnWarning": "Hipótese de retorno elevado. Isso pressupõe superar consistentemente os retornos do mercado em geral."
+    "edit_aria": "Editar {{title}}"
   },
   "projection": {
     "kicker": "Projeção",

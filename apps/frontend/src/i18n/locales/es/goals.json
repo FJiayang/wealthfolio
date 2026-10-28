@@ -721,8 +721,7 @@
     "needed": "Necesario",
     "finish": "Finalizar",
     "not_reached": "No alcanzado",
-    "edit_aria": "Editar {{title}}",
-    "highReturnWarning": "Hipótesis de rentabilidad elevada. Supone superar de forma constante la rentabilidad del mercado en general."
+    "edit_aria": "Editar {{title}}"
   },
   "projection": {
     "kicker": "Proyección",

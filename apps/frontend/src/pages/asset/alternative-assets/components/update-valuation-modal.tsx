@@ -22,7 +22,7 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  useFormField,
+  FormMessage,
 } from "@wealthfolio/ui/components/ui/form";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
@@ -151,7 +151,7 @@ export function UpdateValuationModal({
                         onValueChange={field.onChange}
                       />
                     </FormControl>
-                    <ValuationFormMessage />
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -166,7 +166,7 @@ export function UpdateValuationModal({
                     <FormControl>
                       <DatePickerInput value={field.value} onChange={field.onChange} />
                     </FormControl>
-                    <ValuationFormMessage />
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -190,7 +190,7 @@ export function UpdateValuationModal({
                         {...field}
                       />
                     </FormControl>
-                    <ValuationFormMessage />
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -243,20 +243,4 @@ function formatDisplayDate(
   } catch {
     return isoDate;
   }
-}
-
-/** Translate stored schema message keys at render time, without revalidating the draft. */
-function ValuationFormMessage() {
-  const { t } = useTranslation();
-  const { error, formMessageId } = useFormField();
-  const message = error?.message;
-  if (!message) return null;
-  return (
-    <p id={formMessageId} className="text-destructive text-xs font-light">
-      {message.startsWith("asset:updateValuation.validation.") ||
-      message.startsWith("activity:validation.")
-        ? t(message)
-        : message}
-    </p>
-  );
 }

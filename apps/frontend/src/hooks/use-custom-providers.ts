@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getCustomProviders,
@@ -31,7 +30,7 @@ export function useCreateCustomProvider() {
     },
     onError: (error: Error) => {
       toast({
-        title: i18n.t("common:notifications.failed_to_create_custom_provider"),
+        title: "Failed to create custom provider",
         description: error.message,
         variant: "destructive",
       });
@@ -49,7 +48,7 @@ export function useUpdateCustomProvider() {
     },
     onError: (error: Error) => {
       toast({
-        title: i18n.t("common:notifications.failed_to_update_custom_provider"),
+        title: "Failed to update custom provider",
         description: error.message,
         variant: "destructive",
       });
@@ -66,7 +65,7 @@ export function useDeleteCustomProvider() {
     },
     onError: (error: Error) => {
       toast({
-        title: i18n.t("common:notifications.failed_to_delete_custom_provider"),
+        title: "Failed to delete custom provider",
         description: error.message,
         variant: "destructive",
       });
@@ -79,7 +78,7 @@ export function useTestCustomProviderSource() {
     mutationFn: (payload: TestSourceRequest) => testCustomProviderSource(payload),
     onError: (error: Error) => {
       toast({
-        title: i18n.t("common:notifications.source_test_failed"),
+        title: "Source test failed",
         description: error.message,
         variant: "destructive",
       });

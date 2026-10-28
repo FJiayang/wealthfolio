@@ -1,7 +1,9 @@
 import { createInstance } from "i18next";
 import { beforeAll, describe, expect, it } from "vitest";
 import english from "@/i18n/locales/en/common.json";
+import englishTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import italian from "@/i18n/locales/it/common.json";
+import italianTaxonomies from "@/i18n/locales/it/taxonomies.json";
 import { getCategoryLabel } from "./taxonomy-labels";
 
 const i18n = createInstance();
@@ -9,7 +11,10 @@ beforeAll(async () => {
   await i18n.init({
     lng: "it",
     fallbackLng: "en",
-    resources: { en: { common: english }, it: { common: italian } },
+    resources: {
+      en: { common: english, taxonomies: englishTaxonomies },
+      it: { common: italian, taxonomies: italianTaxonomies },
+    },
   });
 });
 
@@ -25,8 +30,8 @@ describe("Italian financial glossary", () => {
   ] as const)(
     "uses the financial meaning of %s without renaming custom records",
     (id, seedName, label) => {
-      expect(english.categoryNames.asset_classes[id]).toBe(seedName);
-      expect(italian.categoryNames.asset_classes[id]).toBe(label);
+      expect(englishTaxonomies.categoryNames.asset_classes[id]).toBe(seedName);
+      expect(italianTaxonomies.categoryNames.asset_classes[id]).toBe(label);
       expect(getCategoryLabel(i18n.t, "asset_classes", id, seedName)).toBe(label);
       expect(getCategoryLabel(i18n.t, "asset_classes", id, `My ${seedName}`)).toBe(
         `My ${seedName}`,

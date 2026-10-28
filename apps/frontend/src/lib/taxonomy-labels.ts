@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import english from "@/i18n/locales/en/common.json";
+import english from "@/i18n/locales/en/taxonomies.json";
 import type { TaxonomyAllocation, CategoryAllocation } from "@/lib/types";
 
 const taxonomyNames: Record<string, string> = english.taxonomyNames;
@@ -8,7 +8,7 @@ const categoryNames: Record<string, Record<string, string>> = english.categoryNa
 /** Only unchanged built-in names are translated; custom and renamed records stay verbatim. */
 export function getTaxonomyLabel(t: TFunction, taxonomyId: string, name: string): string {
   return taxonomyNames[taxonomyId] === name
-    ? t(`common:taxonomyNames.${taxonomyId}`, { defaultValue: name })
+    ? t(`taxonomies:taxonomyNames.${taxonomyId}`, { defaultValue: name })
     : name;
 }
 
@@ -18,9 +18,9 @@ export function getCategoryLabel(
   categoryId: string,
   name: string,
 ): string {
-  if (categoryId === "__UNKNOWN__") return t("common:unknown");
+  if (categoryId === "__UNKNOWN__") return t("taxonomies:unknown");
   return categoryNames[taxonomyId]?.[categoryId] === name
-    ? t(`common:categoryNames.${taxonomyId}.${categoryId}`, { defaultValue: name })
+    ? t(`taxonomies:categoryNames.${taxonomyId}.${categoryId}`, { defaultValue: name })
     : name;
 }
 

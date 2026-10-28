@@ -1,5 +1,6 @@
 import { createInstance, type TFunction } from "i18next";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import type { TaxonomyCategory } from "@/lib/types";
 import type { FilterOption } from "./transactions-filter-bar";
 import { act, fireEvent, render, screen, waitFor } from "@/test/render";
@@ -451,7 +452,10 @@ describe("SpendingTransactionsTab selection", () => {
 it("localizes category filter options but keeps IDs and renamed labels raw", async () => {
   mocks.useMutation.mockReset().mockReturnValue(mocks.mutation);
   const i18n = createInstance();
-  await i18n.init({ lng: "zh", resources: { zh: { common: zhCommon } } });
+  await i18n.init({
+    lng: "zh",
+    resources: { zh: { common: zhCommon, taxonomies: zhCommonTaxonomies } },
+  });
   mocks.translate = i18n.getFixedT("zh");
   mocks.categories = [
     {
@@ -479,7 +483,7 @@ it("localizes category filter options but keeps IDs and renamed labels raw", asy
   const original = structuredClone(mocks.categories);
   try {
     render(<SpendingTransactionsTab />);
-    const labels = zhCommon.categoryNames.spending_categories;
+    const labels = zhCommonTaxonomies.categoryNames.spending_categories;
     expect(mocks.filterProps?.categoryOptions).toEqual([
       { value: "cat_food", label: labels.cat_food },
     ]);

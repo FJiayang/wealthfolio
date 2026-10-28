@@ -715,8 +715,7 @@
     "needed": "Needed",
     "finish": "Finish",
     "not_reached": "Not reached",
-    "edit_aria": "Edit {{title}}",
-    "highReturnWarning": "High return assumption. This assumes consistently beating broad market returns."
+    "edit_aria": "Edit {{title}}"
   },
   "projection": {
     "kicker": "Projection",

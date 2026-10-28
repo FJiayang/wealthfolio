@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -64,26 +63,26 @@ export function useEventTypeMutations() {
     mutationFn: (t: NewEventType) => createEventType(t),
     onSuccess: () => {
       invalidate();
-      toast.success(i18n.t("common:notifications.event_type_created"));
+      toast.success("Event type created.");
     },
-    onError: () => toast.error(i18n.t("spending:eventForm.createTypeFailed")),
+    onError: () => toast.error("Failed to create event type."),
   });
   const update = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: { name?: string; color?: string | null } }) =>
       updateEventType(id, patch),
     onSuccess: () => {
       invalidate();
-      toast.success(i18n.t("common:notifications.event_type_updated"));
+      toast.success("Event type updated.");
     },
-    onError: () => toast.error(i18n.t("common:notifications.failed_to_update_event_type")),
+    onError: () => toast.error("Failed to update event type."),
   });
   const remove = useMutation({
     mutationFn: (id: string) => deleteEventType(id),
     onSuccess: () => {
       invalidate();
-      toast.success(i18n.t("common:notifications.event_type_deleted"));
+      toast.success("Event type deleted.");
     },
-    onError: () => toast.error(i18n.t("common:notifications.failed_to_delete_event_type")),
+    onError: () => toast.error("Failed to delete event type."),
   });
   return { create, update, remove };
 }
@@ -96,26 +95,26 @@ export function useSpendingEventMutations() {
     mutationFn: (e: NewSpendingEvent) => createEvent(e),
     onSuccess: () => {
       invalidate();
-      toast.success(i18n.t("common:notifications.event_created"));
+      toast.success("Event created.");
     },
-    onError: () => toast.error(i18n.t("common:notifications.failed_to_create_event")),
+    onError: () => toast.error("Failed to create event."),
   });
   const update = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: UpdateSpendingEvent }) =>
       updateEvent(id, patch),
     onSuccess: () => {
       invalidate();
-      toast.success(i18n.t("common:notifications.event_updated"));
+      toast.success("Event updated.");
     },
-    onError: () => toast.error(i18n.t("common:notifications.failed_to_update_event")),
+    onError: () => toast.error("Failed to update event."),
   });
   const remove = useMutation({
     mutationFn: (id: string) => deleteEvent(id),
     onSuccess: () => {
       invalidate();
-      toast.success(i18n.t("common:notifications.event_deleted"));
+      toast.success("Event deleted.");
     },
-    onError: () => toast.error(i18n.t("common:notifications.failed_to_delete_event")),
+    onError: () => toast.error("Failed to delete event."),
   });
   return { create, update, remove };
 }

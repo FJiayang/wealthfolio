@@ -5,7 +5,9 @@ import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 
 import enCommon from "@/i18n/locales/en/common.json";
+import enCommonTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import enSpending from "@/i18n/locales/en/spending.json";
 import zhSpending from "@/i18n/locales/zh/spending.json";
 import { QuickCategorizePopover } from "./quick-categorize-popover";
@@ -40,8 +42,8 @@ it("searches translated and raw category names while preserving tree context and
     lng: "zh",
     fallbackLng: "en",
     resources: {
-      en: { common: enCommon, spending: enSpending },
-      zh: { common: zhCommon, spending: zhSpending },
+      en: { common: enCommon, taxonomies: enCommonTaxonomies, spending: enSpending },
+      zh: { common: zhCommon, taxonomies: zhCommonTaxonomies, spending: zhSpending },
     },
   });
   const user = userEvent.setup();
@@ -56,8 +58,8 @@ it("searches translated and raw category names while preserving tree context and
     </I18nextProvider>,
   );
   await user.click(screen.getByRole("button", { name: "Pick" }));
-  const food = zhCommon.categoryNames.spending_categories.cat_food;
-  const groceries = zhCommon.categoryNames.spending_categories.cat_groceries;
+  const food = zhCommonTaxonomies.categoryNames.spending_categories.cat_food;
+  const groceries = zhCommonTaxonomies.categoryNames.spending_categories.cat_groceries;
   expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
     food,
     groceries,

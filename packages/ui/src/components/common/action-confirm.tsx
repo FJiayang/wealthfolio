@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import { ComponentProps, ReactElement, ReactNode, useEffect, useRef, useState } from "react";
 import { Button, type ButtonProps } from "../ui/button";
 import { Icons } from "../ui/icons";
@@ -27,13 +26,12 @@ export const ActionConfirm = ({
   handleConfirm,
   button,
   isPending,
-  confirmButtonText,
+  confirmButtonText = "Confirm",
   confirmButtonVariant = "destructive",
-  cancelButtonText,
-  pendingText,
+  cancelButtonText = "Cancel",
+  pendingText = "In progress...",
   side,
 }: ActionConfirmProps) => {
-  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const wasConfirming = useRef(false);
 
@@ -79,16 +77,16 @@ export const ActionConfirm = ({
                 handleCancel?.();
               }}
             >
-              {cancelButtonText ?? t("common:cancel", "Cancel")}
+              {cancelButtonText}
             </Button>
             <Button variant={confirmButtonVariant} size="sm" disabled={isPending} onClick={handleConfirm}>
               {isPending ? (
                 <>
                   <Spinner className="me-2 h-4 w-4" />
-                  {pendingText ?? t("ui:actionConfirm.pending", "In progress...")}
+                  {pendingText}
                 </>
               ) : (
-                (confirmButtonText ?? t("common:confirm", "Confirm"))
+                confirmButtonText
               )}
             </Button>
           </div>

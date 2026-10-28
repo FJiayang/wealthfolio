@@ -1,7 +1,7 @@
 import { createInstance } from "i18next";
 import { beforeAll, describe, expect, it } from "vitest";
-import en from "@/i18n/locales/en/common.json";
-import zh from "@/i18n/locales/zh/common.json";
+import enSpending from "@/i18n/locales/en/spending.json";
+import zhSpending from "@/i18n/locales/zh/spending.json";
 import { getBudgetGroupLabel, getEventTypeLabel } from "./labels";
 
 const i18n = createInstance();
@@ -9,7 +9,7 @@ beforeAll(async () => {
   await i18n.init({
     lng: "zh",
     fallbackLng: "en",
-    resources: { en: { common: en }, zh: { common: zh } },
+    resources: { en: { spending: enSpending }, zh: { spending: zhSpending } },
   });
 });
 
@@ -23,9 +23,9 @@ describe("built-in budget group labels", () => {
   });
 
   it("translates all unchanged seeds in the requested language without translating custom names", () => {
-    for (const [id, name] of Object.entries(en.budgetGroupNames)) {
+    for (const [id, name] of Object.entries(enSpending.budgetGroupNames)) {
       expect(getBudgetGroupLabel(i18n.getFixedT("zh"), id, name)).toBe(
-        zh.budgetGroupNames[id as keyof typeof zh.budgetGroupNames],
+        zhSpending.budgetGroupNames[id as keyof typeof zhSpending.budgetGroupNames],
       );
       expect(getBudgetGroupLabel(i18n.getFixedT("en"), id, name)).toBe(name);
       expect(getBudgetGroupLabel(i18n.getFixedT("zh"), id, `My ${name}`)).toBe(`My ${name}`);
@@ -37,9 +37,9 @@ describe("built-in budget group labels", () => {
 describe("built-in event type labels", () => {
   it("translates all unchanged seeded types and preserves renamed or custom types", () => {
     const t = i18n.getFixedT("zh");
-    for (const [id, name] of Object.entries(en.eventTypeNames)) {
+    for (const [id, name] of Object.entries(enSpending.eventTypeNames)) {
       expect(getEventTypeLabel(t, id, name)).toBe(
-        zh.eventTypeNames[id as keyof typeof zh.eventTypeNames],
+        zhSpending.eventTypeNames[id as keyof typeof zhSpending.eventTypeNames],
       );
       expect(getEventTypeLabel(t, id, `My ${name}`)).toBe(`My ${name}`);
       expect(getEventTypeLabel(t, `custom-${id}`, name)).toBe(name);

@@ -121,12 +121,8 @@ function normalizeAccountsResult(
 /**
  * Formats account type for display.
  */
-function formatAccountType(accountType: string, t: ReturnType<typeof useTranslation>["t"]): string {
-  const knownTypes = ["portfolio", "securities", "cash", "credit_card", "cryptocurrency", "other"];
-  const type = accountType.toLowerCase();
-  return knownTypes.includes(type)
-    ? t(`common:component.account_type_${type}`)
-    : accountType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+function formatAccountType(accountType: string): string {
+  return accountType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // ============================================================================
@@ -161,13 +157,12 @@ function AccountsLoadingSkeleton() {
 }
 
 function AccountCard({ account }: { account: AccountDto }) {
-  const { t } = useTranslation();
   return (
     <div className="bg-background/60 hover:bg-background/80 flex items-center justify-between rounded-lg border p-3 transition-colors">
       <div className="flex flex-col gap-0.5">
         <span className="text-sm leading-tight font-medium">{account.name}</span>
         <span className="text-muted-foreground text-xs">
-          {formatAccountType(account.accountType, t)}
+          {formatAccountType(account.accountType)}
         </span>
       </div>
       <Badge variant="secondary" className="text-xs uppercase">
@@ -206,7 +201,7 @@ function ErrorState({ message }: { message?: string }) {
 
 type AccountsToolUIContentProps = ToolCallMessagePartProps<GetAccountsArgs, GetAccountsResult>;
 
-export function AccountsToolUIContentImpl({ args, result, status }: AccountsToolUIContentProps) {
+function AccountsToolUIContentImpl({ args, result, status }: AccountsToolUIContentProps) {
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";

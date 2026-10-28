@@ -1,5 +1,6 @@
 import i18n from "i18next";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { chartSliceColor } from "@wealthfolio/ui";
@@ -397,22 +398,25 @@ describe("AllocationWorksheetTab regeneration (§5)", () => {
     });
     const original = JSON.stringify(report);
     i18n.addResourceBundle("zh", "common", zhCommon);
+    i18n.addResourceBundle("zh", "taxonomies", zhCommonTaxonomies);
     const user = await renderWorksheet(report);
     try {
       expect(screen.getAllByText("Equity").length).toBeGreaterThan(0);
       await act(() => i18n.changeLanguage("zh"));
       expect(
-        screen.getAllByText(zhCommon.categoryNames.asset_classes.EQUITY).length,
+        screen.getAllByText(zhCommonTaxonomies.categoryNames.asset_classes.EQUITY).length,
       ).toBeGreaterThan(0);
       expect(screen.getAllByText("My bonds").length).toBeGreaterThan(0);
       expect(screen.queryByText("Equity")).not.toBeInTheDocument();
       await goTo(user, "Adjust positions");
       // The amount row's accessible class summary and the impact rail both update.
       expect(
-        screen.getByText(`${zhCommon.categoryNames.asset_classes.EQUITY} 50%, My bonds 50%`),
+        screen.getByText(
+          `${zhCommonTaxonomies.categoryNames.asset_classes.EQUITY} 50%, My bonds 50%`,
+        ),
       ).toBeInTheDocument();
       expect(
-        screen.getAllByText(zhCommon.categoryNames.asset_classes.EQUITY).length,
+        screen.getAllByText(zhCommonTaxonomies.categoryNames.asset_classes.EQUITY).length,
       ).toBeGreaterThan(0);
       await act(() => i18n.changeLanguage("en"));
       expect(screen.getByText("Equity 50%, My bonds 50%")).toBeInTheDocument();

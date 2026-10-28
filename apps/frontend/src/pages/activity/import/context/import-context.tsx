@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import {
   createContext,
   useCallback,
@@ -627,7 +626,7 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
               }
             }
             if (!backendResult.isValid && Object.keys(backendErrors).length === 0) {
-              backendErrors.general = [i18n.t("activity:validation_failed")];
+              backendErrors.general = ["Validation failed"];
             }
 
             const mergedErrors = mergeIssueMaps(draft.errors || {}, backendErrors);
@@ -695,7 +694,7 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
         if (run === validationRunRef.current && draftRevisionRef.current <= requestedRevision) {
           dispatch({
             type: "SET_VALIDATION_ERROR",
-            payload: i18n.t("activity:import.review.backend_failed"),
+            payload: "Backend validation failed. Retry validation before importing.",
           });
         }
         return { ok: false, hasErrors: false };

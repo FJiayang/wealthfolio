@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getAiProviders,
@@ -69,7 +68,7 @@ export function useAiProviderApiKey(providerId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: AI_PROVIDERS_KEY });
       toast({
-        title: i18n.t("common:notifications.api_key_saved"),
+        title: "API key saved",
         variant: "success",
         duration: 1500,
       });
@@ -77,7 +76,7 @@ export function useAiProviderApiKey(providerId: string) {
     onError: (error) => {
       logger.error(`Failed to save API key for ${providerId}: ${error}`);
       toast({
-        title: i18n.t("common:notifications.failed_to_save_api_key"),
+        title: "Failed to save API key",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });
@@ -91,7 +90,7 @@ export function useAiProviderApiKey(providerId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: AI_PROVIDERS_KEY });
       toast({
-        title: i18n.t("common:notifications.api_key_deleted"),
+        title: "API key deleted",
         variant: "success",
         duration: 1500,
       });
@@ -99,7 +98,7 @@ export function useAiProviderApiKey(providerId: string) {
     onError: (error) => {
       logger.error(`Failed to delete API key for ${providerId}: ${error}`);
       toast({
-        title: i18n.t("common:notifications.failed_to_delete_api_key"),
+        title: "Failed to delete API key",
         description: error instanceof Error ? error.message : String(error),
         variant: "destructive",
       });

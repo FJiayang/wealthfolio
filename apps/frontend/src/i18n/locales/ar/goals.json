@@ -745,8 +745,7 @@
     "surplus": "الفائض",
     "target": "الهدف",
     "target_date": "التاريخ المستهدف",
-    "your_target_date": "تاريخك المستهدف",
-    "highReturnWarning": "افتراض عائد مرتفع. يفترض ذلك التفوق باستمرار على عوائد السوق العامة."
+    "your_target_date": "تاريخك المستهدف"
   },
   "select_accounts": "اختيار الحسابات",
   "sidebar": {

@@ -1,5 +1,3 @@
-import { formatActivityFieldName } from "../../../utils/validation-labels";
-import i18n from "i18next";
 import type { BaseSyntheticEvent } from "react";
 import type {
   FieldErrors,
@@ -13,6 +11,38 @@ import { toast } from "sonner";
 interface ValidationIssue {
   fieldPath: string;
   message: string;
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  accountId: "Account",
+  fromAccountId: "From Account",
+  toAccountId: "To Account",
+  isExternal: "External Transfer",
+  direction: "Transfer Direction",
+  transferMode: "Transfer Mode",
+  activityType: "Activity Type",
+  assetId: "Symbol",
+  symbol: "Symbol",
+  activityDate: "Date",
+  quantity: "Quantity",
+  splitRatio: "Split Ratio",
+  unitPrice: "Price",
+  amount: "Amount",
+  fee: "Fee",
+  currency: "Currency",
+  fxRate: "FX Rate",
+  comment: "Notes",
+  subtype: "Subtype",
+  exchangeMic: "Exchange",
+  symbolQuoteCcy: "Quote Currency",
+  symbolInstrumentType: "Instrument Type",
+  quoteMode: "Quote Mode",
+};
+
+function formatFieldName(fieldPath: string): string {
+  const leaf = fieldPath.split(".").at(-1) ?? fieldPath;
+  const cleaned = leaf.replace(/\[\d+\]/g, "");
+  return FIELD_LABELS[cleaned] ?? cleaned;
 }
 
 function collectIssues(errors: FieldErrors<FieldValues>): ValidationIssue[] {
@@ -42,7 +72,7 @@ function collectIssues(errors: FieldErrors<FieldValues>): ValidationIssue[] {
 
   const unique = new Map<string, ValidationIssue>();
   for (const issue of issues) {
-    const label = formatActivityFieldName(issue.fieldPath);
+    const label = formatFieldName(issue.fieldPath);
     const key = `${label}:${issue.message}`;
     if (!unique.has(key)) {
       unique.set(key, issue);
@@ -60,13 +90,12 @@ export function showValidationToast<T extends FieldValues>(
   if (issues.length === 0) return;
 
   const lines = issues.slice(0, 3).map((issue) => {
-    const fieldName = formatActivityFieldName(issue.fieldPath);
+    const fieldName = formatFieldName(issue.fieldPath);
     return `${fieldName}: ${issue.message}`;
   });
-  const suffix =
-    issues.length > 3 ? i18n.t("activity:validation.more", { remaining: issues.length - 3 }) : "";
+  const suffix = issues.length > 3 ? ` (+${issues.length - 3} more)` : "";
 
-  toast.error(i18n.t("activity:form.toast_fix_form_errors"), {
+  toast.error("Please fix form errors", {
     id: "activity-form-validation",
     description: `${lines.join(" • ")}${suffix}`,
   });
@@ -90,7 +119,7 @@ export function createValidatedSubmit<T extends FieldValues>(
       await handler(event);
     } catch (err) {
       console.error("[ActivityForm] Unhandled submit error:", err);
-      toast.error(i18n.t("holdings:unexpected_error"), {
+      toast.error("An unexpected error occurred", {
         description: err instanceof Error ? err.message : String(err),
       });
     }

@@ -1,7 +1,9 @@
 import { createInstance } from "i18next";
 import { beforeAll, describe, expect, it } from "vitest";
 import en from "@/i18n/locales/en/common.json";
+import enTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import zh from "@/i18n/locales/zh/common.json";
+import zhTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import type { TaxonomyAllocation } from "./types";
 import {
   getCategoryLabel,
@@ -15,7 +17,10 @@ beforeAll(async () => {
   await i18n.init({
     lng: "zh",
     fallbackLng: "en",
-    resources: { en: { common: en }, zh: { common: zh } },
+    resources: {
+      en: { common: en, taxonomies: enTaxonomies },
+      zh: { common: zh, taxonomies: zhTaxonomies },
+    },
   });
 });
 

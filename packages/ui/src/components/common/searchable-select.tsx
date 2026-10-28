@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import { cn } from "../../lib/utils";
 import { Icons } from "../ui/icons";
 import { InputGroupAddon } from "../ui/input-group";
@@ -42,16 +41,15 @@ export function SearchableSelect({
   options = [],
   value,
   onValueChange,
-  placeholder,
+  placeholder = "Select an option",
   disabled = false,
-  searchPlaceholder,
-  emptyMessage,
+  searchPlaceholder = "Search...",
+  emptyMessage = "No results found.",
   className = "",
   contentClassName = "",
   "data-testid": testId,
   "aria-label": ariaLabel,
 }: SearchableSelectProps) {
-  const { t } = useTranslation();
   const selectedOption = options.find((option) => option.value === value) ?? null;
 
   return (
@@ -77,21 +75,17 @@ export function SearchableSelect({
         }
       >
         <span className={cn("truncate", !selectedOption && "text-muted-foreground")}>
-          <ComboboxValue placeholder={placeholder ?? t("ui:select.placeholder", "Select an option")} />
+          <ComboboxValue placeholder={placeholder} />
         </span>
       </ComboboxTrigger>
       <ComboboxContent className={cn("w-(--anchor-width)", contentClassName)}>
-        <ComboboxInput
-          showTrigger={false}
-          placeholder={searchPlaceholder ?? t("common:search_placeholder", "Search...")}
-          className="w-full"
-        >
+        <ComboboxInput showTrigger={false} placeholder={searchPlaceholder} className="w-full">
           <InputGroupAddon>
             <Icons.Search className="opacity-50" />
           </InputGroupAddon>
         </ComboboxInput>
         <ComboboxSeparator className="mx-0 my-0" />
-        <ComboboxEmpty>{emptyMessage ?? t("common:no_results_found", "No results found.")}</ComboboxEmpty>
+        <ComboboxEmpty>{emptyMessage}</ComboboxEmpty>
         <ComboboxList>
           {(option: Option) => (
             <ComboboxItem key={option.value} value={option} className={option.className}>

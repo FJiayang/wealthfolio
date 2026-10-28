@@ -125,7 +125,7 @@ type ValuationContentProps = ToolCallMessagePartProps<ValuationArgs, ValuationRe
 
 const ValuationContent = memo(ValuationContentImpl);
 
-export function ValuationContentImpl({ args, result, status }: ValuationContentProps) {
+function ValuationContentImpl({ args, result, status }: ValuationContentProps) {
   const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const baseCurrency = settings?.baseCurrency ?? "USD";
@@ -164,10 +164,7 @@ export function ValuationContentImpl({ args, result, status }: ValuationContentP
   const typedArgs = args as ValuationArgs | undefined;
 
   const accountLabel =
-    parsed?.accountName ??
-    ((parsed?.accountId ?? typedArgs?.accountId ?? "Portfolio") === "Portfolio"
-      ? t("common:component.account_type_portfolio")
-      : (parsed?.accountId ?? typedArgs?.accountId));
+    parsed?.accountName ?? parsed?.accountId ?? typedArgs?.accountId ?? "Portfolio";
 
   const isRunning = status?.type === "running";
   const isComplete = status?.type === "complete";

@@ -1,7 +1,5 @@
 "use client";
 
-import { useTranslation } from "react-i18next";
-
 import { cn } from "../../lib/utils";
 import { useDirection } from "./direction";
 import useEmblaCarousel, { type UseEmblaCarouselType } from "embla-carousel-react";
@@ -57,7 +55,6 @@ export function SwipableView({
   initialIndex = 0,
   selectedIndex: controlledIndex,
 }: SwipableViewProps) {
-  const { t } = useTranslation();
   const direction = useDirection();
   const [emblaRef, emblaApi] = useEmblaCarousel({
     direction,
@@ -159,8 +156,7 @@ export function SwipableView({
                   role="status"
                   aria-live="polite"
                 >
-                  {items[selectedIndex]?.name ||
-                    t("ui:navigation.view", "View {{number}}", { number: selectedIndex + 1 })}
+                  {items[selectedIndex]?.name || `View ${selectedIndex + 1}`}
                 </div>
               ) : (
                 /* Dot Navigation */
@@ -173,9 +169,7 @@ export function SwipableView({
                     "bg-foreground/20 hover:bg-foreground/40",
                     dotClassName,
                   )}
-                  aria-label={t("ui:navigation.goTo", "Go to {{name}}", {
-                    name: items[index]?.name || t("ui:navigation.view", "View {{number}}", { number: index + 1 }),
-                  })}
+                  aria-label={`Go to ${items[index]?.name || `view ${index + 1}`}`}
                 />
               )}
             </React.Fragment>

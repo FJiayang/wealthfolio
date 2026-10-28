@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -40,10 +39,10 @@ export function useSpendingSettingsMutation({ silent = false }: { silent?: boole
       // spending-scoped cache so each view refetches with the new account_ids.
       invalidateSpendingCaches(queryClient);
       queryClient.invalidateQueries({ queryKey: [QueryKeys.ACTIVITY_DATA] });
-      if (!silent) toast.success(i18n.t("common:notifications.spending_settings_updated"));
+      if (!silent) toast.success("Spending settings updated.");
     },
     onError: () => {
-      if (!silent) toast.error(i18n.t("common:notifications.failed_to_update_spending_settings"));
+      if (!silent) toast.error("Failed to update spending settings.");
     },
   });
 }

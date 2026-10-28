@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { syncMarketData } from "@/adapters";
 import { useToast } from "@wealthfolio/ui/components/ui/use-toast";
@@ -23,7 +22,7 @@ export function useSyncMarketDataMutation(refetchAll = false, refetchRecentDays?
     },
     onError: (error: Error) => {
       toast({
-        title: i18n.t("common:notifications.failed_to_sync_market_data"),
+        title: "Failed to sync market data",
         description: error.message,
         variant: "destructive",
       });

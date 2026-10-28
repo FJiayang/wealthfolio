@@ -2,7 +2,9 @@ import { createInstance } from "i18next";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import enCommon from "@/i18n/locales/en/common.json";
+import enCommonTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import enSpending from "@/i18n/locales/en/spending.json";
 import zhSpending from "@/i18n/locales/zh/spending.json";
 import { act, render, screen, waitFor } from "@/test/render";
@@ -251,8 +253,8 @@ describe("CashActivityForm category display", () => {
         fallbackLng: "en",
         interpolation: { escapeValue: false },
         resources: {
-          en: { common: enCommon, spending: enSpending },
-          zh: { common: zhCommon, spending: zhSpending },
+          en: { common: enCommon, taxonomies: enCommonTaxonomies, spending: enSpending },
+          zh: { common: zhCommon, taxonomies: zhCommonTaxonomies, spending: zhSpending },
         },
       });
       const activity = {
@@ -272,10 +274,12 @@ describe("CashActivityForm category display", () => {
       );
       const displayParent =
         parentName === "Food & Dining"
-          ? zhCommon.categoryNames.spending_categories.cat_food
+          ? zhCommonTaxonomies.categoryNames.spending_categories.cat_food
           : parentName;
       const displayName =
-        name === "Groceries" ? zhCommon.categoryNames.spending_categories.cat_groceries : name;
+        name === "Groceries"
+          ? zhCommonTaxonomies.categoryNames.spending_categories.cat_groceries
+          : name;
       expect(screen.getByText(`${displayParent} / ${displayName}`)).toBeInTheDocument();
       expect(
         screen.getByRole("button", {

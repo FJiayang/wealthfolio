@@ -1,9 +1,3 @@
-import {
-  getProviderDescription,
-  getProviderCoverage,
-  getProviderName,
-  getProviderInstruments,
-} from "@/lib/provider-labels";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
@@ -176,10 +170,6 @@ function ProviderSettings({
         label: t("settings:market_data_page.feature_profiles"),
       };
     }
-    if (normalized === "dividends")
-      return { icon: null, label: t("settings:market_data_page.feature_dividends") };
-    if (normalized === "no api key")
-      return { icon: null, label: t("settings:market_data_page.feature_no_api_key") };
     return { icon: null, label: feature };
   };
 
@@ -206,10 +196,10 @@ function ProviderSettings({
           {/* Name, description and capabilities */}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="font-medium">{getProviderName(t, provider.id, provider.name)}</span>
+              <span className="font-medium">{provider.name}</span>
               {provider.capabilities?.coverage && (
                 <Badge variant="secondary" className="text-2xs h-5 px-1.5 font-normal">
-                  {getProviderCoverage(t, provider.capabilities.coverage)}
+                  {provider.capabilities.coverage}
                 </Badge>
               )}
               {provider.enabled && provider.requiresApiKey && !provider.hasApiKey && (
@@ -272,9 +262,7 @@ function ProviderSettings({
             </div>
             {/* Description - smaller text */}
             {provider.description && (
-              <p className="text-muted-foreground mt-0.5 text-xs">
-                {getProviderDescription(t, provider.id, provider.description)}
-              </p>
+              <p className="text-muted-foreground mt-0.5 text-xs">{provider.description}</p>
             )}
             {/* Capability features */}
             {provider.capabilities && provider.capabilities.features.length > 0 && (
@@ -337,7 +325,7 @@ function ProviderSettings({
                           {t("settings:market_data_page.instruments")}
                         </p>
                         <p className="text-muted-foreground text-xs">
-                          {getProviderInstruments(t, provider.capabilities.instruments)}
+                          {provider.capabilities.instruments}
                         </p>
                       </div>
                     </div>
@@ -350,7 +338,7 @@ function ProviderSettings({
                           {t("settings:market_data_page.coverage")}
                         </p>
                         <p className="text-muted-foreground text-xs">
-                          {getProviderCoverage(t, provider.capabilities.coverage)}
+                          {provider.capabilities.coverage}
                         </p>
                       </div>
                     </div>

@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import {
   ACTIVITY_SUBTYPES,
   AccountType,
@@ -468,28 +467,28 @@ export function validateDraft(
 
   // Required field validation
   if (!draft.activityDate) {
-    errors.activityDate = [i18n.t("activity:validation.date_is_required")];
+    errors.activityDate = ["Date is required"];
   } else {
     // A cell no format could read stays raw text; a grid edit stores a Date.
     const date = draft.activityDate as string | Date;
     if (!isValid(typeof date === "string" ? parseISO(date) : date)) {
-      errors.activityDate = [i18n.t("activity:validation.date_not_recognized")];
+      errors.activityDate = ["Date not recognized"];
     }
   }
 
   if (!draft.activityType) {
-    errors.activityType = [i18n.t("activity:validation.activity_type_is_required")];
+    errors.activityType = ["Activity type is required"];
   } else if (!IMPORTABLE_ACTIVITY_TYPES.has(draft.activityType.toUpperCase() as ActivityType)) {
-    errors.activityType = [i18n.t("activity:validation.map_type")];
+    errors.activityType = ["Map the CSV activity type before continuing"];
   }
 
   // SPLIT is a ratio event — currency is not meaningful
   if (!draft.currency && activityType !== ActivityType.SPLIT) {
-    errors.currency = [i18n.t("activity:validation.currency_is_required")];
+    errors.currency = ["Currency is required"];
   }
 
   if (!draft.accountId) {
-    errors.accountId = [i18n.t("activity:validation.account_is_required")];
+    errors.accountId = ["Account is required"];
   }
 
   const accountType = draft.accountId ? accountTypeById?.get(draft.accountId) : undefined;
@@ -501,20 +500,20 @@ export function validateDraft(
   ) {
     errors.activityType = [
       ...(errors.activityType ?? []),
-      i18n.t("activity:validation.credit_card_types"),
+      "Credit card imports only support charges, payments, transfers out, refunds, fees, and interest",
     ];
   }
 
   // Trade activities (BUY/SELL)
   if (activityType === ActivityType.BUY || activityType === ActivityType.SELL) {
     if (!draft.symbol) {
-      errors.symbol = [i18n.t("activity:validation.symbol_is_required_for_trade_activities")];
+      errors.symbol = ["Symbol is required for trade activities"];
     }
     if (!hasPositiveValue(draft.quantity)) {
-      errors.quantity = [i18n.t("activity:validation.quantity_must_be_greater_than_0")];
+      errors.quantity = ["Quantity must be greater than 0"];
     }
     if (!hasPositiveValue(draft.unitPrice)) {
-      errors.unitPrice = [i18n.t("activity:validation.unit_price_must_be_greater_than_0")];
+      errors.unitPrice = ["Unit price must be greater than 0"];
     }
   }
 
@@ -524,42 +523,30 @@ export function validateDraft(
       // DRIP: cash dividend → reinvested as BUY of same ticker
       // Needs: symbol, quantity, and either amount or unit price.
       if (!draft.symbol) {
-        errors.symbol = [i18n.t("activity:validation.symbol_is_required_for_drip_dividends")];
+        errors.symbol = ["Symbol is required for DRIP dividends"];
       }
       if (!hasPositiveValue(draft.quantity)) {
-        errors.quantity = [
-          i18n.t("activity:validation.quantity_is_required_for_drip_shares_received"),
-        ];
+        errors.quantity = ["Quantity is required for DRIP (shares received)"];
       }
       if (!hasNonZeroValue(draft.amount) && !hasPositiveValue(draft.unitPrice)) {
-        errors.unitPrice = [
-          i18n.t("activity:validation.either_amount_or_unit_price_is_required_for_drip_dividends"),
-        ];
+        errors.unitPrice = ["Either amount or unit price is required for DRIP dividends"];
       }
     } else if (subtype === ACTIVITY_SUBTYPES.DIVIDEND_IN_KIND) {
       // DIVIDEND_IN_KIND: dividend paid as additional units of the same asset
       // Needs: symbol, quantity, and either amount or unit price.
       if (!draft.symbol) {
-        errors.symbol = [
-          i18n.t("activity:validation.symbol_is_required_for_dividend_in_kind_activities"),
-        ];
+        errors.symbol = ["Symbol is required for dividend in kind activities"];
       }
       if (!hasPositiveValue(draft.quantity)) {
-        errors.quantity = [
-          i18n.t("activity:validation.quantity_is_required_for_dividend_in_kind_shares_received"),
-        ];
+        errors.quantity = ["Quantity is required for dividend in kind (shares received)"];
       }
       if (!hasNonZeroValue(draft.amount) && !hasPositiveValue(draft.unitPrice)) {
-        errors.unitPrice = [
-          i18n.t(
-            "activity:validation.either_amount_or_unit_price_is_required_for_dividend_in_kind",
-          ),
-        ];
+        errors.unitPrice = ["Either amount or unit price is required for dividend in kind"];
       }
     } else {
       // Regular cash dividend - amount is required
       if (!hasNonZeroValue(draft.amount)) {
-        errors.amount = [i18n.t("activity:validation.amount_is_required_for_dividend_activities")];
+        errors.amount = ["Amount is required for dividend activities"];
       }
     }
   }
@@ -569,22 +556,18 @@ export function validateDraft(
     // STAKING_REWARD - needs quantity (tokens received) and may have unit price
     if (subtype === ACTIVITY_SUBTYPES.STAKING_REWARD) {
       if (!draft.symbol) {
-        errors.symbol = [i18n.t("activity:validation.symbol_is_required_for_staking_rewards")];
+        errors.symbol = ["Symbol is required for staking rewards"];
       }
       if (!hasPositiveValue(draft.quantity)) {
-        errors.quantity = [
-          i18n.t("activity:validation.quantity_is_required_for_staking_rewards_tokens_received"),
-        ];
+        errors.quantity = ["Quantity is required for staking rewards (tokens received)"];
       }
       if (!hasNonZeroValue(draft.amount) && !hasPositiveValue(draft.unitPrice)) {
-        errors.unitPrice = [
-          i18n.t("activity:validation.either_amount_or_unit_price_is_required_for_staking_rewards"),
-        ];
+        errors.unitPrice = ["Either amount or unit price is required for staking rewards"];
       }
     } else {
       // Regular interest - amount is required
       if (!hasNonZeroValue(draft.amount)) {
-        errors.amount = [i18n.t("activity:validation.amount_is_required_for_interest_activities")];
+        errors.amount = ["Amount is required for interest activities"];
       }
     }
   }
@@ -592,9 +575,7 @@ export function validateDraft(
   // DEPOSIT/WITHDRAWAL - amount is required
   if (activityType === ActivityType.DEPOSIT || activityType === ActivityType.WITHDRAWAL) {
     if (!hasNonZeroValue(draft.amount)) {
-      errors.amount = [
-        i18n.t("activity:validation.amount_is_required_for_deposit_withdrawal_activities"),
-      ];
+      errors.amount = ["Amount is required for deposit/withdrawal activities"];
     }
   }
 
@@ -603,7 +584,7 @@ export function validateDraft(
     const hasFee = hasPositiveValue(draft.fee);
     const hasAmount = hasPositiveValue(draft.amount);
     if (!hasFee && !hasAmount) {
-      errors.fee = [i18n.t("activity:validation.fee_or_amount")];
+      errors.fee = ["Either fee or amount is required for fee activities"];
     }
   }
 
@@ -612,7 +593,7 @@ export function validateDraft(
     const hasFee = hasPositiveValue(draft.fee);
     const hasAmount = hasPositiveValue(draft.amount);
     if (!hasFee && !hasAmount) {
-      errors.amount = [i18n.t("activity:validation.amount_or_fee")];
+      errors.amount = ["Amount or fee is required for tax activities"];
     }
   }
 
@@ -621,24 +602,24 @@ export function validateDraft(
     const hasAmount = hasPositiveValue(draft.amount);
     const hasQuantity = hasPositiveValue(draft.quantity);
     if (!hasAmount && !hasQuantity) {
-      errors.amount = [i18n.t("activity:validation.amount_or_quantity")];
+      errors.amount = ["Amount or quantity is required for transfer activities"];
     }
   }
 
   // SPLIT validation
   if (activityType === ActivityType.SPLIT) {
     if (!draft.symbol) {
-      errors.symbol = [i18n.t("activity:validation.symbol_is_required_for_split_activities")];
+      errors.symbol = ["Symbol is required for split activities"];
     }
     if (!hasPositiveValue(draft.amount)) {
-      errors.amount = [i18n.t("activity:validation.amount_split_ratio_must_be_greater_than_0")];
+      errors.amount = ["Amount (split ratio) must be greater than 0"];
     }
   }
 
   // CREDIT validation
   if (activityType === ActivityType.CREDIT) {
     if (!hasNonZeroValue(draft.amount)) {
-      errors.amount = [i18n.t("activity:validation.amount_is_required_for_credit_activities")];
+      errors.amount = ["Amount is required for credit activities"];
     }
   }
 

@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import { logger } from "@/adapters";
 
 export function rawSyncErrorMessage(error: unknown): string {
@@ -25,10 +24,10 @@ function portfolioRepairMessage(message: string): string | null {
 
   const portfolioName = /Portfolio "([^"]+)"/.exec(message)?.[1];
   if (portfolioName) {
-    return i18n.t("sync:errors.namedPortfolioRepair", { name: portfolioName });
+    return `Portfolio "${portfolioName}" contains a deleted account link. Open Settings > Portfolios, edit the portfolio, then save.`;
   }
 
-  return i18n.t("sync:errors.portfolioRepair");
+  return "A portfolio contains a deleted account link. Open Settings > Portfolios, edit the portfolio, then save.";
 }
 
 function isTechnicalSyncError(message: string): boolean {
@@ -51,7 +50,7 @@ function isTechnicalSyncError(message: string): boolean {
 
 export function userFacingSyncErrorMessage(
   error: unknown,
-  fallback = i18n.t("sync:errors.fallback"),
+  fallback = "Something went wrong. Please try again.",
 ): string {
   const message = rawSyncErrorMessage(error).trim();
   if (!message) return fallback;
@@ -61,24 +60,24 @@ export function userFacingSyncErrorMessage(
   if (repairMessage) return repairMessage;
 
   if (lower.includes("sync_source_restore_required")) {
-    return i18n.t("sync:errors.restoreRequired");
+    return "Sync needs to be restored from this device before you can connect another device.";
   }
   if (lower.includes("invalid") && lower.includes("code")) {
-    return i18n.t("sync:errors.invalidCode");
+    return "Invalid code. Check and try again.";
   }
-  if (lower.includes("expired")) return i18n.t("sync:errors.expired");
-  if (lower.includes("cancel")) return i18n.t("sync:errors.cancelled");
+  if (lower.includes("expired")) return "Session expired. Please start again.";
+  if (lower.includes("cancel")) return "Pairing was canceled.";
   if (lower.includes("network") || lower.includes("fetch")) {
-    return i18n.t("sync:errors.network");
+    return "Network error. Check your connection.";
   }
-  if (lower.includes("timeout")) return i18n.t("sync:errors.timeout");
-  if (lower.includes("not found")) return i18n.t("sync:errors.notFound");
+  if (lower.includes("timeout")) return "Connection timed out.";
+  if (lower.includes("not found")) return "Session not found or expired.";
   if (lower.includes("decrypt") || lower.includes("authentication")) {
-    return i18n.t("sync:errors.security");
+    return "Security verification failed.";
   }
 
   if (isTechnicalSyncError(message)) {
-    return i18n.t("sync:errors.technical");
+    return "Sync could not finish. Please try again. If this keeps happening, check the app logs.";
   }
 
   return fallback;

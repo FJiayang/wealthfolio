@@ -6,7 +6,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createInstance } from "i18next";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import enCommon from "@/i18n/locales/en/common.json";
+import enCommonTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import enSpending from "@/i18n/locales/en/spending.json";
 import zhSpending from "@/i18n/locales/zh/spending.json";
 import type { TaxonomyCategory } from "@/lib/types";
@@ -297,8 +299,8 @@ it.each(["changed", "when"])(
       fallbackLng: "en",
       interpolation: { escapeValue: false },
       resources: {
-        en: { common: enCommon, spending: enSpending },
-        zh: { common: zhCommon, spending: zhSpending },
+        en: { common: enCommon, taxonomies: enCommonTaxonomies, spending: enSpending },
+        zh: { common: zhCommon, taxonomies: zhCommonTaxonomies, spending: zhSpending },
       },
     });
     taxonomyData.categories = [
@@ -325,7 +327,7 @@ it.each(["changed", "when"])(
       </MemoryRouter>,
     );
     expect(screen.getByTestId("report-category-names")).toHaveTextContent(
-      `${zhCommon.categoryNames.spending_categories.cat_housing} / My meals / Housing`,
+      `${zhCommonTaxonomies.categoryNames.spending_categories.cat_housing} / My meals / Housing`,
     );
     const initialRequests = new Set(insightQuery.mock.calls.map((args) => JSON.stringify(args)));
     await act(() => i18n.changeLanguage("en"));

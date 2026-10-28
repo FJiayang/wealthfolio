@@ -4,7 +4,9 @@ import { worksheetCategoryLabel } from "./allocation-worksheet-labels";
 import zhAllocation from "@/i18n/locales/zh/allocation.json";
 import enAllocation from "@/i18n/locales/en/allocation.json";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import enCommon from "@/i18n/locales/en/common.json";
+import enCommonTaxonomies from "@/i18n/locales/en/taxonomies.json";
 
 import type { AllocationWorksheetResult, CalculatedAdjustments } from "@/lib/types";
 
@@ -165,8 +167,8 @@ describe("worksheet export", () => {
     await i18n.init({
       lng: "zh-CN",
       resources: {
-        "zh-CN": { common: zhCommon, allocation: zhAllocation },
-        en: { common: enCommon, allocation: enAllocation },
+        "zh-CN": { common: zhCommon, taxonomies: zhCommonTaxonomies, allocation: zhAllocation },
+        en: { common: enCommon, taxonomies: enCommonTaxonomies, allocation: enAllocation },
       },
     });
     const localizedResult: AllocationWorksheetResult = {
@@ -242,12 +244,12 @@ describe("worksheet export", () => {
       );
     const rows = exportRows();
     const text = toTsv(rows);
-    expect(text).toContain(`${zhCommon.categoryNames.asset_classes.EQUITY} 60%`);
+    expect(text).toContain(`${zhCommonTaxonomies.categoryNames.asset_classes.EQUITY} 60%`);
     expect(text).toContain("My bonds 40%");
     expect(
-      rows.filter((row) => row[8] === zhCommon.categoryNames.asset_classes.EQUITY),
+      rows.filter((row) => row[8] === zhCommonTaxonomies.categoryNames.asset_classes.EQUITY),
     ).toHaveLength(2);
-    expect(text).toContain(zhCommon.unknown);
+    expect(text).toContain(zhCommonTaxonomies.unknown);
     expect(text).toContain(zhAllocation.worksheet.unclassified);
     expect(text).toContain(zhAllocation.worksheet.unclassifiedExposure);
     expect(text).toContain("Unclassified exposure"); // Same-name custom category stays verbatim.
@@ -257,7 +259,7 @@ describe("worksheet export", () => {
     expect(csv).not.toContain(zhAllocation.worksheet.unclassifiedExposure);
     expect(csv).toContain("Equity 60%");
     expect(csv).toContain("My bonds 40%");
-    expect(csv).not.toContain(zhCommon.categoryNames.asset_classes.EQUITY);
+    expect(csv).not.toContain(zhCommonTaxonomies.categoryNames.asset_classes.EQUITY);
     await i18n.changeLanguage("en");
     const englishText = toTsv(exportRows());
     expect(englishText).toContain("Unknown");
@@ -265,7 +267,7 @@ describe("worksheet export", () => {
     expect(englishText).not.toContain(zhAllocation.worksheet.unclassifiedExposure);
     expect(englishText).toContain("Equity 60%");
     expect(englishText).toContain("My bonds 40%");
-    expect(englishText).not.toContain(zhCommon.categoryNames.asset_classes.EQUITY);
+    expect(englishText).not.toContain(zhCommonTaxonomies.categoryNames.asset_classes.EQUITY);
     expect(JSON.stringify([localizedResult, localizedCalculated])).toBe(before);
   });
 

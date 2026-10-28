@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -41,9 +40,9 @@ export function useCategorizationRuleMutations() {
     mutationFn: (rule: NewCategorizationRule) => createCategorizationRule(rule),
     onSuccess: () => {
       invalidate();
-      toast.success(i18n.t("ai:createRule.ruleCreated"));
+      toast.success("Rule created.");
     },
-    onError: () => toast.error(i18n.t("common:notifications.failed_to_create_rule")),
+    onError: () => toast.error("Failed to create rule."),
   });
 
   const update = useMutation({
@@ -51,18 +50,18 @@ export function useCategorizationRuleMutations() {
       updateCategorizationRule(id, patch),
     onSuccess: () => {
       invalidate();
-      toast.success(i18n.t("common:notifications.rule_updated"));
+      toast.success("Rule updated.");
     },
-    onError: () => toast.error(i18n.t("common:notifications.failed_to_update_rule")),
+    onError: () => toast.error("Failed to update rule."),
   });
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteCategorizationRule(id),
     onSuccess: () => {
       invalidate();
-      toast.success(i18n.t("common:notifications.rule_deleted"));
+      toast.success("Rule deleted.");
     },
-    onError: () => toast.error(i18n.t("common:notifications.failed_to_delete_rule")),
+    onError: () => toast.error("Failed to delete rule."),
   });
 
   const rerun = useMutation({
@@ -70,16 +69,10 @@ export function useCategorizationRuleMutations() {
     onSuccess: (count, onlyUncategorized) => {
       // Rerun touches every cash activity's category — refresh report/budget too.
       invalidateSpendingCaches(qc);
-      toast.success(
-        i18n.t(
-          onlyUncategorized
-            ? "spending:txTab.categorizedCount"
-            : "common:notifications.recategorized",
-          { count },
-        ),
-      );
+      const verb = onlyUncategorized ? "Categorized" : "Re-categorized";
+      toast.success(`${verb} ${count} activit${count === 1 ? "y" : "ies"}.`);
     },
-    onError: () => toast.error(i18n.t("common:notifications.failed_to_re_run_rules")),
+    onError: () => toast.error("Failed to re-run rules."),
   });
 
   return { create, update, remove, rerun };
@@ -128,6 +121,6 @@ export function useRemoveRulePreset() {
         `Removed ${result.removed} rule${result.removed === 1 ? "" : "s"}${keptSuffix}.`,
       );
     },
-    onError: () => toast.error(i18n.t("common:notifications.failed_to_remove_preset")),
+    onError: () => toast.error("Failed to remove preset."),
   });
 }

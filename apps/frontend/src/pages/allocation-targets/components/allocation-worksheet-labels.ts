@@ -14,7 +14,7 @@ export function worksheetCategoryLabel(
   }
   switch (name) {
     case "Unknown":
-      return t("common:unknown");
+      return t("taxonomies:unknown");
     case "Unclassified":
       return t("allocation:worksheet.unclassified");
     case "Unclassified exposure":

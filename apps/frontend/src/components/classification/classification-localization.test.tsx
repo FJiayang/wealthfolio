@@ -7,7 +7,9 @@ import { createInstance } from "i18next";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import { beforeEach, expect, it, vi } from "vitest";
 import enCommon from "@/i18n/locales/en/common.json";
+import enCommonTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import enAsset from "@/i18n/locales/en/asset.json";
 import zhAsset from "@/i18n/locales/zh/asset.json";
 import enSettings from "@/i18n/locales/en/settings.json";
@@ -55,8 +57,20 @@ async function setup() {
     fallbackLng: "en",
     interpolation: { escapeValue: false },
     resources: {
-      en: { common: enCommon, asset: enAsset, settings: enSettings, allocation: enAllocation },
-      zh: { common: zhCommon, asset: zhAsset, settings: zhSettings, allocation: zhAllocation },
+      en: {
+        common: enCommon,
+        taxonomies: enCommonTaxonomies,
+        asset: enAsset,
+        settings: enSettings,
+        allocation: enAllocation,
+      },
+      zh: {
+        common: zhCommon,
+        taxonomies: zhCommonTaxonomies,
+        asset: zhAsset,
+        settings: zhSettings,
+        allocation: zhAllocation,
+      },
     },
   });
   const queryClient = new QueryClient({
@@ -144,7 +158,7 @@ it("translates weight-only example titles and keeps selected IDs unchanged", asy
     />,
     { wrapper },
   );
-  const name = `60% ${zhCommon.categoryNames.asset_classes.EQUITY} / 40% ${zhCommon.categoryNames.asset_classes.FIXED_INCOME}`;
+  const name = `60% ${zhCommonTaxonomies.categoryNames.asset_classes.EQUITY} / 40% ${zhCommonTaxonomies.categoryNames.asset_classes.FIXED_INCOME}`;
   expect(screen.getByText(name)).toBeVisible();
   await user.click(screen.getByText(name));
   expect(onSelect).toHaveBeenCalledWith("balanced_60_40");
@@ -210,8 +224,10 @@ it("localizes asset-form taxonomy headings without changing asset or custom taxo
     notes: "My notes",
   } as ParsedAsset;
   render(<AssetForm asset={asset} onSubmit={onSubmit} />, { wrapper });
-  expect(await screen.findByText(zhCommon.taxonomyNames.risk_category)).toBeInTheDocument();
-  expect(screen.getByText(zhCommon.taxonomyNames.asset_classes)).toBeInTheDocument();
+  expect(
+    await screen.findByText(zhCommonTaxonomies.taxonomyNames.risk_category),
+  ).toBeInTheDocument();
+  expect(screen.getByText(zhCommonTaxonomies.taxonomyNames.asset_classes)).toBeInTheDocument();
   expect(screen.getByText("Asset Classes")).toBeInTheDocument();
   await act(() => i18n.changeLanguage("en"));
   expect(screen.getAllByText("Asset Classes")).toHaveLength(2);

@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateAssetProfile, updateQuoteMode, logger } from "@/adapters";
@@ -22,8 +21,8 @@ export const useAssetProfileMutations = () => {
 
   const handleError = (action: string, description?: string) => {
     toast({
-      title: i18n.t("settings:settings_update_error_title"),
-      description: description ?? i18n.t(`asset:notifications.${action}`),
+      title: "Uh oh! Something went wrong.",
+      description: description ?? `There was a problem ${action}.`,
       variant: "destructive",
     });
   };
@@ -32,13 +31,13 @@ export const useAssetProfileMutations = () => {
     mutationFn: updateAssetProfile,
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: [QueryKeys.ASSET_LOGO_INDEX] });
-      handleSuccess(i18n.t("asset:notifications.profile_updated"), result.id);
+      handleSuccess("Asset profile updated successfully.", result.id);
     },
     onError: (error) => {
       logger.error(`Error updating asset profile: ${error}`);
       const message = error instanceof Error ? error.message : String(error);
       handleError(
-        "profile_failed",
+        "updating the asset profile",
         message.includes("ASSET_IDENTITY_CONFLICT:") ? t("editSheet.identity_conflict") : undefined,
       );
     },
@@ -48,11 +47,11 @@ export const useAssetProfileMutations = () => {
     mutationFn: ({ assetId, quoteMode }: { assetId: string; quoteMode: string }) =>
       updateQuoteMode(assetId, quoteMode),
     onSuccess: (result) => {
-      handleSuccess(i18n.t("asset:notifications.quote_mode_updated"), result.id);
+      handleSuccess("Asset quote mode updated successfully.", result.id);
     },
     onError: (error) => {
       logger.error(`Error updating asset quote mode: ${error}`);
-      handleError("quote_mode_failed");
+      handleError("updating the asset quote mode");
     },
   });
 

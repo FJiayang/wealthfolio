@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import { getActivityCurrencyPatch } from "../../activity-currency";
 import {
   isAssetBackedIncomeSubtype,
@@ -878,7 +877,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "accountId",
-      message: i18n.t("activity:validation.account_is_required"),
+      message: "Account is required",
     });
   }
 
@@ -887,7 +886,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "activityType",
-      message: i18n.t("activity:validation.activity_type_is_required"),
+      message: "Activity type is required",
     });
   }
 
@@ -896,7 +895,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "date",
-      message: i18n.t("activity:validation.date_is_required"),
+      message: "Date is required",
     });
   }
 
@@ -907,7 +906,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
       errors.push({
         transactionId: transaction.id,
         field: "assetSymbol",
-        message: i18n.t("activity:validation.symbol_is_required_for_this_activity_type"),
+        message: "Symbol is required for this activity type",
       });
     }
   }
@@ -922,14 +921,14 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
       errors.push({
         transactionId: transaction.id,
         field: "quantity",
-        message: i18n.t("activity:validation.received_quantity_is_required"),
+        message: "Received quantity is required",
       });
     }
     if (!(unitPrice > 0) && !(amount > 0)) {
       errors.push({
         transactionId: transaction.id,
         field: "unitPrice",
-        message: i18n.t("activity:validation.either_income_amount_or_fmv_per_unit_is_required"),
+        message: "Either income amount or FMV per unit is required",
       });
     }
   }
@@ -942,7 +941,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "amount",
-      message: i18n.t("activity:validation.final_cash"),
+      message: "Final cash amount is required before approval",
     });
   }
 
@@ -951,7 +950,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "fee",
-      message: i18n.t("activity:validation.fee_cannot_be_negative"),
+      message: "Fee cannot be negative",
     });
   }
 
@@ -959,7 +958,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "tax",
-      message: i18n.t("activity:validation.tax_cannot_be_negative"),
+      message: "Tax cannot be negative",
     });
   }
 
@@ -967,7 +966,7 @@ function validateTransaction(transaction: LocalTransaction): TransactionValidati
     errors.push({
       transactionId: transaction.id,
       field: "fxRate",
-      message: i18n.t("activity:validation.fx_non_negative"),
+      message: "FX rate cannot be negative",
     });
   }
 
@@ -1033,7 +1032,7 @@ export function validateTransactionsForSave(
         errors.push({
           transactionId: leg.id,
           field: "activityType",
-          message: i18n.t("activity:validation.transfer_pair"),
+          message: "A transfer pair needs both legs, in two currencies when they share an account",
         });
       }
     }

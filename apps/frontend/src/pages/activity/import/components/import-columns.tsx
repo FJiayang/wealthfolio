@@ -288,10 +288,7 @@ export function useImportColumns<T extends ImportRowData>({
       meta: {
         cell: {
           variant: "select",
-          options: INSTRUMENT_TYPE_OPTIONS.map((opt) => ({
-            value: opt.value,
-            label: t(`asset:createSecurity.instrumentType.${opt.value.toLowerCase()}`),
-          })),
+          options: [...INSTRUMENT_TYPE_OPTIONS],
           allowEmpty: true,
           emptyLabel: t("activity:import.columns.auto"),
         },

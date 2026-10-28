@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import { logger, getInstalledAddons, loadAddon as loadAddonRuntime } from "@/adapters";
 import {
   getDynamicNavItems,
@@ -40,7 +39,7 @@ function notifyAddonLoadError(addonFile: AddonFile, error: unknown) {
   if (error instanceof Error && error.name === "AddonLoadCancelled") {
     return;
   }
-  toast.error(i18n.t("common:notifications.add_on_failed_to_load"), {
+  toast.error("Add-on failed to load", {
     description: `${addonFile.manifest.name || addonFile.manifest.id}: ${formatAddonError(error)}`,
     duration: 15000,
   });

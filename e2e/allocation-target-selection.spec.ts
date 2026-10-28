@@ -1,6 +1,43 @@
 import { expect, test, type Page } from "@playwright/test";
 import { BASE_URL } from "./helpers";
 
+let requestHeaders: Record<string, string> = {};
+
+async function post<T>(page: Page, path: string, data?: unknown): Promise<T> {
+  const response = await page.request.post(`${BASE_URL}/api/v1${path}`, {
+    data,
+    headers: requestHeaders,
+  });
+  expect(response.ok(), `${path}: ${await response.text()}`).toBe(true);
+  return response.json() as Promise<T>;
+}
+
+async function createTarget(page: Page, name: string, accountId?: string) {
+  const saved = await post<{ target: { id: string; name: string } }>(
+    page,
+    "/allocation-targets/save-with-weights",
+    {
+      input: {
+        name,
+        scopeType: accountId ? "account" : "all",
+        scopeId: accountId ?? null,
+        taxonomyId: "asset_classes",
+        triggerType: "manual",
+        driftBandBps: 500,
+        bandType: "absolute",
+        relativeFactorBps: 2000,
+        rebalanceGoal: "exact_target",
+        minTradeAmount: "0",
+        wholeSharesOnly: false,
+        allowSells: true,
+        maxTurnoverBps: null,
+      },
+      weights: [{ categoryId: "CASH", targetBps: 10000, isLocked: false, isRequired: true }],
+    },
+  );
+  return saved.target;
+}
+
 function picker(page: Page) {
   return page.getByRole("group", { name: "Select target", exact: true });
 }
@@ -44,185 +81,113 @@ async function changeScope(page: Page, name: string) {
 test("remembers the selected target per scope and puts it first after reload, in LTR and RTL", async ({
   page,
 }) => {
-  let requestHeaders: Record<string, string> = {};
-
-  async function post<T>(page: Page, path: string, data?: unknown): Promise<T> {
-    const response = await page.request.post(`${BASE_URL}/api/v1${path}`, {
-      data,
-      headers: requestHeaders,
-    });
-    expect(response.ok(), `${path}: ${await response.text()}`).toBe(true);
-    return response.json() as Promise<T>;
-  }
-
-  async function createTarget(page: Page, name: string, accountId?: string) {
-    const saved = await post<{ target: { id: string; name: string } }>(
-      page,
-      "/allocation-targets/save-with-weights",
-      {
-        input: {
-          name,
-          scopeType: accountId ? "account" : "all",
-          scopeId: accountId ?? null,
-          taxonomyId: "asset_classes",
-          triggerType: "manual",
-          driftBandBps: 500,
-          bandType: "absolute",
-          relativeFactorBps: 2000,
-          rebalanceGoal: "exact_target",
-          minTradeAmount: "0",
-          wholeSharesOnly: false,
-          allowSells: true,
-          maxTurnoverBps: null,
-        },
-        weights: [{ categoryId: "CASH", targetBps: 10000, isLocked: false, isRequired: true }],
-      },
-    );
-    return saved.target;
-  }
-
   test.setTimeout(180000);
   // Give this spec its own profile so other specs' accounts and targets cannot leak in.
   const profile = await post<{ id: string }>(page, "/profiles/create_profile", {
     name: "Target preferences",
     avatarId: "clay-bot-animated",
   });
-  let testFailed = false;
-  try {
-    const session = await post<{ scopeId: string }>(page, "/profiles/unlock_profile", {
-      profileId: profile.id,
-    });
-    requestHeaders = { "x-wf-profile-scope": session.scopeId };
-    const settings = await page.request.put(`${BASE_URL}/api/v1/settings`, {
-      headers: requestHeaders,
-      data: { onboardingCompleted: true, language: "en", timezone: "UTC", baseCurrency: "USD" },
-    });
-    expect(settings.ok(), await settings.text()).toBe(true);
+  const session = await post<{ scopeId: string }>(page, "/profiles/unlock_profile", {
+    profileId: profile.id,
+  });
+  requestHeaders = { "x-wf-profile-scope": session.scopeId };
+  const settings = await page.request.put(`${BASE_URL}/api/v1/settings`, {
+    headers: requestHeaders,
+    data: { onboardingCompleted: true, language: "en", timezone: "UTC", baseCurrency: "USD" },
+  });
+  expect(settings.ok(), await settings.text()).toBe(true);
 
-    const account = await post<{ id: string }>(page, "/accounts", {
-      name: "Preference brokerage",
-      accountType: "SECURITIES",
-      currency: "USD",
-      isDefault: false,
-      isActive: true,
-      isArchived: false,
-      trackingMode: "TRANSACTIONS",
-    });
-    await post(page, "/activities", {
-      id: `${account.id}-deposit`,
-      accountId: account.id,
-      activityType: "DEPOSIT",
-      activityDate: "2026-05-10T10:00:00.000Z",
-      amount: 1000,
-      currency: "USD",
-    });
-    const allA = await createTarget(page, "Global preference A: cash allocation");
-    await createTarget(page, "Global preference B: cash allocation");
-    const allC = await createTarget(page, "Global preference C: cash allocation");
-    await createTarget(page, "Account preference A", account.id);
-    const accountB = await createTarget(page, "Account preference B", account.id);
-    const recalculate = await page.request.post(`${BASE_URL}/api/v1/portfolio/recalculate`, {
-      headers: requestHeaders,
-    });
-    expect(recalculate.status()).toBe(202);
+  const account = await post<{ id: string }>(page, "/accounts", {
+    name: "Preference brokerage",
+    accountType: "SECURITIES",
+    currency: "USD",
+    isDefault: false,
+    isActive: true,
+    isArchived: false,
+    trackingMode: "TRANSACTIONS",
+  });
+  await post(page, "/activities", {
+    id: `${account.id}-deposit`,
+    accountId: account.id,
+    activityType: "DEPOSIT",
+    activityDate: "2026-05-10T10:00:00.000Z",
+    amount: 1000,
+    currency: "USD",
+  });
+  const allA = await createTarget(page, "Global preference A: cash allocation");
+  await createTarget(page, "Global preference B: cash allocation");
+  const allC = await createTarget(page, "Global preference C: cash allocation");
+  await createTarget(page, "Account preference A", account.id);
+  const accountB = await createTarget(page, "Account preference B", account.id);
+  const recalculate = await page.request.post(`${BASE_URL}/api/v1/portfolio/recalculate`, {
+    headers: requestHeaders,
+  });
+  expect(recalculate.status()).toBe(202);
 
-    let originalOrder: string[] = [];
-    for (const dir of ["ltr", "rtl"]) {
-      await page.goto(`${BASE_URL}/insights?dir=${dir}`);
-      await expect(picker(page).getByRole("button")).toHaveCount(3);
-      if (originalOrder.length === 0)
-        originalOrder = await picker(page).getByRole("button").allTextContents();
-      await picker(page).getByRole("button", { name: allA.name, exact: true }).click();
-      await expectSelectedFirst(page, allA.name);
-      await picker(page).getByRole("button", { name: allC.name, exact: true }).click();
-      await expectSelectedFirst(page, allC.name);
-      await expect(picker(page).getByRole("button")).toHaveText([
-        allC.name,
-        ...originalOrder.filter((name) => name !== allC.name),
-      ]);
-      await page.reload();
-      await expectSelectedFirst(page, allC.name);
-      await expect(page.locator("html")).toHaveAttribute("dir", dir);
-      await page.screenshot({ path: `test-results/target-selection-${dir}.png`, fullPage: true });
-    }
-
-    await page.getByRole("button", { name: /^Details/ }).click();
-    await page.getByRole("button", { name: allC.name, exact: true }).click();
-    await expect(page.getByRole("menuitem").first()).toHaveText(allC.name);
-    await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Back to allocation", exact: true }).click();
-
-    await changeScope(page, "Preference brokerage");
-    await picker(page).getByRole("button", { name: accountB.name, exact: true }).click();
-    await expectSelectedFirst(page, accountB.name);
-    await page.reload();
-    // Account filters remain session-only; each scope still remembers its own target.
-    await expectSelectedFirst(page, allC.name);
-    await changeScope(page, "Preference brokerage");
-    await expectSelectedFirst(page, accountB.name);
-    await changeScope(page, "All Accounts");
-    await expectSelectedFirst(page, allC.name);
-    await changeScope(page, "Preference brokerage");
-    await expectSelectedFirst(page, accountB.name);
-    await changeScope(page, "All Accounts");
-
-    const phone = await page.context().newPage();
-    await phone.setViewportSize({ width: 390, height: 844 });
-    await phone.goto(`${BASE_URL}/insights?dir=rtl`);
-    await expectSelectedFirst(phone, allC.name);
-    await picker(phone).scrollIntoViewIfNeeded();
-    await expect(picker(phone).getByRole("button").first()).toBeInViewport();
-    await phone.screenshot({ path: "test-results/target-selection-phone-rtl.png", fullPage: true });
-    await phone.close();
-
-    const deleted = await page.request.delete(`${BASE_URL}/api/v1/allocation-targets/${allC.id}`, {
-      headers: requestHeaders,
-    });
-    expect(deleted.ok()).toBe(true);
-    await page.reload();
-    await expect(picker(page).getByRole("button", { name: allC.name, exact: true })).toHaveCount(0);
-    await expect(picker(page).getByRole("button", { pressed: true })).toHaveCount(1);
+  let originalOrder: string[] = [];
+  for (const dir of ["ltr", "rtl"]) {
+    await page.goto(`${BASE_URL}/insights?dir=${dir}`);
+    await expect(picker(page).getByRole("button")).toHaveCount(3);
+    if (originalOrder.length === 0)
+      originalOrder = await picker(page).getByRole("button").allTextContents();
     await picker(page).getByRole("button", { name: allA.name, exact: true }).click();
     await expectSelectedFirst(page, allA.name);
-    const archived = await page.request.post(
-      `${BASE_URL}/api/v1/allocation-targets/${allA.id}/archive`,
-      { headers: requestHeaders },
-    );
-    expect(archived.ok()).toBe(true);
+    await picker(page).getByRole("button", { name: allC.name, exact: true }).click();
+    await expectSelectedFirst(page, allC.name);
+    await expect(picker(page).getByRole("button")).toHaveText([
+      allC.name,
+      ...originalOrder.filter((name) => name !== allC.name),
+    ]);
     await page.reload();
-    await expect(picker(page).getByRole("button", { name: allA.name, exact: true })).toHaveCount(0);
-    await expect(picker(page).getByRole("button", { pressed: true })).toHaveCount(1);
-  } catch (error) {
-    testFailed = true;
-    throw error;
-  } finally {
-    try {
-      // Stop every page in this test's browser context, including an interrupted phone flow.
-      await Promise.all(
-        page
-          .context()
-          .pages()
-          .map((openPage) => openPage.goto("about:blank").catch(() => null)),
-      );
-      // Reacquire this fixture's grant even if setup failed before its first unlock.
-      requestHeaders = {};
-      const cleanupSession = await post<{ scopeId: string }>(page, "/profiles/unlock_profile", {
-        profileId: profile.id,
-      });
-      requestHeaders = { "x-wf-profile-scope": cleanupSession.scopeId };
-      await post(page, "/profiles/delete_profile", {
-        profileId: profile.id,
-        confirmation: "Target preferences",
-      });
-    } catch (cleanupError) {
-      if (!testFailed) throw cleanupError;
-      // Keep the original assertion as the failure, without hiding a failed cleanup.
-      await test.info().attach("profile-cleanup-error", {
-        body: String(cleanupError),
-        contentType: "text/plain",
-      });
-    } finally {
-      requestHeaders = {};
-    }
+    await expectSelectedFirst(page, allC.name);
+    await expect(page.locator("html")).toHaveAttribute("dir", dir);
+    await page.screenshot({ path: `test-results/target-selection-${dir}.png`, fullPage: true });
   }
+
+  await page.getByRole("button", { name: /^Details/ }).click();
+  await page.getByRole("button", { name: allC.name, exact: true }).click();
+  await expect(page.getByRole("menuitem").first()).toHaveText(allC.name);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Back to allocation", exact: true }).click();
+
+  await changeScope(page, "Preference brokerage");
+  await picker(page).getByRole("button", { name: accountB.name, exact: true }).click();
+  await expectSelectedFirst(page, accountB.name);
+  await page.reload();
+  // Account filters remain session-only; each scope still remembers its own target.
+  await expectSelectedFirst(page, allC.name);
+  await changeScope(page, "Preference brokerage");
+  await expectSelectedFirst(page, accountB.name);
+  await changeScope(page, "All Accounts");
+  await expectSelectedFirst(page, allC.name);
+  await changeScope(page, "Preference brokerage");
+  await expectSelectedFirst(page, accountB.name);
+  await changeScope(page, "All Accounts");
+
+  const phone = await page.context().newPage();
+  await phone.setViewportSize({ width: 390, height: 844 });
+  await phone.goto(`${BASE_URL}/insights?dir=rtl`);
+  await expectSelectedFirst(phone, allC.name);
+  await picker(phone).scrollIntoViewIfNeeded();
+  await expect(picker(phone).getByRole("button").first()).toBeInViewport();
+  await phone.screenshot({ path: "test-results/target-selection-phone-rtl.png", fullPage: true });
+  await phone.close();
+
+  const deleted = await page.request.delete(`${BASE_URL}/api/v1/allocation-targets/${allC.id}`, {
+    headers: requestHeaders,
+  });
+  expect(deleted.ok()).toBe(true);
+  await page.reload();
+  await expect(picker(page).getByRole("button", { name: allC.name, exact: true })).toHaveCount(0);
+  await expect(picker(page).getByRole("button", { pressed: true })).toHaveCount(1);
+  await picker(page).getByRole("button", { name: allA.name, exact: true }).click();
+  await expectSelectedFirst(page, allA.name);
+  const archived = await page.request.post(
+    `${BASE_URL}/api/v1/allocation-targets/${allA.id}/archive`,
+    { headers: requestHeaders },
+  );
+  expect(archived.ok()).toBe(true);
+  await page.reload();
+  await expect(picker(page).getByRole("button", { name: allA.name, exact: true })).toHaveCount(0);
+  await expect(picker(page).getByRole("button", { pressed: true })).toHaveCount(1);
 });

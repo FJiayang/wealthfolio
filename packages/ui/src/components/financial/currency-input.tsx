@@ -1,7 +1,7 @@
 import { forwardRef, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useIsMobile as defaultUseIsMobile } from "../../hooks/use-mobile";
-import { getCurrencyDisplayLabel, worldCurrencies } from "../../lib/currencies";
+import { worldCurrencies } from "../../lib/currencies";
 import { cn } from "../../lib/utils";
 import type { ButtonProps } from "../ui/button";
 import { Button } from "../ui/button";
@@ -52,9 +52,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
     },
     ref,
   ) => {
-    const { t, i18n } = useTranslation();
-    const currencyLabel = (currency: (typeof worldCurrencies)[number]) =>
-      getCurrencyDisplayLabel(currency, i18n.resolvedLanguage ?? i18n.language, t);
+    const { t } = useTranslation();
     const placeholderText = placeholder ?? t("ui:currency.placeholder", "Select currency");
     const isControlled = openProp !== undefined;
     const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
@@ -80,8 +78,8 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
       ? valueDisplay === "code"
         ? selectedCurrency.value
         : valueDisplay === "code-label"
-          ? `${selectedCurrency.value} - ${currencyLabel(selectedCurrency)}`
-          : currencyLabel(selectedCurrency)
+          ? `${selectedCurrency.value} - ${selectedCurrency.label}`
+          : selectedCurrency.label
       : value || placeholderText;
 
     const handleSelect = (currencyValue: string) => {
@@ -102,16 +100,15 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
       const filteredCurrencies = worldCurrencies.filter(
         (curr) =>
           curr.value.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          curr.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          currencyLabel(curr).toLowerCase().includes(searchQuery.toLowerCase()),
+          curr.label.toLowerCase().includes(searchQuery.toLowerCase()),
       );
       const customCurrencyValue = getCustomCurrencyValue(searchQuery);
       const mobileDisplayText = selectedCurrency
         ? valueDisplay === "code"
           ? selectedCurrency.value
           : valueDisplay === "label"
-            ? currencyLabel(selectedCurrency)
-            : `${selectedCurrency.value} - ${currencyLabel(selectedCurrency)}`
+            ? selectedCurrency.label
+            : `${selectedCurrency.value} - ${selectedCurrency.label}`
         : value || placeholderText;
 
       return (
@@ -214,7 +211,7 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
                             <div className="flex items-center gap-2">
                               <span className="text-foreground truncate font-semibold">{curr.value}</span>
                             </div>
-                            <div className="text-muted-foreground mt-0.5 truncate text-sm">{currencyLabel(curr)}</div>
+                            <div className="text-muted-foreground mt-0.5 truncate text-sm">{curr.label}</div>
                           </div>
                           {value === curr.value && <Icons.Check className="text-primary h-5 w-5 flex-shrink-0" />}
                         </button>
@@ -314,14 +311,13 @@ export const CurrencyInput = forwardRef<HTMLButtonElement, CurrencyInputProps>(
                   )}
                   {worldCurrencies.map((currency) => (
                     <CommandItem
-                      value={currency.value}
-                      keywords={[currency.label, currencyLabel(currency)]}
+                      value={currency.label}
                       key={currency.value}
                       onSelect={() => {
                         handleSelect(currency.value);
                       }}
                     >
-                      {currencyLabel(currency)}
+                      {currency.label}
                       <Icons.Check
                         className={cn("ms-auto h-4 w-4", currency.value === value ? "opacity-100" : "opacity-0")}
                       />

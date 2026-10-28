@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import type { AddonManifest, Permission, SidebarItemConfig } from "@wealthfolio/addon-sdk";
 import type { AddonAsset, AddonFile } from "@/adapters/types";
 import {
@@ -229,7 +228,7 @@ function notifyPermissionDenialOnce(addonId: string, method: string | undefined,
     return;
   }
   notifiedPermissionDenials.add(key);
-  toast.error(i18n.t("common:notifications.add_on_permission_denied"), {
+  toast.error("Add-on permission denied", {
     description: `'${addonId}' tried to use '${method ?? "an API"}' without permission. Updating the add-on may fix this.`,
     duration: 15000,
   });
@@ -294,7 +293,7 @@ function notifyClassifiedAddonErrorOnce(addonId: string, rawMessage: string | un
     return;
   }
   notifiedRuntimeErrors.add(key);
-  toast.error(i18n.t("common:notifications.addon_error", { addonId }), {
+  toast.error(`Add-on '${addonId}' error`, {
     description: hint,
     duration: 15000,
   });

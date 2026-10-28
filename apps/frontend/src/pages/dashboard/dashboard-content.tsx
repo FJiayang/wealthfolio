@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import { formatZonedDateKey } from "@/features/spending/lib/timezone";
 import { calculatePerformanceSummary } from "@/adapters";
 import { HistoryChart } from "@/components/history-chart";
@@ -80,7 +79,6 @@ export function DashboardContent({
   scopeLabel,
   accountIds,
 }: DashboardContentProps) {
-  const { t } = useTranslation();
   const { settings } = useSettingsContext();
   const todayISO = formatZonedDateKey(new Date(), settings?.timezone);
   const period = useDashboardPeriod(todayISO);
@@ -210,9 +208,7 @@ export function DashboardContent({
             ) : (
               <>
                 {gainLossAmount == null ? (
-                  <span className="text-muted-foreground lg:text-md text-sm font-light">
-                    {t("performance:not_available")}
-                  </span>
+                  <span className="text-muted-foreground lg:text-md text-sm font-light">N/A</span>
                 ) : (
                   <GainAmount
                     className="lg:text-md text-sm font-light"
@@ -223,9 +219,7 @@ export function DashboardContent({
                 )}
                 <div className="border-secondary my-1 border-e pe-2" />
                 {simpleReturn == null ? (
-                  <span className="text-muted-foreground lg:text-md text-sm font-light">
-                    {t("performance:not_available")}
-                  </span>
+                  <span className="text-muted-foreground lg:text-md text-sm font-light">N/A</span>
                 ) : (
                   <GainPercent
                     className="lg:text-md text-sm font-light"

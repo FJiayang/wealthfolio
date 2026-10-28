@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import english from "@/i18n/locales/en/common.json";
+import englishTaxonomies from "@/i18n/locales/en/taxonomies.json";
+import englishSpending from "@/i18n/locales/en/spending.json";
 
 const migrations = fileURLToPath(
   new URL("../../../../crates/storage-sqlite/migrations/", import.meta.url),
@@ -41,7 +42,7 @@ describe("English display catalogs match persisted seed identities", () => {
   // IDs, not merely the intersection. Exact seed names protect user renames in
   // the display helpers; they must not silently drift from backend defaults.
   it("matches every seeded taxonomy ID and exact English name", () => {
-    expect(english.taxonomyNames).toEqual(names("SELECT id, name FROM taxonomies"));
+    expect(englishTaxonomies.taxonomyNames).toEqual(names("SELECT id, name FROM taxonomies"));
   });
 
   it("matches every seeded category by taxonomy ID, category ID and exact name", () => {
@@ -50,14 +51,16 @@ describe("English display catalogs match persisted seed identities", () => {
       const taxonomyId = String(row.taxonomy_id);
       (categories[taxonomyId] ??= {})[String(row.id)] = String(row.name);
     }
-    expect(english.categoryNames).toEqual(categories);
+    expect(englishTaxonomies.categoryNames).toEqual(categories);
   });
 
   it("matches every seeded budget-group ID and exact English name", () => {
-    expect(english.budgetGroupNames).toEqual(names("SELECT id, name FROM budget_groups"));
+    expect(englishSpending.budgetGroupNames).toEqual(names("SELECT id, name FROM budget_groups"));
   });
 
   it("matches every seeded event-type ID and exact English name", () => {
-    expect(english.eventTypeNames).toEqual(names("SELECT id, name FROM spending_event_types"));
+    expect(englishSpending.eventTypeNames).toEqual(
+      names("SELECT id, name FROM spending_event_types"),
+    );
   });
 });

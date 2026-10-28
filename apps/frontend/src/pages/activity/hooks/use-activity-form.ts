@@ -1,4 +1,3 @@
-import i18n from "i18next";
 import { isActivityEditCancelled } from "@/features/spending/components/activity-split-review-provider";
 import { getTransferPairForActivity, logger } from "@/adapters";
 import { buildAssetResolutionInput } from "@/lib/asset-resolution-input";
@@ -107,7 +106,7 @@ function extractErrorMessage(error: unknown): string {
     if (typeof raw.error === "string" && raw.error.trim()) return raw.error;
     if (typeof raw.message === "string" && raw.message.trim()) return raw.message;
   }
-  return i18n.t("activity:mobile_form.save_failed_desc");
+  return "Failed to save activity. Please check your inputs and try again.";
 }
 
 function transferPairIds(activity: Partial<ActivityDetails> | undefined): {
@@ -502,7 +501,7 @@ export function useActivityForm({
       } catch (err) {
         if (isActivityEditCancelled(err)) return;
         const message = extractErrorMessage(err);
-        toast.error(i18n.t("activity:mobile_form.save_failed"), { description: message });
+        toast.error("Failed to save activity", { description: message });
         logger.error(`Activity Form Submit Error: ${JSON.stringify({ error: err, formData })}`);
       }
     },

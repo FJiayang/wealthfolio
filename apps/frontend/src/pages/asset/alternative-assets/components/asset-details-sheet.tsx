@@ -36,6 +36,7 @@ import {
   FormField,
   FormItem,
   FormLabel,
+  FormMessage,
   useFormField,
 } from "@wealthfolio/ui/components/ui/form";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -265,7 +266,7 @@ export function AssetDetailsSheet({
                         onChange={field.onChange}
                       />
                     </FormControl>
-                    <AssetFormMessage />
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -300,7 +301,7 @@ export function AssetDetailsSheet({
                                 onValueChange={(value) => field.onChange(value ?? null)}
                               />
                             </FormControl>
-                            <AssetFormMessage />
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
@@ -317,7 +318,7 @@ export function AssetDetailsSheet({
                                 onChange={(date) => field.onChange(date ?? null)}
                               />
                             </FormControl>
-                            <AssetFormMessage />
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
@@ -408,7 +409,7 @@ export function AssetDetailsSheet({
                           onChange={(e) => field.onChange(e.target.value || null)}
                         />
                       </FormControl>
-                      <AssetFormMessage />
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
@@ -526,7 +527,7 @@ function PropertyFields({ form }: { form: ReturnType<typeof useForm<AssetDetails
                 onChange={(e) => field.onChange(e.target.value || null)}
               />
             </FormControl>
-            <AssetFormMessage />
+            <FormMessage />
           </FormItem>
         )}
       />
@@ -541,15 +542,12 @@ function PropertyFields({ form }: { form: ReturnType<typeof useForm<AssetDetails
               <ResponsiveSelect
                 value={field.value ?? ""}
                 onValueChange={(val) => field.onChange(val || null)}
-                options={PROPERTY_TYPES.map((opt) => ({
-                  value: opt.value,
-                  label: t(`asset:altContent.propertyType.${opt.value}`),
-                }))}
+                options={PROPERTY_TYPES.map((opt) => ({ value: opt.value, label: opt.label }))}
                 placeholder={t("asset:detailsSheet.select_property_type")}
                 sheetTitle={t("asset:detailsSheet.property_type")}
               />
             </FormControl>
-            <AssetFormMessage />
+            <FormMessage />
           </FormItem>
         )}
       />
@@ -571,15 +569,12 @@ function VehicleFields({ form }: { form: ReturnType<typeof useForm<AssetDetailsF
               <ResponsiveSelect
                 value={field.value ?? ""}
                 onValueChange={(val) => field.onChange(val || null)}
-                options={VEHICLE_TYPES.map((opt) => ({
-                  value: opt.value,
-                  label: t(`asset:altContent.vehicleType.${opt.value}`),
-                }))}
+                options={VEHICLE_TYPES.map((opt) => ({ value: opt.value, label: opt.label }))}
                 placeholder={t("asset:detailsSheet.select_vehicle_type")}
                 sheetTitle={t("asset:detailsSheet.vehicle_type")}
               />
             </FormControl>
-            <AssetFormMessage />
+            <FormMessage />
           </FormItem>
         )}
       />
@@ -597,7 +592,7 @@ function VehicleFields({ form }: { form: ReturnType<typeof useForm<AssetDetailsF
                 onChange={(e) => field.onChange(e.target.value || null)}
               />
             </FormControl>
-            <AssetFormMessage />
+            <FormMessage />
           </FormItem>
         )}
       />
@@ -619,15 +614,12 @@ function CollectibleFields({ form }: { form: ReturnType<typeof useForm<AssetDeta
               <ResponsiveSelect
                 value={field.value ?? ""}
                 onValueChange={(val) => field.onChange(val || null)}
-                options={COLLECTIBLE_TYPES.map((opt) => ({
-                  value: opt.value,
-                  label: t(`asset:altContent.collectibleType.${opt.value}`),
-                }))}
+                options={COLLECTIBLE_TYPES.map((opt) => ({ value: opt.value, label: opt.label }))}
                 placeholder={t("asset:detailsSheet.select_collectible_type")}
                 sheetTitle={t("asset:detailsSheet.collectible_type")}
               />
             </FormControl>
-            <AssetFormMessage />
+            <FormMessage />
           </FormItem>
         )}
       />
@@ -645,7 +637,7 @@ function CollectibleFields({ form }: { form: ReturnType<typeof useForm<AssetDeta
                 onChange={(e) => field.onChange(e.target.value || null)}
               />
             </FormControl>
-            <AssetFormMessage />
+            <FormMessage />
           </FormItem>
         )}
       />
@@ -671,15 +663,12 @@ function PreciousMetalFields({
               <ResponsiveSelect
                 value={field.value ?? ""}
                 onValueChange={(val) => field.onChange(val || null)}
-                options={METAL_TYPES.map((opt) => ({
-                  value: opt.value,
-                  label: t(`asset:altContent.metalType.${opt.value}`),
-                }))}
+                options={METAL_TYPES.map((opt) => ({ value: opt.value, label: opt.label }))}
                 placeholder={t("asset:detailsSheet.select_metal")}
                 sheetTitle={t("asset:detailsSheet.metal_type")}
               />
             </FormControl>
-            <AssetFormMessage />
+            <FormMessage />
           </FormItem>
         )}
       />
@@ -700,7 +689,7 @@ function PreciousMetalFields({
                   placeholder="0"
                 />
               </FormControl>
-              <AssetFormMessage />
+              <FormMessage />
             </FormItem>
           )}
         />
@@ -715,15 +704,12 @@ function PreciousMetalFields({
                 <ResponsiveSelect
                   value={field.value ?? ""}
                   onValueChange={(val) => field.onChange(val || null)}
-                  options={WEIGHT_UNITS.map((opt) => ({
-                    value: opt.value,
-                    label: t(`asset:altContent.weightUnit.${opt.value}`),
-                  }))}
+                  options={WEIGHT_UNITS.map((opt) => ({ value: opt.value, label: opt.label }))}
                   placeholder={t("asset:detailsSheet.select_unit")}
                   sheetTitle={t("asset:detailsSheet.weight_unit")}
                 />
               </FormControl>
-              <AssetFormMessage />
+              <FormMessage />
             </FormItem>
           )}
         />
@@ -742,7 +728,7 @@ function PreciousMetalFields({
                 onChange={(e) => field.onChange(e.target.value || null)}
               />
             </FormControl>
-            <AssetFormMessage />
+            <FormMessage />
           </FormItem>
         )}
       />
@@ -842,13 +828,13 @@ function LiabilityFields({
                   onValueChange={(val) => field.onChange(val || null)}
                   options={LIABILITY_TYPES.map((opt) => ({
                     value: opt.value,
-                    label: t(`asset:altContent.liabilityType.${opt.value}`),
+                    label: opt.label,
                   }))}
                   placeholder={t("asset:detailsSheet.select_liability_type")}
                   sheetTitle={t("asset:detailsSheet.liability_type")}
                 />
               </FormControl>
-              <AssetFormMessage />
+              <LoanFormMessage />
             </FormItem>
           )}
         />
@@ -879,7 +865,7 @@ function LiabilityFields({
                   {t("asset:detailsSheet.no_assets_to_link")}
                 </p>
               )}
-              <AssetFormMessage />
+              <LoanFormMessage />
             </FormItem>
           )}
         />
@@ -909,7 +895,7 @@ function LiabilityFields({
                   />
                 </FormControl>
                 {previewError("originalAmount", "originalAmount")}
-                <AssetFormMessage />
+                <LoanFormMessage />
               </FormItem>
             )}
           />
@@ -930,7 +916,7 @@ function LiabilityFields({
                   />
                 </FormControl>
                 {previewError("originationDate", "originationDate")}
-                <AssetFormMessage />
+                <LoanFormMessage />
               </FormItem>
             )}
           />
@@ -957,7 +943,7 @@ function LiabilityFields({
                   </span>
                 </div>
                 {previewError("interestRate", "interestRate")}
-                <AssetFormMessage />
+                <LoanFormMessage />
               </FormItem>
             )}
           />
@@ -969,7 +955,7 @@ function LiabilityFields({
                 <FormItem>
                   {fieldLabel(t("asset:loanInterest.method"), t("asset:loanInterest.hint"))}
                   <LoanInterestMethodSelect value={field.value} onChange={field.onChange} />
-                  <AssetFormMessage />
+                  <LoanFormMessage />
                 </FormItem>
               )}
             />
@@ -1020,7 +1006,7 @@ function LiabilityFields({
                     />
                   </FormControl>
                   {previewError("paymentAmount", "paymentAmount")}
-                  <AssetFormMessage />
+                  <LoanFormMessage />
                 </FormItem>
               )}
             />
@@ -1041,7 +1027,7 @@ function LiabilityFields({
                       sheetTitle={t("asset:loanActions.payment_frequency")}
                     />
                   </FormControl>
-                  <AssetFormMessage />
+                  <LoanFormMessage />
                 </FormItem>
               )}
             />
@@ -1059,7 +1045,7 @@ function LiabilityFields({
                     />
                   </FormControl>
                   {previewError("firstPaymentDate", "firstPaymentDate")}
-                  <AssetFormMessage />
+                  <LoanFormMessage />
                 </FormItem>
               )}
             />
@@ -1103,7 +1089,7 @@ function LiabilityFields({
                     </FormDescription>
                   )}
                   {previewError("amortization", "amortizationYears")}
-                  <AssetFormMessage />
+                  <LoanFormMessage />
                 </FormItem>
               )}
             />
@@ -1125,7 +1111,7 @@ function LiabilityFields({
                       />
                     </FormControl>
                     {previewError("renewalMaturity", "renewalMaturity")}
-                    <AssetFormMessage />
+                    <LoanFormMessage />
                   </FormItem>
                 )}
               />
@@ -1154,7 +1140,7 @@ function LiabilityFields({
                       aria-label={t("asset:loanPayments.paid_from")}
                     />
                   </FormControl>
-                  <AssetFormMessage />
+                  <LoanFormMessage />
                 </FormItem>
               )}
             />
@@ -1177,7 +1163,7 @@ function LiabilityFields({
                         onValueChange={(value) => field.onChange(value ?? null)}
                       />
                     </FormControl>
-                    <AssetFormMessage />
+                    <LoanFormMessage />
                   </FormItem>
                 )}
               />
@@ -1189,8 +1175,8 @@ function LiabilityFields({
   );
 }
 
-/** Translate schema message keys at render time, including after a language change. */
-function AssetFormMessage() {
+/** Shows a field error, translating the loan schema's message keys. */
+function LoanFormMessage() {
   const { t } = useTranslation();
   const { error, formMessageId } = useFormField();
   const message = error?.message;
@@ -1218,7 +1204,7 @@ function OtherFields({ form }: { form: ReturnType<typeof useForm<AssetDetailsFor
               onChange={(e) => field.onChange(e.target.value || null)}
             />
           </FormControl>
-          <AssetFormMessage />
+          <FormMessage />
         </FormItem>
       )}
     />

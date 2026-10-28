@@ -1,9 +1,7 @@
 {
   "carousel": {
     "previous": "Slide anterior",
-    "next": "Próximo slide",
-    "role": "carrossel",
-    "slide": "slide"
+    "next": "Próximo slide"
   },
   "currency": {
     "selectTitle": "Selecionar moeda",
@@ -16,15 +14,7 @@
     "searchPrompt": "Busque qualquer moeda ou selecione uma das opções populares acima.",
     "useCustom": "Usar \"{{value}}\" como moeda personalizada",
     "noneFound": "Nenhuma moeda encontrada para \"{{query}}\".",
-    "noneFoundShort": "Nenhuma moeda encontrada.",
-    "units": {
-      "GBp": "Pence britânicos",
-      "GBX": "Pence britânicos",
-      "ILA": "Agorot israelenses",
-      "USX": "Centavos americanos",
-      "ZAc": "Centavos sul-africanos",
-      "KWF": "Fils kuwaitianos"
-    }
+    "noneFoundShort": "Nenhuma moeda encontrada."
   },
   "dataGrid": {
     "label": "Grade de dados",
@@ -85,13 +75,7 @@
     "clearSymbol": "Limpar símbolo",
     "currency": "Moeda",
     "searchCurrency": "Buscar moeda...",
-    "noCurrencyFound": "Nenhuma moeda encontrada.",
-    "copyFailed": "Falha ao copiar para a área de transferência",
-    "cutFailed": "Falha ao recortar para a área de transferência",
-    "pasteFailed": "Falha ao colar. Tente novamente.",
-    "cellsSkipped_one": "{{count}} célula ignorada ao colar por dados inválidos",
-    "cellsSkipped_other": "{{count}} células ignoradas ao colar por dados inválidos",
-    "cellsSkipped_many": "{{count}} células ignoradas ao colar por dados inválidos"
+    "noCurrencyFound": "Nenhuma moeda encontrada."
   },
   "dataTable": {
     "noResults": "Sem resultados",
@@ -213,27 +197,5 @@
   "page": {
     "back": "Voltar"
   },
-  "remove": "Remover {{label}}",
-  "actionConfirm": {
-    "pending": "Em andamento…"
-  },
-  "select": {
-    "placeholder": "Selecionar uma opção"
-  },
-  "progress": {
-    "title": "Processando",
-    "message": "Processando…",
-    "description": "Aguarde enquanto processamos sua solicitação. Isso pode levar alguns instantes."
-  },
-  "navigation": {
-    "view": "Visualização {{number}}",
-    "goTo": "Ir para {{name}}"
-  },
-  "quoteImport": {
-    "noFile": "Nenhum arquivo selecionado",
-    "validateFailed": "Falha ao validar CSV",
-    "validateFirst": "Nenhuma cotação para importar. Valide o arquivo primeiro.",
-    "noValid": "Nenhuma cotação válida para importar. Todas apresentam erros de validação.",
-    "importFailed": "Falha ao importar cotações"
-  }
+  "remove": "Remover {{label}}"
 }

@@ -1,9 +1,7 @@
 {
   "carousel": {
     "previous": "Diapositiva precedente",
-    "next": "Diapositiva successiva",
-    "role": "carosello",
-    "slide": "diapositiva"
+    "next": "Diapositiva successiva"
   },
   "currency": {
     "selectTitle": "Seleziona valuta",
@@ -16,15 +14,7 @@
     "searchPrompt": "Cerca qualsiasi valuta oppure seleziona una delle opzioni popolari qui sopra.",
     "useCustom": "Usa \"{{value}}\" come valuta personalizzata",
     "noneFound": "Nessuna valuta trovata per \"{{query}}\".",
-    "noneFoundShort": "Nessuna valuta trovata.",
-    "units": {
-      "GBp": "Pence britannici",
-      "GBX": "Pence britannici",
-      "ILA": "Agorot israeliani",
-      "USX": "Centesimi statunitensi",
-      "ZAc": "Centesimi sudafricani",
-      "KWF": "Fils kuwaitiani"
-    }
+    "noneFoundShort": "Nessuna valuta trovata."
   },
   "dataGrid": {
     "label": "Griglia dati",
@@ -85,13 +75,7 @@
     "clearSymbol": "Cancella simbolo",
     "currency": "Valuta",
     "searchCurrency": "Cerca valuta...",
-    "noCurrencyFound": "Nessuna valuta trovata.",
-    "copyFailed": "Impossibile copiare negli appunti",
-    "cutFailed": "Impossibile tagliare negli appunti",
-    "pasteFailed": "Impossibile incollare. Riprova.",
-    "cellsSkipped_one": "{{count}} cella ignorata durante l’incolla per dati non validi",
-    "cellsSkipped_other": "{{count}} celle ignorate durante l’incolla per dati non validi",
-    "cellsSkipped_many": "{{count}} celle ignorate durante l’incolla per dati non validi"
+    "noCurrencyFound": "Nessuna valuta trovata."
   },
   "dataTable": {
     "noResults": "Nessun risultato",
@@ -213,27 +197,5 @@
   "page": {
     "back": "Indietro"
   },
-  "remove": "Rimuovi {{label}}",
-  "actionConfirm": {
-    "pending": "In corso…"
-  },
-  "select": {
-    "placeholder": "Seleziona un’opzione"
-  },
-  "progress": {
-    "title": "Elaborazione",
-    "message": "Elaborazione in corso…",
-    "description": "Attendi mentre elaboriamo la richiesta. Potrebbero essere necessari alcuni istanti."
-  },
-  "navigation": {
-    "view": "Vista {{number}}",
-    "goTo": "Vai a {{name}}"
-  },
-  "quoteImport": {
-    "noFile": "Nessun file selezionato",
-    "validateFailed": "Validazione CSV non riuscita",
-    "validateFirst": "Nessuna quotazione da importare. Prima convalida il file.",
-    "noValid": "Nessuna quotazione valida da importare. Tutte presentano errori di validazione.",
-    "importFailed": "Importazione delle quotazioni non riuscita"
-  }
+  "remove": "Rimuovi {{label}}"
 }

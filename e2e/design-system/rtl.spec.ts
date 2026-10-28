@@ -64,8 +64,7 @@ test("the side sheet comes in from the left edge", async ({ page }) => {
   const sheet = overlay("sheet").content(page);
   await expect(sheet).toBeVisible();
   await settle(page);
-  // Base UI may start the entry transition after settle captures existing animations.
-  await expect.poll(async () => (await sheet.boundingBox())?.x).toBe(0);
+  expect((await sheet.boundingBox())!.x).toBe(0);
 });
 
 test("switching direction live re-mirrors keyboard and layout", async ({ page }) => {

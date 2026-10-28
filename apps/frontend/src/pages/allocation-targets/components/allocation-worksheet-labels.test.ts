@@ -1,7 +1,9 @@
 import { createInstance } from "i18next";
 import { expect, it } from "vitest";
 import enCommon from "@/i18n/locales/en/common.json";
+import enCommonTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import enAllocation from "@/i18n/locales/en/allocation.json";
 import zhAllocation from "@/i18n/locales/zh/allocation.json";
 import { worksheetCategoryLabel } from "./allocation-worksheet-labels";
@@ -11,8 +13,8 @@ it("preserves the upstream sentinel distinctions across language changes without
   await i18n.init({
     lng: "en",
     resources: {
-      en: { common: enCommon, allocation: enAllocation },
-      zh: { common: zhCommon, allocation: zhAllocation },
+      en: { common: enCommon, taxonomies: enCommonTaxonomies, allocation: enAllocation },
+      zh: { common: zhCommon, taxonomies: zhCommonTaxonomies, allocation: zhAllocation },
     },
   });
   const names = ["Unknown", "Unclassified", "Unclassified exposure"];
@@ -22,7 +24,7 @@ it("preserves the upstream sentinel distinctions across language changes without
   expect(labels()).toEqual(names);
   await i18n.changeLanguage("zh");
   expect(labels()).toEqual([
-    zhCommon.unknown,
+    zhCommonTaxonomies.unknown,
     zhAllocation.worksheet.unclassified,
     zhAllocation.worksheet.unclassifiedExposure,
   ]);
@@ -34,7 +36,7 @@ it("preserves the upstream sentinel distinctions across language changes without
     "My exposure",
   );
   expect(worksheetCategoryLabel(i18n.t, "asset_classes", "EQUITY", "Equity")).toBe(
-    zhCommon.categoryNames.asset_classes.EQUITY,
+    zhCommonTaxonomies.categoryNames.asset_classes.EQUITY,
   );
   await i18n.changeLanguage("en");
   expect(labels()).toEqual(names);

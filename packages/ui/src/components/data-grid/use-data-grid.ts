@@ -1,7 +1,5 @@
 "use client";
 
-import { useTranslation } from "react-i18next";
-
 import { useDirection } from "@base-ui/react/direction-provider";
 import {
   type ColumnDef,
@@ -176,7 +174,6 @@ function useDataGrid<TData>({
   initialState,
   ...props
 }: UseDataGridProps<TData>) {
-  const { t } = useTranslation();
   const numberFormatting = useNumberFormatting();
   const dateFormatting = useDateFormatting();
   const { locale, timezone } = useLocalizationSettings();
@@ -661,13 +658,9 @@ function useDataGrid<TData>({
         store.setState("cutCells", new Set());
       }
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : t("ui:dataGrid.copyFailed", "Failed to copy to clipboard"),
-      );
+      toast.error(error instanceof Error ? error.message : "Failed to copy to clipboard");
     }
-  }, [store, t]);
+  }, [store]);
 
   const onCellsCut = React.useCallback(async () => {
     if (propsRef.current.readOnly) return;
@@ -756,13 +749,9 @@ function useDataGrid<TData>({
 
       store.setState("cutCells", new Set(selectedCellsArray));
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : t("ui:dataGrid.cutFailed", "Failed to cut to clipboard"),
-      );
+      toast.error(error instanceof Error ? error.message : "Failed to cut to clipboard");
     }
-  }, [store, propsRef, t]);
+  }, [store, propsRef]);
 
   const restoreFocus = React.useCallback((element: HTMLDivElement | null) => {
     if (element && document.activeElement !== element) {
@@ -1248,7 +1237,9 @@ function useDataGrid<TData>({
 
           restoreFocus(dataGridRef.current);
         } else if (cellsSkipped > 0) {
-          toast.error(t("ui:dataGrid.cellsSkipped", { count: cellsSkipped }));
+          toast.error(
+            `${cellsSkipped} cell${cellsSkipped !== 1 ? "s" : ""} skipped pasting for invalid data`,
+          );
         }
 
         if (currentState.pasteDialog.open) {
@@ -1259,11 +1250,7 @@ function useDataGrid<TData>({
           });
         }
       } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : t("ui:dataGrid.pasteFailed", "Failed to paste. Please try again."),
-        );
+        toast.error(error instanceof Error ? error.message : "Failed to paste. Please try again.");
       }
     },
     [
@@ -1277,7 +1264,6 @@ function useDataGrid<TData>({
       dateFormatting,
       locale,
       timezone,
-      t,
     ],
   );
 
