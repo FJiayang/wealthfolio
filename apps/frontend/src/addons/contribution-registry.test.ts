@@ -39,6 +39,72 @@ function manifest(id: string, contributes: AddonContributes): AddonManifest {
 const ADDON = "swingfolio-addon";
 
 describe("contribution registry", () => {
+  it("isolates import slots and scopes duplicate ids to each addon and slot", () => {
+    ingestAddonContributions(
+      ADDON,
+      manifest(ADDON, {
+        routes: [{ id: "home" }],
+        links: {
+          sidebar: [{ id: "same", route: "home", label: "Sidebar" }],
+          "investment-import": [
+            { id: "same", route: "home", label: "Investment", order: 20 },
+            { id: "same", route: "home", label: "Duplicate" },
+            { id: "first", route: "home", label: "First", order: 1 },
+            { route: "missing", label: "Missing" },
+            { id: "empty", route: "home", label: "" },
+          ],
+          "spending-import": [{ id: "same", route: "home", label: "Spending" }],
+        },
+      }),
+    );
+    ingestAddonContributions(
+      "other-addon",
+      manifest("other-addon", {
+        routes: [{ id: "home" }],
+        links: { "investment-import": [{ id: "same", route: "home", label: "Other" }] },
+      }),
+    );
+
+    expect(getDynamicNavItems().map((item) => item.title)).toEqual(["Sidebar"]);
+    expect(getDurableNavItems("investment-import").map((item) => item.title)).toEqual([
+      "First",
+      "Investment",
+      "Other",
+    ]);
+    expect(getDurableNavItems("spending-import").map((item) => item.title)).toEqual(["Spending"]);
+  });
+
+  it("keeps import-only routes on runtime stop and clears links on disable or reload", () => {
+    const contributions: AddonContributes = {
+      routes: [{ id: "home" }],
+      links: {
+        "investment-import": [{ route: "home", label: "Investment" }],
+        "spending-import": [{ route: "home", label: "Spending" }],
+      },
+    };
+    ingestAddonContributions(ADDON, manifest(ADDON, contributions));
+    clearAddonRegistrations(ADDON);
+    expect(getDynamicNavItems()).toEqual([]);
+    expect(getDynamicRoutes()).toEqual([
+      expect.objectContaining({ addonId: ADDON, routeId: "home", href: `/addons/${ADDON}` }),
+    ]);
+    expect(getDurableNavItems("investment-import")).toHaveLength(1);
+    expect(getDurableNavItems("spending-import")).toHaveLength(1);
+
+    clearAllContributions(new Set([ADDON]));
+    expect(getDurableNavItems("spending-import")).toHaveLength(1);
+    clearAddonContributions(ADDON);
+    expect(getDurableNavItems("investment-import")).toEqual([]);
+    expect(getDurableNavItems("spending-import")).toEqual([]);
+    expect(getDynamicRoutes()).toEqual([]);
+
+    ingestAddonContributions(ADDON, manifest(ADDON, contributions));
+    clearAllContributions();
+    ingestAddonContributions(ADDON, manifest(ADDON, { routes: [{ id: "home" }] }));
+    expect(getDurableNavItems("investment-import")).toEqual([]);
+    expect(getDurableNavItems("spending-import")).toEqual([]);
+  });
+
   afterEach(() => {
     clearAllContributions();
     clearAddonRegistrations(ADDON);

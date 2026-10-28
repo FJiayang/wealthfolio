@@ -30,6 +30,8 @@ import { ActivityDataGrid } from "./components/activity-data-grid/activity-data-
 import { ActivityDeleteModal } from "./components/activity-delete-modal";
 import { ActivityForm } from "./components/activity-form";
 import { ActivityMobileControls } from "./components/activity-mobile-controls";
+import { ActivityImportButton } from "./components/addon-import-actions";
+import { useAddonImportActions } from "./hooks/use-addon-import-actions";
 import { ActivityPagination } from "./components/activity-pagination";
 import ActivityTable from "./components/activity-table/activity-table";
 import ActivityTableMobile from "./components/activity-table/activity-table-mobile";
@@ -564,6 +566,9 @@ const ActivityPage = () => {
     setSearchInput,
   ]);
 
+  const investmentImportActions = useAddonImportActions("investment-import");
+  const spendingImportActions = useAddonImportActions("spending-import");
+
   const actionPaletteGroups: ActionPaletteGroup[] = useMemo(
     () => [
       {
@@ -616,7 +621,11 @@ const ActivityPage = () => {
         <ActionPalette
           open={showActionPalette}
           onOpenChange={setShowActionPalette}
-          groups={actionPaletteGroups}
+          groups={
+            investmentImportActions.length
+              ? [...actionPaletteGroups, { items: investmentImportActions }]
+              : actionPaletteGroups
+          }
           trigger={
             <Button data-testid="add-activities-button" size="sm">
               <Icons.Plus className="me-2 h-4 w-4" />
@@ -628,13 +637,7 @@ const ActivityPage = () => {
 
       {/* Mobile add button */}
       <div className="flex items-center gap-2 sm:hidden">
-        <Link
-          to={"/import"}
-          title={t("common:import")}
-          className={buttonVariants({ variant: "outline", size: "icon" })}
-        >
-          <Icons.Import className="size-4" />
-        </Link>
+        <ActivityImportButton items={investmentImportActions} />
         <Button size="icon" title={t("common:add")} onClick={() => handleEdit(undefined)}>
           <Icons.Plus className="size-4" />
         </Button>
@@ -682,7 +685,11 @@ const ActivityPage = () => {
         <ActionPalette
           open={showSpendingActionPalette}
           onOpenChange={setShowSpendingActionPalette}
-          groups={spendingActionPaletteGroups}
+          groups={
+            spendingImportActions.length
+              ? [...spendingActionPaletteGroups, { items: spendingImportActions }]
+              : spendingActionPaletteGroups
+          }
           trigger={
             <Button data-testid="add-activities-button" size="sm">
               <Icons.Plus className="me-2 h-4 w-4" />
@@ -694,13 +701,7 @@ const ActivityPage = () => {
 
       {/* Mobile add button */}
       <div className="flex items-center gap-2 sm:hidden">
-        <Link
-          to={"/import"}
-          title={t("common:import")}
-          className={buttonVariants({ variant: "outline", size: "icon" })}
-        >
-          <Icons.Import className="size-4" />
-        </Link>
+        <ActivityImportButton items={spendingImportActions} />
         <Button
           size="icon"
           title={t("common:add")}

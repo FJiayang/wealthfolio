@@ -48,6 +48,18 @@ pnpm test:e2e:ui
 
 ### Manual — specific tests or debugging
 
+The local import-menu integration suite uses the two separately maintained addon
+packages. Build their ZIPs with each addon's `bundle` command first, then run:
+
+```bash
+WF_E2E_IMPORT_ADDONS_DIR=/absolute/path/to/wealthfolio-addons/local pnpm test:e2e e2e/41-addon-import-menu.spec.ts
+```
+
+Without this variable, that suite is skipped. It installs the ZIPs only in the
+runner's disposable addon directory and checks desktop/mobile menus, RTL,
+import-only lazy activation, and disabled-entry removal. The host draft import
+flow is covered by `e2e/40-addon-import-handoff.spec.ts`.
+
 Use this when you want to run a subset of tests or iterate quickly without
 restarting the server on every run.
 

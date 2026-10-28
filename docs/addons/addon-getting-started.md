@@ -121,12 +121,12 @@ permissions it needs:
 ```
 
 Navigation is **declarative**: the host reads `contributes.routes` and
-`contributes.links` from the manifest and renders your sidebar entry _without_
-running your addon (this is what enables lazy activation). A **route** is a
-durable addon page; a **link** places a route into a host slot (only `"sidebar"`
-is consumed today) and references a declared route by `id`. The runtime
-`router.add({ id })` in the next section MUST use the same id as the declared
-route.
+`contributes.links` from the manifest and renders your navigation entries
+_without_ running your addon (this is what enables lazy activation). A **route**
+is a durable addon page; a **link** places a route into a host slot
+(`"sidebar"`, `"investment-import"`, or `"spending-import"`) and references a
+declared route by `id`. The runtime `router.add({ id })` in the next section
+MUST use the same id as the declared route.
 
 The host derives the route URL from the manifest `id`, so this root page is
 mounted at `/addons/hello-world-addon`. Omit `path` for the root; nested pages

@@ -234,8 +234,8 @@ export default function enable(ctx: AddonContext) {
 ### Declarative Navigation (preferred)
 
 Static navigation belongs in `manifest.json`, not in code. The host reads it
-into a registry and renders your sidebar entry **without booting the addon**,
-which is what enables lazy activation. Two primitives:
+into a registry and renders your navigation entries **without booting the
+addon**, which is what enables lazy activation. Two primitives:
 
 ```jsonc
 "contributes": {
@@ -256,11 +256,54 @@ which is what enables lazy activation. Two primitives:
   `reports/:year`; absolute paths, traversal, queries, and fragments are
   rejected.
 - A **link** places a route into a host slot and references a declared route by
-  `id`. Only `"sidebar"` is consumed today; unknown slot names are reserved for
-  future surfaces.
+  `id`. Supported slots are `"sidebar"`, `"investment-import"`, and
+  `"spending-import"`; unknown slot names are reserved for future surfaces. Link
+  IDs are unique within each addon and slot. Links are ordered by `order`
+  (default 999).
 - **Contract:** the runtime `router.add({ id })` MUST equal the declared
   `contributes.routes[].id`. A mismatch renders a blank "route is not available"
   page.
+
+### Activity import entries
+
+Declare import links to appear in the corresponding investment or spending **Add
+Activities** menu, and in the mobile import picker. No sidebar link is required.
+For example, an addon with two import pages can declare:
+
+```json
+{
+  "contributes": {
+    "routes": [
+      { "id": "investments", "path": "investments" },
+      { "id": "spending", "path": "spending" }
+    ],
+    "links": {
+      "investment-import": [
+        {
+          "route": "investments",
+          "label": "Import investment statement",
+          "icon": "receipt"
+        }
+      ],
+      "spending-import": [
+        {
+          "route": "spending",
+          "label": "Import spending statement",
+          "icon": "receipt"
+        }
+      ]
+    }
+  }
+}
+```
+
+Selecting an entry opens its declared addon route and activates the addon on
+demand. It does not parse or save data itself. Keep using the existing permitted
+activity APIs, including `activities.openImport` for host review when
+appropriate. Disabling or uninstalling an addon removes its entries; stopping
+its runtime keeps the entries available for reactivation. Hosts predating these
+slots ignore them, so addons declaring only import links need a host supporting
+these slots.
 
 ### Sidebar API
 

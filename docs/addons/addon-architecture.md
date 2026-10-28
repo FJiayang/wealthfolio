@@ -68,11 +68,12 @@ The system has two main parts:
 ### Lazy Activation
 
 Addons that declare `contributes.routes` do **not** run at startup. The host
-reads their manifests into a **ContributionRegistry** and renders their sidebar
-entries and routes without executing any addon code. Step 5 (**Enable**) is
-deferred until the user first navigates to one of the addon's routes. Addons
-**without** `contributes` remain eager and run at load time. This keeps startup
-fast and lets the host draw navigation for addons that have never been opened.
+reads their manifests into a **ContributionRegistry** and renders their sidebar,
+investment import, spending import entries and routes without executing any
+addon code. Step 5 (**Enable**) is deferred until the user first navigates to
+one of the addon's routes. Addons **without** `contributes` remain eager and run
+at load time. This keeps startup fast and lets the host draw navigation for
+addons that have never been opened.
 
 ## Addon Context
 
@@ -620,8 +621,8 @@ Optional fields:
 
 - `description`: What the addon does
 - `author`: Creator information
-- `contributes`: Declared `routes` and `links` (sidebar navigation) the host can
-  render before booting the addon
+- `contributes`: Declared `routes` and `links` (sidebar and activity import
+  navigation) the host can render before booting the addon
 - `permissions`: Declared data access (array of
   `{ category, functions, purpose }`)
 - `sdkVersion`: SDK version the addon targets (`"3.8.0"`)

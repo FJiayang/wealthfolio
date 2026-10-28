@@ -15,14 +15,14 @@ import {
  * Ingests each installed addon's `manifest.contributes` at boot WITHOUT
  * executing addon code: `contributes.routes` become durable
  * `DynamicRouteEntry`-shaped records (a route is legal without any link —
- * deep-link only), and `contributes.links["sidebar"]` become durable
+ * deep-link only), and supported `contributes.links` become durable
  * `DynamicNavItem`-shaped records pointing at those routes.
  * {@link ./addons-runtime-context} merges both with its transient runtime
  * registrations. Entries here survive a runtime stop (a stopped-but-enabled
  * addon keeps its nav so it can be re-activated) and are cleared only on
  * disable/uninstall (or a full re-ingest on reload).
  *
- * Only the `"sidebar"` slot is consumed today; unknown slot keys are future
+ * Sidebar and activity import slots are consumed; unknown slot keys are future
  * host surfaces and are ignored here (they still round-trip through install).
  *
  * The host owns each declarative route namespace: manifest paths are relative
@@ -32,11 +32,11 @@ import {
  * never passed through the Rust parser.
  */
 
-/** The only link slot the host consumes today. */
-const SIDEBAR_SLOT = "sidebar";
+const LINK_SLOTS = ["sidebar", "investment-import", "spending-import"] as const;
+export type AddonLinkSlot = (typeof LINK_SLOTS)[number];
 
-// Both maps are keyed by `scopedKey(addonId, <route id | effective link id>)`.
-const durableNavItems = new Map<string, DynamicNavItem>();
+// Link keys include the slot; route keys are scoped to the addon.
+const durableNavItems = new Map<string, DynamicNavItem & { slot: AddonLinkSlot }>();
 const durableRoutes = new Map<string, DynamicRouteEntry>();
 
 function isSafeAddonIdSegment(addonId: string) {
@@ -68,7 +68,7 @@ function normalizeContributedRoutePath(path: unknown): string | null {
 }
 
 /**
- * Ingest an addon's declarative contributions (routes + sidebar links) into
+ * Ingest an addon's declarative contributions (routes + slot links) into
  * the durable layer. Does not execute addon code and does not boot an iframe.
  * Used for both installed addons (at load) and dev-server addons (on dev load),
  * so a scaffolded addon's manifest-declared sidebar link appears in either mode.
@@ -132,9 +132,10 @@ export function ingestAddonContributions(addonId: string, manifest: AddonManifes
     changed = true;
   }
 
-  // Sidebar links become durable nav items pointing at declared routes.
-  // Other slots are future host surfaces — parsed and persisted, but ignored.
-  const unknownSlots = Object.keys(links).filter((slot) => slot !== SIDEBAR_SLOT);
+  // Unknown slots round-trip through installation but have no host surface yet.
+  const unknownSlots = Object.keys(links).filter(
+    (slot) => !LINK_SLOTS.some((supported) => supported === slot),
+  );
   if (unknownSlots.length > 0) {
     logger.debug(
       `Addon '${addonId}' contributes links in unconsumed slot(s) ${unknownSlots
@@ -143,49 +144,52 @@ export function ingestAddonContributions(addonId: string, manifest: AddonManifes
     );
   }
 
-  const seenLinkIds = new Set<string>();
-  for (const link of links[SIDEBAR_SLOT] ?? []) {
-    const routeRef = String(link?.route ?? "").trim();
-    const label = String(link?.label ?? "").trim();
+  for (const slot of LINK_SLOTS) {
+    const seenLinkIds = new Set<string>();
+    for (const link of links[slot] ?? []) {
+      const routeRef = String(link?.route ?? "").trim();
+      const label = String(link?.label ?? "").trim();
 
-    if (!routeRef || !label) {
-      logger.warn(
-        `Addon '${addonId}' contributes a sidebar link with an empty route/label; skipping.`,
-      );
-      continue;
+      if (!routeRef || !label) {
+        logger.warn(
+          `Addon '${addonId}' contributes a ${slot} link with an empty route/label; skipping.`,
+        );
+        continue;
+      }
+
+      const linkId = String(link?.id ?? "").trim() || routeRef;
+      if (seenLinkIds.has(linkId)) {
+        logger.warn(
+          `Addon '${addonId}' contributes duplicate ${slot} link id '${linkId}'; skipping the duplicate.`,
+        );
+        continue;
+      }
+      seenLinkIds.add(linkId);
+
+      const route = ingestedRoutes.get(routeRef);
+      if (!route) {
+        logger.warn(
+          `Addon '${addonId}' ${slot} link '${linkId}' references undeclared route '${routeRef}'; skipping.`,
+        );
+        continue;
+      }
+
+      // Backfill the referenced route's display title from its nav label.
+      if (!route.title) {
+        route.title = label;
+      }
+
+      durableNavItems.set(`${slot}:${scopedKey(addonId, linkId)}`, {
+        slot,
+        addonId,
+        href: route.href,
+        icon: typeof link.icon === "string" ? link.icon : undefined,
+        id: scopedKey(addonId, linkId),
+        order: typeof link.order === "number" ? link.order : 999,
+        title: label,
+      });
+      changed = true;
     }
-
-    const linkId = String(link?.id ?? "").trim() || routeRef;
-    if (seenLinkIds.has(linkId)) {
-      logger.warn(
-        `Addon '${addonId}' contributes duplicate sidebar link id '${linkId}'; skipping the duplicate.`,
-      );
-      continue;
-    }
-    seenLinkIds.add(linkId);
-
-    const route = ingestedRoutes.get(routeRef);
-    if (!route) {
-      logger.warn(
-        `Addon '${addonId}' sidebar link '${linkId}' references undeclared route '${routeRef}'; skipping.`,
-      );
-      continue;
-    }
-
-    // Backfill the referenced route's display title from its nav label.
-    if (!route.title) {
-      route.title = label;
-    }
-
-    durableNavItems.set(scopedKey(addonId, linkId), {
-      addonId,
-      href: route.href,
-      icon: typeof link.icon === "string" ? link.icon : undefined,
-      id: scopedKey(addonId, linkId),
-      order: typeof link.order === "number" ? link.order : 999,
-      title: label,
-    });
-    changed = true;
   }
 
   if (changed) {
@@ -194,8 +198,11 @@ export function ingestAddonContributions(addonId: string, manifest: AddonManifes
 }
 
 /** Sorted durable nav items (same shape/sort contract as the transient layer). */
-export function getDurableNavItems(): DynamicNavItem[] {
-  return Array.from(durableNavItems.values()).sort((a, b) => a.order - b.order);
+export function getDurableNavItems(slot: AddonLinkSlot = "sidebar"): DynamicNavItem[] {
+  return Array.from(durableNavItems.values())
+    .filter((item) => item.slot === slot)
+    .map(({ slot: _slot, ...item }) => item)
+    .sort((a, b) => a.order - b.order);
 }
 
 /** Sorted durable routes (same shape/sort contract as the transient layer). */

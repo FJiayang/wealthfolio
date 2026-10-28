@@ -31,7 +31,8 @@ export interface AddonContributedRoute {
 }
 
 /**
- * A placement in a host slot (e.g. `"sidebar"`) declared via
+ * A placement in a host slot (`"sidebar"`, `"investment-import"`, or
+ * `"spending-import"`) declared via
  * `contributes.links`, pointing at a route declared in `contributes.routes`
  * of the same addon.
  */
@@ -50,8 +51,10 @@ export interface AddonContributedLink {
 
 /**
  * Declarative contributions an addon makes to the host: durable routes plus
- * links placed in host slots, keyed by slot id. Only the `"sidebar"` slot is
- * consumed today; unknown slot keys are preserved for future host surfaces.
+ * links placed in host slots, keyed by slot id. The host consumes `"sidebar"`,
+ * `"investment-import"`, and `"spending-import"`; unknown slot keys are preserved
+ * for future host surfaces. Import links open addon pages, just like sidebar
+ * links, without changing the addon's permissions or import workflow.
  */
 export interface AddonContributes {
   /** Durable addon pages, host-renderable before the addon boots */
