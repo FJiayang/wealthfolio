@@ -759,6 +759,7 @@
   "validation": {
     "accountNameMin": "يجب ألا يقل الاسم عن حرفين.",
     "accountNameMax": "يجب ألا يزيد الاسم على 50 حرفًا.",
+    "accountNumberMax": "يجب ألا يزيد رقم الحساب على 64 حرفًا.",
     "accountCurrency": "يرجى اختيار عملة.",
     "creditCardTracking": "لا يمكن لحسابات بطاقات الائتمان استخدام وضع تتبّع الحيازات."
   }

@@ -53,3 +53,42 @@ it("retranslates an already displayed account error without submitting again or 
   expect(mutations.create).not.toHaveBeenCalled();
   expect(mutations.update).not.toHaveBeenCalled();
 });
+
+it("retranslates the account-number limit error without resetting or submitting the draft again", async () => {
+  const i18n = createInstance();
+  await i18n.use(initReactI18next).init({
+    lng: "en",
+    fallbackLng: "en",
+    resources: {
+      en: { common: enCommon, settings: enSettings },
+      zh: { common: zhCommon, settings: zhSettings },
+    },
+  });
+  const accountNumber = "9".repeat(65);
+  render(
+    <I18nextProvider i18n={i18n}>
+      <Dialog open>
+        <DialogContent>
+          <AccountForm
+            defaultValues={{
+              name: "My account",
+              accountNumber,
+              accountType: "SECURITIES",
+              currency: "USD",
+              trackingMode: "TRANSACTIONS",
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+    </I18nextProvider>,
+  );
+  fireEvent.click(screen.getByTestId("account-submit-button"));
+  expect(await screen.findByText(enCommon.validation.accountNumberMax)).toBeVisible();
+  await act(() => i18n.changeLanguage("zh"));
+  expect(screen.getByText(zhCommon.validation.accountNumberMax)).toBeVisible();
+  expect(screen.queryByText(enCommon.validation.accountNumberMax)).not.toBeInTheDocument();
+  expect(screen.getByDisplayValue(accountNumber)).toBeInTheDocument();
+  expect(screen.getByDisplayValue("My account")).toBeInTheDocument();
+  expect(mutations.create).not.toHaveBeenCalled();
+  expect(mutations.update).not.toHaveBeenCalled();
+});

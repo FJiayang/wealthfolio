@@ -680,6 +680,7 @@
   "validation": {
     "accountNameMin": "名称至少需要 2 个字符。",
     "accountNameMax": "名称不得超过 50 个字符。",
+    "accountNumberMax": "账户号码不得超过 64 个字符。",
     "accountCurrency": "请选择货币。",
     "creditCardTracking": "信用卡账户不能使用持仓跟踪模式。"
   }

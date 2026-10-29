@@ -708,6 +708,7 @@
   "validation": {
     "accountNameMin": "O nome deve ter pelo menos 2 caracteres.",
     "accountNameMax": "O nome não pode exceder 50 caracteres.",
+    "accountNumberMax": "O número da conta não pode exceder 64 caracteres.",
     "accountCurrency": "Selecione uma moeda.",
     "creditCardTracking": "Contas de cartão de crédito não podem usar o modo de acompanhamento de posições."
   }

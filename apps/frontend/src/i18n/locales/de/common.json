@@ -691,6 +691,7 @@
   "validation": {
     "accountNameMin": "Der Name muss mindestens 2 Zeichen enthalten.",
     "accountNameMax": "Der Name darf höchstens 50 Zeichen enthalten.",
+    "accountNumberMax": "Die Kontonummer darf höchstens 64 Zeichen enthalten.",
     "accountCurrency": "Bitte wählen Sie eine Währung.",
     "creditCardTracking": "Kreditkartenkonten können den Bestandsverfolgungsmodus nicht verwenden."
   }

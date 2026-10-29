@@ -225,4 +225,36 @@ describe("shared display localization", () => {
     if (!creditCard.success)
       expect(creditCard.error.issues.at(-1)?.message).toBe("common:validation.creditCardTracking");
   });
+  it("preserves account-number trimming, clearing, omission and the 64-character limit", () => {
+    const base = {
+      name: "My account",
+      accountType: "SECURITIES",
+      currency: "USD",
+      meta: '{"custom":"Unchanged"}',
+    };
+    const output = { ...base, isArchived: false, trackingMode: "NOT_SET" };
+    expect(newAccountSchema.parse(base)).toEqual(output);
+    expect(newAccountSchema.parse(base)).not.toHaveProperty("accountNumber");
+    expect(newAccountSchema.parse({ ...base, accountNumber: "  4100  " })).toEqual({
+      ...output,
+      accountNumber: "4100",
+    });
+    expect(newAccountSchema.parse({ ...base, accountNumber: "   " })).toEqual({
+      ...output,
+      accountNumber: "",
+    });
+    expect(newAccountSchema.parse({ ...base, accountNumber: `  ${"9".repeat(64)}  ` })).toEqual({
+      ...output,
+      accountNumber: "9".repeat(64),
+    });
+    const invalid = newAccountSchema.safeParse({ ...base, accountNumber: "9".repeat(65) });
+    expect(invalid.success).toBe(false);
+    if (!invalid.success)
+      expect(invalid.error.issues).toEqual([
+        expect.objectContaining({
+          path: ["accountNumber"],
+          message: "common:validation.accountNumberMax",
+        }),
+      ]);
+  });
 });

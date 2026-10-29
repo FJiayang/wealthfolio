@@ -680,6 +680,7 @@
   "validation": {
     "accountNameMin": "名前は2文字以上で入力してください。",
     "accountNameMax": "名前は50文字以内で入力してください。",
+    "accountNumberMax": "口座番号は64文字以内で入力してください。",
     "accountCurrency": "通貨を選択してください。",
     "creditCardTracking": "クレジットカード口座では保有資産追跡モードを使用できません。"
   }

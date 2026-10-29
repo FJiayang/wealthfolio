@@ -105,7 +105,7 @@ export const newAccountSchema = z
       .string()
       .trim()
       .max(64, {
-        message: "Account number must not be longer than 64 characters.",
+        message: "common:validation.accountNumberMax",
       })
       .optional(),
     isDefault: z.boolean().optional(),
