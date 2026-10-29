@@ -631,6 +631,7 @@
     "revalidateFailed": "重新验证失败。",
     "nothing": "没有可导入的内容。",
     "allInvalid": "所有交易都有验证错误。请修正后重试。",
-    "importFailed": "导入交易失败。"
+    "importFailed": "导入交易失败。",
+    "reviewAndRetry": "导入失败。请检查错误后重试。"
   }
 }

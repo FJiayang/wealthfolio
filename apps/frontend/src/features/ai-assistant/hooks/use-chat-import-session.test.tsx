@@ -558,6 +558,76 @@ describe("useChatImportSession", () => {
       },
     );
 
+    it.each([
+      { name: "missing summary", response: {}, raw: undefined },
+      { name: "null summary", response: { summary: null }, raw: undefined },
+      {
+        name: "undefined error",
+        response: { summary: { success: false, imported: 0, errorMessage: undefined } },
+        raw: undefined,
+      },
+      {
+        name: "missing error",
+        response: { summary: { success: false, imported: 0 } },
+        raw: undefined,
+      },
+      {
+        name: "null error",
+        response: { summary: { success: false, imported: 0, errorMessage: null } },
+        raw: undefined,
+      },
+      {
+        name: "failure with imported rows",
+        response: { summary: { success: false, imported: 1 } },
+        raw: undefined,
+      },
+      {
+        name: "success with zero rows",
+        response: { summary: { success: true, imported: 0 } },
+        raw: undefined,
+      },
+      ...[
+        "",
+        "   ",
+        "ai:importSessionErrors.reviewAndRetry",
+        "Provider detail: row 7 rejected.",
+        "Import failed. Review the errors and try again.",
+      ].map((raw) => ({
+        name: `raw error ${JSON.stringify(raw)}`,
+        response: { summary: { success: false, imported: 0, errorMessage: raw } },
+        raw,
+      })),
+    ])(
+      "retains a failed-import summary message across language changes: $name",
+      async ({ response, raw }) => {
+        adapterMocks.importActivities.mockResolvedValueOnce({
+          ...response,
+          activities: [
+            { lineNumber: 1, isValid: false, errors: { general: ["Provider row diagnostic"] } },
+          ],
+        });
+        const { result } = renderHook(() => useChatImportSession({ mapping }), {
+          wrapper: createWrapper(),
+        });
+        await waitFor(() => expect(result.current.status).toBe("ready"));
+        await act(() => result.current.confirm());
+        await expectHeldError(
+          result,
+          raw ?? enAi.importSessionErrors.reviewAndRetry,
+          raw ?? zhAi.importSessionErrors.reviewAndRetry,
+        );
+        expect(enAi.importSessionErrors.reviewAndRetry).toBe(
+          "Import failed. Review the errors and try again.",
+        );
+        expect(result.current.status).toBe("error");
+        expect(result.current.submitted).toBe(false);
+        expect(result.current.drafts[0].errors.general).toEqual(["Provider row diagnostic"]);
+        expect(adapterMocks.importActivities).toHaveBeenCalledTimes(1);
+        expect(adapterMocks.saveAccountImportMapping).not.toHaveBeenCalled();
+        expect(adapterMocks.updateToolResult).not.toHaveBeenCalled();
+      },
+    );
+
     it.each(["initialization", "revalidation", "submission"] as const)(
       "preserves raw Error and key-looking string diagnostics from %s",
       async (phase) => {

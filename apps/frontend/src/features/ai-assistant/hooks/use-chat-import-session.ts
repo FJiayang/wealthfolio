@@ -67,7 +67,8 @@ type ChatImportErrorKey = `ai:importSessionErrors.${
   | "revalidateFailed"
   | "nothing"
   | "allInvalid"
-  | "importFailed"}`;
+  | "importFailed"
+  | "reviewAndRetry"}`;
 
 // Only built-in UI errors are translated; adapter diagnostics remain verbatim.
 type ChatImportError = string | { key: ChatImportErrorKey };
@@ -1127,8 +1128,7 @@ export function useChatImportSession({
         }
         dispatch({
           type: "ERROR",
-          payload:
-            result.summary?.errorMessage ?? "Import failed. Review the errors and try again.",
+          payload: result.summary?.errorMessage ?? { key: "ai:importSessionErrors.reviewAndRetry" },
         });
         return;
       }

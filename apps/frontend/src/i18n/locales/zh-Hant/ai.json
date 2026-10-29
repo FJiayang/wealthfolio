@@ -649,6 +649,7 @@
     "revalidateFailed": "重新驗證失敗。",
     "nothing": "沒有可匯入的內容。",
     "allInvalid": "所有交易都有驗證錯誤。請修正後重試。",
-    "importFailed": "匯入交易失敗。"
+    "importFailed": "匯入交易失敗。",
+    "reviewAndRetry": "匯入失敗。請檢查錯誤後重試。"
   }
 }

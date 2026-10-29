@@ -649,6 +649,7 @@
     "revalidateFailed": "Failed to revalidate.",
     "nothing": "Nothing to import.",
     "allInvalid": "All activities have validation errors. Fix them and try again.",
-    "importFailed": "Failed to import activities."
+    "importFailed": "Failed to import activities.",
+    "reviewAndRetry": "Import failed. Review the errors and try again."
   }
 }

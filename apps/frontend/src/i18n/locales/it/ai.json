@@ -687,6 +687,7 @@
     "revalidateFailed": "Nuova convalida non riuscita.",
     "nothing": "Niente da importare.",
     "allInvalid": "Tutte le attività contengono errori di convalida. Correggili e riprova.",
-    "importFailed": "Importazione delle attività non riuscita."
+    "importFailed": "Importazione delle attività non riuscita.",
+    "reviewAndRetry": "Importazione non riuscita. Controlla gli errori e riprova."
   }
 }
