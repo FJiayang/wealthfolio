@@ -2,6 +2,7 @@ import { createInstance } from "i18next";
 import { beforeAll, expect, it } from "vitest";
 import en from "@/i18n/locales/en/settings.json";
 import zh from "@/i18n/locales/zh/settings.json";
+import es from "@/i18n/locales/es/settings.json";
 import enAsset from "@/i18n/locales/en/asset.json";
 import zhAsset from "@/i18n/locales/zh/asset.json";
 import enHoldings from "@/i18n/locales/en/holdings.json";
@@ -108,4 +109,23 @@ it("keeps all mapped instruments localized across language changes without taxon
       ].join(" • "),
     );
   }
+});
+
+// BME uses “Acciones” for financial stocks, not the unrelated noun “cepo”.
+// https://www.bolsasymercados.es/es/bme-exchange/mercados-y-cotizaciones/acciones.html
+it("uses the Spanish finance term for stocks without taxonomy resources", async () => {
+  const language = createInstance();
+  await language.init({
+    lng: "es",
+    fallbackLng: "en",
+    resources: { es: { settings: es }, en: { settings: en } },
+  });
+  expect(getProviderInstruments(language.t, "Stocks • Future instrument")).toBe(
+    "Acciones • Future instrument",
+  );
+  expect(getProviderName(language.t, "YAHOO", "Yahoo Finance")).toBe("Yahoo Finance");
+  await language.changeLanguage("en");
+  expect(getProviderInstruments(language.t, "Stocks • Future instrument")).toBe(
+    "Stocks • Future instrument",
+  );
 });

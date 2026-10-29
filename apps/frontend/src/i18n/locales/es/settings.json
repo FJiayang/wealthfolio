@@ -886,7 +886,7 @@
       "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "Historial de acciones y fondos canadienses (símbolo TSX o código Fundserv)"
     },
     "instrumentLabels": {
-      "stocks": "Cepo",
+      "stocks": "Acciones",
       "crypto": "Cripto",
       "etfs": "ETF",
       "funds": "Fondos",
