@@ -1,4 +1,5 @@
 import { getTaxonomyLabel, getCategoryLabel } from "@/lib/taxonomy-labels";
+import { taxonomyTabLabel } from "./taxonomy-tab-label";
 import { useState, useMemo } from "react";
 import {
   Icons,
@@ -157,9 +158,7 @@ export default function TaxonomiesPage() {
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{ backgroundColor: taxonomy.color }}
                   />
-                  <span>
-                    {getTaxonomyLabel(t, taxonomy.id, taxonomy.name).replace(" (GICS)", "")}
-                  </span>
+                  <span>{taxonomyTabLabel(t, taxonomy.id, taxonomy.name)}</span>
                 </TabsTrigger>
               ))}
             </TabsList>

@@ -649,6 +649,9 @@ function TargetEditor({
         t,
       )
     : null;
+  const selectedPresetName = selectedPreset
+    ? modelPresetTitle(selectedPreset, targetCategories)
+    : null;
   const scope = target
     ? { scopeType: target.scopeType, scopeId: target.scopeId ?? null }
     : defaultScopeFromAccountScope(accountScope);
@@ -658,18 +661,11 @@ function TargetEditor({
   const suggestedTargetName = stripBidiControls(
     startId === "scratch" || startId === "current"
       ? t("allocation:editor.suggestedTargetName", {
-          name:
-            (selectedTaxonomy
-              ? getTaxonomyLabel(t, selectedTaxonomy.id, selectedTaxonomy.name)
-              : undefined) ?? t("allocation:editor.customFallback"),
+          name: selectedTaxonomy?.name ?? t("allocation:editor.customFallback"),
         })
       : t("allocation:editor.suggestedTargetName", {
           name:
-            selectedPresetTitle ??
-            (selectedTaxonomy
-              ? getTaxonomyLabel(t, selectedTaxonomy.id, selectedTaxonomy.name)
-              : undefined) ??
-            t("allocation:editor.customFallback"),
+            selectedPresetName ?? selectedTaxonomy?.name ?? t("allocation:editor.customFallback"),
         }),
   );
   const savedWeightDrafts = React.useMemo(
