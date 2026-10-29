@@ -873,15 +873,15 @@
     "us_treasury_name": "Tesouro dos EUA (calculado)",
     "templateDescriptions": {
       "workplace_fund_prices_fund_code": "Preços dos fundos do local de trabalho (código do fundo)",
-      "free_crypto_use_coin_id_bitcoin_ethereum": "Criptografia gratuita (use ID de moeda: bitcoin, ethereum...)",
+      "free_crypto_use_coin_id_bitcoin_ethereum": "Preços gratuitos de criptomoedas (use ID da moeda: bitcoin, ethereum...)",
       "free_currency_rates": "Taxas de câmbio gratuitas",
       "lse_etfs_equities": "ETFs e ações da LSE",
       "eu_funds_equities_isin_mic": "Fundos e ações da UE (ISIN-MIC)",
-      "stocks_crypto_fx_set_api_key_in_headers": "Ações, criptografia, FX (definir chave de API nos cabeçalhos)",
+      "stocks_crypto_fx_set_api_key_in_headers": "Ações, criptomoedas, FX (definir chave de API nos cabeçalhos)",
       "italian_bonds_stocks": "Títulos e ações italianos",
       "workplace_fund_price_history_fund_code": "Histórico de preços do fundo do local de trabalho (código do fundo)",
       "lse_etfs_equities_html_table": "ETFs e ações da LSE (tabela HTML)",
-      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Histórico diário de criptografia (use ID da moeda: bitcoin, ethereum...)",
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Histórico diário de criptomoedas (use ID da moeda: bitcoin, ethereum...)",
       "canadian_stocks_funds_tsx_symbol_or_fundserv_code": "Ações e fundos canadenses (símbolo TSX ou código Fundserv)",
       "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "Histórico de ações e fundos canadenses (símbolo TSX ou código Fundserv)"
     },

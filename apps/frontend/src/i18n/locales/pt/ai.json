@@ -453,7 +453,7 @@
     "byType": "Por tipo",
     "monthlyIncome": "Rendimentos mensais",
     "sources": "Fontes",
-    "yoyShort": "Anual"
+    "yoyShort": "Interanual"
   },
   "categorizationContext": {
     "loading": "Carregando contexto de categorização…",

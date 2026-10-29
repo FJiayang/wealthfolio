@@ -1,4 +1,5 @@
-import i18n from "i18next";
+import type { LocalDraftErrorMessages } from "../utils/draft-validation-messages";
+import enActivity from "@/i18n/locales/en/activity.json";
 import {
   createContext,
   useCallback,
@@ -87,6 +88,7 @@ export interface DraftActivity {
   // Validation state
   status: DraftActivityStatus;
   errors: Record<string, string[]>;
+  localErrorMessages?: LocalDraftErrorMessages;
   warnings: Record<string, string[]>;
   skipReason?: string;
   duplicateOfId?: string;
@@ -117,6 +119,8 @@ export interface ImportResult {
   errorMessage?: string;
 }
 
+type ImportValidationError = string | { key: "activity:import.review.backend_failed" };
+
 export interface ImportState {
   step: ImportStep;
   stepOrder: ImportStep[];
@@ -136,7 +140,7 @@ export interface ImportState {
   accountId: string;
   holdingsCheckPassed: boolean;
   isValidating: boolean;
-  validationError: string | null;
+  validationError: ImportValidationError | null;
   draftRevision: number;
   lastValidatedRevision: number | null;
   isPreviewingAssets: boolean;
@@ -224,7 +228,7 @@ export type ImportAction =
   | { type: "NEXT_STEP" }
   | { type: "PREV_STEP" }
   | { type: "SET_IS_VALIDATING"; payload: boolean }
-  | { type: "SET_VALIDATION_ERROR"; payload: string | null }
+  | { type: "SET_VALIDATION_ERROR"; payload: ImportValidationError | null }
   | { type: "MARK_VALIDATED"; payload: number }
   | { type: "SET_IS_PREVIEWING_ASSETS"; payload: boolean }
   | { type: "SET_ASSET_PREVIEW_ERROR"; payload: string | null }
@@ -626,11 +630,25 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
                 backendWarnings[key] = Array.isArray(value) ? value : [String(value)];
               }
             }
-            if (!backendResult.isValid && Object.keys(backendErrors).length === 0) {
-              backendErrors.general = [i18n.t("activity:validation_failed")];
+            const usesGeneralFallback =
+              !backendResult.isValid && Object.keys(backendErrors).length === 0;
+            if (usesGeneralFallback) {
+              backendErrors.general = [enActivity.validation_failed];
             }
 
             const mergedErrors = mergeIssueMaps(draft.errors || {}, backendErrors);
+            let localErrorMessages = draft.localErrorMessages;
+            if (
+              usesGeneralFallback &&
+              !draft.errors?.general?.includes(enActivity.validation_failed)
+            ) {
+              const generalMessages = [...(draft.localErrorMessages?.general ?? [])];
+              generalMessages[mergedErrors.general.length - 1] = {
+                key: "activity:validation_failed",
+                originalMessage: enActivity.validation_failed,
+              };
+              localErrorMessages = { ...draft.localErrorMessages, general: generalMessages };
+            }
             const retainedWarnings = { ...(draft.warnings || {}) };
             delete retainedWarnings._duplicate;
             const mergedWarnings = mergeIssueMaps(retainedWarnings, backendWarnings);
@@ -659,6 +677,7 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
               ...draft,
               assetId: backendResult.assetId,
               errors: mergedErrors,
+              localErrorMessages,
               warnings: mergedWarnings,
               duplicateOfId: backendResult.duplicateOfId,
               duplicateOfLineNumber: backendResult.duplicateOfLineNumber,
@@ -695,7 +714,7 @@ export function ImportProvider({ children, initialAccountId }: ImportProviderPro
         if (run === validationRunRef.current && draftRevisionRef.current <= requestedRevision) {
           dispatch({
             type: "SET_VALIDATION_ERROR",
-            payload: i18n.t("activity:import.review.backend_failed"),
+            payload: { key: "activity:import.review.backend_failed" },
           });
         }
         return { ok: false, hasErrors: false };

@@ -1,4 +1,4 @@
-import i18n from "i18next";
+import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -12,6 +12,7 @@ import {
   saveAccountImportMapping,
   updateToolResult,
 } from "@/adapters";
+import { omitLocalDraftErrors } from "@/pages/activity/import/utils/draft-validation-messages";
 import { draftToActivityImport } from "@/pages/activity/import/utils/draft-utils";
 import type {
   ActivityImport,
@@ -58,6 +59,19 @@ export interface ChatImportStats {
   toImport: number;
 }
 
+type ChatImportErrorKey = `ai:importSessionErrors.${
+  | "missingCsv"
+  | "emptyCsv"
+  | "noActivities"
+  | "prepareFailed"
+  | "revalidateFailed"
+  | "nothing"
+  | "allInvalid"
+  | "importFailed"}`;
+
+// Only built-in UI errors are translated; adapter diagnostics remain verbatim.
+type ChatImportError = string | { key: ChatImportErrorKey };
+
 interface ChatImportState {
   status: "initializing" | "ready" | "submitting" | "submitted" | "error";
   drafts: DraftActivity[];
@@ -66,7 +80,7 @@ interface ChatImportState {
   filter: ChatImportFilter;
   accountId: string;
   accountTypeById: Map<string, string>;
-  error: string | null;
+  error: ChatImportError | null;
   importedCount: number;
 }
 
@@ -80,7 +94,7 @@ type Action =
         accountTypeById: Map<string, string>;
       };
     }
-  | { type: "INIT_ERROR"; payload: string }
+  | { type: "INIT_ERROR"; payload: ChatImportError }
   | { type: "SET_DRAFTS"; payload: DraftActivity[] }
   | { type: "MERGE_CREATED_ASSET_IDS"; payload: Record<string, string> }
   | {
@@ -93,7 +107,7 @@ type Action =
   | { type: "UPDATE_DRAFT"; payload: { rowIndex: number; updates: Partial<DraftActivity> } }
   | { type: "SUBMITTING" }
   | { type: "SUBMITTED"; payload: number }
-  | { type: "ERROR"; payload: string };
+  | { type: "ERROR"; payload: ChatImportError };
 
 const INITIAL_STATE: ChatImportState = {
   status: "initializing",
@@ -151,7 +165,12 @@ function reducer(state: ChatImportState, action: Action): ChatImportState {
         drafts: state.drafts.map((d) => {
           const nextErrors = { ...(d.errors ?? {}) };
           delete nextErrors.accountId;
-          return { ...d, accountId: action.payload, errors: nextErrors };
+          return {
+            ...d,
+            accountId: action.payload,
+            errors: nextErrors,
+            localErrorMessages: omitLocalDraftErrors(d.localErrorMessages, ["accountId"]),
+          };
         }),
       };
     case "UPDATE_DRAFT": {
@@ -170,6 +189,7 @@ function reducer(state: ChatImportState, action: Action): ChatImportState {
             ...merged,
             status: merged.status === "skipped" ? "skipped" : v.status,
             errors: v.errors,
+            localErrorMessages: v.localErrorMessages,
             warnings: { ...(merged.warnings ?? {}), ...v.warnings },
           };
         }),
@@ -186,7 +206,13 @@ function reducer(state: ChatImportState, action: Action): ChatImportState {
           const merged = { ...d, ...action.payload.updates };
           if (merged.status === "skipped") return merged;
           const v = validateDraft(merged, state.accountTypeById);
-          return { ...merged, status: v.status, errors: v.errors, warnings: v.warnings };
+          return {
+            ...merged,
+            status: v.status,
+            errors: v.errors,
+            localErrorMessages: v.localErrorMessages,
+            warnings: v.warnings,
+          };
         }),
       };
     }
@@ -352,6 +378,7 @@ function applyBackendValidation(
       return {
         ...draft,
         errors: localValidation.errors,
+        localErrorMessages: localValidation.localErrorMessages,
         warnings: localValidation.warnings,
         duplicateOfId: undefined,
         duplicateOfLineNumber: undefined,
@@ -397,6 +424,7 @@ function applyBackendValidation(
       ...draft,
       assetId: backendResult.assetId,
       errors: mergedErrors,
+      localErrorMessages: localValidation.localErrorMessages,
       warnings: mergedWarnings,
       duplicateOfId: backendResult.duplicateOfId,
       duplicateOfLineNumber: backendResult.duplicateOfLineNumber,
@@ -557,6 +585,7 @@ export function useChatImportSession({
   submittedFromResult,
   submittedCountFromResult,
 }: UseChatImportSessionOptions): UseChatImportSessionResult {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
 
@@ -585,7 +614,7 @@ export function useChatImportSession({
         if (!mapping.csvContent) {
           dispatch({
             type: "INIT_ERROR",
-            payload: i18n.t("ai:importSessionErrors.missingCsv"),
+            payload: { key: "ai:importSessionErrors.missingCsv" },
           });
           return;
         }
@@ -685,8 +714,8 @@ export function useChatImportSession({
             type: "INIT_ERROR",
             payload:
               parsed.rows.length === 0
-                ? i18n.t("ai:importSessionErrors.emptyCsv")
-                : i18n.t("ai:importSessionErrors.noActivities"),
+                ? { key: "ai:importSessionErrors.emptyCsv" }
+                : { key: "ai:importSessionErrors.noActivities" },
           });
           return;
         }
@@ -754,13 +783,16 @@ export function useChatImportSession({
         });
       } catch (err) {
         if (cancelled) return;
-        const message =
+        const message: ChatImportError =
           err instanceof Error
             ? err.message
             : typeof err === "string"
               ? err
-              : i18n.t("ai:importSessionErrors.prepareFailed");
-        logger.error("[ChatImport] Init failed:", message);
+              : { key: "ai:importSessionErrors.prepareFailed" };
+        logger.error(
+          "[ChatImport] Init failed:",
+          typeof message === "string" ? message : message.key,
+        );
         dispatch({ type: "INIT_ERROR", payload: message });
       }
     })();
@@ -784,7 +816,7 @@ export function useChatImportSession({
       dispatch({
         type: "ERROR",
         payload:
-          err instanceof Error ? err.message : i18n.t("ai:importSessionErrors.revalidateFailed"),
+          err instanceof Error ? err.message : { key: "ai:importSessionErrors.revalidateFailed" },
       });
     }
   }, [state.accountTypeById, state.drafts]);
@@ -946,7 +978,12 @@ export function useChatImportSession({
             nextDrafts = state.drafts.map((d) => {
               const nextErrors = { ...(d.errors ?? {}) };
               delete nextErrors.accountId;
-              return { ...d, accountId, errors: nextErrors };
+              return {
+                ...d,
+                accountId,
+                errors: nextErrors,
+                localErrorMessages: omitLocalDraftErrors(d.localErrorMessages, ["accountId"]),
+              };
             });
           }
 
@@ -966,7 +1003,7 @@ export function useChatImportSession({
             payload:
               err instanceof Error
                 ? err.message
-                : i18n.t("ai:importSessionErrors.revalidateFailed"),
+                : { key: "ai:importSessionErrors.revalidateFailed" },
           });
         }
       })();
@@ -996,7 +1033,7 @@ export function useChatImportSession({
           (d.status === "duplicate" && d.forceImport),
       );
       if (locallyImportable.length === 0) {
-        dispatch({ type: "ERROR", payload: i18n.t("ai:importSessionErrors.nothing") });
+        dispatch({ type: "ERROR", payload: { key: "ai:importSessionErrors.nothing" } });
         return;
       }
 
@@ -1019,7 +1056,7 @@ export function useChatImportSession({
       if (confirmedDrafts.length === 0) {
         dispatch({
           type: "ERROR",
-          payload: i18n.t("ai:importSessionErrors.allInvalid"),
+          payload: { key: "ai:importSessionErrors.allInvalid" },
         });
         return;
       }
@@ -1157,7 +1194,8 @@ export function useChatImportSession({
       }
       dispatch({
         type: "ERROR",
-        payload: err instanceof Error ? err.message : i18n.t("ai:importSessionErrors.importFailed"),
+        payload:
+          err instanceof Error ? err.message : { key: "ai:importSessionErrors.importFailed" },
       });
     }
   }, [
@@ -1187,7 +1225,8 @@ export function useChatImportSession({
 
   return {
     status: state.status,
-    error: state.error,
+    error:
+      state.error === null || typeof state.error === "string" ? state.error : t(state.error.key),
     drafts: state.drafts,
     filteredDrafts,
     stats,

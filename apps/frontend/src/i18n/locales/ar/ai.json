@@ -412,7 +412,7 @@
     "title": "ملخص الدخل",
     "unavailable": "بيانات الدخل غير متاحة.",
     "yearToDate": "منذ بداية العام حتى اليوم",
-    "yoyShort": "سنوي"
+    "yoyShort": "على أساس سنوي"
   },
   "mapping": {
     "aiMapping": "تعيين بالذكاء الاصطناعي · {{confidence}}",
