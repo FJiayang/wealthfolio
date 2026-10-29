@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
@@ -68,6 +69,8 @@ const runPlaywrightTests = (extraArgs = []) =>
   });
 
 const run = async () => {
+  const envPath = join(REPO_ROOT, ".env.web");
+  const originalEnv = await readFile(envPath, "utf8");
   await prepE2eEnv();
 
   const devServer = spawnCommand("pnpm", ["run", "dev:web"], {
@@ -102,7 +105,11 @@ const run = async () => {
     console.log("Backend ready. Starting tests...");
     await runPlaywrightTests(cliArgs);
   } finally {
-    await cleanup();
+    try {
+      await cleanup();
+    } finally {
+      await writeFile(envPath, originalEnv);
+    }
   }
 };
 

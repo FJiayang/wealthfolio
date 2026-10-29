@@ -23,6 +23,10 @@ The easiest way to run the entire suite. Handles everything automatically:
 prepares a fresh database, starts the web app, waits for both servers, runs
 Playwright, and shuts everything down.
 
+The automated runner restores the complete original `.env.web` after a successful
+or failed run. Test data stays in its disposable directory; a subsequent normal
+startup uses the original local profiles and accounts again.
+
 ```bash
 pnpm test:e2e
 ```
