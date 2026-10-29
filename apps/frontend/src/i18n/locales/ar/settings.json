@@ -1259,7 +1259,9 @@
       "italian_bonds_stocks": "السندات والأسهم الإيطالية",
       "workplace_fund_price_history_fund_code": "تاريخ أسعار صندوق مكان العمل (رمز الصندوق)",
       "lse_etfs_equities_html_table": "صناديق الاستثمار المتداولة والأسهم في بورصة لندن (جدول HTML)",
-      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "سجل العملات المشفرة اليومي (استخدم معرف العملة: bitcoin، ethereum...)"
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "سجل العملات المشفرة اليومي (استخدم معرف العملة: bitcoin، ethereum...)",
+      "canadian_stocks_funds_tsx_symbol_or_fundserv_code": "الأسهم والصناديق الكندية (رمز التداول في TSX أو رمز Fundserv)",
+      "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "سجل الأسهم والصناديق الكندية (رمز التداول في TSX أو رمز Fundserv)"
     },
     "instrumentLabels": {
       "stocks": "الأسهم",

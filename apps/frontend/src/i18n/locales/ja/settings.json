@@ -843,7 +843,9 @@
       "italian_bonds_stocks": "イタリアの債券と株式",
       "workplace_fund_price_history_fund_code": "職場基金の価格履歴 (基金コード)",
       "lse_etfs_equities_html_table": "LSE ETF と株式 (HTML テーブル)",
-      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "毎日の暗号通貨履歴 (コイン ID を使用: bitcoin、ethereumなど)"
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "毎日の暗号通貨履歴 (コイン ID を使用: bitcoin、ethereumなど)",
+      "canadian_stocks_funds_tsx_symbol_or_fundserv_code": "カナダの株式・ファンド（TSX銘柄コードまたはFundservコード）",
+      "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "カナダの株式・ファンドの履歴（TSX銘柄コードまたはFundservコード）"
     },
     "instrumentLabels": {
       "stocks": "株式",

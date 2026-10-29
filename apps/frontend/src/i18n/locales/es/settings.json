@@ -881,7 +881,9 @@
       "italian_bonds_stocks": "Bonos y acciones italianas",
       "workplace_fund_price_history_fund_code": "Historial de precios de fondos de Workplace (código de fondo)",
       "lse_etfs_equities_html_table": "ETF y acciones de LSE (tabla HTML)",
-      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Historial criptográfico diario (use ID de moneda: bitcoin, ethereum...)"
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Historial criptográfico diario (use ID de moneda: bitcoin, ethereum...)",
+      "canadian_stocks_funds_tsx_symbol_or_fundserv_code": "Acciones y fondos canadienses (símbolo TSX o código Fundserv)",
+      "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "Historial de acciones y fondos canadienses (símbolo TSX o código Fundserv)"
     },
     "instrumentLabels": {
       "stocks": "Cepo",

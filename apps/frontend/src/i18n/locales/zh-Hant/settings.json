@@ -855,7 +855,9 @@
       "italian_bonds_stocks": "義大利債券和股票",
       "workplace_fund_price_history_fund_code": "雇主退休計畫基金歷史價格（基金代碼）",
       "lse_etfs_equities_html_table": "LSE ETF 和股票（HTML 表格）",
-      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "加密貨幣每日歷史價格（使用幣種 ID：bitcoin、ethereum 等）"
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "加密貨幣每日歷史價格（使用幣種 ID：bitcoin、ethereum 等）",
+      "canadian_stocks_funds_tsx_symbol_or_fundserv_code": "加拿大股票與基金（TSX 股票代碼或 Fundserv 代碼）",
+      "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "加拿大股票與基金歷史資料（TSX 股票代碼或 Fundserv 代碼）"
     },
     "instrumentLabels": {
       "stocks": "股票",

@@ -883,7 +883,9 @@
       "italian_bonds_stocks": "Obligations et actions italiennes",
       "workplace_fund_price_history_fund_code": "Historique des prix des fonds Workplace (code du fonds)",
       "lse_etfs_equities_html_table": "ETF et actions LSE (tableau HTML)",
-      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Historique quotidien des cryptomonnaies (utilisez l'identifiant de la pièce : bitcoin, ethereum...)"
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "Historique quotidien des cryptomonnaies (utilisez l'identifiant de la pièce : bitcoin, ethereum...)",
+      "canadian_stocks_funds_tsx_symbol_or_fundserv_code": "Actions et fonds canadiens (symbole TSX ou code Fundserv)",
+      "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "Historique des actions et fonds canadiens (symbole TSX ou code Fundserv)"
     },
     "instrumentLabels": {
       "stocks": "Actions",

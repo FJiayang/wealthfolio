@@ -843,7 +843,9 @@
       "italian_bonds_stocks": "이탈리아 채권 및 주식",
       "workplace_fund_price_history_fund_code": "직장 펀드 가격 내역(펀드 코드)",
       "lse_etfs_equities_html_table": "LSE ETF 및 주식(HTML 테이블)",
-      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "일일 암호화폐 기록(코인 ID 사용: bitcoin, ethereum...)"
+      "daily_crypto_history_use_coin_id_bitcoin_ethereum": "일일 암호화폐 기록(코인 ID 사용: bitcoin, ethereum...)",
+      "canadian_stocks_funds_tsx_symbol_or_fundserv_code": "캐나다 주식 및 펀드(TSX 종목 기호 또는 Fundserv 코드)",
+      "canadian_stock_fund_history_tsx_symbol_or_fundserv_code": "캐나다 주식 및 펀드 이력(TSX 종목 기호 또는 Fundserv 코드)"
     },
     "instrumentLabels": {
       "stocks": "주식",
