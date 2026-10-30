@@ -191,26 +191,136 @@ business_tool!(GetAllocationTargetDrift, GetAllocationTargetDriftArgs, "get_allo
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct CalculateRebalancePlanArgs {
-    pub target_id: String,
-    pub available_cash: rust_decimal::Decimal,
-    pub filter: wealthfolio_core::portfolios::AccountScope,
+struct GenerateCalculatedAdjustmentsArgs {
+    target_id: String,
+    filter: wealthfolio_core::portfolios::AccountScope,
+    selected_account_ids: Vec<String>,
+    mode: wealthfolio_core::portfolio::allocation_targets::WorksheetMode,
+    rule: wealthfolio_core::portfolio::allocation_targets::AllocationRule,
+    cash: wealthfolio_core::portfolio::allocation_targets::WorksheetCashInput,
     #[serde(default)]
-    pub scenario_mode: Option<wealthfolio_core::portfolio::allocation_targets::ScenarioMode>,
+    eligible_asset_ids: Option<Vec<String>>,
     #[serde(default)]
-    pub eligible_asset_ids: Option<Vec<String>>,
+    sellable_asset_ids: Option<Vec<String>>,
 }
 
-business_tool!(CalculateRebalancePlan, CalculateRebalancePlanArgs, "calculate_rebalance_plan",
-    "Calculate proposed trades only; never records activities or changes holdings. Use availableCash in base currency, the existing scenario modes and optional eligibleAssetIds.",
-    json!({"type":"object","properties":{"targetId":{"type":"string"},"availableCash":{"oneOf":[{"type":"string"},{"type":"number"}]},"filter":{"type":"object","properties":{"type":{"type":"string","enum":["all","account","portfolio","accounts"]},"accountId":{"type":"string"},"portfolioId":{"type":"string"},"accountIds":{"type":"array","items":{"type":"string"},"maxItems":100}},"required":["type"]},"scenarioMode":{"type":"string","enum":["cash_flow_only","sell_to_rebalance","hybrid"]},"eligibleAssetIds":{"type":"array","items":{"type":"string"},"maxItems":100}},"required":["targetId","availableCash","filter"]}), [AgentScope::FinancialPlanningRead, AgentScope::HoldingsRead], Read, |env, args| {
-        let resolved = resolve_scope(&env, &args.filter)?;
-        let input = wealthfolio_core::portfolio::allocation_targets::CalculateRebalancePlanInput {
-            target_id: args.target_id, available_cash: args.available_cash, account_ids: resolved.account_ids,
-            base_currency: env.base_currency(), aggregated_account_id: resolved.scope_id,
-            scenario_mode: args.scenario_mode.unwrap_or_default(), eligible_asset_ids: args.eligible_asset_ids,
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CalculateAllocationWorksheetArgs {
+    target_id: String,
+    filter: wealthfolio_core::portfolios::AccountScope,
+    selected_account_ids: Vec<String>,
+    cash: wealthfolio_core::portfolio::allocation_targets::WorksheetCashInput,
+    lines: Vec<wealthfolio_core::portfolio::allocation_targets::AllocationWorksheetLineInput>,
+}
+
+fn worksheet_schema(generate: bool) -> Value {
+    let decimal = json!({"oneOf":[{"type":"string"},{"type":"number"}]});
+    let ids = json!({"type":"array","items":{"type":"string"},"maxItems":100});
+    let mut schema = json!({
+        "type":"object", "additionalProperties":false,
+        "properties":{
+            "targetId":{"type":"string"},
+            "filter":{"type":"object","properties":{"type":{"type":"string","enum":["all","account","portfolio","accounts"]},"accountId":{"type":"string"},"portfolioId":{"type":"string"},"accountIds":ids},"required":["type"]},
+            "selectedAccountIds":ids,
+            "cash":{"type":"object","properties":{
+                "trackedCashToUse":decimal,
+                "externalContribution":{"type":"object","additionalProperties":decimal},
+                "trackedCashByAccount":{"type":["object","null"],"additionalProperties":decimal}
+            },"required":["trackedCashToUse"]}
+        },
+        "required":["targetId","filter","selectedAccountIds","cash"]
+    });
+    if generate {
+        schema["properties"]["mode"] = json!({"type":"string","enum":["invest_cash","rebalance"]});
+        schema["properties"]["rule"] =
+            json!({"type":"string","enum":["current_holding_proportions"]});
+        schema["properties"]["eligibleAssetIds"] =
+            json!({"type":["array","null"],"items":{"type":"string"},"maxItems":100});
+        schema["properties"]["sellableAssetIds"] = schema["properties"]["eligibleAssetIds"].clone();
+        schema["required"] = json!([
+            "targetId",
+            "filter",
+            "selectedAccountIds",
+            "cash",
+            "mode",
+            "rule"
+        ]);
+    } else {
+        schema["properties"]["lines"] = json!({"type":"array","maxItems":100,"items":{
+            "type":"object","properties":{
+                "lineId":{"type":"string"},"direction":{"type":"string","enum":["increase","reduce"]},
+                "assetId":{"type":"string"},"accountId":{"type":["string","null"]},
+                "inputMode":{"type":"string","enum":["amount","quantity"]},"value":decimal
+            },"required":["lineId","direction","assetId","inputMode","value"]
+        }});
+        schema["required"] = json!(["targetId", "filter", "selectedAccountIds", "cash", "lines"]);
+    }
+    schema
+}
+
+fn validate_worksheet_scope(
+    env: &Arc<dyn AgentEnvironment>,
+    target_id: &str,
+    filter: &wealthfolio_core::portfolios::AccountScope,
+    selected_account_ids: &[String],
+) -> Result<wealthfolio_core::portfolios::ResolvedAccountScope, AgentToolError> {
+    if selected_account_ids.len() > 100 {
+        return Err(AgentToolError::InvalidInput(
+            "At most 100 accounts per call".into(),
+        ));
+    }
+    if let wealthfolio_core::portfolios::AccountScope::Accounts { account_ids } = filter {
+        if account_ids.len() > 100 {
+            return Err(AgentToolError::InvalidInput(
+                "At most 100 accounts per call".into(),
+            ));
+        }
+    }
+    let requested = resolve_scope(env, filter)?;
+    let resolved = target_scope(env, target_id)?;
+    let mut requested_ids = requested.account_ids;
+    let mut target_ids = resolved.account_ids.clone();
+    requested_ids.sort();
+    target_ids.sort();
+    if requested_ids != target_ids {
+        return Err(AgentToolError::InvalidInput(
+            "Worksheet page scope does not match the selected target scope".into(),
+        ));
+    }
+    // Selected-account membership and cash/line validity remain owned by the
+    // upstream worksheet service, exactly as in both runtime adapters.
+    Ok(resolved)
+}
+
+business_tool!(GenerateCalculatedAdjustments, GenerateCalculatedAdjustmentsArgs, "generate_calculated_adjustments",
+    "Generate proposed allocation worksheet adjustments using the upstream worksheet model. Cash contributions are assigned explicitly by account; never records trades. The filter must match the saved target scope. Pass the returned adjustments as editable lines to calculate_allocation_worksheet for a projection.",
+    worksheet_schema(true), [AgentScope::FinancialPlanningRead, AgentScope::HoldingsRead], Read, |env, args| {
+        if args.eligible_asset_ids.as_ref().is_some_and(|ids| ids.len() > 100)
+            || args.sellable_asset_ids.as_ref().is_some_and(|ids| ids.len() > 100) {
+            return Err(AgentToolError::InvalidInput("At most 100 assets per call".into()));
+        }
+        let resolved = validate_worksheet_scope(&env, &args.target_id, &args.filter, &args.selected_account_ids)?;
+        let input = wealthfolio_core::portfolio::allocation_targets::GenerateCalculatedAdjustmentsInput {
+            target_id: args.target_id, account_ids: resolved.account_ids,
+            base_currency: resolved.base_currency, aggregated_account_id: resolved.scope_id,
+            selected_account_ids: args.selected_account_ids, mode: args.mode, rule: args.rule,
+            cash: args.cash, eligible_asset_ids: args.eligible_asset_ids, sellable_asset_ids: args.sellable_asset_ids,
         };
-        output(env.rebalance_service().calculate_plan(input).await?)
+        output(env.allocation_worksheet_service().generate_adjustments(input).await?)
+    });
+
+business_tool!(CalculateAllocationWorksheet, CalculateAllocationWorksheetArgs, "calculate_allocation_worksheet",
+    "Validate and project caller-supplied allocation worksheet lines using the upstream worksheet model. Does not regenerate adjustments, record trades, or change holdings. The filter must match the saved target scope; cash contributions are assigned explicitly by account.",
+    worksheet_schema(false), [AgentScope::FinancialPlanningRead, AgentScope::HoldingsRead], Read, |env, args| {
+        if args.lines.len() > 100 { return Err(AgentToolError::InvalidInput("At most 100 lines per call".into())); }
+        let resolved = validate_worksheet_scope(&env, &args.target_id, &args.filter, &args.selected_account_ids)?;
+        let input = wealthfolio_core::portfolio::allocation_targets::CalculateAllocationWorksheetInput {
+            target_id: args.target_id, account_ids: resolved.account_ids,
+            base_currency: resolved.base_currency, aggregated_account_id: resolved.scope_id,
+            selected_account_ids: args.selected_account_ids, cash: args.cash, lines: args.lines,
+        };
+        output(env.allocation_worksheet_service().calculate_worksheet(input).await?)
     });
 
 pub fn tools() -> Vec<Arc<dyn AgentTool>> {
@@ -226,6 +336,62 @@ pub fn tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(ListTargetConstraints),
         Arc::new(SaveTargetConstraints),
         Arc::new(GetAllocationTargetDrift),
-        Arc::new(CalculateRebalancePlan),
+        Arc::new(GenerateCalculatedAdjustments),
+        Arc::new(CalculateAllocationWorksheet),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn generation() -> Value {
+        json!({"targetId":"target-1", "filter":{"type":"account","accountId":"account-1"},
+            "selectedAccountIds":["account-1"], "mode":"invest_cash",
+            "rule":"current_holding_proportions", "cash":{"trackedCashToUse":"0",
+                "externalContribution":{"account-1":"100"}}})
+    }
+
+    #[test]
+    fn worksheet_schema_matches_upstream_request_models() {
+        let args: GenerateCalculatedAdjustmentsArgs = serde_json::from_value(generation()).unwrap();
+        assert_eq!(
+            args.cash.external_contribution["account-1"],
+            rust_decimal::Decimal::from(100)
+        );
+        assert_eq!(args.selected_account_ids, vec!["account-1"]);
+        let schema = GenerateCalculatedAdjustments.input_schema();
+        for mode in [
+            wealthfolio_core::portfolio::allocation_targets::WorksheetMode::InvestCash,
+            wealthfolio_core::portfolio::allocation_targets::WorksheetMode::Rebalance,
+        ] {
+            assert!(schema["properties"]["mode"]["enum"]
+                .as_array()
+                .unwrap()
+                .contains(&serde_json::to_value(mode).unwrap()));
+        }
+        assert!(schema["properties"].get("availableCash").is_none());
+        assert!(schema["properties"].get("scenarioMode").is_none());
+        let preview: CalculateAllocationWorksheetArgs = serde_json::from_value(json!({
+            "targetId":"target-1", "filter":{"type":"account","accountId":"account-1"},
+            "selectedAccountIds":["account-1"], "cash":{"trackedCashToUse":"0"},
+            "lines":[{"lineId":"line-1","direction":"increase","assetId":"asset-1",
+                "accountId":null,"inputMode":"amount","value":"10"}]
+        }))
+        .unwrap();
+        assert_eq!(preview.lines[0].value, rust_decimal::Decimal::from(10));
+        assert_eq!(preview.lines[0].account_id, None);
+        assert_eq!(tools().len(), 13);
+    }
+
+    #[test]
+    fn worksheet_rejects_legacy_single_step_parameters() {
+        let mut legacy = generation();
+        legacy["availableCash"] = json!("100");
+        legacy["scenarioMode"] = json!("cash_flow_only");
+        assert!(serde_json::from_value::<GenerateCalculatedAdjustmentsArgs>(legacy).is_err());
+        let mut invalid = generation();
+        invalid["mode"] = json!("hybrid");
+        assert!(serde_json::from_value::<GenerateCalculatedAdjustmentsArgs>(invalid).is_err());
+    }
 }

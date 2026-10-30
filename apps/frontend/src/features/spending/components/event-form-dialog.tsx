@@ -1,4 +1,4 @@
-import { getEventTypeLabel } from "@/lib/taxonomy-labels";
+import { getEventTypeLabel } from "@/features/spending/lib/labels";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";

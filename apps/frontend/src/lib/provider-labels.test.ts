@@ -1,9 +1,12 @@
 import { createInstance } from "i18next";
 import { beforeAll, expect, it } from "vitest";
-import enCommon from "@/i18n/locales/en/common.json";
-import zhCommon from "@/i18n/locales/zh/common.json";
 import en from "@/i18n/locales/en/settings.json";
 import zh from "@/i18n/locales/zh/settings.json";
+import es from "@/i18n/locales/es/settings.json";
+import enAsset from "@/i18n/locales/en/asset.json";
+import zhAsset from "@/i18n/locales/zh/asset.json";
+import enHoldings from "@/i18n/locales/en/holdings.json";
+import zhHoldings from "@/i18n/locales/zh/holdings.json";
 import {
   getProviderCoverage,
   getProviderDescription,
@@ -16,7 +19,10 @@ beforeAll(async () => {
   await i18n.init({
     lng: "zh",
     fallbackLng: "en",
-    resources: { en: { settings: en, common: enCommon }, zh: { settings: zh, common: zhCommon } },
+    resources: {
+      en: { settings: en, asset: enAsset, holdings: enHoldings },
+      zh: { settings: zh, asset: zhAsset, holdings: zhHoldings },
+    },
   });
 });
 it("translates only the original built-in provider description", () => {
@@ -32,8 +38,6 @@ it("localizes known capabilities and preserves external values", () => {
 });
 
 it("keeps brands and user-renamed provider names", () => {
-  expect(getProviderName(i18n.t, "EASTMONEY", "Eastmoney")).toBe("东方财富");
-  expect(getProviderName(i18n.t, "EASTMONEY", "My source")).toBe("My source");
   expect(getProviderName(i18n.t, "US_TREASURY_CALC", "US Treasury (Calculated)")).toBe(
     zh.market_data_page.us_treasury_name,
   );
@@ -68,12 +72,79 @@ it.each(Object.entries(settingsCatalogs))(
   },
 );
 
+it("resolves instrument capabilities from settings alone, without taxonomy resources", () => {
+  const labels = ["Stocks", "Crypto", "ETFs", "Funds", "Bonds"];
+  const keys = ["stocks", "crypto", "etfs", "funds", "bonds"] as const;
+  for (const [index, label] of labels.entries()) {
+    expect(getProviderInstruments(i18n.getFixedT("zh"), label)).toBe(
+      zh.market_data_page.instrumentLabels[keys[index]],
+    );
+    expect(getProviderInstruments(i18n.getFixedT("en"), label)).toBe(
+      en.market_data_page.instrumentLabels[keys[index]],
+    );
+  }
+});
+
+it("keeps all mapped instruments localized across language changes without taxonomy resources", async () => {
+  const raw =
+    "Stocks • Crypto • Forex • Metals • ETFs • Funds • Bonds • US Treasuries • Any • Future instrument";
+  for (const [language, settings, asset, holdings] of [
+    ["zh", zh, zhAsset, zhHoldings],
+    ["en", en, enAsset, enHoldings],
+  ] as const) {
+    await i18n.changeLanguage(language);
+    const labels = settings.market_data_page.instrumentLabels;
+    expect(getProviderInstruments(i18n.t, raw)).toBe(
+      [
+        labels.stocks,
+        labels.crypto,
+        asset.createSecurity.instrumentType.fx,
+        asset.createSecurity.instrumentType.metal,
+        labels.etfs,
+        labels.funds,
+        labels.bonds,
+        settings.market_data_page.coverageLabels["US Treasury"],
+        holdings.all_types,
+        "Future instrument",
+      ].join(" • "),
+    );
+  }
+});
+
+// BME uses “Acciones” for financial stocks, not the unrelated noun “cepo”.
+// https://www.bolsasymercados.es/es/bme-exchange/mercados-y-cotizaciones/acciones.html
+it("uses the Spanish finance term for stocks without taxonomy resources", async () => {
+  const language = createInstance();
+  await language.init({
+    lng: "es",
+    fallbackLng: "en",
+    resources: { es: { settings: es }, en: { settings: en } },
+  });
+  expect(getProviderInstruments(language.t, "Stocks • Future instrument")).toBe(
+    "Acciones • Future instrument",
+  );
+  expect(getProviderName(language.t, "YAHOO", "Yahoo Finance")).toBe("Yahoo Finance");
+  await language.changeLanguage("en");
+  expect(getProviderInstruments(language.t, "Stocks • Future instrument")).toBe(
+    "Stocks • Future instrument",
+  );
+});
+
 it("localizes the IFIND provider metadata", () => {
-  expect(getProviderName(i18n.t, "IFIND", "Tonghuashun iFinD")).toBe("同花顺 iFinD");
+  expect(getProviderName(i18n.getFixedT("zh"), "IFIND", "Tonghuashun iFinD")).toBe("同花顺 iFinD");
   expect(
-    getProviderDescription(i18n.t, "IFIND", en.market_data_page.providerDescriptions.IFIND),
+    getProviderDescription(
+      i18n.getFixedT("zh"),
+      "IFIND",
+      en.market_data_page.providerDescriptions.IFIND,
+    ),
   ).toBe(zh.market_data_page.providerDescriptions.IFIND);
-  expect(getProviderCoverage(i18n.t, "China • Hong Kong • US")).toBe(
+  expect(getProviderCoverage(i18n.getFixedT("zh"), "China • Hong Kong • US")).toBe(
     zh.market_data_page.coverageLabels["China • Hong Kong • US"],
   );
+});
+
+it("localizes seeded native names while preserving custom names", () => {
+  expect(getProviderName(i18n.getFixedT("zh"), "EASTMONEY", "Eastmoney")).toBe("东方财富");
+  expect(getProviderName(i18n.getFixedT("zh"), "EASTMONEY", "My source")).toBe("My source");
 });

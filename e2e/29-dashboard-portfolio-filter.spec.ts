@@ -98,15 +98,17 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
     const filter = page.getByRole("combobox", { name: /^Choose portfolio:/ });
     // Mobile keeps neighbouring views mounted; scope assertions to the investment headline.
     const headlineContainer = page
-      .getByRole("button", { name: /^(Hide|Show) Balance$/ })
+      .locator('[data-slot="hover-card-trigger"]')
+      .filter({ has: page.getByTestId("portfolio-balance") })
       .locator("..");
+    await expect(headlineContainer).toHaveCount(1);
     const balanceValue = headlineContainer.getByTestId("portfolio-balance-value");
     await expect(filter).toHaveAccessibleName("Choose portfolio: All Accounts");
     await expect(
       headlineContainer.locator("..").getByText("All Accounts", { exact: true }),
     ).toHaveCount(0);
     await expectAllAccountsTotal();
-    const privacy = page.getByRole("button", { name: /^(Hide|Show) Balance$/ });
+    const privacy = headlineContainer.getByRole("button", { name: /^(Hide|Show) Balance$/ });
     expect(await privacy.evaluate((element) => element.closest("a"))).toBeNull();
     await privacy.focus();
     await expect(privacy).toBeFocused();
@@ -249,9 +251,9 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    await page.getByRole("button", { name: "Hide Balance", exact: true }).click();
+    await headlineContainer.getByRole("button", { name: "Hide Balance", exact: true }).click();
     await expect(headlineContainer.getByTestId("portfolio-balance")).toContainText("•••");
-    await page.getByRole("button", { name: "Show Balance", exact: true }).click();
+    await headlineContainer.getByRole("button", { name: "Show Balance", exact: true }).click();
     await filter.click();
     await page.getByRole("option", { name: "Dashboard savings" }).click();
 
@@ -307,7 +309,7 @@ test("dashboard portfolio selection, creation, persistence, deletion and mobile 
       await expect(filter).toHaveAccessibleName(`Choose portfolio: ${longName}`);
       await expect(balanceValue).toContainText("1,000,000.00");
       await expect(async () => {
-        const layout = await page
+        const layout = await headlineContainer
           .getByRole("button", { name: "Hide Balance", exact: true })
           .evaluate((element) => {
             const eye = element.getBoundingClientRect();

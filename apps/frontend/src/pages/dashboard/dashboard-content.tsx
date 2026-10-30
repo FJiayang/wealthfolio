@@ -198,9 +198,9 @@ export function DashboardContent({
                 displayCurrency={true}
               />
             </PortfolioUpdateTrigger>
-            <PrivacyToggle className="hover:bg-muted/50 bg-transparent" />
+            <PrivacyToggle variant="ghost" />
           </div>
-          <div className="text-md flex min-h-5 items-center space-x-3">
+          <div className="text-md flex min-h-5 flex-wrap items-center gap-x-3">
             {isPortfolioPerformanceLoading ? (
               <div className="flex items-center gap-3">
                 <Skeleton className="h-4 w-24" />
@@ -221,7 +221,8 @@ export function DashboardContent({
                     displayCurrency={false}
                   />
                 )}
-                <div className="border-secondary my-1 border-e pe-2" />
+                {/* Stretch: the row centres its items, so an empty divider has no height. */}
+                <div className="border-secondary my-1 self-stretch border-e pe-2" />
                 {simpleReturn == null ? (
                   <span className="text-muted-foreground lg:text-md text-sm font-light">
                     {t("performance:not_available")}
@@ -247,7 +248,7 @@ export function DashboardContent({
         style={{
           backgroundImage: isNegative
             ? `linear-gradient(to top, color-mix(in srgb, var(--loss) 30%, transparent), color-mix(in srgb, var(--loss) 15%, transparent) 50%, transparent 100%)`
-            : `linear-gradient(to top, color-mix(in srgb, var(--gain) 30%, transparent), color-mix(in srgb, var(--gain) 15%, transparent) 50%, transparent 100%)`,
+            : `linear-gradient(to top, color-mix(in srgb, var(--investments) 30%, transparent), color-mix(in srgb, var(--investments) 15%, transparent) 50%, transparent 100%)`,
         }}
       >
         <div className="h-70">
@@ -257,6 +258,7 @@ export function DashboardContent({
             scaleMode="fit-visible"
             minDomainSpanRatio={chartMinDomainSpanRatio}
             netContributionMaxDomainSpanRatio={chartNetContributionMaxDomainSpanRatio}
+            color="var(--investments)"
           />
           {valuationHistory && chartData.length > 0 && (
             <div className="flex w-full justify-center">

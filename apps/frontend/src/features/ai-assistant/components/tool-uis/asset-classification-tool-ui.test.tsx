@@ -1,7 +1,9 @@
 import { createInstance, type i18n } from "i18next";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import enCommon from "@/i18n/locales/en/common.json";
+import enTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import enAi from "@/i18n/locales/en/ai.json";
 import zhAi from "@/i18n/locales/zh/ai.json";
 import { act, fireEvent, render, screen, waitFor } from "@/test/render";
@@ -446,7 +448,10 @@ describe("classification display localization", () => {
       lng: "zh",
       fallbackLng: "en",
       interpolation: { escapeValue: false },
-      resources: { en: { common: enCommon, ai: enAi }, zh: { common: zhCommon, ai: zhAi } },
+      resources: {
+        en: { common: enCommon, taxonomies: enTaxonomies, ai: enAi },
+        zh: { common: zhCommon, taxonomies: zhTaxonomies, ai: zhAi },
+      },
     });
     const draft = result({
       taxonomy: { taxonomyId: "asset_classes", name: "Asset Classes", isSingleSelect: false },

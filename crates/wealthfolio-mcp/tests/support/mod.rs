@@ -43,9 +43,10 @@ impl AgentEnvironment for TaxonomyEnv {
         unimplemented!("TaxonomyEnv")
     }
 
-    fn rebalance_service(
+    fn allocation_worksheet_service(
         &self,
-    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait> {
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationWorksheetServiceTrait>
+    {
         unimplemented!("TaxonomyEnv")
     }
 

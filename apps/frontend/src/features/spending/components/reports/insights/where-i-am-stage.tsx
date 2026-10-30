@@ -741,7 +741,9 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
     for (const m of months) {
       income += m.report?.current.income ?? 0;
       spent += m.report?.current.outflow ?? 0;
-      saved += m.report?.current.saved ?? 0;
+      // Net saving: money brought back from savings offsets what went in. A
+      // negative net hides the bar, and Net carries the difference.
+      saved += (m.report?.current.saved ?? 0) - (m.report?.current.fromSavings ?? 0);
     }
     const net = income - spent - saved;
     const surplusRate = income > 0 ? net / income : 0;
@@ -811,7 +813,7 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
 
       <div className="mt-4 space-y-2">
         <div className="text-2xs flex items-center gap-2">
-          <span className="text-muted-foreground w-12 shrink-0">
+          <span className="text-muted-foreground w-16 shrink-0">
             {t("spending:cashFlow.income")}
           </span>
           <div className="bg-foreground/5 h-1.5 flex-1 overflow-hidden rounded-full">
@@ -830,7 +832,7 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
           </p>
         )}
         <div className="text-2xs flex items-center gap-2">
-          <span className="text-muted-foreground w-12 shrink-0">
+          <span className="text-muted-foreground w-16 shrink-0">
             {t("spending:whereIAm.spent")}
           </span>
           <div className="bg-foreground/5 h-1.5 flex-1 overflow-hidden rounded-full">
@@ -845,8 +847,8 @@ const NetCashflowCard: FC<NetCashflowCardProps> = ({ months, currency, isLoading
         </div>
         {totals.saved > 0 && (
           <div className="text-2xs flex items-center gap-2">
-            <span className="text-muted-foreground w-12 shrink-0">
-              {t("spending:whereIAm.saved")}
+            <span className="text-muted-foreground w-16 shrink-0">
+              {t("spending:cashFlow.netSaved")}
             </span>
             <div className="bg-foreground/5 h-1.5 flex-1 overflow-hidden rounded-full">
               <div

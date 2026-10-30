@@ -23,6 +23,7 @@ mod traits;
 
 // Provider implementations
 pub mod alpha_vantage;
+pub mod amfi;
 pub mod boerse_frankfurt;
 pub mod eastmoney;
 pub mod finnhub;

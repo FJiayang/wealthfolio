@@ -52,6 +52,7 @@ import {
 import { formatBackupSize } from "./backup-size";
 import { backupDate, backupState, useCloudBackups } from "./use-cloud-backups";
 import { Alert, AlertDescription } from "@wealthfolio/ui/components/ui/alert";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 type Flow = "setup" | "resume" | "unlock" | "replace" | "pause" | "help";
 /** The one operation in progress: `restore:<id>` and `download:<id>` name their row. */
@@ -607,10 +608,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
   };
   const locked = !!data?.hasKey && !data.keyReady;
   return (
-    <Card
-      className="overflow-hidden rounded-2xl shadow-none"
-      aria-label={t("settings:cloud_backup_title")}
-    >
+    <Card className="overflow-hidden" aria-label={t("settings:cloud_backup_title")}>
       <CardHeader className="space-y-4 p-5 sm:p-6">
         <BackupCardHeader
           brand
@@ -811,7 +809,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
                   : t("settings:backup_unknown_date");
                 const download = {
                   icon: Icons.Download,
-                  label: t("settings:cloud_backup_download"),
+                  label: t("common:download"),
                   onSelect: () =>
                     void perform(`download:${point.backupId}`, () =>
                       downloadCloudBackup(point.backupId),
@@ -819,7 +817,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
                 };
                 const remove = {
                   icon: Icons.Trash2,
-                  label: t("settings:cloud_backup_delete"),
+                  label: t("common:delete"),
                   onSelect: () => showDelete(point.backupId),
                   destructive: true,
                 };
@@ -958,8 +956,7 @@ function CloudBackupPanel({ backup }: { backup: ReturnType<typeof useCloudBackup
                   size="sm"
                   className="mt-3 pointer-coarse:h-11"
                   onClick={() => {
-                    void navigator.clipboard
-                      .writeText(recoveryCode)
+                    void copyText(recoveryCode)
                       .then(() => {
                         setCopied(true);
                       })

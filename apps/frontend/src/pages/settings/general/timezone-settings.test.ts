@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveInitialTimezone } from "./timezone-settings";
+import { getSupportedTimezones, resolveInitialTimezone } from "./timezone-settings";
 
 describe("resolveInitialTimezone", () => {
   it("uses configured timezone when present", () => {
@@ -14,5 +14,19 @@ describe("resolveInitialTimezone", () => {
 
   it("keeps UTC when explicitly configured", () => {
     expect(resolveInitialTimezone("UTC")).toBe("UTC");
+  });
+});
+
+describe("getSupportedTimezones", () => {
+  it("preserves the complete real Intl catalog while adding UTC, deduplicating and sorting", () => {
+    // This is a catalog logic check, not full-directory DOM search coverage.
+    const runtime = Intl.supportedValuesOf("timeZone");
+    expect(runtime.length).toBeGreaterThan(0);
+    const actual = getSupportedTimezones();
+    expect(actual).toEqual(
+      Array.from(new Set(["UTC", ...runtime])).sort((a, b) => a.localeCompare(b)),
+    );
+    expect(actual).toContain("UTC");
+    for (const timezone of runtime) expect(actual).toContain(timezone);
   });
 });

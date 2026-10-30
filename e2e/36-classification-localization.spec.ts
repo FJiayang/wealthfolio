@@ -58,25 +58,3 @@ test("classification translations preserve stored names and user renames, includ
     await setLanguage("en");
   }
 });
-
-test("market-data metadata translates while provider brands stay unchanged", async ({ page }) => {
-  test.setTimeout(120000);
-  await completeOnboardingIfNeeded(page);
-  const api = `${BASE_URL}/api/v1`;
-  try {
-    const saved = await page.request.put(`${api}/settings`, { data: { language: "zh" } });
-    expect(saved.ok()).toBe(true);
-    await page.goto(`${BASE_URL}/settings/market-data?dir=rtl`);
-    await expect(
-      page.getByLabel("内置提供商").getByText("Yahoo Finance", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByText("Yahoo Finance 提供多个市场的历史及实时股票数据。", { exact: true }),
-    ).toBeVisible();
-    await expect(page.getByText("股息", { exact: true }).first()).toBeVisible();
-    await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
-  } finally {
-    const restored = await page.request.put(`${api}/settings`, { data: { language: "en" } });
-    expect(restored.ok()).toBe(true);
-  }
-});

@@ -525,7 +525,7 @@ const AlternativeAssetDetailCard: React.FC<AlternativeAssetDetailCardProps> = ({
             </div>
             <div>
               <div
-                className={`text-xl font-extrabold ${netEquity >= 0 ? "text-success" : "text-destructive"}`}
+                className={`text-xl font-extrabold ${netEquity >= 0 ? "text-gain" : "text-loss"}`}
               >
                 <AmountDisplay
                   value={netEquity}

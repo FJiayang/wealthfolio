@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import type { Activity } from "@/lib/types";
-import { getEventTypeLabel } from "@/lib/taxonomy-labels";
+import { getEventTypeLabel } from "@/features/spending/lib/labels";
 import { cn, parseLocalDate } from "@/lib/utils";
 import {
   Button,

@@ -23,37 +23,38 @@ test.describe("Symbol Mapping Validation", () => {
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
+  async function clearAssetTableFilters() {
+    // The heading is visible while AssetsTable still renders its loading skeleton.
+    // Wait for the real toolbar before checking whether its default Current filter needs reset.
+    await expect(page.getByPlaceholder("Search ...", { exact: true })).toBeVisible();
+    const reset = page.getByRole("button", { name: "Reset", exact: true });
+    if (await reset.isVisible()) await reset.click();
+    await expect(reset).not.toBeVisible();
+  }
+
   async function ensureAssetExists() {
     await gotoAppPath(page, "/settings/securities");
     await expect(page.getByRole("heading", { name: "Securities" })).toBeVisible({ timeout: 10000 });
 
     // Reset portfolio filter so all assets are visible
-    const resetBtn = page.getByRole("button", { name: "Reset" });
-    if (await resetBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await resetBtn.click();
-      await page.waitForTimeout(500);
-    }
+    await clearAssetTableFilters();
 
     // Skip creation if asset already exists
     const existingRow = page.getByRole("row").filter({ hasText: ASSET_SYMBOL });
     if (await existingRow.isVisible({ timeout: 2000 }).catch(() => false)) return;
 
-    await page.getByRole("button", { name: "Add Security" }).click();
+    await page.getByRole("button", { name: "Add security" }).click();
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5000 });
 
     await page.getByPlaceholder("e.g., AAPL").fill(ASSET_SYMBOL);
     await page.getByPlaceholder("e.g., Apple Inc.").fill("Symbol Validation Test Asset");
-    await page.getByRole("button", { name: "Create Security" }).click();
+    await page.getByRole("button", { name: "Create security" }).click();
     await expect(page.getByRole("dialog")).not.toBeVisible({
       timeout: 10000,
     });
 
     // Reset filter again after creation
-    const resetBtn2 = page.getByRole("button", { name: "Reset" });
-    if (await resetBtn2.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await resetBtn2.click();
-      await page.waitForTimeout(500);
-    }
+    await clearAssetTableFilters();
 
     await expect(page.getByRole("row").filter({ hasText: ASSET_SYMBOL }).first()).toBeVisible({
       timeout: 5000,
@@ -65,11 +66,7 @@ test.describe("Symbol Mapping Validation", () => {
     await expect(page.getByRole("heading", { name: "Securities" })).toBeVisible({ timeout: 10000 });
 
     // Reset filter
-    const resetBtn = page.getByRole("button", { name: "Reset" });
-    if (await resetBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await resetBtn.click();
-      await page.waitForTimeout(500);
-    }
+    await clearAssetTableFilters();
 
     await waitForSyncToast(page, 60_000);
 
@@ -91,12 +88,12 @@ test.describe("Symbol Mapping Validation", () => {
     await expect(editSheet).toBeVisible({ timeout: 5000 });
 
     // Click the Market Data tab
-    await page.getByRole("tab", { name: "Market Data" }).click();
+    await page.getByRole("tab", { name: "Market data" }).click();
 
     // Symbol Mapping section is only visible when pricing is Automatic.
     // If the asset is in Manual mode, enable Automatic pricing first.
     // The switch is decorative; the named popover trigger owns the interaction.
-    const pricingToggle = editSheet.getByRole("button", { name: "Automatic Updates" });
+    const pricingToggle = editSheet.getByRole("button", { name: "Automatic updates" });
     await expect(pricingToggle).toBeVisible();
     if (
       await editSheet
@@ -125,7 +122,7 @@ test.describe("Symbol Mapping Validation", () => {
     await page.getByPlaceholder("Search currency...").fill(currency);
     await page.getByRole("option", { name: new RegExp(`\\(${currency}\\)$`) }).click();
     await expect(currencyInput).toContainText(currency);
-    await editSheet.getByRole("tab", { name: "Market Data", exact: true }).click();
+    await editSheet.getByRole("tab", { name: "Market data", exact: true }).click();
   }
 
   async function clearAllMappings() {

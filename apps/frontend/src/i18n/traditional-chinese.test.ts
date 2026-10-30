@@ -80,7 +80,7 @@ const GLOSSARY: readonly {
     use: "手續費",
     insteadOf: ["傭金", "佣金"],
     // Earned commission is income, not the brokerage fee paid on a trade.
-    allowed: ["common:categoryNames.income_sources.cat_income_commission"],
+    allowed: ["taxonomies:categoryNames.income_sources.cat_income_commission"],
   },
   { concept: "Stock split", use: "拆股", insteadOf: [] },
   { concept: "Inflation", use: "通膨", insteadOf: ["通脹"] },

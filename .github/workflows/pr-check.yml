@@ -1,6 +1,7 @@
 name: PR Check
 
 on:
+  merge_group:
   pull_request:
     branches:
       - main
@@ -25,6 +26,7 @@ jobs:
       formatting: ${{ steps.filter.outputs.formatting }}
       android: ${{ steps.filter.outputs.android }}
       ios: ${{ steps.filter.outputs.ios }}
+      addon_sandbox: ${{ steps.filter.outputs.addon_sandbox }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,8 +36,8 @@ jobs:
       - name: Classify changed files
         id: filter
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           git diff --no-renames --name-only -z "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
           python3 .github/scripts/ci_changes.py < "$RUNNER_TEMP/changed-files" >> "$GITHUB_OUTPUT"
@@ -43,7 +45,6 @@ jobs:
   translation-parity:
     name: Translation parity
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -59,7 +60,6 @@ jobs:
   design-ratchet:
     name: Design ratchet
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -73,7 +73,6 @@ jobs:
   formatting:
     name: Formatting
     needs: changes
-    if: needs.changes.outputs.formatting == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -91,7 +90,6 @@ jobs:
     name: Frontend Check
     timeout-minutes: 30
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -123,28 +121,23 @@ jobs:
 
       - name: Run script tests
         # The frontend unit tests run in the Frontend Tests job.
-        run: pnpm test:scripts
+        run: node --test scripts/*.test.mjs apps/frontend/scripts/*.test.mjs
+
+      - name: Run shared package tests
+        run: pnpm --filter './packages/*' -r --if-present test
 
       - name: Check the generated theme CSS
         # Fails when src/themes/generated is stale against the definitions, or a
         # definition breaks the generator's rules (unknown tokens, font stacks
         # without "Rubik Arabic", component rules). Contrast is checked by the
-        # on-demand design-system suite, not here.
+        # required design-system browser suite, not here.
         run: pnpm themes:check
 
       - name: Build frontend
         run: pnpm build
 
-      - name: Install addon sandbox browsers
-        run: pnpm exec playwright install --with-deps chromium firefox webkit
-
-      - name: Run net worth layout regression tests
-        run: pnpm test:e2e:net-worth
-
-      - name: Run addon sandbox browser tests
-        run: pnpm test:e2e:addon-sandbox
-        env:
-          WF_ADDON_SANDBOX_SKIP_BUILD: "true"
+      - name: Build Tauri frontend
+        run: pnpm build:tauri
 
   frontend-tests:
     # Vitest takes longer than every other Frontend Check step together, so it
@@ -152,7 +145,6 @@ jobs:
     name: Frontend Tests (${{ matrix.shard }})
     timeout-minutes: 20
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -183,7 +175,6 @@ jobs:
     name: Rust Check
     timeout-minutes: 45
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: 0
@@ -194,10 +185,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+      - name: Setup repository Rust toolchain
+        run: |
+          rustup show active-toolchain
+          rustup component add rustfmt clippy
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
@@ -301,7 +292,24 @@ jobs:
           cargo check --locked -p wealthfolio-app --target aarch64-apple-ios
           cargo check --locked -p wealthfolio-app --target aarch64-apple-ios-sim
 
+  browser-e2e:
+    name: Browser E2E
+    uses: ./.github/workflows/browser-e2e.yml
+
+  http-client-policy:
+    name: HTTP client policy
+    uses: ./.github/workflows/http-client-policy.yml
+
+  native-secret-store:
+    name: Native secret store
+    uses: ./.github/workflows/native-secret-store.yml
+
+  server-secret-store:
+    name: Server secret store
+    uses: ./.github/workflows/server-secret-store.yml
+
   build-status:
+    # The one required branch-protection check. Never path-filter or rename it.
     name: Build Status
     timeout-minutes: 5
     runs-on: ubuntu-latest
@@ -316,44 +324,22 @@ jobs:
         rust-check,
         android-check,
         ios-check,
+        browser-e2e,
+        http-client-policy,
+        native-secret-store,
+        server-secret-store,
       ]
     if: always()
-
     steps:
+      - uses: actions/checkout@v4
       - name: Check build status
         env:
-          CHANGES_RESULT: ${{ needs.changes.result }}
-          FORMATTING_REQUIRED: ${{ needs.changes.outputs.formatting }}
-          FORMATTING_RESULT: ${{ needs.formatting.result }}
-          ANDROID_REQUIRED: ${{ needs.changes.outputs.android }}
-          ANDROID_RESULT: ${{ needs.android-check.result }}
-          IOS_REQUIRED: ${{ needs.changes.outputs.ios }}
-          IOS_RESULT: ${{ needs.ios-check.result }}
-          FRONTEND_REQUIRED: ${{ needs.changes.outputs.frontend }}
-          RUST_REQUIRED: ${{ needs.changes.outputs.rust }}
-          TRANSLATION_RESULT: ${{ needs.translation-parity.result }}
-          DESIGN_RATCHET_RESULT: ${{ needs.design-ratchet.result }}
-          FRONTEND_RESULT: ${{ needs.frontend-check.result }}
-          FRONTEND_TESTS_RESULT: ${{ needs.frontend-tests.result }}
-          RUST_RESULT: ${{ needs.rust-check.result }}
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python3 .github/scripts/ci_gate.py
+      - name: Record tested revision
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: |
-          test "$CHANGES_RESULT" = success
-          if [ "$FRONTEND_REQUIRED" = true ]; then
-            test "$FRONTEND_RESULT" = success
-            test "$FRONTEND_TESTS_RESULT" = success
-            test "$TRANSLATION_RESULT" = success
-            test "$DESIGN_RATCHET_RESULT" = success
-          fi
-          if [ "$RUST_REQUIRED" = true ]; then
-            test "$RUST_RESULT" = success
-          fi
-          if [ "$FORMATTING_REQUIRED" = true ]; then
-            test "$FORMATTING_RESULT" = success
-          fi
-          if [ "$ANDROID_REQUIRED" = true ]; then
-            test "$ANDROID_RESULT" = success
-          fi
-          if [ "$IOS_REQUIRED" = true ]; then
-            test "$IOS_RESULT" = success
-          fi
-          echo "All required checks passed."
+          printf 'Tested commit: `%s`\n\nPR head: `%s`\n\nBase: `%s`\n' \
+            "$GITHUB_SHA" "$HEAD_SHA" "$BASE_SHA" >> "$GITHUB_STEP_SUMMARY"

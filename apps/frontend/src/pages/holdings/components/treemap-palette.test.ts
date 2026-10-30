@@ -1,18 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { fallbackPalette, getTreemapColor } from "./treemap-palette";
+import { describe, expect, it, vi } from "vitest";
+import { fallbackPalette, getTreemapColor, subscribeToTreemapTheme } from "./treemap-palette";
 
 describe("treemap palette", () => {
   it("draws Classic's ramp: soft sage and rose through their midpoints", () => {
     // +50% total return is the gain ramp's middle (k = 0.5), #b8c496; -25% is the loss
     // ramp's middle, #dca89d. A flat day is the low stop.
-    expect(getTreemapColor(0.5, "pnl")).toEqual({
-      fill: "rgb(184,196,150)",
-      isLightTile: true,
-    });
-    expect(getTreemapColor(-0.25, "pnl")).toEqual({
-      fill: "rgb(220,168,157)",
-      isLightTile: true,
-    });
+    expect(getTreemapColor(0.5, "pnl")).toEqual({ fill: "rgb(184,196,150)", isLightTile: true });
+    expect(getTreemapColor(-0.25, "pnl")).toEqual({ fill: "rgb(220,168,157)", isLightTile: true });
     expect(getTreemapColor(0, "daily").fill).toBe("rgb(230,236,213)");
     // -5% on the day is 60% of the way from the middle to #bd6f60; ink reads best on it.
     expect(getTreemapColor(-0.05, "daily")).toEqual({
@@ -65,8 +59,27 @@ describe("treemap palette", () => {
     expect(getTreemapColor(-0.015, "daily", palette).isLightTile).toBe(true);
   });
 
+  it("re-reads the palette when the mode, theme or gain and loss colours change", async () => {
+    const onChange = vi.fn();
+    const unsubscribe = subscribeToTreemapTheme(onChange);
+    const root = document.documentElement;
+    for (const change of [
+      () => root.setAttribute("data-gain-colors", "red-up"),
+      () => root.setAttribute("data-theme", "ember"),
+      () => root.classList.add("dark"),
+    ]) {
+      onChange.mockClear();
+      change();
+      await Promise.resolve();
+      expect(onChange).toHaveBeenCalled();
+    }
+    unsubscribe();
+    root.removeAttribute("data-gain-colors");
+    root.removeAttribute("data-theme");
+    root.classList.remove("dark");
+  });
   it.each(["daily", "pnl", "return"] as const)(
-    "swaps custom theme ramps without changing %s return intensity or mutating the palette",
+    "uses resolved custom theme ramps without changing %s return intensity or mutating the palette",
     (period) => {
       const palette = {
         ...fallbackPalette,
@@ -78,26 +91,39 @@ describe("treemap palette", () => {
         negativeHigh: [100, 110, 120],
       };
       const original = structuredClone(palette);
+      // The upstream CSS gain/loss roles have already resolved the user's preference.
+      // Model that snapshot; getTreemapColor must not swap it a second time.
+      const resolvedPalette = {
+        ...palette,
+        positiveLow: palette.negativeLow,
+        positiveMid: palette.negativeMid,
+        positiveHigh: palette.negativeHigh,
+        negativeLow: palette.positiveLow,
+        negativeMid: palette.positiveMid,
+        negativeHigh: palette.positiveHigh,
+      };
+      const originalResolved = structuredClone(resolvedPalette);
       const gain = period === "daily" ? 0.025 : 0.5;
       const loss = period === "daily" ? -0.0125 : -0.25;
 
-      expect(getTreemapColor(gain, period, palette, true)).toEqual({
+      expect(getTreemapColor(gain, period, resolvedPalette)).toEqual({
         fill: "rgb(150,160,170)",
         isLightTile: true,
       });
-      expect(getTreemapColor(loss, period, palette, true)).toEqual({
+      expect(getTreemapColor(loss, period, resolvedPalette)).toEqual({
         fill: "rgb(60,70,80)",
         isLightTile: false,
       });
-      expect(getTreemapColor(gain, period, palette, false).fill).toBe("rgb(60,70,80)");
-      expect(getTreemapColor(loss, period, palette, false).fill).toBe("rgb(150,160,170)");
-      expect(getTreemapColor(0, period, palette, true).fill).toBe("rgb(200,210,220)");
-      expect(getTreemapColor(NaN, period, palette, true).fill).toBe("rgb(200,210,220)");
+      expect(getTreemapColor(gain, period, palette).fill).toBe("rgb(60,70,80)");
+      expect(getTreemapColor(loss, period, palette).fill).toBe("rgb(150,160,170)");
+      expect(getTreemapColor(0, period, resolvedPalette).fill).toBe("rgb(200,210,220)");
+      expect(getTreemapColor(NaN, period, resolvedPalette).fill).toBe("rgb(200,210,220)");
       expect(palette).toEqual(original);
+      expect(resolvedPalette).toEqual(originalResolved);
     },
   );
 
-  it("swaps every nonlinear ramp stop while keeping gain and loss intensity scales", () => {
+  it("uses every resolved nonlinear ramp stop while keeping gain and loss intensity scales", () => {
     const palette = {
       ...fallbackPalette,
       positiveLow: [10, 20, 30],
@@ -108,16 +134,29 @@ describe("treemap palette", () => {
       negativeHigh: [20, 30, 40],
     };
     const original = structuredClone(palette);
+    // The upstream CSS gain/loss roles have already resolved the user's preference.
+    // Model that snapshot; getTreemapColor must not swap it a second time.
+    const resolvedPalette = {
+      ...palette,
+      positiveLow: palette.negativeLow,
+      positiveMid: palette.negativeMid,
+      positiveHigh: palette.negativeHigh,
+      negativeLow: palette.positiveLow,
+      negativeMid: palette.positiveMid,
+      negativeHigh: palette.positiveHigh,
+    };
+    const originalResolved = structuredClone(resolvedPalette);
 
     // Gains keep k = 0.5 even on the negative ramp: t = 0.25, 0.5, 0.75.
-    expect(getTreemapColor(0.5 / 3, "pnl", palette, true).fill).toBe("rgb(160,125,160)");
-    expect(getTreemapColor(0.5, "pnl", palette, true).fill).toBe("rgb(120,40,100)");
-    expect(getTreemapColor(1.5, "pnl", palette, true).fill).toBe("rgb(70,35,70)");
+    expect(getTreemapColor(0.5 / 3, "pnl", resolvedPalette).fill).toBe("rgb(160,125,160)");
+    expect(getTreemapColor(0.5, "pnl", resolvedPalette).fill).toBe("rgb(120,40,100)");
+    expect(getTreemapColor(1.5, "pnl", resolvedPalette).fill).toBe("rgb(70,35,70)");
 
     // Losses keep k = 0.25 on the positive ramp, not the gain ramp's k = 0.5.
-    expect(getTreemapColor(-0.25 / 3, "pnl", palette, true).fill).toBe("rgb(20,60,100)");
-    expect(getTreemapColor(-0.25, "pnl", palette, true).fill).toBe("rgb(30,100,170)");
-    expect(getTreemapColor(-0.75, "pnl", palette, true).fill).toBe("rgb(120,160,200)");
+    expect(getTreemapColor(-0.25 / 3, "pnl", resolvedPalette).fill).toBe("rgb(20,60,100)");
+    expect(getTreemapColor(-0.25, "pnl", resolvedPalette).fill).toBe("rgb(30,100,170)");
+    expect(getTreemapColor(-0.75, "pnl", resolvedPalette).fill).toBe("rgb(120,160,200)");
     expect(palette).toEqual(original);
+    expect(resolvedPalette).toEqual(originalResolved);
   });
 });

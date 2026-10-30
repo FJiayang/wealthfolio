@@ -12,11 +12,44 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.11.0.18 — unreleased (CI pending)
+
+- Integrate upstream main `2f234185`, including the merged localization work,
+  editable API-key permissions, allocation worksheet, spending and theme
+  updates. Preserve the fork's saved-security benchmark search, addon import
+  handoff, native providers, diagnostics and synchronization features.
+- Replace the fork MCP `calculate_rebalance_plan` tool with the upstream-model
+  `generate_calculated_adjustments` and `calculate_allocation_worksheet` tools.
+  Callers must migrate to the explicit account, cash and worksheet inputs; the
+  old planner contract is not emulated. See the MCP capability coverage
+  document.
+- Use upstream gain/loss color controls. When the new setting is absent, read
+  the existing fork color preference without migrating or writing user settings.
+- Make host addon-import E2E coverage self-contained. Real fixture addon ZIPs
+  now exercise installation, menu slots, draft handoff, cancellation and
+  cleanup; external plugin-specific PDF/CSV parsing is not tested by the host
+  suite.
+
+Architecture impact: upstream domain and MCP worksheet contracts are
+authoritative; worksheet tools remain read-only and never submit trades. Goal
+summary valuation reads use the upstream service. Existing independent fork
+features remain, and legacy color compatibility is read-only. No user prices or
+addon data are deleted by this integration.
+
+Validation: local frontend tests (5,162), Rust workspace tests (4,568; 33
+existing ignored), formatting, lint, type checks, all locales, both frontend
+builds and runtime checks passed. Net-worth (72) and addon-sandbox (15) browser
+tests passed. Full application E2E was stopped when validation ownership moved
+to CI; its partial run contained two failures and is not a passing full result.
+Visual comparisons against the prior fork release include upstream-introduced
+layout/theme changes, so they are not reported as fully passing. The feature PR
+must pass the full CI gate before merging; no release tag has been published.
+
 ## v3.11.0.17 — 2026-10-30
 
 - Keep existing securities visible in desktop and mobile benchmark searches,
-  including securities whose symbols match a predefined benchmark. Selecting
-  a saved security reuses its asset ID and existing registration flow.
+  including securities whose symbols match a predefined benchmark. Selecting a
+  saved security reuses its asset ID and existing registration flow.
 
 Architecture impact: change frontend search filtering only. Provider routing,
 benchmark persistence, daily synchronization and backend APIs stay unchanged.

@@ -30,13 +30,13 @@ export function getProviderName(t: TFunction, id: string, name: string): string 
 
 export function getProviderInstruments(t: TFunction, value: string): string {
   const keys: Record<string, string> = {
-    Stocks: "common:categoryNames.instrument_type.EQUITY_SECURITY",
-    Crypto: "common:categoryNames.instrument_type.DIGITAL_ASSET",
+    Stocks: "settings:market_data_page.instrumentLabels.stocks",
+    Crypto: "settings:market_data_page.instrumentLabels.crypto",
     Forex: "asset:createSecurity.instrumentType.fx",
     Metals: "asset:createSecurity.instrumentType.metal",
-    ETFs: "common:categoryNames.instrument_type.ETP",
-    Funds: "common:categoryNames.instrument_type.FUND",
-    Bonds: "common:categoryNames.instrument_type.DEBT_SECURITY",
+    ETFs: "settings:market_data_page.instrumentLabels.etfs",
+    Funds: "settings:market_data_page.instrumentLabels.funds",
+    Bonds: "settings:market_data_page.instrumentLabels.bonds",
     "US Treasuries": "settings:market_data_page.coverageLabels.US Treasury",
     Any: "holdings:all_types",
   };

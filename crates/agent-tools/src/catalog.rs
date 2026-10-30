@@ -259,6 +259,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn worksheet_tools_require_both_scopes_before_accessing_services() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        for name in [
+            "generate_calculated_adjustments",
+            "calculate_allocation_worksheet",
+        ] {
+            for grants in [
+                vec![],
+                vec!["financial-planning:read"],
+                vec!["holdings:read"],
+            ] {
+                let result = catalog
+                    .execute(
+                        Arc::new(PanicEnv::default()),
+                        &AgentScopeSet::from_strs(grants),
+                        name,
+                        serde_json::json!({}),
+                    )
+                    .await;
+                assert!(
+                    matches!(result, Err(AgentToolError::ScopeDenied { .. })),
+                    "{name}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
     async fn provider_diagnostics_deny_calls_before_accessing_services() {
         let catalog = AgentToolCatalog::mcp_catalog();
         for name in ["list_provider_requests", "get_provider_request_counts"] {
@@ -525,9 +553,9 @@ mod tests {
             unimplemented!("unused test service")
         }
 
-        fn rebalance_service(
+        fn allocation_worksheet_service(
             &self,
-        ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait>
+        ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationWorksheetServiceTrait>
         {
             unimplemented!("unused test service")
         }
@@ -765,6 +793,8 @@ mod tests {
         assert!(!names.contains(&"commit_quote_import"));
         assert!(!names.contains(&"prepare_activity_updates"));
         assert!(!names.contains(&"commit_activity_updates"));
+        assert!(!names.contains(&"prepare_activity_deletions"));
+        assert!(!names.contains(&"commit_activity_deletions"));
     }
 
     #[tokio::test]
@@ -845,6 +875,8 @@ mod tests {
         assert!(names.contains(&"commit_quote_import"));
         assert!(names.contains(&"prepare_activity_updates"));
         assert!(names.contains(&"commit_activity_updates"));
+        assert!(names.contains(&"prepare_activity_deletions"));
+        assert!(names.contains(&"commit_activity_deletions"));
         // The shared v1 read catalog stays unchanged; category management is MCP-only.
         assert_eq!(crate::tools::v1_read_tools().len(), 16);
     }
@@ -868,6 +900,8 @@ mod tests {
             "commit_quote_import",
             "prepare_activity_updates",
             "commit_activity_updates",
+            "prepare_activity_deletions",
+            "commit_activity_deletions",
         ] {
             let err = catalog
                 .execute(
@@ -1244,7 +1278,40 @@ mod tests {
                 true,
             ),
         ];
-        for (name, scopes, allowed) in cases {
+        // An empty id list is refused before any service is reached.
+        let deletion_cases = [
+            ("prepare_activity_deletions", vec!["activities:read"], false),
+            (
+                "prepare_activity_deletions",
+                vec!["activities:draft"],
+                false,
+            ),
+            (
+                "prepare_activity_deletions",
+                vec!["activities:read", "activities:draft"],
+                true,
+            ),
+            (
+                "commit_activity_deletions",
+                vec!["activities:read", "activities:draft"],
+                false,
+            ),
+            (
+                "commit_activity_deletions",
+                vec!["activities:read", "activities:draft", "activities:write"],
+                true,
+            ),
+        ];
+        let deletion_args = serde_json::json!({ "activityIds": [] });
+        let all_cases = cases
+            .into_iter()
+            .map(|(name, scopes, allowed)| (name, scopes, allowed, &args))
+            .chain(
+                deletion_cases
+                    .into_iter()
+                    .map(|(name, scopes, allowed)| (name, scopes, allowed, &deletion_args)),
+            );
+        for (name, scopes, allowed, args) in all_cases {
             let result = catalog
                 .execute(
                     Arc::new(PanicEnv::default()),
@@ -1460,7 +1527,8 @@ mod business_catalog_tests {
             "save_goal_plan",
             "save_allocation_target_with_weights",
             "get_allocation_target_drift",
-            "calculate_rebalance_plan",
+            "generate_calculated_adjustments",
+            "calculate_allocation_worksheet",
             "prepare_holdings_import",
             "commit_holdings_import",
             "get_spending_report",
@@ -1473,6 +1541,7 @@ mod business_catalog_tests {
             );
         }
         for forbidden in [
+            "calculate_rebalance_plan",
             "delete_account",
             "delete_asset",
             "delete_activity",

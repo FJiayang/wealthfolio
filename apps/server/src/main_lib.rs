@@ -160,8 +160,10 @@ pub struct AppState {
     >,
     pub drift_service:
         Arc<dyn wealthfolio_core::portfolio::allocation_targets::DriftServiceTrait + Send + Sync>,
-    pub rebalance_service: Arc<
-        dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait + Send + Sync,
+    pub allocation_worksheet_service: Arc<
+        dyn wealthfolio_core::portfolio::allocation_targets::AllocationWorksheetServiceTrait
+            + Send
+            + Sync,
     >,
     pub pat_repository: Arc<PatRepository>,
     pub mcp_audit_repository: Arc<McpAuditRepository>,
@@ -755,14 +757,21 @@ async fn initialize_profile_state(
         .with_holdings_service(holdings_service.clone())
         .with_taxonomy_service(taxonomy_service.clone()),
     );
-    let rebalance_service: Arc<
-        dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait + Send + Sync,
+    let allocation_worksheet_service: Arc<
+        dyn wealthfolio_core::portfolio::allocation_targets::AllocationWorksheetServiceTrait
+            + Send
+            + Sync,
     > = Arc::new(
-        wealthfolio_core::portfolio::allocation_targets::RebalanceService::new(
+        wealthfolio_core::portfolio::allocation_targets::AllocationWorksheetService::new(
             allocation_target_service.clone(),
             drift_service.clone(),
             allocation_service.clone(),
             holdings_service.clone(),
+            account_service.clone(),
+            asset_service.clone(),
+            taxonomy_service.clone(),
+            quote_service.clone(),
+            fx_service.clone(),
         ),
     );
 
@@ -785,7 +794,15 @@ async fn initialize_profile_state(
 
     let goal_repository = Arc::new(GoalRepository::new(pool.clone(), writer.clone()));
     let goal_service = Arc::new(
-        GoalService::new(goal_repository, account_service.clone()).with_timezone(timezone.clone()),
+        GoalService::new(goal_repository, account_service.clone())
+            .with_timezone(timezone.clone())
+            .with_valuation_services(wealthfolio_core::goals::GoalValuationServices {
+                snapshots: snapshot_service.clone(),
+                assets: asset_service.clone(),
+                quotes: quote_service.clone(),
+                fx: fx_service.clone(),
+                base_currency: base_currency.clone(),
+            }),
     );
 
     let limits_repository = Arc::new(ContributionLimitRepository::new(
@@ -1024,6 +1041,7 @@ async fn initialize_profile_state(
     // Create the AI environment and chat service using the new wealthfolio-ai crate
     let ai_environment = Arc::new(ServerAiEnvironment::new(
         base_currency.clone(),
+        timezone.clone(),
         account_service.clone(),
         activity_service.clone(),
         holdings_service.clone(),
@@ -1048,7 +1066,7 @@ async fn initialize_profile_state(
         categorization_rules_service.clone(),
         allocation_target_service.clone(),
         drift_service.clone(),
-        rebalance_service.clone(),
+        allocation_worksheet_service.clone(),
         fx_service.clone(),
         snapshot_service.clone(),
         alternative_asset_service.clone(),
@@ -1059,6 +1077,7 @@ async fn initialize_profile_state(
         spending_analytics_service.clone(),
         spending_insight_service.clone(),
         provider_request_service.clone(),
+        lots_repository.clone(),
     ));
     let agent_environment: Arc<dyn wealthfolio_agent_tools::AgentEnvironment> =
         ai_environment.clone();
@@ -1136,14 +1155,9 @@ async fn initialize_profile_state(
         event_bus.clone(),
         broker_sync_running.clone(),
         health_service.clone(),
-        snapshot_service.clone(),
-        quote_service.clone(),
         portfolio_coordinator.clone(),
-        account_service.clone(),
         goal_service.clone(),
         fx_service.clone(),
-        base_currency.clone(),
-        timezone.clone(),
         secret_store.clone(),
         token_lifecycle.clone(),
         profile_binding.clone(),
@@ -1219,7 +1233,7 @@ async fn initialize_profile_state(
         spending_insight_service,
         allocation_target_service,
         drift_service,
-        rebalance_service,
+        allocation_worksheet_service,
         pat_repository,
         mcp_audit_repository,
         agent_environment,

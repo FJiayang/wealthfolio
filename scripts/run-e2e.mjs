@@ -12,33 +12,71 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const QUOTE_FIXTURE_DIR = join(REPO_ROOT, "e2e", "fixtures", "quotes");
 const DEFAULT_RUST_LOG = ["error", "wealthfolio_core::quotes::sync=warn"].join(",");
 const cliArgs = process.argv.slice(2);
-const shouldUseUi = cliArgs.includes("--ui");
 
 const buildHealthUrl = (base, path = "/") =>
   new URL(path, `${base.replace(/\/$/, "")}/`).toString();
 
-const waitForServer = async (url, serverProcess, { timeout = 60_000, interval = 500 } = {}) => {
+export const waitForServer = async (
+  url,
+  serverProcess,
+  { timeout = 60_000, interval = 500, requestTimeout = 5_000 } = {},
+) => {
   const deadline = Date.now() + timeout;
-  const healthUrl = buildHealthUrl(url);
+  let lastStatus;
+  let lastError;
+  const stopped = new AbortController();
+  const onExit = (code, signal) =>
+    stopped.abort(new Error(`Dev server exited prematurely (${signal || code})`));
+  const onError = (error) => stopped.abort(error);
+  serverProcess.once("exit", onExit);
+  serverProcess.once("error", onError);
 
-  while (Date.now() < deadline) {
-    if (serverProcess.exitCode !== null) {
-      throw new Error(`Dev server exited prematurely with code ${serverProcess.exitCode}`);
-    }
-
-    try {
-      const response = await fetch(healthUrl, { method: "GET" });
-      if (response.ok) {
-        return;
+  try {
+    while (Date.now() < deadline) {
+      if (serverProcess.exitCode !== null || serverProcess.signalCode) {
+        throw new Error(
+          `Dev server exited prematurely (${serverProcess.signalCode || serverProcess.exitCode})`,
+        );
       }
-    } catch (error) {
-      // continue until service responds
+      if (stopped.signal.aborted) throw stopped.signal.reason;
+
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          signal: AbortSignal.any([
+            stopped.signal,
+            AbortSignal.timeout(Math.max(1, Math.min(requestTimeout, deadline - Date.now()))),
+          ]),
+        });
+        await response.body?.cancel();
+        if (response.ok) return;
+        lastStatus = response.status;
+        lastError = undefined;
+      } catch (error) {
+        if (stopped.signal.aborted) throw stopped.signal.reason;
+        lastError = error.message;
+      }
+
+      const remaining = deadline - Date.now();
+      if (remaining > 0) await setTimeout(Math.min(interval, remaining));
     }
 
-    await setTimeout(interval);
+    const details = [lastStatus && `HTTP ${lastStatus}`, lastError].filter(Boolean).join("; ");
+    throw new Error(`Timed out waiting for ${url}: ${details || "no response"}`);
+  } finally {
+    serverProcess.removeListener("exit", onExit);
+    serverProcess.removeListener("error", onError);
   }
+};
 
-  throw new Error(`Timed out waiting for ${url}`);
+export const stopServer = async (serverProcess, { timeout = 5_000 } = {}) => {
+  if (serverProcess.exitCode !== null || serverProcess.signalCode) return;
+  const exited = once(serverProcess, "exit").then(() => true);
+  const waitForExit = () => Promise.race([exited, setTimeout(timeout, false, { ref: false })]);
+  serverProcess.kill("SIGTERM");
+  if (await waitForExit()) return;
+  serverProcess.kill("SIGKILL");
+  if (!(await waitForExit())) throw new Error("Dev server did not exit after forced shutdown");
 };
 
 const spawnCommand = (command, args, extraEnv = {}) =>
@@ -73,7 +111,9 @@ const run = async () => {
   const originalEnv = await readFile(envPath, "utf8");
   await prepE2eEnv();
 
-  const devServer = spawnCommand("pnpm", ["run", "dev:web"], {
+  // Signal the existing supervisor directly, rather than a pnpm script wrapper.
+  // Its shutdown handler already owns and stops the Rust/Vite child processes.
+  const devServer = spawnCommand(process.execPath, [join(REPO_ROOT, "scripts", "dev-web.mjs")], {
     WEALTHFOLIO_E2E: "1",
     WEALTHFOLIO_FIXTURE_DIR: QUOTE_FIXTURE_DIR,
     WEALTHFOLIO_FIXTURE_AS_OF: process.env.WEALTHFOLIO_FIXTURE_AS_OF || "2026-05-12",
@@ -81,12 +121,8 @@ const run = async () => {
     VITE_DEV_PORT: devServerPort,
   });
 
-  const cleanup = async () => {
-    if (devServer.exitCode === null && !devServer.killed) {
-      devServer.kill("SIGINT");
-      await once(devServer, "exit");
-    }
-  };
+  let cleanupPromise;
+  const cleanup = () => (cleanupPromise ??= stopServer(devServer));
 
   const handleSignal = () => {
     cleanup().catch(() => {});
@@ -94,16 +130,24 @@ const run = async () => {
 
   process.once("SIGINT", handleSignal);
   process.once("SIGTERM", handleSignal);
-  process.once("exit", handleSignal);
 
   try {
     // Wait for both frontend and backend to be ready
     console.log("Waiting for frontend server...");
-    await waitForServer(DEV_SERVER_URL, devServer);
+    await waitForServer(buildHealthUrl(DEV_SERVER_URL), devServer);
     console.log("Frontend ready. Waiting for backend server...");
-    await waitForServer(BACKEND_URL, devServer, { timeout: 120_000, interval: 1000 });
+    // The backend's root serves dist/index.html, which dev mode does not build.
+    // Probe the same API health endpoint as wait-for-both-servers-to-be-ready.sh.
+    await waitForServer(buildHealthUrl(BACKEND_URL, "/api/v1/healthz"), devServer, {
+      timeout: 120_000,
+      interval: 1000,
+    });
     console.log("Backend ready. Starting tests...");
     await runPlaywrightTests(cliArgs);
+  } catch (error) {
+    // Preserve the actual startup/test failure even if shutdown also fails.
+    console.error(error);
+    process.exitCode = 1;
   } finally {
     try {
       await cleanup();
@@ -113,7 +157,9 @@ const run = async () => {
   }
 };
 
-run().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  run().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

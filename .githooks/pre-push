@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-exec "$REPO_ROOT/scripts/ci-check.sh" --full
+# Focused unit tests are the contributor's pre-push gate. Full tests belong to CI.
+git diff --check HEAD
+echo 'Push check: run the relevant unit tests locally; full tests and browser E2E run in PR CI.' >&2

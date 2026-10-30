@@ -12,10 +12,11 @@ use wealthfolio_core::errors::{Error, Result};
 use wealthfolio_core::settings::{
     validate_market_data_sync_time, validate_market_data_sync_timezone,
     validate_provider_request_timezone, Settings, SettingsRepositoryTrait, SettingsUpdate,
-    CURRENCY_FORMATTING_REGIONS_KEY, DEFAULT_PROVIDER_REQUEST_TIMEZONE, DEFAULT_THEME_ID,
+    CURRENCY_FORMATTING_REGIONS_KEY, DEFAULT_FONT, DEFAULT_GAIN_COLORS,
+    DEFAULT_PROVIDER_REQUEST_TIMEZONE, DEFAULT_THEME_ID, GAIN_COLORS, GAIN_COLORS_KEY,
     GAIN_LOSS_COLOR_SCHEME_KEY, INSIGHTS_OVERVIEW_LAYOUT_KEY, MARKET_DATA_SYNC_INTERVAL_HOURS_KEY,
     MARKET_DATA_SYNC_TIMEZONE_KEY, MARKET_DATA_SYNC_TIME_KEY, PROVIDER_REQUEST_TIMEZONE_KEY,
-    THEME_ID_KEY,
+    TEXT_SIZE_KEY, THEME_ID_KEY,
 };
 
 pub struct SettingsRepository {
@@ -39,14 +40,23 @@ impl SettingsRepositoryTrait for SettingsRepository {
             .load::<(String, String)>(&mut conn)
             .map_err(StorageError::from)?;
 
+        // Presence, not validity, selects the upstream setting. Unknown values
+        // retain upstream's default instead of reviving a legacy preference.
+        let has_gain_colors = all_settings.iter().any(|(key, _)| key == GAIN_COLORS_KEY);
         let mut settings = Settings::default(); // Use default implementation
 
         for (key, value) in all_settings {
             match key.as_str() {
                 THEME_ID_KEY => settings.theme_id = value,
+                GAIN_COLORS_KEY => {
+                    if GAIN_COLORS.contains(&value.as_str()) {
+                        settings.gain_colors = value;
+                    }
+                }
                 "theme" => settings.theme = value,
                 "font" => settings.font = value,
                 GAIN_LOSS_COLOR_SCHEME_KEY => settings.gain_loss_color_scheme = value,
+                TEXT_SIZE_KEY => settings.text_size = Some(value),
                 "language" => settings.language = value,
                 "formatting_region" => settings.formatting_region = value,
                 CURRENCY_FORMATTING_REGIONS_KEY => {
@@ -90,6 +100,14 @@ impl SettingsRepositoryTrait for SettingsRepository {
                 }
                 _ => {} // Ignore unknown settings
             }
+        }
+
+        if !has_gain_colors {
+            settings.gain_colors = match settings.gain_loss_color_scheme.as_str() {
+                "red-up-green-down" => "red-up",
+                _ => DEFAULT_GAIN_COLORS,
+            }
+            .to_string();
         }
 
         Ok(settings)
@@ -138,6 +156,18 @@ impl SettingsRepositoryTrait for SettingsRepository {
                         .map_err(StorageError::from)?;
                 }
 
+                if let Some(ref gain_colors) = settings.gain_colors {
+                    let row = AppSettingDB {
+                        setting_key: GAIN_COLORS_KEY.to_string(),
+                        setting_value: gain_colors.clone(),
+                    };
+                    diesel::replace_into(app_settings)
+                        .values(&row)
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                    tx.update(&AppPreferenceDB(&row))?;
+                }
+
                 if let Some(ref theme) = settings.theme {
                     diesel::replace_into(app_settings)
                         .values(&AppSettingDB {
@@ -163,6 +193,16 @@ impl SettingsRepositoryTrait for SettingsRepository {
                         .values(&AppSettingDB {
                             setting_key: "font".to_string(),
                             setting_value: font.clone(),
+                        })
+                        .execute(tx.conn())
+                        .map_err(StorageError::from)?;
+                }
+
+                if let Some(ref text_size) = settings.text_size {
+                    diesel::replace_into(app_settings)
+                        .values(&AppSettingDB {
+                            setting_key: TEXT_SIZE_KEY.to_string(),
+                            setting_value: text_size.clone(),
                         })
                         .execute(tx.conn())
                         .map_err(StorageError::from)?;
@@ -324,8 +364,9 @@ impl SettingsRepositoryTrait for SettingsRepository {
                 // Return default values for known settings
                 let default_value = match setting_key_param {
                     THEME_ID_KEY => DEFAULT_THEME_ID,
+                    GAIN_COLORS_KEY => DEFAULT_GAIN_COLORS,
                     "theme" => "light",
-                    "font" => "font-mono",
+                    "font" => DEFAULT_FONT,
                     "language" => "en",
                     "timezone" => "",
                     PROVIDER_REQUEST_TIMEZONE_KEY => DEFAULT_PROVIDER_REQUEST_TIMEZONE,
@@ -400,11 +441,11 @@ impl SettingsRepositoryTrait for SettingsRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer};
+    use crate::db::{create_pool, run_migrations, write_actor::spawn_writer, TestDir};
     use serde_json::json;
 
-    async fn setup() -> (SettingsRepository, tempfile::TempDir) {
-        let dir = tempfile::tempdir().unwrap();
+    async fn setup() -> (SettingsRepository, TestDir) {
+        let dir = TestDir::new();
         let db_path = dir.path().join("settings.db").to_string_lossy().to_string();
         run_migrations(&db_path).unwrap();
         let pool = create_pool(&db_path).unwrap();
@@ -511,6 +552,148 @@ mod tests {
         let mut conn = get_connection(&repo.pool).unwrap();
         let outbox: i64 = sync_outbox::table.count().get_result(&mut conn).unwrap();
         assert_eq!(outbox, 0, "The theme stays on this device");
+    }
+
+    #[tokio::test]
+    async fn text_size_is_unset_until_picked_and_stays_on_this_device() {
+        use crate::schema::sync_outbox;
+        let (repo, _dir) = setup().await;
+        assert_eq!(repo.get_settings().unwrap().text_size, None);
+        assert!(repo.get_setting(TEXT_SIZE_KEY).is_err());
+
+        let update = serde_json::from_value(json!({"textSize": "extra-large"})).unwrap();
+        repo.update_settings(&update).await.unwrap();
+        let unrelated =
+            serde_json::from_value(json!({"theme": "dark", "themeId": "ember"})).unwrap();
+        repo.update_settings(&unrelated).await.unwrap();
+
+        let settings = repo.get_settings().unwrap();
+        assert_eq!(settings.text_size.as_deref(), Some("extra-large"));
+        assert_eq!(settings.theme_id, "ember");
+
+        let mut conn = get_connection(&repo.pool).unwrap();
+        let outbox: i64 = sync_outbox::table.count().get_result(&mut conn).unwrap();
+        assert_eq!(outbox, 0, "The text size stays on this device");
+    }
+
+    #[tokio::test]
+    async fn gain_colors_sync_to_other_devices_without_echo() {
+        use crate::schema::sync_outbox;
+        let (repo, _dir) = setup().await;
+        assert_eq!(
+            repo.get_settings().unwrap().gain_colors,
+            DEFAULT_GAIN_COLORS
+        );
+        assert_eq!(
+            repo.get_setting(GAIN_COLORS_KEY).unwrap(),
+            DEFAULT_GAIN_COLORS
+        );
+
+        let update: SettingsUpdate =
+            serde_json::from_value(json!({"gainColors": "red-up", "theme": "dark"})).unwrap();
+        repo.update_settings(&update).await.unwrap();
+        let mode = serde_json::from_value(json!({"theme": "light"})).unwrap();
+        repo.update_settings(&mode).await.unwrap();
+        assert_eq!(repo.get_settings().unwrap().gain_colors, "red-up");
+
+        let mut conn = get_connection(&repo.pool).unwrap();
+        let events: Vec<(String, String, String)> = sync_outbox::table
+            .select((
+                sync_outbox::entity,
+                sync_outbox::entity_id,
+                sync_outbox::payload,
+            ))
+            .load(&mut conn)
+            .unwrap();
+        assert_eq!(events.len(), 1, "Only the gain and loss colours sync");
+        assert_eq!(events[0].0, "app_preference");
+        assert_eq!(events[0].1, GAIN_COLORS_KEY);
+        let payload: serde_json::Value = serde_json::from_str(&events[0].2).unwrap();
+        assert_eq!(payload["setting_key"], GAIN_COLORS_KEY);
+        assert_eq!(payload["setting_value"], "red-up");
+
+        let (receiver, _receiver_dir) = setup().await;
+        let sync_receiver = crate::sync::app_sync::AppSyncRepository::new(
+            receiver.pool.clone(),
+            receiver.writer.clone(),
+        );
+        assert!(sync_receiver
+            .apply_remote_event_lww(
+                wealthfolio_core::sync::SyncEntity::AppPreference,
+                events[0].1.clone(),
+                wealthfolio_core::sync::SyncOperation::Update,
+                "received-gain-colors".to_string(),
+                "2026-10-27T12:00:00Z".to_string(),
+                1,
+                payload,
+            )
+            .await
+            .unwrap());
+        let received = receiver.get_settings().unwrap();
+        assert_eq!(received.gain_colors, "red-up");
+        assert_eq!(received.theme, "light", "The mode stays on each device");
+        let mut receiver_conn = get_connection(&receiver.pool).unwrap();
+        let receiver_outbox: i64 = sync_outbox::table
+            .count()
+            .get_result(&mut receiver_conn)
+            .unwrap();
+        assert_eq!(receiver_outbox, 0, "Receiving must not echo");
+    }
+
+    #[tokio::test]
+    async fn legacy_gain_colors_are_read_only_fallback_when_new_key_is_absent() {
+        let (repo, _dir) = setup().await;
+        for (legacy, expected) in [
+            ("red-up-green-down", "red-up"),
+            ("green-up-red-down", "green-up"),
+            ("unknown", "green-up"),
+        ] {
+            repo.update_setting(GAIN_LOSS_COLOR_SCHEME_KEY, legacy)
+                .await
+                .unwrap();
+            assert_eq!(repo.get_settings().unwrap().gain_colors, expected);
+            let mut conn = get_connection(&repo.pool).unwrap();
+            let count: i64 = app_settings
+                .filter(setting_key.eq(GAIN_COLORS_KEY))
+                .count()
+                .get_result(&mut conn)
+                .unwrap();
+            assert_eq!(count, 0, "reading must not persist the derived setting");
+            assert_eq!(
+                repo.get_setting(GAIN_LOSS_COLOR_SCHEME_KEY).unwrap(),
+                legacy
+            );
+        }
+        repo.update_setting(GAIN_LOSS_COLOR_SCHEME_KEY, "red-up-green-down")
+            .await
+            .unwrap();
+        for explicit in ["green-up", "red-up", "red-up-blue-down", "unknown", ""] {
+            repo.update_setting(GAIN_COLORS_KEY, explicit)
+                .await
+                .unwrap();
+            let expected = if GAIN_COLORS.contains(&explicit) {
+                explicit
+            } else {
+                DEFAULT_GAIN_COLORS
+            };
+            assert_eq!(repo.get_settings().unwrap().gain_colors, expected);
+            assert_eq!(repo.get_setting(GAIN_COLORS_KEY).unwrap(), explicit);
+        }
+    }
+
+    #[tokio::test]
+    async fn unknown_gain_colors_read_as_green_up_and_stay_stored() {
+        let (repo, _dir) = setup().await;
+        // A value from a newer version, or a damaged row, arriving by sync.
+        for unknown in ["blue-up-orange-down", "", "RED-UP"] {
+            repo.update_setting(GAIN_COLORS_KEY, unknown).await.unwrap();
+            assert_eq!(repo.get_settings().unwrap().gain_colors, "green-up");
+            assert_eq!(repo.get_setting(GAIN_COLORS_KEY).unwrap(), unknown);
+        }
+        repo.update_setting(GAIN_COLORS_KEY, "red-up-blue-down")
+            .await
+            .unwrap();
+        assert_eq!(repo.get_settings().unwrap().gain_colors, "red-up-blue-down");
     }
 
     #[tokio::test]

@@ -12,11 +12,16 @@ test("tabs move and activate with arrow keys, Home and End", async ({ page }) =>
   const holdings = page.getByRole("tab", { name: "Holdings" });
   await expect(holdings).toBeFocused();
   await expect(holdings).toHaveAttribute("aria-selected", "true");
+  // Base UI keeps inert outgoing panels mounted until the transition finishes.
+  // Wait for eventual uniqueness rather than weakening the strict text lookup.
+  await expect(page.getByRole("tabpanel")).toHaveCount(1);
   await expect(page.getByRole("tabpanel")).toHaveText("Holdings panel");
   await navigate(page, "End");
   await expect(page.getByRole("tab", { name: "Activity" })).toBeFocused();
   await navigate(page, "Home");
   await expect(overview).toBeFocused();
+  await expect(overview).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tabpanel")).toHaveCount(1);
   await expect(page.getByRole("tabpanel")).toHaveText("Overview panel");
 });
 

@@ -1,4 +1,5 @@
-import { getBudgetGroupLabel, getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getBudgetGroupLabel } from "@/features/spending/lib/labels";
 import { useCallback, useEffect, useMemo, useRef, useState, type FC } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -14,6 +15,7 @@ import {
 } from "recharts";
 
 import { DashboardCard } from "@/components/dashboard-card";
+import { PrivacyToggle } from "@/components/privacy-toggle";
 import { useAccounts } from "@/hooks/use-accounts";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
@@ -86,6 +88,7 @@ import { BudgetLineChartCard } from "./budget-line-chart-card";
 import { CashFlowStrip } from "./cash-flow-strip";
 import { EventsCard } from "./events-card";
 import { RecentActivityCard } from "./recent-activity-card";
+import { SpendingDeltaLine } from "./spending-delta-line";
 import { SpendingPeriodSelector } from "./spending-period-toggle";
 
 const FUTURE_BAR = "var(--muted)";
@@ -117,7 +120,7 @@ const INTERVAL_DESCRIPTIONS: Record<SpendingDashboardPeriod, string> = {
 };
 
 // The three insights stages, surfaced as a "Dig deeper" strip under Recent
-// activity. Mirrors the StageNav on /spending/insights.
+// activity. Mirrors the StageNav on the /insights spending tab.
 const INSIGHT_STAGES = [
   {
     stage: "where",
@@ -142,10 +145,10 @@ const INSIGHT_STAGES = [
 // No period in these links: insights shows the period shown on the tab, which
 // the dashboard tabs and the insights page share.
 const dashboardInsightHref = {
-  where: "/spending/insights?stage=where",
-  changed: "/spending/insights?stage=changed",
-  when: "/spending/insights?stage=when",
-  cashflow: "/spending/insights?stage=where#cashflow",
+  where: "/insights?tab=spending&stage=where",
+  changed: "/insights?tab=spending&stage=changed",
+  when: "/insights?tab=spending&stage=when",
+  cashflow: "/insights?tab=spending&stage=where#cashflow",
 } satisfies Record<(typeof INSIGHT_STAGES)[number]["stage"] | "cashflow", string>;
 
 function rangeToReportRequest(range: DateRange | undefined, timezone?: string | null) {
@@ -949,13 +952,16 @@ export default function SpendingTabContent() {
                 </>
               )}
             </div>
-            <Balance
-              isLoading={isLoading}
-              targetValue={totalSpending}
-              currency={currency}
-              displayCurrency={true}
-            />
-            <div className="text-md flex items-center">
+            <div className="flex flex-wrap items-center gap-2">
+              <Balance
+                isLoading={isLoading}
+                targetValue={totalSpending}
+                currency={currency}
+                displayCurrency={true}
+              />
+              <PrivacyToggle variant="ghost" />
+            </div>
+            <div className="text-md flex min-h-5 flex-wrap items-center gap-x-3">
               {isPriorLoading ? (
                 <Skeleton className="mt-1 h-4 w-56" />
               ) : priorSpending > 0 ? (
@@ -975,6 +981,7 @@ export default function SpendingTabContent() {
             income={report?.current.income ?? 0}
             spending={report?.current.outflow ?? 0}
             saving={report?.current.saved ?? 0}
+            fromSavings={report?.current.fromSavings ?? 0}
             currency={currency}
             isLoading={isLoading}
             incomeHref={dashboardInsightHref.cashflow}
@@ -1942,43 +1949,4 @@ function truncateForBox(text: string, boxWidth: number, fontSize: number): strin
   const charW = fontSize * 0.62;
   const max = Math.max(2, Math.floor(boxWidth / charW));
   return text.length > max ? text.slice(0, Math.max(1, max - 1)) + "…" : text;
-}
-
-function SpendingDeltaLine({
-  delta,
-  currency,
-  deltaPct,
-}: {
-  delta: number;
-  currency: string;
-  deltaPct: number | null;
-}) {
-  const { t } = useTranslation();
-  const numberFormatting = useNumberFormatting();
-  const isFlat = Math.abs(delta) < 1;
-  const direction = delta < 0 ? t("spending:tabContent.down") : t("spending:tabContent.up");
-  const tone = isFlat ? "text-muted-foreground" : delta < 0 ? "text-success" : "text-destructive";
-
-  if (isFlat) {
-    return (
-      <span className="text-muted-foreground lg:text-md text-sm font-light">
-        {t("spending:tabContent.aboutSame")}
-      </span>
-    );
-  }
-
-  const pctSuffix =
-    deltaPct !== null
-      ? ` (${numberFormatting.formatPercent(Math.abs(deltaPct), { digits: 1 })})`
-      : "";
-
-  return (
-    <span className="lg:text-md text-sm font-light">
-      <span className={cn("font-medium", tone)}>
-        {direction} <PrivacyAmount value={Math.abs(delta)} currency={currency} />
-        {pctSuffix}
-      </span>{" "}
-      <span className="text-muted-foreground">{t("spending:tabContent.fromPriorPeriod")}</span>
-    </span>
-  );
 }

@@ -13,7 +13,7 @@ use wealthfolio_core::{
     activities::ActivityServiceTrait,
     assets::AssetServiceTrait,
     goals::GoalServiceTrait,
-    health::HealthServiceTrait,
+    health::{HealthServiceTrait, HealthStatus},
     limits::ContributionLimitServiceTrait,
     portfolio::{
         allocation::AllocationServiceTrait, holdings::HoldingsServiceTrait,
@@ -29,6 +29,7 @@ use wealthfolio_spending::cash_activities::CashActivityServiceTrait;
 use wealthfolio_spending::categorization_rules::CategorizationRulesServiceTrait;
 
 /// Data-service surface available to agent tools.
+#[async_trait::async_trait]
 pub trait AgentEnvironment: Send + Sync {
     fn provider_request_service(
         &self,
@@ -99,9 +100,9 @@ pub trait AgentEnvironment: Send + Sync {
     fn drift_service(
         &self,
     ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::DriftServiceTrait>;
-    fn rebalance_service(
+    fn allocation_worksheet_service(
         &self,
-    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait>;
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationWorksheetServiceTrait>;
     fn fx_service(&self) -> Arc<dyn wealthfolio_core::fx::FxServiceTrait>;
     fn snapshot_service(
         &self,
@@ -126,4 +127,13 @@ pub trait AgentEnvironment: Send + Sync {
     fn spending_insight_service(
         &self,
     ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait>;
+
+    /// Run the Health Center's full checks, as its "run checks" does, and
+    /// cache the result. Hosts implement it with the services the checks
+    /// read; the default reports that this environment cannot run them.
+    async fn run_health_checks(&self) -> wealthfolio_core::Result<HealthStatus> {
+        Err(wealthfolio_core::Error::Unexpected(
+            "Running health checks is not available in this environment".to_string(),
+        ))
+    }
 }

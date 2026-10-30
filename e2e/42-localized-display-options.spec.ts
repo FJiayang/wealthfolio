@@ -1,5 +1,24 @@
-import { expect, test } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { expect, test, type TestInfo } from "@playwright/test";
 import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
+
+async function runCleanup(testInfo: TestInfo, testFailed: boolean, steps: (() => Promise<void>)[]) {
+  const errors: unknown[] = [];
+  for (const step of steps) {
+    try {
+      await step();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length) {
+    testInfo.annotations.push({
+      type: "cleanup failure",
+      description: errors.map(String).join("\n"),
+    });
+    if (!testFailed) throw new AggregateError(errors, "Test cleanup failed");
+  }
+}
 
 test("currency names and search update on a live language change without changing values", async ({
   page,
@@ -66,6 +85,8 @@ test("Chinese liability options preserve raw metadata and custom names in LTR an
   await completeOnboardingIfNeeded(page);
   const api = `${BASE_URL}/api/v1`;
   const original = await (await page.request.get(`${api}/settings`)).json();
+  const createdIds: string[] = [];
+  let testFailed = false;
   try {
     expect((await page.request.put(`${api}/settings`, { data: { language: "zh" } })).ok()).toBe(
       true,
@@ -89,7 +110,7 @@ test("Chinese liability options preserve raw metadata and custom names in LTR an
         fullPage: true,
       });
       await page.getByRole("option", { name: "汽车贷款", exact: true }).click();
-      const name = `Untranslated custom loan ${direction}`;
+      const name = `Untranslated custom loan ${direction} ${randomUUID()}`;
       await sheet.getByPlaceholder("住房抵押贷款、汽车贷款……").fill(name);
       await sheet
         .getByRole("combobox")
@@ -104,17 +125,60 @@ test("Chinese liability options preserve raw metadata and custom names in LTR an
         .getByPlaceholder("0.00")
         .fill("100");
       await sheet.locator('input[type="date"]').first().fill("2022-06-05");
-      await sheet.getByRole("button", { name: "添加负债", exact: true }).click();
+      const [response] = await Promise.all([
+        page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === "/api/v1/alternative-assets" &&
+            response.request().method() === "POST" &&
+            response.request().postDataJSON()?.name === name,
+        ),
+        sheet.getByRole("button", { name: "添加负债", exact: true }).click(),
+      ]);
+      const { assetId } = await response.json();
+      // Register the actual creation result before any assertion can fail.
+      if (typeof assetId === "string" && assetId) createdIds.push(assetId);
+      expect(response.ok()).toBe(true);
+      expect(assetId).toEqual(expect.any(String));
+      expect(assetId).not.toBe("");
       await expect(sheet).toHaveCount(0, { timeout: 15_000 });
-      const holdings = await (await page.request.get(`${api}/alternative-holdings`)).json();
-      const created = holdings.find((holding: { name: string }) => holding.name === name);
-      expect(created).toMatchObject({ name, currency: "CNY", metadata: { sub_type: "auto_loan" } });
+      const holdingsResponse = await page.request.get(`${api}/alternative-holdings`);
+      expect(holdingsResponse.ok()).toBe(true);
+      const holdings = await holdingsResponse.json();
+      const created = holdings.find((holding: { id: string }) => holding.id === assetId);
+      expect(created).toMatchObject({
+        id: assetId,
+        name,
+        currency: "CNY",
+        metadata: { sub_type: "auto_loan" },
+      });
     }
+  } catch (error) {
+    testFailed = true;
+    throw error;
   } finally {
-    expect(
-      (
-        await page.request.put(`${api}/settings`, { data: { language: original.language || "en" } })
-      ).ok(),
-    ).toBe(true);
+    testInfo.annotations.push({
+      type: "test-owned liability IDs",
+      description: JSON.stringify(createdIds),
+    });
+    await runCleanup(testInfo, testFailed, [
+      ...createdIds.map((id) => async () => {
+        expect(
+          (await page.request.delete(`${api}/alternative-assets/${encodeURIComponent(id)}`)).ok(),
+        ).toBe(true);
+        const holdingsResponse = await page.request.get(`${api}/alternative-holdings`);
+        expect(holdingsResponse.ok()).toBe(true);
+        const holdings = await holdingsResponse.json();
+        expect(holdings.some((holding: { id: string }) => holding.id === id)).toBe(false);
+      }),
+      async () => {
+        expect(
+          (
+            await page.request.put(`${api}/settings`, {
+              data: { language: original.language || "en" },
+            })
+          ).ok(),
+        ).toBe(true);
+      },
+    ]);
   }
 });

@@ -1,14 +1,26 @@
-import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import * as z from "zod";
 
-import { FontSelector } from "@/components/font-selector";
+import {
+  controlRowControlClassName,
+  FontRow,
+  GainColorsRow,
+  TextSizeRow,
+} from "@/components/appearance-rows";
 import { NavigationStyleSelector } from "@/components/navigation-style-selector";
+import { ThemeModeNote } from "@/components/theme-mode-note";
 import { ThemePicker } from "@/components/theme-picker";
 import { ThemeSelector } from "@/components/theme-selector";
-import { Button, Icons } from "@wealthfolio/ui";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@wealthfolio/ui/components/ui/card";
 import {
   Form,
   FormControl,
@@ -16,47 +28,30 @@ import {
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
 } from "@wealthfolio/ui/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@wealthfolio/ui/components/ui/select";
-import type { GainLossColorScheme } from "@/lib/types";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
 import {
   Item,
   ItemActions,
   ItemContent,
-  ItemDescription,
+  ItemSeparator,
   ItemTitle,
 } from "@wealthfolio/ui/components/ui/item";
 import { usePlatform } from "@/hooks/use-platform";
 import { useSettingsContext } from "@/lib/settings-provider";
-import { cn } from "@/lib/utils";
 import { requiredError } from "@/lib/zod-errors";
 import { useNavigationMode } from "@/pages/layouts/navigation/navigation-mode-context";
-import { designedForKeys, fontLabelKeys, themeSelectionUpdate } from "@/themes/selection";
+import { themeSelectionUpdate } from "@/themes/selection";
 import { isThemeId, resolveThemeId, themes } from "@/themes/themes";
 
 interface AppearanceFormValues {
   theme: "light" | "dark" | "system";
   font: "font-mono" | "font-sans" | "font-serif";
   menuBarVisible: boolean;
-  gainLossColorScheme: GainLossColorScheme;
 }
-
-const switchModeKeys = {
-  dark: "settings:appearance_switch_to_dark",
-  light: "settings:appearance_switch_to_light",
-} as const;
 
 export function AppearanceForm() {
   const { t } = useTranslation();
-  const [savingColorScheme, setSavingColorScheme] = useState(false);
   const { settings, updateSettings } = useSettingsContext();
   const { isMobile, isMacOS, isTauri } = usePlatform();
   const { mode: navigationMode, setMode: setNavigationMode } = useNavigationMode();
@@ -74,21 +69,17 @@ export function AppearanceForm() {
             : t("settings:appearance_font_error"),
     }),
     menuBarVisible: z.boolean(),
-    gainLossColorScheme: z.enum(["green-up-red-down", "red-up-green-down"]),
   });
   const defaultValues: Partial<AppearanceFormValues> = {
     theme: settings?.theme as AppearanceFormValues["theme"],
     font: settings?.font as AppearanceFormValues["font"],
     menuBarVisible: settings?.menuBarVisible ?? true,
-    gainLossColorScheme: settings?.gainLossColorScheme ?? "green-up-red-down",
   };
   const form = useForm<AppearanceFormValues>({
     resolver: zodResolver(appearanceFormSchema),
     values: defaultValues as AppearanceFormValues,
   });
   const activeTheme = themes.find(({ id }) => id === resolveThemeId(settings?.themeId));
-  const ModeIcon = activeTheme?.mode === "dark" ? Icons.Moon : Icons.Sun;
-  const fontDiffersFromTheme = !!activeTheme?.font && settings?.font !== activeTheme.font;
 
   function handlePartialUpdate(data: Parameters<typeof updateSettings>[0]) {
     updateSettings(data).catch((error) => {
@@ -103,205 +94,133 @@ export function AppearanceForm() {
 
   return (
     <Form {...form}>
-      <div className="max-w-4xl space-y-8">
-        <FormField
-          control={form.control}
-          name="theme"
-          render={({ field }) => (
-            <Item variant="outline" size="sm">
-              <ItemContent>
-                <ItemTitle>{t("settings:appearance_mode_title")}</ItemTitle>
-                <ItemDescription>{t("settings:appearance_mode_description")}</ItemDescription>
-              </ItemContent>
-              <ItemActions>
-                <ThemeSelector
-                  aria-label={t("settings:appearance_mode_title")}
-                  value={field.value}
-                  onChange={(value) => {
-                    field.onChange(value);
-                    handlePartialUpdate({ theme: value });
-                  }}
-                />
-              </ItemActions>
-            </Item>
-          )}
-        />
-
-        <section className="space-y-3">
-          <div className="space-y-1">
-            <h2 className="text-base font-medium">{t("settings:appearance_theme_title")}</h2>
-            <p className="text-muted-foreground text-sm">
-              {t("settings:appearance_theme_description")}
-            </p>
-          </div>
-          <ThemePicker value={settings?.themeId} font={settings?.font} onChange={selectTheme} />
-          {activeTheme?.mode && (
-            // Shown only while the other mode is in effect, including through System.
-            <div
-              className={cn(
-                "bg-muted/40 items-center gap-3 rounded-lg border px-4 py-3",
-                activeTheme.mode === "dark" ? "flex dark:hidden" : "hidden dark:flex",
-              )}
-            >
-              <ModeIcon className="text-muted-foreground size-4 shrink-0" />
-              <p className="min-w-0 flex-1 text-sm">
-                {t(designedForKeys[activeTheme.mode], { theme: activeTheme.name })}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                onClick={() => {
-                  const mode = activeTheme.mode;
-                  if (mode) handlePartialUpdate({ theme: mode });
-                }}
-              >
-                {t(switchModeKeys[activeTheme.mode])}
-              </Button>
-            </div>
-          )}
-        </section>
-
-        <FormField
-          control={form.control}
-          name="font"
-          render={({ field }) => (
-            <Item variant="outline" size="sm">
-              <ItemContent>
-                <ItemTitle>{t("settings:appearance_font_title")}</ItemTitle>
-                <ItemDescription>
-                  {activeTheme?.font
-                    ? t("settings:appearance_theme_suggests", {
-                        theme: activeTheme.name,
-                        value: t(fontLabelKeys[activeTheme.font]),
-                      })
-                    : t("settings:appearance_font_description")}
-                </ItemDescription>
-                {fontDiffersFromTheme && activeTheme && (
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    className="h-auto self-start px-0"
-                    onClick={() => handlePartialUpdate(themeSelectionUpdate(activeTheme.id))}
-                  >
-                    {t("settings:appearance_use_theme_defaults")}
-                  </Button>
+      <div className="max-w-4xl space-y-6">
+        <Card>
+          {/* The mode belongs with the theme: every theme has a light and a dark
+              appearance. On a phone the header is one column and the mode spans it,
+              under the text; the header is the container the mode names check. */}
+          <CardHeader className="@container max-sm:has-data-[slot=card-action]:grid-cols-1">
+            <CardTitle role="heading" aria-level={2} className="text-lg">
+              {t("settings:appearance_theme_title")}
+            </CardTitle>
+            <CardDescription>{t("settings:appearance_theme_description")}</CardDescription>
+            <CardAction className="max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-stretch max-sm:pt-1.5">
+              <FormField
+                control={form.control}
+                name="theme"
+                render={({ field }) => (
+                  <ThemeSelector
+                    aria-label={t("settings:appearance_mode_title")}
+                    className={controlRowControlClassName}
+                    value={field.value}
+                    onChange={(value) => {
+                      field.onChange(value);
+                      handlePartialUpdate({ theme: value });
+                    }}
+                  />
                 )}
-              </ItemContent>
-              <ItemActions>
-                <FontSelector
-                  aria-label={t("settings:appearance_font_title")}
+              />
+            </CardAction>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <ThemePicker value={settings?.themeId} font={settings?.font} onChange={selectTheme} />
+            <ThemeModeNote
+              theme={activeTheme}
+              onSwitch={(mode) => handlePartialUpdate({ theme: mode })}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle role="heading" aria-level={2} className="text-lg">
+              {t("settings:appearance_text_numbers_title")}
+            </CardTitle>
+            <CardDescription>{t("settings:appearance_text_numbers_description")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FormField
+              control={form.control}
+              name="font"
+              render={({ field }) => (
+                <FontRow
                   value={field.value}
+                  theme={activeTheme}
                   onChange={(value) => {
                     field.onChange(value);
                     handlePartialUpdate({ font: value });
                   }}
+                  onUseThemeDefaults={() => {
+                    if (activeTheme) handlePartialUpdate(themeSelectionUpdate(activeTheme.id));
+                  }}
                 />
-              </ItemActions>
-            </Item>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="gainLossColorScheme"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("settings:appearance_gain_loss_color_title")}</FormLabel>
-              <FormDescription>
-                {t("settings:appearance_gain_loss_color_description")}
-              </FormDescription>
-              <Select
-                value={field.value}
-                items={[
-                  {
-                    value: "green-up-red-down",
-                    label: t("settings:appearance_gain_loss_green_up"),
-                  },
-                  { value: "red-up-green-down", label: t("settings:appearance_gain_loss_red_up") },
-                ]}
-                disabled={savingColorScheme}
-                onValueChange={async (value) => {
-                  if (value === null) return;
-                  const previous = settings?.gainLossColorScheme ?? "green-up-red-down";
-                  field.onChange(value);
-                  setSavingColorScheme(true);
-                  try {
-                    await updateSettings({ gainLossColorScheme: value });
-                  } catch {
-                    field.onChange(previous);
-                  } finally {
-                    setSavingColorScheme(false);
-                  }
-                }}
-              >
-                <FormControl>
-                  <SelectTrigger data-testid="gain-loss-color-select" className="w-full sm:w-72">
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="green-up-red-down">
-                    {t("settings:appearance_gain_loss_green_up")}
-                  </SelectItem>
-                  <SelectItem value="red-up-green-down">
-                    {t("settings:appearance_gain_loss_red_up")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+              )}
+            />
+            <ItemSeparator />
+            <TextSizeRow
+              value={settings?.textSize}
+              onChange={(textSize) => handlePartialUpdate({ textSize })}
+            />
+            <ItemSeparator />
+            <GainColorsRow
+              value={settings?.gainColors}
+              onChange={(gainColors) => handlePartialUpdate({ gainColors })}
+            />
+          </CardContent>
+        </Card>
 
         {!isMobile && (
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <p className="text-base font-medium">{t("settings:appearance_navigation_title")}</p>
-              <p className="text-muted-foreground text-sm">
-                {t("settings:appearance_navigation_description")}
-              </p>
-            </div>
-            <NavigationStyleSelector
-              value={navigationMode}
-              onChange={setNavigationMode}
-              className="max-w-md"
-            />
-          </div>
-        )}
-
-        {!isMobile && !(isTauri && isMacOS) && (
-          <FormField
-            control={form.control}
-            name="menuBarVisible"
-            render={({ field }) => (
-              <FormItem>
-                <Item variant="outline" size="sm">
-                  <ItemContent>
-                    <ItemTitle>
-                      <FormLabel>{t("settings:appearance_menu_bar")}</FormLabel>
-                    </ItemTitle>
-                    <FormDescription>
-                      {t("settings:appearance_menu_bar_description")}
-                    </FormDescription>
-                  </ItemContent>
-                  <ItemActions>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={(value) => {
-                          field.onChange(value);
-                          handlePartialUpdate({ menuBarVisible: value });
-                        }}
-                      />
-                    </FormControl>
-                  </ItemActions>
-                </Item>
-              </FormItem>
-            )}
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle role="heading" aria-level={2} className="text-lg">
+                {t("settings:appearance_navigation_title")}
+              </CardTitle>
+              <CardDescription>{t("settings:appearance_navigation_description")}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* The same grid, card width and about the same height as the themes above. */}
+              <NavigationStyleSelector
+                value={navigationMode}
+                onChange={setNavigationMode}
+                className="sm:gap-3 lg:grid-cols-4"
+                compact
+              />
+              {!(isTauri && isMacOS) && (
+                <>
+                  <ItemSeparator className="mt-4" />
+                  <FormField
+                    control={form.control}
+                    name="menuBarVisible"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Item size="sm" className="px-0 pb-0">
+                          <ItemContent>
+                            <ItemTitle>
+                              <FormLabel>{t("settings:appearance_menu_bar")}</FormLabel>
+                            </ItemTitle>
+                            <FormDescription>
+                              {t("settings:appearance_menu_bar_description")}
+                            </FormDescription>
+                          </ItemContent>
+                          <ItemActions>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={(value) => {
+                                  field.onChange(value);
+                                  handlePartialUpdate({ menuBarVisible: value });
+                                }}
+                              />
+                            </FormControl>
+                          </ItemActions>
+                        </Item>
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+            </CardContent>
+          </Card>
         )}
       </div>
     </Form>

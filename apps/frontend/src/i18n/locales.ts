@@ -58,6 +58,7 @@ export function normalizeLocaleCode(language: string): string {
 export const NAMESPACES = [
   "trade-instructions",
   "common",
+  "taxonomies",
   "dashboard",
   "holdings",
   "activity",

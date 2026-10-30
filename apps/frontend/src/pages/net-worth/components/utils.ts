@@ -12,13 +12,13 @@ export function themeColorTint(percent: number): string {
   return `color-mix(in oklab, ${THEME_COLOR} ${percent}%, transparent)`;
 }
 
-/** Semantic text tone for a signed value: gain/loss, muted when flat. */
+/** Text tone for a signed value: gain or loss, muted when flat. */
 export function toneClass(value: number): string {
   if (Math.abs(value) < 0.005) return "text-muted-foreground/60";
   return value > 0 ? "text-gain" : "text-loss";
 }
 
-/** Semantic fill color for bars/meters: gain for positive/zero, loss for negative. */
+/** Fill color for bars/meters: gain for positive/zero, loss for negative. */
 export function toneColor(value: number): string {
   return value < -0.005 ? "var(--loss)" : "var(--gain)";
 }

@@ -44,6 +44,7 @@ use crate::accounts::{account_types, Account, AccountServiceTrait};
 use crate::activities::activities_constants::{
     classify_import_activity, is_cash_symbol, is_garbage_symbol, is_securities_transfer,
     requires_final_cash_amount, requires_symbol, ImportSymbolDisposition,
+    ACTIVITY_SUBTYPE_CONVERSION_IN, ACTIVITY_SUBTYPE_CONVERSION_OUT,
     ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION, ACTIVITY_SUBTYPE_OPTION_EXPIRY,
     ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL, ACTIVITY_TYPE_ADJUSTMENT, ACTIVITY_TYPE_BUY,
     ACTIVITY_TYPE_CREDIT, ACTIVITY_TYPE_FEE, ACTIVITY_TYPE_INTEREST, ACTIVITY_TYPE_SELL,
@@ -57,10 +58,12 @@ use crate::activities::cash_balances::{
     CashLedgerActivity,
 };
 use crate::activities::csv_parser::{self, ParseConfig, ParsedCsvResult};
-use crate::activities::idempotency::{compute_activity_idempotency_key, compute_idempotency_key};
+use crate::activities::idempotency::{
+    compute_activity_idempotency_key, compute_idempotency_key, idempotency_activity_type,
+};
 use crate::activities::{
-    ActivityRepositoryTrait, ActivityServiceTrait, TransferLinkState, TransferPair,
-    TransferPairResolution,
+    is_conversion_row, ActivityRepositoryTrait, ActivityServiceTrait, ConversionPair,
+    ConversionPairResolution, TransferLinkState, TransferPair, TransferPairResolution,
 };
 use crate::activities::{
     ImportRun, ImportRunMode, ImportRunRepositoryTrait, ImportRunSummary, ImportRunType, ReviewMode,
@@ -853,9 +856,19 @@ impl ActivityService {
             &activity.activity_type,
             activity.subtype.as_deref(),
         );
+        Self::trim_source_group_id(&mut activity);
         Self::drop_cash_symbol_asset(&mut activity);
         Self::normalize_new_activity_economic_signs(&mut activity);
         activity
+    }
+
+    /// Stores a group id trimmed, as the engine and the pair lookups read it.
+    fn trim_source_group_id(activity: &mut NewActivity) {
+        activity.source_group_id = activity
+            .source_group_id
+            .take()
+            .map(|group| group.trim().to_string())
+            .filter(|group| !group.is_empty());
     }
 
     fn prepare_incomplete_sync_asset_income_for_review(activity: &mut NewActivity) {
@@ -944,6 +957,8 @@ impl ActivityService {
                     ACTIVITY_SUBTYPE_OPTION_EXPIRY,
                     ACTIVITY_SUBTYPE_RETURN_OF_CAPITAL,
                     ACTIVITY_SUBTYPE_NOTIONAL_DISTRIBUTION,
+                    ACTIVITY_SUBTYPE_CONVERSION_OUT,
+                    ACTIVITY_SUBTYPE_CONVERSION_IN,
                 ]
                 .iter()
                 .any(|known| subtype.eq_ignore_ascii_case(known))
@@ -1812,6 +1827,378 @@ impl ActivityService {
         }
     }
 
+    /// The conversion `activity_id` is a row of (rules R7.5), with its rows
+    /// as stored.
+    fn load_conversion_pair_for_activity(
+        &self,
+        activity_id: &str,
+    ) -> Result<Option<ConversionPair>> {
+        let activity = self.activity_repository.get_activity(activity_id)?;
+        let Some(group_id) = activity
+            .source_group_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            return Ok(None);
+        };
+        if !is_conversion_row(&activity) {
+            return Ok(None);
+        }
+        let group_activities = self
+            .activity_repository
+            .get_activities_by_source_group_id(group_id)?;
+        Ok(
+            ConversionPairResolution::from_activities(
+                &group_activities,
+                self.configured_timezone(),
+            )
+            .pair_for_activity(activity_id)
+            .cloned(),
+        )
+    }
+
+    /// The other row's update when `existing` is a row of a conversion: the
+    /// rows stay one conversion, so an edit keeps this row's type and
+    /// subtype, and the other row follows its account, day, lifecycle,
+    /// review state and notes. Its own asset and units stay as they are.
+    fn conversion_counterpart_update(
+        update: &ActivityUpdate,
+        existing: &Activity,
+        pair: &ConversionPair,
+        timezone: Tz,
+    ) -> Result<Option<ActivityUpdate>> {
+        let Some(counterpart) = pair.counterpart(&existing.id) else {
+            return Ok(None);
+        };
+        let keeps_subtype = match update.subtype.as_deref().map(str::trim) {
+            None => true,
+            Some(subtype) => {
+                NewActivity::canonicalize_subtype(Some(subtype))
+                    == NewActivity::canonicalize_subtype(existing.subtype.as_deref())
+            }
+        };
+        if !update
+            .activity_type
+            .eq_ignore_ascii_case(ACTIVITY_TYPE_ADJUSTMENT)
+            || !keeps_subtype
+        {
+            return Err(Self::invalid_activity_data(
+                "A conversion row keeps its type and subtype; delete the conversion to record something else",
+            ));
+        }
+        let status_transition = update
+            .status
+            .clone()
+            .filter(|status| *status != existing.status);
+        // A voided counterpart counts toward nothing, so it leaves the review
+        // queue even when the primary was not in it.
+        let review_transition = update
+            .needs_review
+            .filter(|review| *review != existing.needs_review)
+            .or_else(|| {
+                (status_transition == Some(ActivityStatus::Void) && counterpart.needs_review)
+                    .then_some(false)
+            });
+        let counterpart_status = status_transition.or_else(|| {
+            (review_transition == Some(false) && counterpart.status == ActivityStatus::Draft)
+                .then_some(ActivityStatus::Posted)
+        });
+        // The pair folds at its first row: the other row moves only when the
+        // edit moves this one, so an edit of anything else keeps its place.
+        let moved = Self::prospective_activity_date(&update.activity_date, timezone)
+            != existing.activity_date;
+        let counterpart_date = if moved {
+            update.activity_date.clone()
+        } else {
+            counterpart.activity_date.to_rfc3339()
+        };
+        Ok(Some(ActivityUpdate {
+            unlink_transfer_pair_id: None,
+            split_review: update.split_review.clone(),
+            id: counterpart.id.clone(),
+            account_id: update.account_id.clone(),
+            asset: Self::activity_asset_input(counterpart),
+            activity_type: counterpart.effective_type().to_string(),
+            subtype: None,
+            activity_date: counterpart_date,
+            quantity: None,
+            unit_price: None,
+            currency: counterpart.currency.clone(),
+            fee: None,
+            tax: None,
+            amount: None,
+            status: counterpart_status,
+            needs_review: review_transition,
+            notes: update.notes.clone(),
+            fx_rate: None,
+            metadata: None,
+        }))
+    }
+
+    /// Rejects writes that break a conversion (rules R7.5): after the writes,
+    /// with the stored rows of their groups, a conversion that was paired
+    /// stays paired, a created conversion row pairs, and a conversion's group
+    /// holds its two rows only. A row already unpaired may still be edited, so
+    /// broken data can be repaired.
+    fn check_conversion_writes(
+        &self,
+        creates: &[NewActivity],
+        updates: &[ActivityUpdate],
+        deletes: &[String],
+    ) -> Result<()> {
+        let timezone = self.configured_timezone();
+        let mut written: Vec<Activity> = Vec::new();
+        let mut created_conversions: Vec<String> = Vec::new();
+        for (index, create) in creates.iter().enumerate() {
+            let row = Self::prospective_new_activity(create, index, timezone);
+            if is_conversion_row(&row) {
+                created_conversions.push(row.id.clone());
+            }
+            written.push(row);
+        }
+        for update in updates {
+            // Loaded as the update paths load it, archived accounts included.
+            let existing = self.activity_repository.get_activity(&update.id)?;
+            let row = Self::prospective_updated_activity(&existing, update, timezone);
+            // A row an edit makes a conversion row pairs, as a created one.
+            if is_conversion_row(&row) && !is_conversion_row(&existing) {
+                created_conversions.push(row.id.clone());
+            }
+            written.push(row);
+        }
+        let group = |row: &Activity| {
+            row.source_group_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|group| !group.is_empty())
+                .map(str::to_string)
+        };
+        if written
+            .iter()
+            .any(|row| created_conversions.contains(&row.id) && group(row).is_none())
+        {
+            return Err(Self::invalid_activity_data(
+                "A conversion is written as a pair: a conversion row must be linked to its other row by a group",
+            ));
+        }
+        let groups: Vec<String> = written
+            .iter()
+            .filter_map(group)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        if groups.is_empty() {
+            return Ok(());
+        }
+        let stored = self
+            .activity_repository
+            .get_activities_by_source_group_ids(&groups)?;
+        if created_conversions.is_empty() && !stored.iter().any(is_conversion_row) {
+            return Ok(());
+        }
+        let before = ConversionPairResolution::from_activities(&stored, timezone);
+        let mut after_rows: HashMap<String, Activity> = stored
+            .iter()
+            .map(|row| (row.id.clone(), row.clone()))
+            .collect();
+        for row in &written {
+            after_rows.insert(row.id.clone(), row.clone());
+        }
+        for delete in deletes {
+            after_rows.remove(delete);
+        }
+        let after_rows: Vec<Activity> = after_rows.into_values().collect();
+        // Deleting a row deletes its whole group, so a conversion's group holds
+        // its two rows only, whatever their status: checked for the groups of
+        // created rows and of rows an edit makes conversion rows.
+        let joined_groups = written
+            .iter()
+            .enumerate()
+            .filter(|(index, row)| *index < creates.len() || created_conversions.contains(&row.id))
+            .filter_map(|(_, row)| group(row));
+        for created_group in joined_groups {
+            let members: Vec<&Activity> = after_rows
+                .iter()
+                .filter(|row| group(row).as_deref() == Some(created_group.as_str()))
+                .collect();
+            if members.len() > 2 && members.iter().any(|row| is_conversion_row(row)) {
+                return Err(Self::invalid_activity_data(
+                    "A conversion is written as a pair: its group holds its two rows only",
+                ));
+            }
+        }
+        let after = ConversionPairResolution::from_activities(&after_rows, timezone);
+        let must_pair = before
+            .pairs()
+            .iter()
+            .flat_map(|pair| [&pair.leaving.id, &pair.arriving.id])
+            .chain(created_conversions.iter())
+            .filter(|id| !deletes.contains(id));
+        for id in must_pair {
+            if after.pair_for_activity(id).is_none() {
+                let reason = after
+                    .invalid_reason(id)
+                    .unwrap_or("its other row is missing");
+                return Err(Self::invalid_activity_data(format!(
+                    "A conversion is written as a pair: {reason}"
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// The import's conversion check (rules R7.5), one conversion at a time:
+    /// each refused row's offset in `rows`, with why. A conversion row without
+    /// a group is a conversion of its own. Errors other than a refusal pass.
+    fn refused_conversion_imports(&self, rows: &[NewActivity]) -> Result<Vec<(usize, String)>> {
+        let is_refusal =
+            |err: &Error| matches!(err, Error::Activity(ActivityError::InvalidData(_)));
+        match self.check_conversion_writes(rows, &[], &[]) {
+            Ok(()) => return Ok(Vec::new()),
+            Err(err) if !is_refusal(&err) => return Err(err),
+            Err(_) => {}
+        }
+        let timezone = self.configured_timezone();
+        let mut conversions: std::collections::BTreeMap<String, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for (offset, row) in rows.iter().enumerate() {
+            if !is_conversion_row(&Self::prospective_new_activity(row, offset, timezone)) {
+                continue;
+            }
+            let key = row
+                .source_group_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|group| !group.is_empty())
+                .map(|group| format!("group:{group}"))
+                .unwrap_or_else(|| format!("row:{offset}"));
+            conversions.entry(key).or_default().push(offset);
+        }
+        let mut refused = Vec::new();
+        for offsets in conversions.values() {
+            let conversion: Vec<NewActivity> =
+                offsets.iter().map(|&offset| rows[offset].clone()).collect();
+            match self.check_conversion_writes(&conversion, &[], &[]) {
+                Ok(()) => {}
+                Err(err) if is_refusal(&err) => {
+                    let message = err.to_string();
+                    refused.extend(offsets.iter().map(|&offset| (offset, message.clone())));
+                }
+                Err(err) => return Err(err),
+            }
+        }
+        if refused.is_empty() {
+            // Refused only together: every conversion row carries the refusal.
+            if let Err(err) = self.check_conversion_writes(rows, &[], &[]) {
+                let message = err.to_string();
+                refused.extend(
+                    conversions
+                        .values()
+                        .flatten()
+                        .map(|&offset| (offset, message.clone())),
+                );
+                if refused.is_empty() {
+                    return Err(err);
+                }
+            }
+        }
+        refused.sort_by_key(|(offset, _)| *offset);
+        Ok(refused)
+    }
+
+    /// A prepared create as the row it will store, for the conversion check.
+    fn prospective_new_activity(create: &NewActivity, index: usize, timezone: Tz) -> Activity {
+        let activity_date = Self::prospective_activity_date(&create.activity_date, timezone);
+        Activity {
+            id: create
+                .id
+                .clone()
+                .unwrap_or_else(|| format!("new-activity-{index}")),
+            account_id: create.account_id.clone(),
+            // An import may name an asset it has not resolved yet.
+            asset_id: create
+                .asset
+                .as_ref()
+                .and_then(|asset| asset.id.clone().or_else(|| asset.symbol.clone())),
+            activity_type: create.activity_type.clone(),
+            activity_type_override: None,
+            source_type: None,
+            subtype: create.subtype.clone(),
+            status: create.status.clone().unwrap_or_default(),
+            activity_date,
+            settlement_date: None,
+            quantity: create.quantity,
+            unit_price: create.unit_price,
+            amount: create.amount,
+            fee: create.fee,
+            tax: create.tax,
+            currency: create.currency.clone(),
+            fx_rate: create.fx_rate,
+            notes: None,
+            metadata: None,
+            source_system: create.source_system.clone(),
+            source_record_id: create.source_record_id.clone(),
+            source_group_id: create.source_group_id.clone(),
+            idempotency_key: None,
+            import_run_id: None,
+            is_user_modified: false,
+            needs_review: false,
+            created_at: activity_date,
+            updated_at: activity_date,
+        }
+    }
+
+    /// A prepared update over its stored row, for the conversion check: an
+    /// omitted field keeps the stored value.
+    fn prospective_updated_activity(
+        existing: &Activity,
+        update: &ActivityUpdate,
+        timezone: Tz,
+    ) -> Activity {
+        let mut row = existing.clone();
+        row.account_id = update.account_id.clone();
+        if let Some(asset) = &update.asset {
+            row.asset_id = asset.id.clone();
+        }
+        if !update
+            .activity_type
+            .eq_ignore_ascii_case(existing.effective_type())
+        {
+            row.activity_type = update.activity_type.clone();
+            row.activity_type_override = None;
+        }
+        match update.subtype.as_deref().map(str::trim) {
+            Some("") => row.subtype = None,
+            Some(subtype) => row.subtype = Some(subtype.to_string()),
+            None => {}
+        }
+        row.activity_date = Self::prospective_activity_date(&update.activity_date, timezone);
+        if let Some(quantity) = update.quantity {
+            row.quantity = quantity;
+        }
+        if let Some(fee) = update.fee {
+            row.fee = fee;
+        }
+        if let Some(tax) = update.tax {
+            row.tax = tax;
+        }
+        if let Some(status) = &update.status {
+            row.status = status.clone();
+        }
+        row
+    }
+
+    fn prospective_activity_date(activity_date: &str, timezone: Tz) -> DateTime<Utc> {
+        let activity_date = activity_date.trim();
+        if let Ok(day) = NaiveDate::parse_from_str(activity_date, "%Y-%m-%d") {
+            return calendar_day_instant(day, timezone);
+        }
+        DateTime::parse_from_rfc3339(activity_date)
+            .map(|instant| instant.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now())
+    }
+
     fn require_internal_transfer_pair_for_activity(
         &self,
         activity_id: &str,
@@ -2164,9 +2551,15 @@ impl ActivityService {
             .status
             .clone()
             .filter(|status| *status != existing.status);
+        // A voided counterpart counts toward nothing, so it leaves the review
+        // queue even when the primary was not in it.
         let review_transition = update
             .needs_review
-            .filter(|review| *review != existing.needs_review);
+            .filter(|review| *review != existing.needs_review)
+            .or_else(|| {
+                (status_transition == Some(ActivityStatus::Void) && counterpart.needs_review)
+                    .then_some(false)
+            });
         // Approving a pair must also post a Draft counterpart, or its
         // lifecycle guard would reject clearing the review flag alone.
         let counterpart_status = status_transition.or_else(|| {
@@ -2352,7 +2745,11 @@ impl ActivityService {
 
         Some(compute_idempotency_key(
             account_id,
-            &activity.activity_type,
+            &idempotency_activity_type(
+                &activity.activity_type,
+                activity.subtype.as_deref(),
+                activity.source_group_id.as_deref(),
+            ),
             &date,
             asset_id.as_deref(),
             quantity,
@@ -2433,11 +2830,137 @@ impl ActivityService {
         Ok(())
     }
 
+    /// An import key names the asset by ID when the row carries one and by
+    /// symbol@mic otherwise. A trade imported symbol-only keeps the symbol key
+    /// after its asset is created, but the check step fills in the asset ID
+    /// once the asset exists, and the CSV import sends it. For each row whose
+    /// asset is known, also look up the key in the other form. Returns the
+    /// matches by row position, since symbol-only rows for different assets
+    /// can share a key.
+    fn find_other_asset_form_duplicates<'a>(
+        &self,
+        activities: impl Iterator<Item = (usize, &'a ActivityImport, Option<&'a str>)>,
+        existing: &HashMap<String, String>,
+    ) -> Result<HashMap<usize, String>> {
+        let mut rows_by_other_key: HashMap<String, Vec<(usize, &'a str)>> = HashMap::new();
+        for (position, activity, asset_id) in activities {
+            let Some(asset_id) = asset_id.filter(|id| !id.trim().is_empty()) else {
+                continue;
+            };
+            let Some(account_id) = activity.account_id.as_deref() else {
+                continue;
+            };
+            let Some(key) = Self::build_import_idempotency_key(activity, account_id) else {
+                continue;
+            };
+            if existing.contains_key(&key) {
+                continue;
+            }
+            let mut other = activity.clone();
+            if activity.asset_id.is_some() {
+                // Fill a missing symbol or MIC from the asset, as the check
+                // step does.
+                if other.symbol.trim().is_empty() || other.exchange_mic.is_none() {
+                    self.hydrate_import_activity_from_asset_id(&mut other);
+                }
+                if other.symbol.trim().is_empty() {
+                    continue;
+                }
+                other.asset_id = None;
+            } else {
+                other.asset_id = Some(asset_id.to_string());
+            }
+            if let Some(other_key) = Self::build_import_idempotency_key(&other, account_id) {
+                rows_by_other_key
+                    .entry(other_key)
+                    .or_default()
+                    .push((position, asset_id));
+            }
+        }
+        if rows_by_other_key.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let candidates =
+            self.check_existing_duplicates(rows_by_other_key.keys().cloned().collect())?;
+        let candidate_ids: Vec<String> = candidates.values().cloned().collect();
+        let stored_asset_ids: HashMap<String, Option<String>> = self
+            .activity_repository
+            .get_activities_by_ids(&candidate_ids)?
+            .into_iter()
+            .map(|stored| (stored.id, stored.asset_id))
+            .collect();
+        let mut duplicates = HashMap::new();
+        for (other_key, stored_id) in candidates {
+            let stored_asset_id = stored_asset_ids.get(&stored_id).and_then(Option::as_deref);
+            // A symbol key does not pin the asset, so require the stored row to
+            // hold the same one.
+            for (position, asset_id) in rows_by_other_key.get(&other_key).into_iter().flatten() {
+                if stored_asset_id == Some(*asset_id) {
+                    duplicates
+                        .entry(*position)
+                        .or_insert_with(|| stored_id.clone());
+                }
+            }
+        }
+        Ok(duplicates)
+    }
+
     fn add_activity_warning(activity: &mut ActivityImport, key: &str, message: &str) {
         let warnings = activity.warnings.get_or_insert_with(HashMap::new);
         let entry = warnings.entry(key.to_string()).or_default();
         if !entry.iter().any(|m| m == message) {
             entry.push(message.to_string());
+        }
+    }
+
+    /// A conversion is imported as its two rows (rules R7.5). A conversion
+    /// row whose other row is not in the batch is flagged on its row here,
+    /// before the import, which would otherwise refuse the whole batch.
+    fn flag_unpaired_conversion_imports(rows: &mut [ActivityImport]) {
+        let direction = |row: &ActivityImport| {
+            if !row
+                .activity_type
+                .eq_ignore_ascii_case(ACTIVITY_TYPE_ADJUSTMENT)
+            {
+                return None;
+            }
+            NewActivity::canonicalize_subtype(row.subtype.as_deref()).filter(|subtype| {
+                subtype == ACTIVITY_SUBTYPE_CONVERSION_OUT
+                    || subtype == ACTIVITY_SUBTYPE_CONVERSION_IN
+            })
+        };
+        let group = |row: &ActivityImport| {
+            row.source_group_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|group| !group.is_empty())
+                .map(str::to_string)
+        };
+        let mut directions: HashMap<String, Vec<String>> = HashMap::new();
+        for row in rows.iter() {
+            if let (Some(direction), Some(group)) = (direction(row), group(row)) {
+                directions.entry(group).or_default().push(direction);
+            }
+        }
+        for row in rows.iter_mut() {
+            if direction(row).is_none() {
+                continue;
+            }
+            let paired = group(row)
+                .and_then(|group| directions.get(&group))
+                .is_some_and(|found| {
+                    found.len() == 2
+                        && found.iter().any(|d| d == ACTIVITY_SUBTYPE_CONVERSION_OUT)
+                        && found.iter().any(|d| d == ACTIVITY_SUBTYPE_CONVERSION_IN)
+                });
+            if !paired {
+                Self::add_activity_error(
+                    row,
+                    "general",
+                    "A conversion is imported as its two rows, CONVERSION_OUT and CONVERSION_IN, sharing one sourceGroupId.",
+                );
+            }
         }
     }
 
@@ -2778,6 +3301,7 @@ impl ActivityService {
     async fn prepare_new_activity(&self, mut activity: NewActivity) -> Result<NewActivity> {
         activity.activity_date =
             self.validate_and_normalize_activity_date(&activity.activity_date)?;
+        Self::trim_source_group_id(&mut activity);
         activity.metadata = Self::without_loan_payment_tag(activity.metadata.take());
         activity.subtype = NewActivity::canonicalize_subtype_for_activity(
             &activity.activity_type,
@@ -2949,7 +3473,11 @@ impl ActivityService {
         {
             let key = compute_idempotency_key(
                 &activity.account_id,
-                &activity.activity_type,
+                &idempotency_activity_type(
+                    &activity.activity_type,
+                    activity.subtype.as_deref(),
+                    activity.source_group_id.as_deref(),
+                ),
                 &date,
                 activity.get_symbol_id(),
                 activity.quantity,
@@ -4352,13 +4880,27 @@ impl ActivityService {
                 .filter_map(|(activity, key)| key.as_ref().map(|_| activity)),
             &mut existing,
         )?;
+        let other_form_duplicates = self.find_other_asset_form_duplicates(
+            activities_with_status
+                .iter()
+                .zip(&keys)
+                .enumerate()
+                .filter_map(|(idx, (activity, key))| {
+                    key.as_ref()
+                        .map(|_| (idx, activity, activity.asset_id.as_deref()))
+                }),
+            &existing,
+        )?;
 
         for (idx, maybe_key) in keys.iter().enumerate() {
             let Some(key) = maybe_key else {
                 continue;
             };
 
-            if let Some(existing_id) = existing.get(key) {
+            if let Some(existing_id) = existing
+                .get(key)
+                .or_else(|| other_form_duplicates.get(&idx))
+            {
                 let activity = &mut activities_with_status[idx];
                 Self::add_activity_warning(
                     activity,
@@ -4651,6 +5193,7 @@ impl ActivityServiceTrait for ActivityService {
     /// Creates a new activity
     async fn create_activity(&self, activity: NewActivity) -> Result<Activity> {
         let prepared = self.prepare_new_activity(activity).await?;
+        self.check_conversion_writes(std::slice::from_ref(&prepared), &[], &[])?;
         let created = self
             .activity_repository
             .create_activity(prepared)
@@ -4680,12 +5223,22 @@ impl ActivityServiceTrait for ActivityService {
         self.hydrate_and_validate_update_against_existing(&mut activity, &existing)?;
 
         let pair = self.load_internal_transfer_pair_for_activity(&activity.id)?;
-        let counterpart_update = match pair.as_ref() {
-            Some(pair) => {
+        let conversion = match pair {
+            Some(_) => None,
+            None => self.load_conversion_pair_for_activity(&activity.id)?,
+        };
+        let counterpart_update = match (pair.as_ref(), conversion.as_ref()) {
+            (Some(pair), _) => {
                 Self::validate_internal_cash_pair_currency_update(&activity, &existing, pair)?;
                 self.build_counterpart_update(&activity, &existing, pair)?
             }
-            None => None,
+            (None, Some(conversion)) => Self::conversion_counterpart_update(
+                &activity,
+                &existing,
+                conversion,
+                self.configured_timezone(),
+            )?,
+            (None, None) => None,
         };
 
         if activity.unlink_transfer_pair_id.is_some() && pair.is_none() {
@@ -4695,13 +5248,19 @@ impl ActivityServiceTrait for ActivityService {
         }
         let prepared = self.prepare_update_activity(activity).await?;
 
-        if let Some(pair) = pair {
-            let counterpart_id = if existing.id == pair.transfer_in.id {
-                &pair.transfer_out.id
+        let counterpart_id = match (pair.as_ref(), conversion.as_ref()) {
+            (Some(pair), _) => Some(if existing.id == pair.transfer_in.id {
+                pair.transfer_out.id.clone()
             } else {
-                &pair.transfer_in.id
-            };
-            let counterpart_existing = self.activity_repository.get_activity(counterpart_id)?;
+                pair.transfer_in.id.clone()
+            }),
+            (None, Some(conversion)) => conversion
+                .counterpart(&existing.id)
+                .map(|row| row.id.clone()),
+            (None, None) => None,
+        };
+        if let Some(counterpart_id) = counterpart_id {
+            let counterpart_existing = self.activity_repository.get_activity(&counterpart_id)?;
             let mut updates = vec![prepared.clone()];
             if let Some(mut counterpart_update) = counterpart_update {
                 self.hydrate_and_validate_update_against_existing(
@@ -4710,6 +5269,7 @@ impl ActivityServiceTrait for ActivityService {
                 )?;
                 updates.push(self.prepare_update_activity(counterpart_update).await?);
             }
+            self.check_conversion_writes(&[], &updates, &[])?;
             let persisted = self
                 .activity_repository
                 .bulk_mutate_activities(Vec::new(), updates, Vec::new())
@@ -4743,9 +5303,7 @@ impl ActivityServiceTrait for ActivityService {
                 .updated
                 .into_iter()
                 .find(|updated| updated.id == prepared.id)
-                .ok_or_else(|| {
-                    Self::invalid_activity_data("Updated transfer leg was not returned")
-                })?;
+                .ok_or_else(|| Self::invalid_activity_data("Updated pair row was not returned"))?;
             let earliest_activity_at_utc = Self::earliest_activity_at_utc(
                 [&existing, &counterpart_existing]
                     .into_iter()
@@ -4761,6 +5319,7 @@ impl ActivityServiceTrait for ActivityService {
             return Ok(updated);
         }
 
+        self.check_conversion_writes(&[], std::slice::from_ref(&prepared), &[])?;
         let updated = self.activity_repository.update_activity(prepared).await?;
 
         // Emit domain event after successful update
@@ -4826,7 +5385,15 @@ impl ActivityServiceTrait for ActivityService {
         }
         let counterpart_update = match pair.as_ref() {
             Some(pair) => self.build_counterpart_update(&activity, &existing, pair)?,
-            None => None,
+            None => match self.load_conversion_pair_for_activity(&activity.id)? {
+                Some(conversion) => Self::conversion_counterpart_update(
+                    &activity,
+                    &existing,
+                    &conversion,
+                    self.configured_timezone(),
+                )?,
+                None => None,
+            },
         };
         let activity = self.preview_prepared_update(activity, existing)?;
         let linked = match counterpart_update {
@@ -4842,6 +5409,11 @@ impl ActivityServiceTrait for ActivityService {
             }
             None => None,
         };
+        // A preview refuses what the save would: an edit that breaks a
+        // conversion (rules R7.5).
+        let mut updates = vec![activity.update.clone()];
+        updates.extend(linked.as_ref().map(|linked| linked.update.clone()));
+        self.check_conversion_writes(&[], &updates, &[])?;
 
         Ok(ActivityUpdatePreview { activity, linked })
     }
@@ -4852,11 +5424,18 @@ impl ActivityServiceTrait for ActivityService {
     ) -> Result<Vec<ActivitySplitEffect>> {
         let existing = self.activity_repository.get_activity(&activity.id)?;
         let pair = self.load_internal_transfer_pair_for_activity(&activity.id)?;
-        let counterpart = pair
-            .as_ref()
-            .map(|pair| self.build_counterpart_update(&activity, &existing, pair))
-            .transpose()?
-            .flatten();
+        let counterpart = match pair.as_ref() {
+            Some(pair) => self.build_counterpart_update(&activity, &existing, pair)?,
+            None => match self.load_conversion_pair_for_activity(&activity.id)? {
+                Some(conversion) => Self::conversion_counterpart_update(
+                    &activity,
+                    &existing,
+                    &conversion,
+                    self.configured_timezone(),
+                )?,
+                None => None,
+            },
+        };
         let unlink_effect = match activity.unlink_transfer_pair_id.as_deref() {
             Some(counterpart_id) => {
                 if pair.is_none() {
@@ -4976,8 +5555,15 @@ impl ActivityServiceTrait for ActivityService {
 
     /// Deletes an activity
     async fn delete_activity(&self, activity_id: String) -> Result<Activity> {
-        if let Some(pair) = self.load_internal_transfer_pair_for_activity(&activity_id)? {
-            let delete_ids = vec![pair.transfer_out.id.clone(), pair.transfer_in.id.clone()];
+        // A transfer pair or a conversion (rules R7.5) is deleted whole.
+        let pair_ids = match self.load_internal_transfer_pair_for_activity(&activity_id)? {
+            Some(pair) => Some([pair.transfer_out.id, pair.transfer_in.id]),
+            None => self
+                .load_conversion_pair_for_activity(&activity_id)?
+                .map(|pair| [pair.leaving.id, pair.arriving.id]),
+        };
+        if let Some(pair_ids) = pair_ids {
+            let delete_ids = pair_ids.to_vec();
             let persisted = self
                 .activity_repository
                 .bulk_mutate_activities(Vec::new(), Vec::new(), delete_ids)
@@ -4988,9 +5574,7 @@ impl ActivityServiceTrait for ActivityService {
                 .iter()
                 .find(|activity| activity.id == activity_id)
                 .cloned()
-                .ok_or_else(|| {
-                    Self::invalid_activity_data("Deleted transfer leg was not returned")
-                })?;
+                .ok_or_else(|| Self::invalid_activity_data("Deleted pair row was not returned"))?;
 
             let mut account_ids_set: HashSet<String> = HashSet::new();
             let mut asset_ids_set: HashSet<String> = HashSet::new();
@@ -5033,13 +5617,60 @@ impl ActivityServiceTrait for ActivityService {
         Ok(deleted)
     }
 
+    fn get_activity_deletion_ids(&self, activity_id: &str) -> Result<Vec<String>> {
+        let activity = self.activity_repository.get_activity(activity_id)?;
+        match activity.source_group_id {
+            Some(group_id) => Ok(self
+                .activity_repository
+                .get_activities_by_source_group_ids(&[group_id])?
+                .into_iter()
+                .map(|activity| activity.id)
+                .collect()),
+            None => Ok(vec![activity.id]),
+        }
+    }
+
+    async fn delete_activities_checked(&self, activity_ids: Vec<String>) -> Result<Vec<Activity>> {
+        let deleted = self
+            .activity_repository
+            .delete_activities_checked(activity_ids)
+            .await?;
+        let mut account_ids = HashSet::new();
+        let mut asset_ids = HashSet::new();
+        let mut currencies = HashSet::new();
+        for activity in &deleted {
+            Self::add_activity_to_event_sets(
+                activity,
+                &mut account_ids,
+                &mut asset_ids,
+                &mut currencies,
+            );
+        }
+        self.emit_activities_changed(
+            account_ids.into_iter().collect(),
+            asset_ids.into_iter().collect(),
+            currencies.into_iter().collect(),
+            Self::earliest_activity_at_utc(deleted.iter()),
+        );
+        self.emit_asset_split_activities_changed(deleted.iter());
+        Ok(deleted)
+    }
+
     fn get_transfer_pair_for_activity(
         &self,
         activity_id: String,
     ) -> Result<Option<InternalTransferPairResponse>> {
+        if let Some(pair) = self.load_internal_transfer_pair_for_activity(&activity_id)? {
+            return Ok(Some(Self::transfer_pair_response(pair)));
+        }
+        // A conversion is a pair too (rules R7.5): its leaving row is the
+        // outgoing side, its arriving row the incoming one.
         Ok(self
-            .load_internal_transfer_pair_for_activity(&activity_id)?
-            .map(Self::transfer_pair_response))
+            .load_conversion_pair_for_activity(&activity_id)?
+            .map(|pair| InternalTransferPairResponse {
+                transfer_out: pair.leaving,
+                transfer_in: pair.arriving,
+            }))
     }
 
     fn find_transfer_match_candidates(
@@ -5129,6 +5760,8 @@ impl ActivityServiceTrait for ActivityService {
             for create in creates {
                 prepared_creates.push(self.prepare_new_activity(create).await?);
             }
+            // A caller-supplied group must not join a conversion's (rules R7.5).
+            self.check_conversion_writes(&prepared_creates, &[], &[])?;
             self.activity_repository
                 .bulk_mutate_activities(prepared_creates, Vec::new(), Vec::new())
                 .await
@@ -5319,6 +5952,31 @@ impl ActivityServiceTrait for ActivityService {
                                 }
                             }
                         }
+                    } else if let Some(conversion) =
+                        self.load_conversion_pair_for_activity(&update_request.id)?
+                    {
+                        let counterpart_explicit = conversion
+                            .counterpart(&existing.id)
+                            .is_some_and(|row| explicit_update_ids.contains(&row.id));
+                        match Self::conversion_counterpart_update(
+                            &update_request,
+                            &existing,
+                            &conversion,
+                            self.configured_timezone(),
+                        ) {
+                            Ok(Some(counterpart_update)) if !counterpart_explicit => {
+                                update_requests.push(counterpart_update);
+                            }
+                            Ok(_) => {}
+                            Err(err) => {
+                                errors.push(ActivityBulkMutationError {
+                                    id: Some(update_request.id.clone()),
+                                    action: "update".to_string(),
+                                    message: err.to_string(),
+                                });
+                                continue;
+                            }
+                        }
                     }
                 }
                 Err(_) => {
@@ -5334,6 +5992,12 @@ impl ActivityServiceTrait for ActivityService {
             if self.activity_repository.get_activity(&delete_id).is_ok() {
                 if let Some(pair) = self.load_internal_transfer_pair_for_activity(&delete_id)? {
                     for pair_delete_id in [pair.transfer_out.id, pair.transfer_in.id] {
+                        if valid_delete_ids_seen.insert(pair_delete_id.clone()) {
+                            delete_requests.push(pair_delete_id);
+                        }
+                    }
+                } else if let Some(pair) = self.load_conversion_pair_for_activity(&delete_id)? {
+                    for pair_delete_id in [pair.leaving.id, pair.arriving.id] {
                         if valid_delete_ids_seen.insert(pair_delete_id.clone()) {
                             delete_requests.push(pair_delete_id);
                         }
@@ -5508,6 +6172,20 @@ impl ActivityServiceTrait for ActivityService {
             }
         }
 
+        if errors.is_empty() {
+            if let Err(err) = self.check_conversion_writes(
+                &prepared_creates,
+                &prepared_updates,
+                &valid_delete_ids,
+            ) {
+                errors.push(ActivityBulkMutationError {
+                    id: None,
+                    action: "save".to_string(),
+                    message: err.to_string(),
+                });
+            }
+        }
+
         if !errors.is_empty() {
             let outcome = ActivityBulkMutationResult {
                 errors,
@@ -5660,7 +6338,9 @@ impl ActivityServiceTrait for ActivityService {
             }
         }
 
-        Ok(ordered.into_iter().flatten().collect())
+        let mut checked: Vec<ActivityImport> = ordered.into_iter().flatten().collect();
+        Self::flag_unpaired_conversion_imports(&mut checked);
+        Ok(checked)
     }
 
     async fn preview_import_assets(
@@ -6064,6 +6744,19 @@ impl ActivityServiceTrait for ActivityService {
                 .map(|(_, activity)| activity),
             &mut existing_duplicates,
         )?;
+        // Pass the asset step 4.5 resolved, so a symbol-only row is also
+        // looked up under its asset ID.
+        let other_form_duplicates = self.find_other_asset_form_duplicates(
+            source_slice
+                .iter()
+                .zip(new_activities.iter())
+                .enumerate()
+                .filter(|(position, _)| !policy_failed_positions.contains(position))
+                .map(|(position, (activity, prepared))| {
+                    (position, activity, prepared.get_symbol_id())
+                }),
+            &existing_duplicates,
+        )?;
 
         let mut duplicate_count = 0u32;
         let mut insertable_positions: Vec<usize> = Vec::with_capacity(new_activities.len());
@@ -6083,7 +6776,10 @@ impl ActivityServiceTrait for ActivityService {
                 .get(position)
                 .is_some_and(|(_, imp)| imp.force_import);
 
-            if let Some(existing_id) = existing_duplicates.get(&key) {
+            if let Some(existing_id) = existing_duplicates
+                .get(&key)
+                .or_else(|| other_form_duplicates.get(&position))
+            {
                 if is_force_import {
                     // User explicitly chose to import despite DB duplicate.
                     // Clear key so the unique constraint is not violated.
@@ -6139,6 +6835,9 @@ impl ActivityServiceTrait for ActivityService {
             Vec::with_capacity(insertable_positions.len());
         let mut insertable_new_activities: Vec<NewActivity> =
             Vec::with_capacity(insertable_positions.len());
+        // Where each insertable row sits in `import_activities_indexed`.
+        let mut insertable_new_positions: Vec<usize> =
+            Vec::with_capacity(insertable_positions.len());
 
         for position in insertable_positions {
             if let Some(indexed_activity) = import_activities_indexed.get(position).cloned() {
@@ -6146,6 +6845,7 @@ impl ActivityServiceTrait for ActivityService {
             }
             if let Some(new_activity) = new_activities.get(position).cloned() {
                 insertable_new_activities.push(new_activity);
+                insertable_new_positions.push(position);
             }
         }
 
@@ -6156,6 +6856,42 @@ impl ActivityServiceTrait for ActivityService {
         // Link only rows that will be inserted so a duplicate-skipped leg cannot
         // leave its counterpart with an orphan source_group_id.
         self.link_imported_transfer_pairs(&insertable_source_slice, &mut insertable_new_activities);
+        // A conversion's two rows are imported together (rules R7.5). A
+        // refusal fails the import as validation errors do, on the rows of
+        // the conversion it concerns.
+        let refused = self.refused_conversion_imports(&insertable_new_activities)?;
+        if !refused.is_empty() {
+            for (offset, message) in &refused {
+                if let Some((_, import_activity)) = insertable_new_positions
+                    .get(*offset)
+                    .and_then(|&position| import_activities_indexed.get_mut(position))
+                {
+                    Self::add_activity_error(import_activity, "general", message);
+                }
+            }
+            let error_message = refused.first().map(|(_, message)| message.clone());
+            let skipped = import_activities_indexed
+                .iter()
+                .filter(|(_, a)| !a.is_valid)
+                .count() as u32;
+            for (idx, activity) in import_activities_indexed {
+                ordered[idx] = Some(activity);
+            }
+            return Ok(ImportActivitiesResult {
+                persisted_rows: Vec::new(),
+                activities: ordered.into_iter().flatten().collect(),
+                import_run_id: String::new(),
+                summary: ImportActivitiesSummary {
+                    total: total as u32,
+                    imported: 0,
+                    skipped,
+                    duplicates: duplicate_count,
+                    assets_created: assets_created_count,
+                    success: false,
+                    error_message,
+                },
+            });
+        }
 
         // ── 6. Ensure FX pairs (one batch call) ──────────────────────────────
         let mut fx_pairs: HashSet<(String, String)> = HashSet::new();
@@ -7202,7 +7938,11 @@ impl ActivityService {
             {
                 let key = compute_idempotency_key(
                     &activity.account_id,
-                    &activity.activity_type,
+                    &idempotency_activity_type(
+                        &activity.activity_type,
+                        activity.subtype.as_deref(),
+                        activity.source_group_id.as_deref(),
+                    ),
                     &date,
                     activity.get_symbol_id(),
                     activity.quantity,
@@ -7454,7 +8194,6 @@ impl ActivityService {
             {
                 continue;
             }
-
             if let Some(key) = transfer_match_key(activity) {
                 if activity_type == ACTIVITY_TYPE_TRANSFER_IN {
                     transfer_in.entry(key).or_default().push(idx);
@@ -7590,6 +8329,7 @@ mod reviewed_import_metadata_tests {
             isin: None,
             force_import: false,
             is_external: None,
+            source_group_id: None,
         }
     }
 

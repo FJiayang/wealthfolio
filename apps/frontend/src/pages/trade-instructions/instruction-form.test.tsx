@@ -9,6 +9,17 @@ import enInstructions from "@/i18n/locales/en/trade-instructions.json";
 import { InstructionForm } from "./instruction-form";
 
 vi.mock("@/adapters", () => ({ createTradeInstruction: vi.fn(), updateTradeInstruction: vi.fn() }));
+// This parent-form test covers exact financial payloads, not the entire currency catalog.
+// Keep real CurrencyInput/labels/selection with the real records needed by the scenario.
+vi.mock("@wealthfolio/ui/lib/currencies", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@wealthfolio/ui/lib/currencies")>();
+  return {
+    ...actual,
+    worldCurrencies: actual.worldCurrencies.filter((currency) =>
+      ["USD", "EUR"].includes(currency.value),
+    ),
+  };
+});
 vi.mock("@/hooks/use-accounts", () => ({
   useAccounts: () => ({ accounts: [{ id: "account", name: "Investment", currency: "USD" }] }),
 }));

@@ -453,7 +453,7 @@
     "byType": "Por tipo",
     "monthlyIncome": "Rendimentos mensais",
     "sources": "Fontes",
-    "yoyShort": "Anual"
+    "yoyShort": "Interanual"
   },
   "categorizationContext": {
     "loading": "Carregando contexto de categorização…",
@@ -687,6 +687,7 @@
     "revalidateFailed": "Falha ao validar novamente.",
     "nothing": "Nada para importar.",
     "allInvalid": "Todas as atividades têm erros de validação. Corrija-os e tente novamente.",
-    "importFailed": "Falha ao importar atividades."
+    "importFailed": "Falha ao importar atividades.",
+    "reviewAndRetry": "Falha na importação. Revise os erros e tente novamente."
   }
 }

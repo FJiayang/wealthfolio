@@ -121,7 +121,10 @@ const RETRYABLE_CODES: [&str; 3] = [
     "PROJECTION_PERSIST_FAILED",
 ];
 
-/// Host-side progress hooks (UI events). Every method has a no-op default.
+/// Host-side progress hooks. Completion is awaited under the job guard so hosts
+/// can refresh derived summaries before another job starts. Hooks cannot fail
+/// the portfolio job; runtime implementations isolate their own errors.
+#[async_trait]
 pub trait JobObserver: Send + Sync {
     fn market_sync_started(&self) {}
     fn market_sync_completed(&self, _result: &SyncResult) {}
@@ -131,7 +134,7 @@ pub trait JobObserver: Send + Sync {
     fn enrichment_progress(&self, _completed: usize, _total: usize) {}
     fn update_started(&self) {}
     fn update_failed(&self, _failure: &AccountFailure) {}
-    fn update_completed(&self) {}
+    async fn update_completed(&self) {}
 }
 
 /// Observer that reports nothing.
@@ -313,7 +316,7 @@ impl PortfolioCoordinator {
             }
         }
         self.report_failures(&report.failures, observer);
-        observer.update_completed();
+        observer.update_completed().await;
         // Position status from the fresh holdings feeds quote-sync planning.
         self.reconcile_quote_sync().await;
         Ok(report)

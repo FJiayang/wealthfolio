@@ -4,12 +4,16 @@ import { I18nextProvider, initReactI18next } from "react-i18next";
 import { MemoryRouter } from "react-router-dom";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import enCommon from "@/i18n/locales/en/common.json";
+import enCommonTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
+import zhCommonSpending from "@/i18n/locales/zh/spending.json";
 import enSpending from "@/i18n/locales/en/spending.json";
 import zhSpending from "@/i18n/locales/zh/spending.json";
 import enSettings from "@/i18n/locales/en/settings.json";
 import zhSettings from "@/i18n/locales/zh/settings.json";
-import { getBudgetGroupLabel, getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getBudgetGroupLabel } from "@/features/spending/lib/labels";
 import type { TaxonomyCategory } from "@/lib/types";
 import { BudgetOverviewCard } from "@/pages/settings/spending/components/budget-overview-card";
 import {
@@ -67,8 +71,18 @@ async function language() {
     fallbackLng: "en",
     interpolation: { escapeValue: false },
     resources: {
-      en: { common: enCommon, spending: enSpending, settings: enSettings },
-      zh: { common: zhCommon, spending: zhSpending, settings: zhSettings },
+      en: {
+        common: enCommon,
+        taxonomies: enCommonTaxonomies,
+        spending: enSpending,
+        settings: enSettings,
+      },
+      zh: {
+        common: zhCommon,
+        taxonomies: zhCommonTaxonomies,
+        spending: zhSpending,
+        settings: zhSettings,
+      },
     },
   });
   return i18n;
@@ -166,10 +180,10 @@ it("creates display-only report categories without translating custom or renamed
   const raw = structuredClone(spending);
   const display = localizeReportCategories(i18n.t, spending);
   expect(display.map((row) => row.name)).toEqual([
-    zhCommon.categoryNames.spending_categories.cat_housing,
-    zhCommon.categoryNames.spending_categories.cat_housing_rent,
-    zhCommon.categoryNames.spending_categories.cat_housing_furnishing,
-    zhCommon.categoryNames.spending_categories.cat_housing_insurance,
+    zhCommonTaxonomies.categoryNames.spending_categories.cat_housing,
+    zhCommonTaxonomies.categoryNames.spending_categories.cat_housing_rent,
+    zhCommonTaxonomies.categoryNames.spending_categories.cat_housing_furnishing,
+    zhCommonTaxonomies.categoryNames.spending_categories.cat_housing_insurance,
     "My meals",
     "Housing",
   ]);
@@ -201,13 +215,15 @@ it("refreshes hierarchy groups and nested categories in place while drilldowns r
       />
     </I18nextProvider>,
   );
-  expect(screen.getByText(zhCommon.budgetGroupNames[NEEDS])).toBeInTheDocument();
+  expect(screen.getByText(zhCommonSpending.budgetGroupNames[NEEDS])).toBeInTheDocument();
   expect(screen.getByText("My priorities")).toBeInTheDocument();
   expect(screen.getByText(zhSpending.hero.other)).toBeInTheDocument();
   fireEvent.click(screen.getByTitle(zhSpending.hierarchy.expandAllRows));
   expect(screen.getByText("My meals")).toBeInTheDocument();
   expect(screen.getByText("Housing")).toBeInTheDocument();
-  fireEvent.click(screen.getByText(zhCommon.categoryNames.spending_categories.cat_housing_rent));
+  fireEvent.click(
+    screen.getByText(zhCommonTaxonomies.categoryNames.spending_categories.cat_housing_rent),
+  );
   expect(onCategoryClick).toHaveBeenCalledWith("cat_housing_rent");
   const styles = [...view.container.querySelectorAll("[style]")].map((element) =>
     element.getAttribute("style"),
@@ -255,6 +271,7 @@ it("localizes all Sankey flows, folded members and refund zooms without changing
     uncategorizedSpent: 0,
     labels: {
       total: "Total",
+      fromSavings: "From savings",
       shortfall: "Shortfall",
       refunds: "Refunds",
       saved: "Saved",
@@ -280,19 +297,19 @@ it("localizes all Sankey flows, folded members and refund zooms without changing
   const graph = buildMoneyFlowGraph(translated, options);
   expect(mechanics(graph)).toEqual(mechanics(buildMoneyFlowGraph(input, options)));
   expect(graph.nodes.find((node) => node.id === `group:${NEEDS}`)?.name).toBe(
-    zhCommon.budgetGroupNames[NEEDS],
+    zhCommonSpending.budgetGroupNames[NEEDS],
   );
   expect(graph.nodes.find((node) => node.id === `group:${WANTS}`)?.name).toBe("My priorities");
   expect(graph.nodes.find((node) => node.id === "category:custom-housing")?.name).toBe("Housing");
   expect(graph.nodes.find((node) => node.id === "income:more")?.members).toEqual([
     { name: "Salary", value: 400 },
-    { name: zhCommon.categoryNames.income_sources.cat_income_salary, value: 400 },
+    { name: zhCommonTaxonomies.categoryNames.income_sources.cat_income_salary, value: 400 },
   ]);
   expect(
     graph.nodes.find((node) => node.id === "savings-category:cat_savings_retirement")?.name,
-  ).toBe(zhCommon.categoryNames.savings_categories.cat_savings_retirement);
+  ).toBe(zhCommonTaxonomies.categoryNames.savings_categories.cat_savings_retirement);
   expect(graph.nodes.find((node) => node.id === "refunds")?.members?.[0].name).toBe(
-    zhCommon.categoryNames.spending_categories.cat_transport,
+    zhCommonTaxonomies.categoryNames.spending_categories.cat_transport,
   );
   const focused = focusMoneyFlowGraph(graph, "category:cat_housing", translated.labels);
   expect(mechanics(focused)).toEqual(
@@ -307,8 +324,8 @@ it("localizes all Sankey flows, folded members and refund zooms without changing
   expect(
     focused.nodes.find((node) => node.kind === "refunds")?.members?.map((member) => member.name),
   ).toEqual([
-    zhCommon.categoryNames.spending_categories.cat_housing_furnishing,
-    zhCommon.categoryNames.spending_categories.cat_housing_insurance,
+    zhCommonTaxonomies.categoryNames.spending_categories.cat_housing_furnishing,
+    zhCommonTaxonomies.categoryNames.spending_categories.cat_housing_insurance,
   ]);
   expect({ ...input, labels: undefined }).toEqual(raw);
 });
@@ -330,7 +347,7 @@ it("refreshes budget overview labels and preserves renamed groups, amounts and c
       </I18nextProvider>
     </MemoryRouter>,
   );
-  expect(screen.getByText(zhCommon.budgetGroupNames[NEEDS])).toBeInTheDocument();
+  expect(screen.getByText(zhCommonSpending.budgetGroupNames[NEEDS])).toBeInTheDocument();
   expect(screen.getByText("My priorities")).toBeInTheDocument();
   const styles = [...view.container.querySelectorAll("[style]")].map((element) =>
     element.getAttribute("style"),
@@ -403,7 +420,8 @@ describe("event report labels", () => {
       const translated = name === "Travel" ? "旅行" : name;
       expect(screen.getAllByText(new RegExp(translated, "i")).length).toBeGreaterThan(0);
       expect(
-        screen.getAllByText(zhCommon.categoryNames.spending_categories.cat_housing).length,
+        screen.getAllByText(zhCommonTaxonomies.categoryNames.spending_categories.cat_housing)
+          .length,
       ).toBeGreaterThan(0);
       await act(() => i18n.changeLanguage("en"));
       expect(screen.getAllByText(new RegExp(name, "i")).length).toBeGreaterThan(0);

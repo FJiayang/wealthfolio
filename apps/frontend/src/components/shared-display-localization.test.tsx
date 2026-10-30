@@ -13,7 +13,7 @@ import {
   SearchableSelect,
   ProgressIndicator,
 } from "@wealthfolio/ui";
-import { createNewAccountSchema, newAccountSchema } from "@/lib/schemas";
+import { newAccountSchema } from "@/lib/schemas";
 import enUi from "@/i18n/locales/en/ui.json";
 import zhUi from "@/i18n/locales/zh/ui.json";
 import arUi from "@/i18n/locales/ar/ui.json";
@@ -117,6 +117,15 @@ describe("shared display localization", () => {
     expect(getCurrencyDisplayName("EUR", "en", i18n.t)).toBe("European Euro");
   });
 
+  it("starts a currency label with a capital where the language writes names in lowercase", () => {
+    const franc = { value: "CHF", label: "Swiss franc (CHF)" };
+    expect(getCurrencyDisplayLabel(franc, "fr")).toBe("Franc suisse (CHF)");
+    expect(getCurrencyDisplayName("CHF", "fr")).toBe("franc suisse");
+    expect(getCurrencyDisplayLabel(franc, "zh")).toBe("瑞士法郎 (CHF)");
+    // A malformed language tag falls back to the English name instead of throwing.
+    expect(getCurrencyDisplayLabel(franc, "fr_FR")).toBe("Swiss franc (CHF)");
+  });
+
   it("localizes shared select defaults and progress details", async () => {
     const i18n = await language();
     render(
@@ -185,23 +194,76 @@ describe("shared display localization", () => {
     expect(screen.getByText(zhCommon.no_results_found)).toBeInTheDocument();
   });
 
-  it("localizes account errors without changing constraints or valid output", async () => {
-    const i18n = await language();
+  it("returns account message keys without changing constraints or valid output", () => {
     const input = { name: "A", currency: "USD", accountType: "SECURITIES" };
-    const localized = createNewAccountSchema(i18n.t);
+    const localized = newAccountSchema;
     const invalid = localized.safeParse(input);
     expect(invalid.success).toBe(false);
     if (!invalid.success)
-      expect(invalid.error.issues[0]?.message).toBe(zhCommon.validation.accountNameMin);
-    const valid = { ...input, name: "My Account" };
-    expect(localized.parse(valid)).toEqual(newAccountSchema.parse(valid));
+      expect(invalid.error.issues[0]?.message).toBe("common:validation.accountNameMin");
+    const valid = { ...input, name: "My Account", meta: '{"custom":"Unchanged"}' };
+    expect(localized.parse(valid)).toEqual({
+      ...valid,
+      isArchived: false,
+      trackingMode: "NOT_SET",
+    });
+    expect(localized.safeParse({ ...valid, name: "AB" }).success).toBe(true);
+    expect(localized.safeParse({ ...valid, name: "A".repeat(50) }).success).toBe(true);
+    const tooLong = localized.safeParse({ ...valid, name: "A".repeat(51) });
+    expect(tooLong.success).toBe(false);
+    if (!tooLong.success)
+      expect(tooLong.error.issues[0]?.message).toBe("common:validation.accountNameMax");
+    const missingCurrency = localized.safeParse({ ...valid, currency: undefined });
+    expect(missingCurrency.success).toBe(false);
+    if (!missingCurrency.success)
+      expect(missingCurrency.error.issues[0]?.message).toBe("common:validation.accountCurrency");
     const creditCard = localized.safeParse({
       ...valid,
       accountType: "CREDIT_CARD",
       trackingMode: "HOLDINGS",
     });
+    expect(
+      localized.parse({ ...valid, accountType: "CREDIT_CARD", trackingMode: "TRANSACTIONS" }),
+    ).toEqual({
+      ...valid,
+      accountType: "CREDIT_CARD",
+      trackingMode: "TRANSACTIONS",
+      isArchived: false,
+    });
     expect(creditCard.success).toBe(false);
     if (!creditCard.success)
-      expect(creditCard.error.issues.at(-1)?.message).toBe(zhCommon.validation.creditCardTracking);
+      expect(creditCard.error.issues.at(-1)?.message).toBe("common:validation.creditCardTracking");
+  });
+  it("preserves account-number trimming, clearing, omission and the 64-character limit", () => {
+    const base = {
+      name: "My account",
+      accountType: "SECURITIES",
+      currency: "USD",
+      meta: '{"custom":"Unchanged"}',
+    };
+    const output = { ...base, isArchived: false, trackingMode: "NOT_SET" };
+    expect(newAccountSchema.parse(base)).toEqual(output);
+    expect(newAccountSchema.parse(base)).not.toHaveProperty("accountNumber");
+    expect(newAccountSchema.parse({ ...base, accountNumber: "  4100  " })).toEqual({
+      ...output,
+      accountNumber: "4100",
+    });
+    expect(newAccountSchema.parse({ ...base, accountNumber: "   " })).toEqual({
+      ...output,
+      accountNumber: "",
+    });
+    expect(newAccountSchema.parse({ ...base, accountNumber: `  ${"9".repeat(64)}  ` })).toEqual({
+      ...output,
+      accountNumber: "9".repeat(64),
+    });
+    const invalid = newAccountSchema.safeParse({ ...base, accountNumber: "9".repeat(65) });
+    expect(invalid.success).toBe(false);
+    if (!invalid.success)
+      expect(invalid.error.issues).toEqual([
+        expect.objectContaining({
+          path: ["accountNumber"],
+          message: "common:validation.accountNumberMax",
+        }),
+      ]);
   });
 });

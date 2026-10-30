@@ -83,6 +83,8 @@
   --spending-accent: #007aff;
   --spending-deep: #0060c0;
   --spending-mid: #5ac8fa;
+  /* The Investments value chart (and an account's); below zero it is always --loss. */
+  --investments: var(--gain);
   --net-worth: #c97502;
   --bar-stripe: rgba(255, 255, 255, 0.3);
   --sidebar: #ebebf0;
@@ -108,6 +110,11 @@
   --info-subtle: #e7f0fc;
   --info-subtle-foreground: #0058b3;
   --info-subtle-border: #bcd6f5;
+  /* Blue losses (red up, blue down) in iOS system blue, as info is, in both modes. */
+  --loss-blue: var(--info);
+  --loss-blue-subtle: var(--info-subtle);
+  --loss-blue-subtle-foreground: var(--info-subtle-foreground);
+  --loss-blue-subtle-border: var(--info-subtle-border);
   --status-warn: #c93400;
   --fi-stream-1: #007aff;
   --fi-stream-2: #5856d6;
@@ -154,6 +161,8 @@
   --heatmap-positive-high: #6cbf83;
   --heatmap-negative-low: #fdeceb;
   --heatmap-negative-high: #ec7c74;
+  --heatmap-blue-low: #e9f1fd;
+  --heatmap-blue-high: #64a3f7;
   /* Treemap middle stops halfway between low and high, so the ramp stays a straight
      blend. Dark mode mixes its own low and high. */
   --heatmap-positive-mid: color-mix(
@@ -166,6 +175,7 @@
     var(--heatmap-negative-low),
     var(--heatmap-negative-high)
   );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
   --heatmap-label-dark: #1c1c1e;
   --heatmap-label-light: #ffffff;
 }
@@ -222,6 +232,7 @@
   --spending-accent: #0a84ff;
   --spending-deep: #409cff;
   --spending-mid: #64d2ff;
+  --investments: var(--gain);
   --net-worth: #ff9f0a;
   --bar-stripe: rgba(0, 0, 0, 0.25);
   --sidebar: #161618;
@@ -270,6 +281,8 @@
   --heatmap-positive-high: #30d158;
   --heatmap-negative-low: #3a1f1d;
   --heatmap-negative-high: #ff453a;
+  --heatmap-blue-low: #19283c;
+  --heatmap-blue-high: #3a93fe;
   --heatmap-label-dark: #1c1c1e;
   --heatmap-label-light: #ffffff;
 }

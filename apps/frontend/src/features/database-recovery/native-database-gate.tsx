@@ -22,6 +22,7 @@ import { PasswordInput } from "@wealthfolio/ui/components/ui/password-input";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Icons } from "@wealthfolio/ui/components/ui/icons";
 import { Spinner } from "@wealthfolio/ui";
+import { copyText } from "@wealthfolio/ui/lib/clipboard";
 
 /** Native startup must succeed before database-dependent providers mount. */
 export function NativeDatabaseGate({ children }: { children: ReactNode }) {
@@ -205,7 +206,7 @@ function NativeStartup({ children }: { children: ReactNode }) {
   const copied = copiedDetails === startupError;
   const copyDetails = async () => {
     try {
-      await navigator.clipboard.writeText(startupError);
+      await copyText(startupError);
       setCopiedDetails(startupError);
     } catch {
       setCopiedDetails(null);
@@ -309,7 +310,7 @@ function NativeStartup({ children }: { children: ReactNode }) {
                       disabled={busy === "restore"}
                       onClick={() => void cancel()}
                     >
-                      {t("settings:recovery_back")}
+                      {t("common:back")}
                     </Button>
                     <Button
                       className="flex-1"
@@ -380,7 +381,7 @@ function NativeStartup({ children }: { children: ReactNode }) {
                     </Button>
                     {busy === "inspect" && (
                       <Button type="button" variant="outline" onClick={() => void cancel()}>
-                        {t("settings:recovery_cancel")}
+                        {t("common:cancel")}
                       </Button>
                     )}
                   </div>
