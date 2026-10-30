@@ -56,10 +56,10 @@ export function BenchmarkSymbolSelector({
   // Sort search results by score if available
   const sortedSearchResults = searchResults?.sort((a, b) => b.score - a.score) ?? [];
 
-  // Filter out search results that are already in predefined benchmarks
+  // Keep existing securities selectable even when they match a preset.
   const existingSymbols = BENCHMARKS.flatMap((group) => group.items.map((item) => item.symbol));
   const filteredSearchResults = sortedSearchResults.filter(
-    (result) => !existingSymbols.includes(result.symbol),
+    (result) => result.existingAssetId || !existingSymbols.includes(result.symbol),
   );
 
   const handleBenchmarkSelect = (benchmark: {

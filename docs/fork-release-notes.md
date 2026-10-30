@@ -12,6 +12,20 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.11.0.17 — 2026-10-30
+
+- Keep existing securities visible in desktop and mobile benchmark searches,
+  including securities whose symbols match a predefined benchmark. Selecting
+  a saved security reuses its asset ID and existing registration flow.
+
+Architecture impact: change frontend search filtering only. Provider routing,
+benchmark persistence, daily synchronization and backend APIs stay unchanged.
+Preset market identifiers are not corrected in this release.
+
+Validation: seven focused tests passed, including desktop/mobile selection in
+LTR/RTL. Type checks, frontend lint (with existing warnings), changed-file
+formatting and diff checks passed. Browser validation was not run.
+
 ## v3.11.0.16 — 2026-10-28
 
 - Restore the native import page's internal UI components and remove the shared
