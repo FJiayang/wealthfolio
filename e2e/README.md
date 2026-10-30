@@ -26,6 +26,10 @@ Playwright, and shuts everything down.
 The automated runner restores the complete original `.env.web` after a
 successful or failed run. Test data stays in its disposable directory; a
 subsequent normal startup uses the original local profiles and accounts again.
+Readiness checks Vite's root and the backend's `/api/v1/healthz`, not its static
+homepage (a dev checkout need not contain `dist/index.html`). Each request and
+supervisor shutdown is bounded; startup/test failures remain nonzero and are
+reported before cleanup.
 
 ```bash
 pnpm test:e2e
