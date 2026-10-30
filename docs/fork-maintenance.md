@@ -59,6 +59,11 @@ integrated.
    resulting tree. It uses the mandatory reusable browser workflow's recorded
    merge SHA, not just the PR head SHA. Missing or stale evidence fails closed.
    Keep the existing strict branch protection and native auto-merge process.
+   Normal merge commits and squash merges are supported when their base and tree
+   match the tested PR merge. Multi-commit rebase merges do not preserve that
+   direct base relationship and fail closed; use merge commits for upstream
+   synchronization rather than weakening verification. Merge-queue-only evidence
+   is not a substitute for the required PR Check evidence in this handler.
 4. The handler reads the committed release manifest and creates its exact
    lightweight Git tag. A same-name tag on the same commit is a safe retry; a
    different target fails without moving or deleting anything. The manifest and
