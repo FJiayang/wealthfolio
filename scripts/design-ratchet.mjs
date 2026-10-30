@@ -97,7 +97,7 @@ const current = Object.fromEntries(Object.keys(measures).map((name) => [name, {}
 for (const file of files) {
   const source = readFileSync(new URL(file, `file://${root}/`), "utf8");
   for (const [name, { count }] of Object.entries(measures)) {
-    const n = count(source);
+    const n = count(source, file);
     if (n) current[name][file] = n;
   }
 }

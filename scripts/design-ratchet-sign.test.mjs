@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { signColors } from "./design-ratchet-sign.mjs";
@@ -51,4 +52,55 @@ test("leaves status pairs without a sign test alone", () => {
     `ok ? "text-success" : "text-destructive"`,
   ];
   assert.equal(signColors(apart.join("\n")), 0);
+});
+
+const groupedPath = "apps/frontend/src/pages/holdings/components/holdings-grouped-table.tsx";
+const summaryPath = "apps/frontend/src/pages/holdings/components/holdings-summary-bar.tsx";
+const balanceExpression = 'className={netWorth >= 0 ? "text-success" : "text-destructive"}';
+
+test("exempts only the three established semantic balance expressions at their owning paths", () => {
+  for (const [path, rawCount] of [
+    [groupedPath, 4],
+    [summaryPath, 2],
+  ]) {
+    const source = readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+    assert.equal(signColors(source), rawCount);
+    assert.equal(signColors(source, path), 0);
+    assert.equal(signColors(source, "apps/frontend/src/other.tsx"), rawCount);
+    assert.equal(signColors(source.replaceAll(">= 0", "> 0"), path), rawCount);
+    assert.equal(
+      signColors(source.replaceAll('"text-destructive"', '"text-destructive" + suffix'), path),
+      rawCount,
+    );
+    assert.equal(signColors(`${source}\n${source}`, path), rawCount * 2);
+  }
+});
+
+test("does not exempt changed or duplicate balance expressions", () => {
+  assert.equal(signColors(balanceExpression, summaryPath), 0);
+  for (const changed of [
+    balanceExpression.replace(">= 0", "> 0"),
+    balanceExpression.replace("netWorth", "gain"),
+    balanceExpression.replace("netWorth", "other.netWorth"),
+    balanceExpression.replace("text-success", "text-success-subtle"),
+    balanceExpression.replace('"text-destructive"}', '"text-destructive" + suffix}'),
+  ]) {
+    assert.equal(signColors(changed, summaryPath), 2, changed);
+  }
+  assert.equal(signColors(`${balanceExpression}\n${balanceExpression}`, summaryPath), 4);
+});
+
+test("keeps original context so adjacent non-exempt status tokens still count", () => {
+  const source = `${balanceExpression}\nconst gainClass = "text-success";`;
+  // The original sign and destructive token must remain visible to the scanner.
+  assert.equal(signColors(source, summaryPath), 1);
+  assert.equal(
+    signColors(
+      `${balanceExpression}\nvalue >= 0 ? "text-success" : "text-destructive"`,
+      summaryPath,
+    ),
+    2,
+  );
+  const separate = `${balanceExpression}\n${"\n".repeat(7)}const status = "text-success";`;
+  assert.equal(signColors(separate, summaryPath), 0);
 });

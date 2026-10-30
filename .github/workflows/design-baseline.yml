@@ -30,6 +30,8 @@ jobs:
     timeout-minutes: 90
     env:
       REVISION: ${{ inputs.revision }}
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       PLAYWRIGHT_HTML_OPEN: never
     steps:
       - name: Require an immutable revision
@@ -67,8 +69,10 @@ jobs:
         if: steps.bootstrap.outputs.generate == 'true'
         run: |
           mkdir -p .local/design-system
-          printf 'Source: %s\nImage: mcr.microsoft.com/playwright:v1.58.2-noble\n' \
-            "$REVISION" > .local/design-system/provenance.txt
+          test "$(git rev-parse HEAD)" = "$REVISION"
+          printf 'Source: %s\nPR head: %s\nPR base: %s\nImage: mcr.microsoft.com/playwright:v1.58.2-noble\n' \
+            "$REVISION" "${PR_HEAD_SHA:-not-a-pull-request}" "${PR_BASE_SHA:-not-a-pull-request}" \
+            > .local/design-system/provenance.txt
       - name: Generate candidate snapshots (not an acceptance check)
         if: steps.bootstrap.outputs.generate == 'true'
         run: >-

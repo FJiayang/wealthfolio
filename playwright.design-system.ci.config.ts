@@ -3,7 +3,10 @@ import config from "./playwright.design-system.config";
 
 // CI compares to reviewed Linux snapshots, never to snapshots it just generated.
 // Keep the original config's same-machine local diagnostic workflow available.
-export default defineConfig(config, {
+// defineConfig(base, overrides) APPENDS web servers; replace it in one object
+// so CI starts one server and still rejects any pre-existing listener.
+export default defineConfig({
+  ...config,
   snapshotPathTemplate: "e2e/design-system/baselines/{projectName}/{arg}{ext}",
   updateSnapshots: "none",
   forbidOnly: true,

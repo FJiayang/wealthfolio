@@ -16,16 +16,52 @@ const signTest =
 const heatmapRamp = /heatmap-(?:positive|negative)-/g;
 const reach = 6;
 
-export function signColors(source) {
+// These three fork balance statuses were preserved when gain/loss colours were
+// added (483aa3e2).
+// Debt balances and net worth keep their solvency/status meaning when market
+// gain colours switch. This is not permission to colour investment returns with
+// status roles: only each exact expression at its owning path is exempt, once.
+const balanceStatuses = {
+  "apps/frontend/src/pages/holdings/components/holdings-grouped-table.tsx": [
+    /className=\{cn\(\s*"font-medium",\s*group\.name === "Liabilities" &&\s*\(group\.totalValue >= 0 \? "text-success" : "text-destructive"\),\s*\)\}/g,
+    /className=\{\s*holding\.isLiability\s*\? displayValue >= 0\s*\? "text-success"\s*: "text-destructive"\s*: undefined\s*\}/g,
+  ],
+  "apps/frontend/src/pages/holdings/components/holdings-summary-bar.tsx": [
+    /className=\{netWorth >= 0 \? "text-success" : "text-destructive"\}/g,
+  ],
+};
+
+export function signColors(source, path = "") {
+  const exemptRanges = (balanceStatuses[path] ?? []).flatMap((expression) => {
+    const matches = [...source.matchAll(expression)];
+    // A duplicate is new debt, not another approved use.
+    return matches.length === 1
+      ? [[matches[0].index, matches[0].index + matches[0][0].length]]
+      : [];
+  });
   const lines = source.split("\n");
-  const colors = lines.map((line) => [...line.matchAll(statusColor)].map((m) => m[1] ?? m[2]));
+  let offset = 0;
+  const colors = lines.map((line) => {
+    const tokens = [...line.matchAll(statusColor)].map((m) => ({
+      color: m[1] ?? m[2],
+      exempt: exemptRanges.some(
+        ([start, end]) => offset + m.index >= start && offset + m.index < end,
+      ),
+    }));
+    offset += line.length + 1;
+    return tokens;
+  });
   let count = [...source.matchAll(heatmapRamp)].length;
   lines.forEach((_, index) => {
     const start = Math.max(0, index - reach);
     const end = index + reach + 1;
-    const nearby = colors.slice(start, end).flat();
+    const nearby = colors
+      .slice(start, end)
+      .flat()
+      .map((token) => token.color);
     const signed = signTest.test(lines.slice(start, end).join("\n"));
-    for (const color of colors[index]) {
+    for (const { color, exempt } of colors[index]) {
+      if (exempt) continue;
       const other = color === "success" ? "destructive" : "success";
       if (signed && nearby.includes(other)) count += 1;
     }
