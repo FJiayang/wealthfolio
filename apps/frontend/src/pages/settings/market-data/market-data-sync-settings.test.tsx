@@ -15,6 +15,13 @@ vi.mock("@/lib/settings-provider", () => ({
   }),
 }));
 
+// Exercise real timezone controls and saved fields with a small scenario catalog.
+// Full runtime catalog normalization is covered by timezone-settings.test.ts.
+vi.mock("../general/timezone-settings", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../general/timezone-settings")>()),
+  getSupportedTimezones: () => ["Asia/Shanghai", "Asia/Tokyo", "UTC"],
+}));
+
 describe("MarketDataSyncSettings", () => {
   afterEach(() => vi.unstubAllGlobals());
   beforeEach(() => {
