@@ -1,16 +1,69 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test as base, type Locator, type Page } from "@playwright/test";
 import { BASE_URL } from "./helpers";
 
-let requestHeaders: Record<string, string> = {};
-
-async function post<T>(page: Page, path: string, data?: unknown): Promise<T> {
-  const response = await page.request.post(`${BASE_URL}/api/v1${path}`, {
-    data,
-    headers: requestHeaders,
-  });
-  expect(response.ok(), `${path}: ${await response.text()}`).toBe(true);
-  return response.json() as Promise<T>;
-}
+// A fixture gets its own teardown budget, even when the test body times out.
+const test = base.extend<{ ownedProfile: { id: string; name: string } }>({
+  ownedProfile: [
+    async ({ context, playwright }, use, testInfo) => {
+      const before = await context.request.post(`${BASE_URL}/api/v1/profiles/get_profile_state`, {
+        data: {},
+        timeout: 15000,
+      });
+      expect(before.ok(), await before.text()).toBe(true);
+      const initialRegistry = (await before.json()) as { profiles: { id: string }[] };
+      const existingIds = initialRegistry.profiles.map(({ id }) => id);
+      const created = await context.request.post(`${BASE_URL}/api/v1/profiles/create_profile`, {
+        data: { name: "Worksheet preview", avatarId: "clay-bot-animated" },
+        timeout: 15000,
+      });
+      expect(created.ok(), await created.text()).toBe(true);
+      const profile = (await created.json()) as { id: string; name: string };
+      try {
+        await use(profile);
+      } finally {
+        const hadTestFailure = testInfo.errors.length > 0;
+        try {
+          // Preserve this browser's owner cookie, but do not depend on page requests
+          // surviving a timed-out test. Never select/delete an unrelated profile.
+          const cleanup = await playwright.request.newContext({
+            storageState: await context.request.storageState(),
+            timeout: 20000,
+          });
+          try {
+            await Promise.all(context.pages().map((page) => page.close()));
+            const unlocked = await cleanup.post(`${BASE_URL}/api/v1/profiles/unlock_profile`, {
+              data: { profileId: profile.id },
+            });
+            expect(unlocked.ok(), await unlocked.text()).toBe(true);
+            const session = (await unlocked.json()) as { scopeId: string };
+            const deleted = await cleanup.post(`${BASE_URL}/api/v1/profiles/delete_profile`, {
+              headers: { "x-wf-profile-scope": session.scopeId },
+              data: { profileId: profile.id, confirmation: profile.name },
+            });
+            expect(deleted.ok(), await deleted.text()).toBe(true);
+            const state = await cleanup.post(`${BASE_URL}/api/v1/profiles/get_profile_state`, {
+              data: {},
+            });
+            expect(state.ok(), await state.text()).toBe(true);
+            const registry = (await state.json()) as { profiles: { id: string }[] };
+            const remainingIds = registry.profiles.map(({ id }) => id);
+            expect(remainingIds).not.toContain(profile.id);
+            expect(remainingIds).toEqual(expect.arrayContaining(existingIds));
+          } finally {
+            await cleanup.dispose();
+          }
+        } catch (error) {
+          if (!hadTestFailure) throw error;
+          await testInfo.attach("owned-profile-cleanup-error", {
+            body: String(error),
+            contentType: "text/plain",
+          });
+        }
+      }
+    },
+    { timeout: 90000 },
+  ],
+});
 
 async function enterAmount(field: Locator, value: string) {
   await field.focus();
@@ -21,16 +74,24 @@ async function enterAmount(field: Locator, value: string) {
 
 test("whole-share edits update impact and require account placement, in LTR and RTL", async ({
   page,
+  ownedProfile,
 }) => {
   test.setTimeout(180000);
   page.setDefaultTimeout(15000);
-  // Give this spec its own profile so other specs' accounts and targets cannot leak in.
-  const profile = await post<{ id: string }>(page, "/profiles/create_profile", {
-    name: "Worksheet preview",
-    avatarId: "clay-bot-animated",
-  });
+
+  let requestHeaders: Record<string, string> = {};
+
+  async function post<T>(page: Page, path: string, data?: unknown): Promise<T> {
+    const response = await page.request.post(`${BASE_URL}/api/v1${path}`, {
+      data,
+      headers: requestHeaders,
+    });
+    expect(response.ok(), `${path}: ${await response.text()}`).toBe(true);
+    return response.json() as Promise<T>;
+  }
+
   const session = await post<{ scopeId: string }>(page, "/profiles/unlock_profile", {
-    profileId: profile.id,
+    profileId: ownedProfile.id,
   });
   requestHeaders = { "x-wf-profile-scope": session.scopeId };
   const settings = await page.request.put(`${BASE_URL}/api/v1/settings`, {
@@ -254,10 +315,23 @@ test("whole-share edits update impact and require account placement, in LTR and 
     await expect(amount).toHaveValue(nextAmount);
     await expect(page.locator("html")).toHaveAttribute("dir", dir);
     await page.screenshot({ path: `test-results/worksheet-preview-${dir}.png`, fullPage: true });
-    await page.setViewportSize({ width: 1024, height: 768 });
+    // Wrapping follows the heading's 36rem container query, not the viewport breakpoint.
+    // Keep the desktop sidebar while making the remaining heading container genuinely narrow.
+    await page.setViewportSize({ width: 900, height: 768 });
     const expandSidebar = page.getByRole("button", { name: "Expand Sidebar", exact: true });
     await expandSidebar.click();
     await expect(page.getByRole("button", { name: "Collapse Sidebar", exact: true })).toBeVisible();
+    const headingContainer = header.locator('[class~="@container/worksheet-heading"]');
+    await expect(headingContainer).toHaveCount(1);
+    await expect
+      .poll(() =>
+        headingContainer.evaluate((element) => {
+          const breakpoint =
+            36 * Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+          return element.getBoundingClientRect().width < breakpoint;
+        }),
+      )
+      .toBe(true);
     await expect
       .poll(async () => {
         const navBounds = await steps.boundingBox();
@@ -267,6 +341,9 @@ test("whole-share edits update impact and require account placement, in LTR and 
         );
       })
       .toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
     await page.screenshot({
       path: `test-results/worksheet-header-narrow-${dir}.png`,
       fullPage: true,

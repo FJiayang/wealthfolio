@@ -1,42 +1,69 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test as base, type Page } from "@playwright/test";
 import { BASE_URL } from "./helpers";
 
-let requestHeaders: Record<string, string> = {};
-
-async function post<T>(page: Page, path: string, data?: unknown): Promise<T> {
-  const response = await page.request.post(`${BASE_URL}/api/v1${path}`, {
-    data,
-    headers: requestHeaders,
-  });
-  expect(response.ok(), `${path}: ${await response.text()}`).toBe(true);
-  return response.json() as Promise<T>;
-}
-
-async function createTarget(page: Page, name: string, accountId?: string) {
-  const saved = await post<{ target: { id: string; name: string } }>(
-    page,
-    "/allocation-targets/save-with-weights",
-    {
-      input: {
-        name,
-        scopeType: accountId ? "account" : "all",
-        scopeId: accountId ?? null,
-        taxonomyId: "asset_classes",
-        triggerType: "manual",
-        driftBandBps: 500,
-        bandType: "absolute",
-        relativeFactorBps: 2000,
-        rebalanceGoal: "exact_target",
-        minTradeAmount: "0",
-        wholeSharesOnly: false,
-        allowSells: true,
-        maxTurnoverBps: null,
-      },
-      weights: [{ categoryId: "CASH", targetBps: 10000, isLocked: false, isRequired: true }],
+// A fixture gets its own teardown budget, even when the test body times out.
+const test = base.extend<{ ownedProfile: { id: string; name: string } }>({
+  ownedProfile: [
+    async ({ context, playwright }, use, testInfo) => {
+      const before = await context.request.post(`${BASE_URL}/api/v1/profiles/get_profile_state`, {
+        data: {},
+        timeout: 15000,
+      });
+      expect(before.ok(), await before.text()).toBe(true);
+      const initialRegistry = (await before.json()) as { profiles: { id: string }[] };
+      const existingIds = initialRegistry.profiles.map(({ id }) => id);
+      const created = await context.request.post(`${BASE_URL}/api/v1/profiles/create_profile`, {
+        data: { name: "Target preferences", avatarId: "clay-bot-animated" },
+        timeout: 15000,
+      });
+      expect(created.ok(), await created.text()).toBe(true);
+      const profile = (await created.json()) as { id: string; name: string };
+      try {
+        await use(profile);
+      } finally {
+        const hadTestFailure = testInfo.errors.length > 0;
+        try {
+          // Preserve this browser's owner cookie, but do not depend on page requests
+          // surviving a timed-out test. Never select/delete an unrelated profile.
+          const cleanup = await playwright.request.newContext({
+            storageState: await context.request.storageState(),
+            timeout: 20000,
+          });
+          try {
+            await Promise.all(context.pages().map((page) => page.close()));
+            const unlocked = await cleanup.post(`${BASE_URL}/api/v1/profiles/unlock_profile`, {
+              data: { profileId: profile.id },
+            });
+            expect(unlocked.ok(), await unlocked.text()).toBe(true);
+            const session = (await unlocked.json()) as { scopeId: string };
+            const deleted = await cleanup.post(`${BASE_URL}/api/v1/profiles/delete_profile`, {
+              headers: { "x-wf-profile-scope": session.scopeId },
+              data: { profileId: profile.id, confirmation: profile.name },
+            });
+            expect(deleted.ok(), await deleted.text()).toBe(true);
+            const state = await cleanup.post(`${BASE_URL}/api/v1/profiles/get_profile_state`, {
+              data: {},
+            });
+            expect(state.ok(), await state.text()).toBe(true);
+            const registry = (await state.json()) as { profiles: { id: string }[] };
+            const remainingIds = registry.profiles.map(({ id }) => id);
+            expect(remainingIds).not.toContain(profile.id);
+            expect(remainingIds).toEqual(expect.arrayContaining(existingIds));
+          } finally {
+            await cleanup.dispose();
+          }
+        } catch (error) {
+          if (!hadTestFailure) throw error;
+          await testInfo.attach("owned-profile-cleanup-error", {
+            body: String(error),
+            contentType: "text/plain",
+          });
+        }
+      }
     },
-  );
-  return saved.target;
-}
+    { timeout: 90000 },
+  ],
+});
 
 function picker(page: Page) {
   return page.getByRole("group", { name: "Select target", exact: true });
@@ -80,15 +107,49 @@ async function changeScope(page: Page, name: string) {
 
 test("remembers the selected target per scope and puts it first after reload, in LTR and RTL", async ({
   page,
+  ownedProfile,
 }) => {
   test.setTimeout(180000);
-  // Give this spec its own profile so other specs' accounts and targets cannot leak in.
-  const profile = await post<{ id: string }>(page, "/profiles/create_profile", {
-    name: "Target preferences",
-    avatarId: "clay-bot-animated",
-  });
+
+  let requestHeaders: Record<string, string> = {};
+
+  async function post<T>(page: Page, path: string, data?: unknown): Promise<T> {
+    const response = await page.request.post(`${BASE_URL}/api/v1${path}`, {
+      data,
+      headers: requestHeaders,
+    });
+    expect(response.ok(), `${path}: ${await response.text()}`).toBe(true);
+    return response.json() as Promise<T>;
+  }
+
+  async function createTarget(page: Page, name: string, accountId?: string) {
+    const saved = await post<{ target: { id: string; name: string } }>(
+      page,
+      "/allocation-targets/save-with-weights",
+      {
+        input: {
+          name,
+          scopeType: accountId ? "account" : "all",
+          scopeId: accountId ?? null,
+          taxonomyId: "asset_classes",
+          triggerType: "manual",
+          driftBandBps: 500,
+          bandType: "absolute",
+          relativeFactorBps: 2000,
+          rebalanceGoal: "exact_target",
+          minTradeAmount: "0",
+          wholeSharesOnly: false,
+          allowSells: true,
+          maxTurnoverBps: null,
+        },
+        weights: [{ categoryId: "CASH", targetBps: 10000, isLocked: false, isRequired: true }],
+      },
+    );
+    return saved.target;
+  }
+
   const session = await post<{ scopeId: string }>(page, "/profiles/unlock_profile", {
-    profileId: profile.id,
+    profileId: ownedProfile.id,
   });
   requestHeaders = { "x-wf-profile-scope": session.scopeId };
   const settings = await page.request.put(`${BASE_URL}/api/v1/settings`, {

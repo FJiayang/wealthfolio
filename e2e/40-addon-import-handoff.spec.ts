@@ -87,6 +87,10 @@ test("parsed drafts enter the host asset, review, confirm and result flow", asyn
   await expect(page.getByRole("button", { name: /Continue to Import/i })).toBeEnabled({
     timeout: 30_000,
   });
+  // The footer updates before the outgoing asset-review animation finishes.
+  await expect(
+    page.locator("[data-import-wizard]").getByRole("grid", { name: "Data grid", exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("must be discarded")).toHaveCount(0);
   const wizard = await page.locator("[data-import-wizard]").boundingBox();
   expect(wizard!.height).toBeGreaterThan(350);
@@ -106,9 +110,10 @@ test("parsed drafts enter the host asset, review, confirm and result flow", asyn
     data: {
       page: 0,
       pageSize: 100,
-      filters: {},
+      accountIdFilter: [accountId],
     },
   });
+  expect(search.ok(), await search.text()).toBeTruthy();
   const saved = await search.json();
   const imported = saved.data.filter(
     (activity: { accountId: string }) => activity.accountId === accountId,

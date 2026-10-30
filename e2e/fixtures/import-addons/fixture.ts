@@ -1,4 +1,5 @@
 import { crc32 } from "node:zlib";
+import type { ActivityType } from "../../../packages/addon-sdk/src/data-types";
 
 // Small, uncompressed ZIPs keep the real installation boundary in the test without
 // another repository, a package builder, or a test dependency. Names are fixed below.
@@ -43,6 +44,7 @@ function zip(files: Record<string, string>): Buffer {
 export function importAddonFixture(id: string, tab: "investments" | "spending", accountId: string) {
   const route = "import-drafts";
   const label = `Fixture ${tab} import`;
+  const activityType: ActivityType = tab === "investments" ? "DEPOSIT" : "WITHDRAWAL";
   const request = {
     sourceLabel: label,
     accountId,
@@ -52,7 +54,7 @@ export function importAddonFixture(id: string, tab: "investments" | "spending", 
         rawRow: ["synthetic host import fixture"],
         excluded: false,
         activity: {
-          activityType: tab === "investments" ? "DEPOSIT" : "EXPENSE",
+          activityType,
           date: "2026-01-06T00:00:00Z",
           amount: "1",
           currency: "USD",
@@ -80,7 +82,7 @@ export function importAddonFixture(id: string, tab: "investments" | "spending", 
     },
   };
   const code = `export async function enable(context) {
-    await context.router.add({ id: ${JSON.stringify(route)}, path: "", render({ root }) {
+    await context.router.add({ id: ${JSON.stringify(route)}, path: ${JSON.stringify(`/addons/${id}`)}, render({ root }) {
       const button = document.createElement("button");
       button.textContent = "Open host import wizard";
       const status = document.createElement("p");

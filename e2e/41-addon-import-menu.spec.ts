@@ -1,9 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { devices, expect, test } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { importAddonFixture } from "./fixtures/import-addons/fixture";
 import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
 
-for (const mobile of [false, true]) {
+function defineImportMenuTests(mobile: boolean) {
   for (const direction of ["ltr", "rtl"]) {
     test(`fixture import addons open from activity menus (${mobile ? "mobile" : "desktop"}, ${direction})`, async ({
       page,
@@ -119,11 +119,15 @@ for (const mobile of [false, true]) {
           await page.screenshot({
             path: testInfo.outputPath(`${addon.tab}-host-handoff-${direction}.png`),
           });
-          await page.getByRole("button", { name: "Return to original transactions" }).click();
+          const cancelImport = mobile
+            ? page.locator("header").getByRole("button", { name: "Back", exact: true })
+            : page.getByRole("button", { name: "Return to original transactions", exact: true });
+          await expect(cancelImport).toBeVisible();
+          await cancelImport.click();
           await expect(page.getByRole("alertdialog")).toContainText("discards edits");
           await page.getByRole("button", { name: "Continue Importing", exact: true }).click();
           await expect(page.getByRole("button", { name: /Review Activities/i })).toBeEnabled();
-          await page.getByRole("button", { name: "Return to original transactions" }).click();
+          await cancelImport.click();
           await page
             .getByRole("alertdialog")
             .getByRole("button", { name: "Cancel Import", exact: true })
@@ -246,3 +250,11 @@ for (const mobile of [false, true]) {
     });
   }
 }
+
+defineImportMenuTests(false);
+test.describe("mobile device", () => {
+  // The application detects mobile platform from the UA, not viewport width.
+  // Keep a real phone context so the header's Back action is available.
+  test.use({ userAgent: devices["Pixel 5"].userAgent, isMobile: true, hasTouch: true });
+  defineImportMenuTests(true);
+});

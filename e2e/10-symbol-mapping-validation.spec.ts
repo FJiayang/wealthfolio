@@ -23,16 +23,21 @@ test.describe("Symbol Mapping Validation", () => {
 
   // ── helpers ──────────────────────────────────────────────────────────────
 
+  async function clearAssetTableFilters() {
+    // The heading is visible while AssetsTable still renders its loading skeleton.
+    // Wait for the real toolbar before checking whether its default Current filter needs reset.
+    await expect(page.getByPlaceholder("Search ...", { exact: true })).toBeVisible();
+    const reset = page.getByRole("button", { name: "Reset", exact: true });
+    if (await reset.isVisible()) await reset.click();
+    await expect(reset).not.toBeVisible();
+  }
+
   async function ensureAssetExists() {
     await gotoAppPath(page, "/settings/securities");
     await expect(page.getByRole("heading", { name: "Securities" })).toBeVisible({ timeout: 10000 });
 
     // Reset portfolio filter so all assets are visible
-    const resetBtn = page.getByRole("button", { name: "Reset" });
-    if (await resetBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await resetBtn.click();
-      await page.waitForTimeout(500);
-    }
+    await clearAssetTableFilters();
 
     // Skip creation if asset already exists
     const existingRow = page.getByRole("row").filter({ hasText: ASSET_SYMBOL });
@@ -49,11 +54,7 @@ test.describe("Symbol Mapping Validation", () => {
     });
 
     // Reset filter again after creation
-    const resetBtn2 = page.getByRole("button", { name: "Reset" });
-    if (await resetBtn2.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await resetBtn2.click();
-      await page.waitForTimeout(500);
-    }
+    await clearAssetTableFilters();
 
     await expect(page.getByRole("row").filter({ hasText: ASSET_SYMBOL }).first()).toBeVisible({
       timeout: 5000,
@@ -65,11 +66,7 @@ test.describe("Symbol Mapping Validation", () => {
     await expect(page.getByRole("heading", { name: "Securities" })).toBeVisible({ timeout: 10000 });
 
     // Reset filter
-    const resetBtn = page.getByRole("button", { name: "Reset" });
-    if (await resetBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await resetBtn.click();
-      await page.waitForTimeout(500);
-    }
+    await clearAssetTableFilters();
 
     await waitForSyncToast(page, 60_000);
 
@@ -125,7 +122,7 @@ test.describe("Symbol Mapping Validation", () => {
     await page.getByPlaceholder("Search currency...").fill(currency);
     await page.getByRole("option", { name: new RegExp(`\\(${currency}\\)$`) }).click();
     await expect(currencyInput).toContainText(currency);
-    await editSheet.getByRole("tab", { name: "Market Data", exact: true }).click();
+    await editSheet.getByRole("tab", { name: "Market data", exact: true }).click();
   }
 
   async function clearAllMappings() {
