@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TaxonomyCategory } from "@/lib/types";
-import { getBudgetGroupLabel, getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getBudgetGroupLabel } from "@/features/spending/lib/labels";
 import { Button, Icons, Skeleton } from "@wealthfolio/ui";
 
 import {
@@ -72,7 +73,8 @@ export function MoneyFlowSection({
         total: t("spending:moneyFlow.node.total"),
         shortfall: t("spending:moneyFlow.node.shortfall"),
         refunds: t("spending:moneyFlow.node.refunds"),
-        saved: t("spending:whereIAm.setAside"),
+        fromSavings: t("spending:moneyFlow.node.fromSavings"),
+        saved: t("spending:moneyFlow.node.toSavings"),
         surplus: t("spending:moneyFlow.node.surplus"),
         uncategorized: t("spending:insightsPage.uncategorized"),
         uncategorizedIncome: t("spending:moneyFlow.node.uncategorizedIncome"),

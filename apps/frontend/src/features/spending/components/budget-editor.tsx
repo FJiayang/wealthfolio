@@ -1,4 +1,5 @@
-import { getCategoryLabel, getBudgetGroupLabel } from "@/lib/taxonomy-labels";
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getBudgetGroupLabel } from "@/features/spending/lib/labels";
 import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -46,6 +47,7 @@ import {
   useNumberFormatting,
 } from "@wealthfolio/ui";
 import { Switch } from "@wealthfolio/ui/components/ui/switch";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 
 import { cn } from "@/lib/utils";
 
@@ -67,7 +69,6 @@ import { IconPicker } from "./icon-picker";
 import { badgeVariants } from "@wealthfolio/ui";
 
 const SPENDING_TAXONOMY = "spending_categories";
-const CARD_CLASS = "border-border/60 bg-card/40 shadow-xs rounded-xl border backdrop-blur-xl";
 
 export type BudgetEditorMode = "setup" | "monthly";
 
@@ -249,7 +250,7 @@ export function BudgetEditor({ mode, periodKey }: BudgetEditorProps) {
 
   if (mode === "monthly") {
     return (
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-4">
           <BudgetSummary budget={budget} currency={currency} mode={mode} />
           <BudgetFxNote budget={budget} currency={currency} />
@@ -311,7 +312,7 @@ function BudgetSummary({
       : t("spending:budgetEditor.monthlyPlan");
 
   return (
-    <section className={cn(CARD_CLASS, "overflow-hidden p-3 sm:p-4")}>
+    <section className={cn(cardSurfaceClassName, "overflow-hidden p-3 sm:p-4")}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-muted-foreground text-2xs font-semibold tracking-[0.08em] uppercase">
@@ -354,7 +355,9 @@ function BudgetSummary({
 
       <SegmentedGroupBar groupRows={groupRows} total={planned} hasPlan={hasPlan} />
 
-      <div className="mt-2.5 grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Up to three columns on large screens, but none under 10rem, so larger
+          text drops to two before the amounts are cut. */}
+      <div className="mt-2.5 grid grid-cols-1 gap-x-4 gap-y-0.5 sm:grid-cols-2 lg:grid-cols-[repeat(auto-fit,minmax(max(10rem,calc((100%-2rem)/3)),1fr))]">
         {groupRows.map((row) => (
           <GroupSummaryCell
             key={row.group.id}
@@ -509,7 +512,7 @@ function GroupBudgetSection({
       : t("spending:budgetEditor.perMonth");
 
   return (
-    <section className={cn(CARD_CLASS, "overflow-hidden")}>
+    <section className={cn(cardSurfaceClassName, "overflow-hidden")}>
       <div className="flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-4">
         <button
           type="button"
@@ -566,7 +569,8 @@ function GroupBudgetSection({
           <div className="text-foreground truncate text-sm font-semibold">
             {getBudgetGroupLabel(t, row.group.id, row.group.name)}
           </div>
-          <div className="mt-0.5 flex items-center gap-1.5">
+          {/* Spent of planned wraps under the bar rather than ending in an ellipsis. */}
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
             <div className="bg-muted/40 h-1 w-16 shrink-0 overflow-hidden rounded-full sm:w-20">
               <div
                 className="h-full rounded-full transition-all"
@@ -576,7 +580,7 @@ function GroupBudgetSection({
                 }}
               />
             </div>
-            <span className="text-muted-foreground text-2xs truncate tabular-nums">
+            <span className="text-muted-foreground text-2xs tabular-nums">
               <PrivacyAmount value={row.actual} currency={currency} /> /{" "}
               <PrivacyAmount value={row.plannedTotal} currency={currency} />
             </span>
@@ -725,7 +729,7 @@ function GroupBudgetSection({
           {mode === "setup" && (
             <AddCategoryRow
               groupId={row.group.id}
-              groupName={getBudgetGroupLabel(t, row.group.id, row.group.name)}
+              groupName={row.group.name}
               pool={categoryPool.filter((entry) => entry.fromGroupId !== row.group.id)}
               onMoveCategory={onMoveCategory}
             />
@@ -1391,7 +1395,7 @@ function IncomeSourcesPanel({
   const visibleRows = isMonthly && !showAll ? nonZeroRows : rows;
 
   return (
-    <section className={cn(CARD_CLASS, "p-3 sm:p-4")}>
+    <section className={cn(cardSurfaceClassName, "p-3 sm:p-4")}>
       <div className="flex items-center justify-between">
         <PanelHeader title={title} icon={<Icons.Wallet className="h-3.5 w-3.5" />} />
         {isMonthly && (
@@ -1572,7 +1576,7 @@ function OverridesSummary({
   if (overrides.length === 0) return null;
 
   return (
-    <section className={cn(CARD_CLASS, "p-3 sm:p-4")}>
+    <section className={cn(cardSurfaceClassName, "p-3 sm:p-4")}>
       <div className="flex items-center justify-between gap-2">
         <PanelHeader
           title={tr("spending:budgetEditor.overridesTitle", { count: overrides.length })}
@@ -1668,7 +1672,7 @@ function CopyFromMonthRow({
   const [overwrite, setOverwrite] = useState(false);
 
   return (
-    <section className={cn(CARD_CLASS, "p-3 sm:p-4")}>
+    <section className={cn(cardSurfaceClassName, "p-3 sm:p-4")}>
       <PanelHeader
         title={t("spending:budgetEditor.copyPlanTitle")}
         icon={<Icons.Copy className="h-3.5 w-3.5" />}
@@ -1723,7 +1727,7 @@ function BudgetTotalsPanel({
 }) {
   const { t } = useTranslation();
   return (
-    <section className={cn(CARD_CLASS, "p-3 sm:p-4")}>
+    <section className={cn(cardSurfaceClassName, "p-3 sm:p-4")}>
       <PanelHeader
         title={t("spending:budgetEditor.totals")}
         icon={<Icons.PieChart className="h-3.5 w-3.5" />}
@@ -1808,7 +1812,7 @@ function BudgetErrorState({ error, onRetry }: { error: unknown; onRetry: () => v
   const missingTables = message.includes("no such table: budget_groups");
 
   return (
-    <section className={cn(CARD_CLASS, "p-5")}>
+    <section className={cn(cardSurfaceClassName, "p-5")}>
       <div className="flex gap-3">
         <Icons.AlertCircle className="text-destructive mt-0.5 h-5 w-5 shrink-0" />
         <div className="min-w-0 space-y-3">
@@ -1831,15 +1835,15 @@ function BudgetErrorState({ error, onRetry }: { error: unknown; onRetry: () => v
 function BudgetSkeleton() {
   return (
     <div className="space-y-4">
-      <Skeleton className="h-40 rounded-xl" />
+      <Skeleton className="h-40 rounded-(--card-radius)" />
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22.5rem]">
         <div className="space-y-4">
-          <Skeleton className="h-72 rounded-xl" />
-          <Skeleton className="h-56 rounded-xl" />
+          <Skeleton className="h-72 rounded-(--card-radius)" />
+          <Skeleton className="h-56 rounded-(--card-radius)" />
         </div>
         <div className="space-y-4">
-          <Skeleton className="h-52 rounded-xl" />
-          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-52 rounded-(--card-radius)" />
+          <Skeleton className="h-64 rounded-(--card-radius)" />
         </div>
       </div>
     </div>

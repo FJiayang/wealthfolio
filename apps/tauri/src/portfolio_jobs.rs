@@ -48,6 +48,7 @@ impl TauriJobObserver {
     }
 }
 
+#[async_trait::async_trait]
 impl JobObserver for TauriJobObserver {
     fn enrichment_started(&self, total: usize) {
         self.emit(
@@ -107,10 +108,24 @@ impl JobObserver for TauriJobObserver {
         }
     }
 
-    fn update_completed(&self) {
+    async fn update_completed(&self) {
         // Freshness verdicts and stale-projection issues are cached.
         self.clear_health_cache();
         self.emit(PORTFOLIO_UPDATE_COMPLETE, &());
+        match self
+            .context
+            .goal_service()
+            .refresh_all_goal_summaries()
+            .await
+        {
+            Ok(goals) => {
+                emit_goal_summaries_updated(&self.app_handle, &self.context, &goals, false)
+            }
+            Err(error) => log::warn!(
+                "Goal summary batch refresh failed ({})",
+                wealthfolio_core::goals::summary_refresh_error_kind(&error)
+            ),
+        }
     }
 }
 
@@ -188,4 +203,28 @@ pub fn request_scheduled_update(handle: AppHandle, context: Arc<ServiceContext>)
     context.portfolio_tasks.spawn(false, async move {
         check_market_data_update(handle, task_context).await.is_ok()
     });
+}
+
+/// Emitted only after committed summary writes, separately from portfolio completion.
+pub fn emit_goal_summaries_updated(
+    app_handle: &AppHandle,
+    context: &ServiceContext,
+    goals: &[wealthfolio_core::goals::Goal],
+    inputs_changed: bool,
+) {
+    let Some(payload) =
+        wealthfolio_core::goals::GoalSummariesUpdated::from_goals(goals, inputs_changed)
+    else {
+        return;
+    };
+    if crate::events::emit_for_profile(
+        app_handle,
+        context,
+        crate::events::GOAL_SUMMARIES_UPDATED,
+        payload,
+    )
+    .is_err()
+    {
+        error!("Failed to emit goal summary update");
+    }
 }

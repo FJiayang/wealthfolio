@@ -71,9 +71,10 @@ impl AgentEnvironment for StubEnv {
         unimplemented!("unused test service")
     }
 
-    fn rebalance_service(
+    fn allocation_worksheet_service(
         &self,
-    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::RebalanceServiceTrait> {
+    ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationWorksheetServiceTrait>
+    {
         unimplemented!("unused test service")
     }
 

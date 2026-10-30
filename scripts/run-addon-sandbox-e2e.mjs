@@ -65,6 +65,7 @@ try {
     "test",
     "--config",
     "playwright.addon-sandbox.config.ts",
+    ...process.argv.slice(2),
   ]);
 } finally {
   await stopPreview();

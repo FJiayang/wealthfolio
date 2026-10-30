@@ -91,6 +91,8 @@
   --spending-accent: var(--chart-1);
   --spending-deep: var(--chart-1);
   --spending-mid: var(--chart-4);
+  /* The Investments value chart (and an account's); below zero it is always --loss. */
+  --investments: var(--gain);
   --net-worth: #aa8c3e;
   /* The sidebar is the page itself. */
   --sidebar: #f8f8f8;
@@ -102,11 +104,14 @@
   --sidebar-border: #ececec;
   --sidebar-ring: #6d50d8;
   --toast-border: #ececec;
-  /* Holdings treemap: sage gains and rose losses. */
+  /* Holdings treemap: sage gains and rose losses, blue losses when the Gain and loss
+     colours setting draws them in blue. */
   --heatmap-positive-low: #e5ece7;
   --heatmap-positive-high: #98b3a2;
   --heatmap-negative-low: #f5e3e0;
   --heatmap-negative-high: #d19a92;
+  --heatmap-blue-low: #dfe9f5;
+  --heatmap-blue-high: #8dacd4;
   /* Treemap middle stops halfway between low and high, so the ramp stays a straight
      blend. Dark mode mixes its own low and high. */
   --heatmap-positive-mid: color-mix(
@@ -119,6 +124,7 @@
     var(--heatmap-negative-low),
     var(--heatmap-negative-high)
   );
+  --heatmap-blue-mid: color-mix(in srgb, var(--heatmap-blue-low), var(--heatmap-blue-high));
   --heatmap-label-dark: #121212;
   --heatmap-label-light: #ffffff;
   --heatmap-accent: #357941;
@@ -175,13 +181,16 @@
   --card-title-tracking: -0.02em;
 }
 
-/* Dark: a near-black page with cards a step lighter, lit by a faint top edge
-   and a half-pixel rim, and white pills with an ink label. */
+/* Dark: a near-black page with cards a step lighter, edged in glass (a half-pixel
+   rim, brighter along the top, with a soft sheen under it), and white pills with
+   an ink label. The top light sits on the rim: an inset line lands inside the
+   card's 1px transparent border and reads as a second border. */
 .dark {
   --card-border: transparent;
   --card-shadow:
-    inset 0 0.5px 0 rgb(255 255 255 / 0.07), 0 0 0 0.5px rgb(255 255 255 / 0.06),
-    0 1px 2px rgb(0 0 0 / 0.3), 0 16px 36px -12px rgb(0 0 0 / 0.55);
+    0 0 0 0.5px rgb(255 255 255 / 0.06), 0 -0.5px 0 rgb(255 255 255 / 0.08),
+    inset 0 18px 24px -18px rgb(255 255 255 / 0.045), 0 1px 2px rgb(0 0 0 / 0.3),
+    0 16px 36px -12px rgb(0 0 0 / 0.55);
   --background: #0f0f10;
   --foreground: #f4f4f5;
   --card: #1a1a1c;
@@ -232,6 +241,7 @@
   --series-4: var(--chart-4);
   --series-7: var(--chart-7);
   --series-8: var(--chart-8);
+  --investments: var(--gain);
   --net-worth: #d4b66a;
   --sidebar: #0f0f10;
   --sidebar-foreground: #d4d4d8;
@@ -246,6 +256,8 @@
   --heatmap-positive-high: #86bf9c;
   --heatmap-negative-low: #44272a;
   --heatmap-negative-high: #ec8a7e;
+  --heatmap-blue-low: #1a3344;
+  --heatmap-blue-high: #58b3ee;
   --heatmap-label-dark: #121212;
   --heatmap-label-light: #f4f4f5;
   --heatmap-accent: #86c09c;

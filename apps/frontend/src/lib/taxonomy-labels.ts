@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import english from "@/i18n/locales/en/common.json";
+import english from "@/i18n/locales/en/taxonomies.json";
 import type { TaxonomyAllocation, CategoryAllocation } from "@/lib/types";
 
 const taxonomyNames: Record<string, string> = english.taxonomyNames;
@@ -8,7 +8,7 @@ const categoryNames: Record<string, Record<string, string>> = english.categoryNa
 /** Only unchanged built-in names are translated; custom and renamed records stay verbatim. */
 export function getTaxonomyLabel(t: TFunction, taxonomyId: string, name: string): string {
   return taxonomyNames[taxonomyId] === name
-    ? t(`common:taxonomyNames.${taxonomyId}`, { defaultValue: name })
+    ? t(`taxonomies:taxonomyNames.${taxonomyId}`, { defaultValue: name })
     : name;
 }
 
@@ -18,9 +18,9 @@ export function getCategoryLabel(
   categoryId: string,
   name: string,
 ): string {
-  if (categoryId === "__UNKNOWN__") return t("common:unknown");
+  if (categoryId === "__UNKNOWN__") return t("taxonomies:unknown");
   return categoryNames[taxonomyId]?.[categoryId] === name
-    ? t(`common:categoryNames.${taxonomyId}.${categoryId}`, { defaultValue: name })
+    ? t(`taxonomies:categoryNames.${taxonomyId}.${categoryId}`, { defaultValue: name })
     : name;
 }
 
@@ -45,18 +45,6 @@ export function localizeAllocation(
     taxonomyName: getTaxonomyLabel(t, allocation.taxonomyId, allocation.taxonomyName),
     categories: allocation.categories.map((row) => category(row)),
   };
-}
-
-/** Seeded budget groups are editable too; never translate a user rename. */
-export function getBudgetGroupLabel(t: TFunction, id: string, name: string): string {
-  const names: Record<string, string> = english.budgetGroupNames;
-  return names[id] === name ? t(`common:budgetGroupNames.${id}`, { defaultValue: name }) : name;
-}
-
-/** Translate only unchanged seeded event types, never user-created types or event names. */
-export function getEventTypeLabel(t: TFunction, id: string, name: string): string {
-  const names: Record<string, string> = english.eventTypeNames;
-  return names[id] === name ? t(`common:eventTypeNames.${id}`, { defaultValue: name }) : name;
 }
 
 /** Localize a tool's category path only through identities supplied with that path. */

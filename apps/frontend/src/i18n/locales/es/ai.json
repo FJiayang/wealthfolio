@@ -687,6 +687,7 @@
     "revalidateFailed": "No se pudo volver a validar.",
     "nothing": "No hay nada que importar.",
     "allInvalid": "Todas las actividades tienen errores de validación. Corrígelos y vuelve a intentarlo.",
-    "importFailed": "No se pudieron importar las actividades."
+    "importFailed": "No se pudieron importar las actividades.",
+    "reviewAndRetry": "La importación falló. Revisa los errores y vuelve a intentarlo."
   }
 }

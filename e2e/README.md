@@ -23,9 +23,9 @@ The easiest way to run the entire suite. Handles everything automatically:
 prepares a fresh database, starts the web app, waits for both servers, runs
 Playwright, and shuts everything down.
 
-The automated runner restores the complete original `.env.web` after a successful
-or failed run. Test data stays in its disposable directory; a subsequent normal
-startup uses the original local profiles and accounts again.
+The automated runner restores the complete original `.env.web` after a
+successful or failed run. Test data stays in its disposable directory; a
+subsequent normal startup uses the original local profiles and accounts again.
 
 ```bash
 pnpm test:e2e
@@ -52,17 +52,28 @@ pnpm test:e2e:ui
 
 ### Manual — specific tests or debugging
 
-The local import-menu integration suite uses the two separately maintained addon
-packages. Build their ZIPs with each addon's `bundle` command first, then run:
+The import-menu integration suite is self-contained:
 
 ```bash
-WF_E2E_IMPORT_ADDONS_DIR=/absolute/path/to/wealthfolio-addons/local pnpm test:e2e e2e/41-addon-import-menu.spec.ts
+pnpm test:e2e e2e/41-addon-import-menu.spec.ts
 ```
 
-Without this variable, that suite is skipped. It installs the ZIPs only in the
-runner's disposable addon directory and checks desktop/mobile menus, RTL,
-import-only lazy activation, and disabled-entry removal. The host draft import
-flow is covered by `e2e/40-addon-import-handoff.spec.ts`.
+It creates two minimal addon ZIPs from `e2e/fixtures/import-addons/fixture.ts`
+using Node's built-in APIs, and installs them through the real host endpoint in
+the disposable test installation. No external addon repository, PDF/CSV parser,
+package build, or opt-in environment variable is required. All four
+desktop/mobile and LTR/RTL cases run by default. They cover isolated
+investment/spending import slots, lazy activation without sidebar links,
+sandbox-to-host draft handoff, continuing/canceling the host wizard, and
+disable/re-enable/uninstall behavior. Unique fixture addons and the test-owned
+account are removed even on failure; changed language, update/sync and spending
+settings are restored.
+
+External addons' statement parsing, preview layouts, and parser-specific edit
+controls belong in those addons' own tests, not the host suite. The host's
+complete asset/review/confirmation/persistence flow remains covered by
+`e2e/40-addon-import-handoff.spec.ts`; 41 cancels its synthetic drafts before
+saving.
 
 Use this when you want to run a subset of tests or iterate quickly without
 restarting the server on every run.
@@ -181,20 +192,48 @@ npx playwright test && npx playwright show-report
 | `36-phone-taps-and-swipes.spec.ts`     | Phone: Spending's Next doesn't save, Performance's Plus stays on screen, swipes scroll period rows                          |
 | `38-account-section-scroll.spec.ts`    | Phone, in WebKit: switching an account between Holdings and Activities keeps the page's scroll position                     |
 | `34-import-mapping-sticky.spec.ts`     | CSV import Mapping step: the Activity Preview's header row and # column stay pinned as it scrolls (#2010)                   |
+| `33-import-mapping-layout.spec.ts`     | CSV import Mapping step: both previews fit the step area; on a phone, the step's blocks keep their height (#2002)           |
+| `39-text-size.spec.ts`                 | Appearance's text size saves, scales the root font size, and is applied by index.html before the app loads (#1734)          |
+| `37-import-skip-rows.spec.ts`          | CSV import Mapping step: skipping a row with an unmapped symbol lets the other rows import (#2262)                          |
 
 ---
 
-## Not in CI (tracked follow-up)
+## CI coverage and focused local runs
 
-None of the specs in this directory run in CI. `pr-check.yml` installs
-Playwright only for `pnpm test:e2e:addon-sandbox`, a standalone frontend-only
-harness; the app suite needs a built Rust backend on :8088, a seeded database,
-and serial execution against shared state.
+Every PR runs the full deterministic application, profile, net-worth, addon
+sandbox, and design-system suites through
+[Browser E2E](../.github/workflows/browser-e2e.yml). `PR Check`'s required
+**Build Status** aggregates these and all mandatory non-browser checks. No
+browser suite is path-filtered. CI uses zero retries, rejects `test.only`, and
+uploads reports, traces, and visual differences even when a job fails.
 
-Standing that up is its own change — it should add the whole suite as one job,
-not smuggle individual specs in. Until then these specs are a local gate only:
-run `pnpm test:e2e` before merging anything that touches activities, import, or
-holdings.
+The main suite stays serial against a fresh installation; do not shard it. Its
+job creates `.env.web` from the example, generates a disposable local key,
+enables MCP only on loopback for the lifecycle tests, precompiles the backend,
+and uses the official runner/market-data fixtures. Profiles use a separate
+installation and production web build. The live-provider bond test remains
+explicitly opt-in and is not a deterministic CI dependency; do not disguise its
+existing skip as a tested live-provider pass.
+
+The independent net-worth harness needs no Rust backend or database:
+
+```bash
+pnpm build:types
+pnpm exec playwright install chromium
+pnpm test:e2e:net-worth <changed-spec>
+```
+
+The addon sandbox runs in Chromium, Firefox, and WebKit:
+
+```bash
+pnpm exec playwright install --with-deps chromium firefox webkit
+pnpm test:e2e:addon-sandbox <changed-spec>
+```
+
+Local development normally requires only relevant unit tests. Use a focused
+browser run when it helps reproduce/verify a UI change; full E2E belongs to CI,
+not an every-change local gate. See
+[Development workflow](../docs/development-workflow.md).
 
 ---
 
@@ -234,17 +273,21 @@ See the
 [profile architecture](../docs/architecture/multi-profile-and-app-lock.md) for
 access boundaries and additional release verification requirements.
 
-## UI primitive guardrails (on demand)
+## UI primitive guardrails and visual baselines
 
 `e2e/design-system/` checks the `@wealthfolio/ui` primitives on a synthetic
 gallery (`apps/frontend/e2e/design-system/`): screenshots of every component and
 open overlay (light and dark, 390 and 1440 px), overlay and keyboard behaviour,
-and an axe WCAG 2.1 A/AA scan. It runs in Chromium and WebKit, only when asked;
-it is not part of CI.
+and an axe WCAG 2.1 A/AA scan. The complete suite runs in Chromium and WebKit in
+CI, split into independent shards using one worker each. CI uses
+`playwright.design-system.ci.config.ts`, a pinned Playwright Linux image, and
+reviewed snapshots in `e2e/design-system/baselines/`. Missing snapshots and
+visual/accessibility differences fail; CI never updates its acceptance baseline.
 
-Screenshots and accessibility results compare against a baseline recorded on the
-same machine from the code before a change, kept in `.local/design-system/`
-(never committed, so baselines never cross platforms):
+For local diagnosis only, the original config still supports same-machine
+before/after baselines under `.local/design-system/`. These are not CI reference
+files and must not be copied into the committed baseline without reproducing in
+the pinned environment and independent review:
 
 ```bash
 git switch main
@@ -258,8 +301,8 @@ the primitives do not pass cleanly yet: in WebKit it counts the focus guards
 Base UI keeps around open popups, which Safari exposes as buttons without a
 name.
 
-Right-to-left runs through the development-only `?dir=rtl` override, since no
-shipped language is right-to-left yet: `visual.spec.ts` shoots every gallery and
+Right-to-left runs through the development-only `?dir=rtl` override, including
+shipped right-to-left languages: `visual.spec.ts` shoots every gallery and
 overlay state again with an `-rtl` suffix, and `rtl.spec.ts` checks the mirrored
 arrows, popup and sheet sides, and a live switch between directions.
 `pnpm ui:design-ratchet` also counts physical left/right classes (`ml-2`,
@@ -275,9 +318,10 @@ on a tint of its own colour (`text-warning` on `bg-warning/10`) can't reach
 4.5:1. `Alert`'s status variants show that surface as glass (60% fill, a
 hairline and `--surface-highlight` along the top), also checked at 4.5:1.
 
-Each test is retried once in a fresh browser: late in a long run WebKit
-sometimes stalls a page load without sending a request. Playwright reports a
-test that only passes on retry as flaky; a real difference fails both attempts.
+The local diagnostic config retains its existing retry for WebKit stalls; CI
+overrides retries to zero, preserving the first failure and trace. Baseline
+bootstrap, intentional updates, and browser-version upgrades follow the
+[review policy](../docs/development-workflow.md#design-baseline-review).
 
 `pnpm ui:design-ratchet` counts, per file, font sizes off the type scale
 (`text-[11px]`; the scale is `text-2xs` to `text-3xl` in `globals.css`), other

@@ -1,0 +1,160 @@
+name: Browser E2E
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  application:
+    name: Application (${{ matrix.suite }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [main, profiles]
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_TERM_COLOR: always
+      RUSTFLAGS: "-C debuginfo=0"
+      PLAYWRIGHT_HTML_OPEN: never
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:types
+      - name: Setup repository Rust toolchain
+        run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: pr-rust-check
+          save-if: false
+      - name: Precompile backend before the runner's readiness deadline
+        run: cargo build --locked -p wealthfolio-server
+      - name: Install Chrome and WebKit (also used by main's mobile specs)
+        run: pnpm exec playwright install --with-deps chrome webkit
+      - name: Run the complete serial application suite
+        if: matrix.suite == 'main'
+        run: |
+          cp .env.web.example .env.web
+          # A disposable local key, not a repository or production secret.
+          export WF_SECRET_KEY="$(openssl rand -base64 32)"
+          export WF_DB_REQUIRE_ENCRYPTION=false
+          export WF_MCP_ENABLED=true
+          pnpm test:e2e --workers=1 --retries=0 --forbid-only --reporter=line,html
+      - name: Build production web frontend for profiles
+        if: matrix.suite == 'profiles'
+        run: pnpm build
+      - name: Run the complete isolated profile suite
+        if: matrix.suite == 'profiles'
+        run: >-
+          pnpm exec playwright test --config playwright.profiles.config.ts --workers=1 --retries=0
+          --forbid-only --reporter=line,html --output=test-results
+      - name: Upload browser reports and failure traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.suite }}-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  harness:
+    name: Harness (${{ matrix.suite }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [net-worth, addon-sandbox]
+    env:
+      PLAYWRIGHT_HTML_OPEN: never
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:types
+      - name: Install all sandbox browsers
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - name: Run all net-worth layouts
+        if: matrix.suite == 'net-worth'
+        run: pnpm test:e2e:net-worth --workers=2 --retries=0 --forbid-only --reporter=line,html
+      - name: Run addon isolation in Chromium, Firefox and WebKit
+        if: matrix.suite == 'addon-sandbox'
+        run: >-
+          pnpm test:e2e:addon-sandbox --workers=2 --retries=0 --forbid-only
+          --trace=retain-on-failure --reporter=line,html
+      - name: Upload browser reports and failure traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.suite }}-${{ github.sha }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  design-system:
+    name: Design system (${{ matrix.browser }}, ${{ matrix.shard }})
+    runs-on: ubuntu-24.04
+    # Match pnpm-lock.yaml exactly. Baseline generation uses this same image.
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
+      options: --ipc=host
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+        shard: ["1/3", "2/3", "3/3"]
+    env:
+      PLAYWRIGHT_HTML_OPEN: never
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      - name: Verify browser image matches the locked Playwright version
+        run:
+          node -e 'if (require("@playwright/test/package.json").version !== "1.58.2")
+          process.exit(1)'
+      - run: pnpm build:types
+      - name: Compare every design test against reviewed baselines
+        # fully-parallel distributes independent tests between shards; each
+        # shard still executes one test at a time, with no retries or updates.
+        run: >-
+          pnpm exec playwright test --config playwright.design-system.ci.config.ts --project=${{
+          matrix.browser }} --shard=${{ matrix.shard }} --fully-parallel --workers=1 --retries=0
+          --forbid-only --update-snapshots=none --reporter=line,html
+      - name: Upload actual/expected/diff images, accessibility results and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-design-${{ matrix.browser }}-${{ strategy.job-index }}-${{ github.sha }}
+          include-hidden-files: true
+          path: |
+            playwright-report/
+            .local/design-system/results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  baseline-evidence:
+    # Bootstrap evidence is generated in a DIFFERENT job/workspace and cannot
+    # affect the comparisons above. Missing reviewed baselines still fail CI.
+    name: Initial baseline review evidence
+    uses: ./.github/workflows/design-baseline.yml
+    with:
+      revision: ${{ github.sha }}

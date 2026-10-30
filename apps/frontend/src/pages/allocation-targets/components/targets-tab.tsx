@@ -1,4 +1,3 @@
-import { getPresetName } from "./model-preset-data";
 import { getTaxonomyLabel } from "@/lib/taxonomy-labels";
 import React, { useState, useEffect } from "react";
 import { useEffectOnChange } from "@/hooks/use-effect-on-change";
@@ -38,7 +37,6 @@ import type {
   AllocationTargetConstraint,
   ConstraintSubjectType,
   AccountScope,
-  RebalanceGoal,
   TargetScopeType,
   TaxonomyCategory,
 } from "@/lib/types";
@@ -47,12 +45,14 @@ import { generateId } from "@/lib/id";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
+import { ModelPresetPicker } from "./model-preset-picker";
+import { BUILT_IN_PRESETS, modelPresetTitle } from "./model-preset-data";
 import { buildAllocationTargetColorMap } from "./allocation-target-colors";
-import { BUILT_IN_PRESETS, ModelPresetPicker, type ModelPreset } from "./model-preset-picker";
 import { TargetWeightEditor, type WeightDraft } from "./target-weight-editor";
 import { DriftBandSlider } from "./drift-band-slider";
 import { useTargetConstraints } from "../hooks/use-target-constraints";
 import { accountScopeFromTarget, accountScopeKey } from "./target-scope";
+import { cardSurfaceClassName } from "@wealthfolio/ui/components/ui/card";
 
 type EditorMode =
   | { kind: "guided" }
@@ -102,21 +102,6 @@ function TargetScopeIcon({ scopeType }: { scopeType: TargetScopeType }) {
     return <Icons.CreditCard className="h-4 w-4 shrink-0 opacity-70" />;
   }
   return <Icons.Wallet className="h-4 w-4 shrink-0 opacity-70" />;
-}
-
-function currentPreset(
-  taxonomyId: string,
-  categories: CategoryAllocation[],
-  t: TFunction,
-): ModelPreset {
-  return {
-    id: "current",
-    taxonomyId,
-    name: t("allocation:presets.currentAllocation"),
-    description: t("allocation:presets.currentAllocationDescription"),
-    risk: "From holdings",
-    weights: Object.fromEntries(categories.map((c) => [c.categoryId, c.percentage])),
-  };
 }
 
 function categoriesForTaxonomy(
@@ -322,7 +307,7 @@ function SellProtectionSection({
   const protectedAccounts = accounts.filter((a) => protectedAccountIds.has(a.id));
 
   return (
-    <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+    <section className={cn(cardSurfaceClassName, "p-5")}>
       <div className="mb-1">
         <h3 className="text-foreground text-sm font-semibold">
           {t("allocation:sellProtection.title")}
@@ -593,9 +578,6 @@ function TargetEditor({
     target ? target.relativeFactorBps / 100 : 20,
   );
   const [allowSells, setAllowSells] = useState(target?.allowSells ?? true);
-  const [rebalanceGoal, setRebalanceGoal] = useState<RebalanceGoal>(
-    target?.rebalanceGoal ?? "nearest_band",
-  );
   const [minTradeAmount, setMinTradeAmount] = useState(target?.minTradeAmount ?? "0");
   const [wholeSharesOnly, setWholeSharesOnly] = useState(target?.wholeSharesOnly ?? false);
   const [maxTurnoverPctDisplay, setMaxTurnoverPctDisplay] = useState(
@@ -656,12 +638,21 @@ function TargetEditor({
     () => BUILT_IN_PRESETS.filter((preset) => preset.taxonomyId === taxonomyId),
     [taxonomyId],
   );
-  const selectedPreset =
-    startId === "scratch" || startId === "saved"
-      ? null
-      : startId === "current"
-        ? currentPreset(taxonomyId, categories, t)
-        : (presets.find((preset) => preset.id === startId) ?? null);
+  const selectedPreset = presets.find((preset) => preset.id === startId) ?? null;
+  const selectedPresetTitle = selectedPreset
+    ? modelPresetTitle(
+        selectedPreset,
+        targetCategories.map((category) => ({
+          id: category.id,
+          name: category.name,
+          sortOrder: category.sortOrder,
+        })),
+        t,
+      )
+    : null;
+  const selectedPresetName = selectedPreset
+    ? modelPresetTitle(selectedPreset, targetCategories)
+    : null;
   const scope = target
     ? { scopeType: target.scopeType, scopeId: target.scopeId ?? null }
     : defaultScopeFromAccountScope(accountScope);
@@ -671,18 +662,11 @@ function TargetEditor({
   const suggestedTargetName = stripBidiControls(
     startId === "scratch" || startId === "current"
       ? t("allocation:editor.suggestedTargetName", {
-          name:
-            (selectedTaxonomy
-              ? getTaxonomyLabel(t, selectedTaxonomy.id, selectedTaxonomy.name)
-              : undefined) ?? t("allocation:editor.customFallback"),
+          name: selectedTaxonomy?.name ?? t("allocation:editor.customFallback"),
         })
       : t("allocation:editor.suggestedTargetName", {
           name:
-            (selectedPreset ? getPresetName(t, selectedPreset) : undefined) ??
-            (selectedTaxonomy
-              ? getTaxonomyLabel(t, selectedTaxonomy.id, selectedTaxonomy.name)
-              : undefined) ??
-            t("allocation:editor.customFallback"),
+            selectedPresetName ?? selectedTaxonomy?.name ?? t("allocation:editor.customFallback"),
         }),
   );
   const savedWeightDrafts = React.useMemo(
@@ -707,7 +691,6 @@ function TargetEditor({
       setBandType(resetTargetBandType);
       setRelativeFactorPct(resetTargetRelativeFactorBps / 100);
       setAllowSells(target?.allowSells ?? false);
-      setRebalanceGoal(target?.rebalanceGoal ?? "nearest_band");
       setMinTradeAmount(target?.minTradeAmount ?? "0");
       setWholeSharesOnly(target?.wholeSharesOnly ?? false);
       setMaxTurnoverPctDisplay(
@@ -722,7 +705,6 @@ function TargetEditor({
       setBandType("hybrid");
       setRelativeFactorPct(20);
       setAllowSells(true);
-      setRebalanceGoal("nearest_band");
       setMinTradeAmount("0");
       setWholeSharesOnly(false);
       setMaxTurnoverPctDisplay("");
@@ -742,7 +724,6 @@ function TargetEditor({
     resetTargetTaxonomyId,
     onUnsavedChange,
     target?.allowSells,
-    target?.rebalanceGoal,
     target?.minTradeAmount,
     target?.wholeSharesOnly,
   ]);
@@ -799,8 +780,7 @@ function TargetEditor({
       ? t("allocation:editor.savedTarget")
       : startId === "scratch"
         ? t("allocation:presets.buildFromScratch")
-        : ((selectedPreset ? getPresetName(t, selectedPreset) : undefined) ??
-          t("allocation:presets.currentAllocation"));
+        : (selectedPresetTitle ?? t("allocation:presets.currentAllocation"));
   const showEditorSkeleton =
     taxonomyLoading || (!!target && existingWeightsLoading && weights.length === 0);
 
@@ -818,7 +798,9 @@ function TargetEditor({
         bandType,
         relativeFactorBps: Math.round(relativeFactorPct * 100),
         allowSells,
-        rebalanceGoal,
+        // No longer offered: the worksheet always calculates toward the exact
+        // target (§4.2). The stored value is kept as it was.
+        rebalanceGoal: target?.rebalanceGoal ?? "nearest_band",
         minTradeAmount: minTradeAmount === "" ? "0" : minTradeAmount,
         wholeSharesOnly,
         maxTurnoverBps:
@@ -872,7 +854,6 @@ function TargetEditor({
       setBandType(target.bandType ?? "absolute");
       setRelativeFactorPct((target.relativeFactorBps ?? 2000) / 100);
       setAllowSells(target.allowSells ?? false);
-      setRebalanceGoal(target.rebalanceGoal ?? "nearest_band");
       setMinTradeAmount(target.minTradeAmount ?? "0");
       setWholeSharesOnly(target.wholeSharesOnly ?? false);
       setMaxTurnoverPctDisplay(
@@ -887,7 +868,6 @@ function TargetEditor({
       setDriftBandPct(1);
       setBandType("hybrid");
       setRelativeFactorPct(20);
-      setRebalanceGoal("nearest_band");
       setMinTradeAmount("0");
       setWholeSharesOnly(false);
       setWeights([]);
@@ -945,7 +925,7 @@ function TargetEditor({
 
       <div className="grid gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <div className="space-y-4">
-          <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+          <section className={cn(cardSurfaceClassName, "p-5")}>
             <StepHeader number={1} className="mb-3">
               {t("allocation:editor.step1")}
             </StepHeader>
@@ -999,7 +979,7 @@ function TargetEditor({
             )}
           </section>
 
-          <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+          <section className={cn(cardSurfaceClassName, "p-5")}>
             <StepHeader number={2} className="mb-3">
               {t("allocation:editor.step2")}
             </StepHeader>
@@ -1038,7 +1018,7 @@ function TargetEditor({
             </div>
           </section>
 
-          <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+          <section className={cn(cardSurfaceClassName, "p-5")}>
             <StepHeader number={3} className="mb-3">
               {t("allocation:editor.step3")}
             </StepHeader>
@@ -1061,14 +1041,14 @@ function TargetEditor({
             />
           </section>
 
-          <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+          <section className={cn(cardSurfaceClassName, "p-5")}>
             <div className="text-muted-foreground text-2xs mb-4 font-medium tracking-wider uppercase">
               {t("allocation:editor.rebalanceSettings")}
             </div>
             <div className="divide-border/50 divide-y [&>*]:py-4 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
               <div>
                 <div className="text-foreground mb-2 text-xs font-medium">
-                  {t("allocation:editor.mode")}
+                  {t("allocation:editor.reductions")}
                 </div>
                 <AnimatedToggleGroup<"buy_only" | "allow_sells">
                   value={allowSells ? "allow_sells" : "buy_only"}
@@ -1077,40 +1057,16 @@ function TargetEditor({
                     markDirty();
                   }}
                   items={[
-                    { value: "buy_only", label: t("allocation:editor.buyOnly") },
-                    { value: "allow_sells", label: t("allocation:editor.allowSells") },
+                    { value: "buy_only", label: t("allocation:editor.reductionsOff") },
+                    { value: "allow_sells", label: t("allocation:editor.reductionsOn") },
                   ]}
                   rounded="lg"
                   className="bg-muted/30 [&_button:has(>div)]:text-primary-foreground [&_button:not(:has(>div))]:text-muted-foreground [&_button>div]:bg-primary w-full border [&_button]:flex-1 [&_button]:py-2 [&_button]:text-xs"
                 />
                 <p className="text-muted-foreground text-2xs mt-2 leading-relaxed">
                   {allowSells
-                    ? t("allocation:editor.modeSellNote")
-                    : t("allocation:editor.modeBuyNote")}
-                </p>
-              </div>
-
-              <div>
-                <div className="text-foreground mb-2 text-xs font-medium">
-                  {t("allocation:editor.goal")}
-                </div>
-                <AnimatedToggleGroup<RebalanceGoal>
-                  value={rebalanceGoal}
-                  onValueChange={(v) => {
-                    setRebalanceGoal(v);
-                    markDirty();
-                  }}
-                  items={[
-                    { value: "nearest_band", label: t("allocation:editor.nearestBand") },
-                    { value: "exact_target", label: t("allocation:editor.exactTarget") },
-                  ]}
-                  rounded="lg"
-                  className="bg-muted/30 [&_button:has(>div)]:text-primary-foreground [&_button:not(:has(>div))]:text-muted-foreground [&_button>div]:bg-primary w-full border [&_button]:flex-1 [&_button]:py-2 [&_button]:text-xs"
-                />
-                <p className="text-muted-foreground text-2xs mt-2 leading-relaxed">
-                  {rebalanceGoal === "exact_target"
-                    ? t("allocation:editor.goalExactNote")
-                    : t("allocation:editor.goalNearestNote")}
+                    ? t("allocation:editor.reductionsOnNote")
+                    : t("allocation:editor.reductionsOffNote")}
                 </p>
               </div>
 
@@ -1191,7 +1147,7 @@ function TargetEditor({
         </div>
 
         <div className="space-y-4">
-          <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+          <section className={cn(cardSurfaceClassName, "p-5")}>
             <div className="mb-3">
               <StepHeader number={4}>{t("allocation:editor.step4")}</StepHeader>
             </div>
@@ -1211,7 +1167,7 @@ function TargetEditor({
             />
           </section>
 
-          <section className="bg-card/80 rounded-lg border p-5 shadow-sm">
+          <section className={cn(cardSurfaceClassName, "p-5")}>
             <div className="mb-7">
               <h3 className="text-foreground text-base font-semibold">
                 {t("allocation:editor.targetWeightsTitle", { start: selectedStartName })}

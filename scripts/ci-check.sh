@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Run local CI checks before commit/push.
+# Optional broad local diagnostics; not a commit/push gate or a substitute for PR CI.
 # Usage:
-#   bash scripts/ci-check.sh           # fast checks (commit mode)
-#   bash scripts/ci-check.sh --full    # full PR CI checks (push mode)
+#   bash scripts/ci-check.sh           # static checks for staged changes
+#   bash scripts/ci-check.sh --full    # optional broad Rust/TS diagnostics (no browser suites)
 
 set -euo pipefail
 

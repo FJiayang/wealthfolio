@@ -26,7 +26,7 @@ interface DriftDriversCardProps {
   taxonomyId: string;
   statusDescription: string;
   bandLabel?: string | null;
-  onRebalanceClick?: () => void;
+  onWorksheetClick?: () => void;
 }
 
 function formatPercent(bps: number, decimals = 1): string {
@@ -76,7 +76,7 @@ export function DriftDriversCard({
   taxonomyId,
   statusDescription,
   bandLabel,
-  onRebalanceClick,
+  onWorksheetClick,
 }: DriftDriversCardProps) {
   const amountFormatting = useAmountFormatting();
 
@@ -87,7 +87,7 @@ export function DriftDriversCard({
     .sort((a, b) => Math.abs(b.driftBps) - Math.abs(a.driftBps));
   const visibleRows = oobRows.slice(0, 3);
   const remainingRows = oobRows.slice(3);
-  const showRebalanceCta = Boolean(onRebalanceClick);
+  const showWorksheetCta = Boolean(onWorksheetClick);
 
   return (
     <Card className="flex h-full flex-col">
@@ -106,7 +106,7 @@ export function DriftDriversCard({
       <CardContent className="flex flex-1 flex-col">
         {oobRows.length === 0 ? (
           <p className="text-muted-foreground py-6 text-center text-sm">
-            {t("allocation:drivers.noActionRequired", { status: statusDescription })}
+            {t("allocation:drivers.noneOutsideRange")}
           </p>
         ) : (
           <ul className="space-y-3">
@@ -171,10 +171,10 @@ export function DriftDriversCard({
             )}
           </ul>
         )}
-        {showRebalanceCta && (
+        {showWorksheetCta && (
           <div className="mt-auto pt-4">
-            <Button size="sm" onClick={onRebalanceClick} className="w-fit">
-              {t("allocation:drivers.reviewRebalance")}
+            <Button size="sm" onClick={onWorksheetClick} className="w-fit">
+              {t("allocation:drivers.openWorksheet")}
             </Button>
           </div>
         )}

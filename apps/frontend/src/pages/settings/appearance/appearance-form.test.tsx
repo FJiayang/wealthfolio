@@ -1,27 +1,63 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { AppearanceForm } from "./appearance-form";
 
-const updateSettings = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 const platform = vi.hoisted(() => ({ isMobile: false, isMacOS: false, isTauri: true }));
-vi.mock("@/hooks/use-platform", () => ({ usePlatform: () => platform }));
-vi.mock("@/lib/settings-provider", () => ({
-  useSettingsContext: () => ({
-    settings: { theme: "light", font: "font-mono", menuBarVisible: true },
-    updateSettings,
-  }),
+const context = vi.hoisted(() => ({
+  settings: { theme: "light", font: "font-mono", menuBarVisible: true } as Record<string, unknown>,
+  updateSettings: vi.fn(() => Promise.resolve()),
 }));
+vi.mock("@/hooks/use-platform", () => ({ usePlatform: () => platform }));
+vi.mock("@/lib/settings-provider", () => ({ useSettingsContext: () => context }));
 vi.mock("@/pages/layouts/navigation/navigation-mode-context", () => ({
   useNavigationMode: () => ({ mode: "sidebar", setMode: vi.fn() }),
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
 beforeEach(() => {
-  updateSettings.mockReset().mockResolvedValue(undefined);
   platform.isMobile = false;
   platform.isMacOS = false;
   platform.isTauri = true;
+  context.settings = { theme: "light", font: "font-mono", menuBarVisible: true };
+  context.updateSettings.mockClear();
+});
+
+it("offers the text size on phones too and saves the picked size", () => {
+  platform.isMobile = true;
+  context.settings.textSize = "large";
+  render(<AppearanceForm />);
+
+  const group = screen.getByRole("group", { name: "settings:appearance_text_size_title" });
+  const large = screen.getByRole("button", { name: "settings:appearance_text_size_large" });
+  expect(group).toContainElement(large);
+  expect(large).toHaveAttribute("aria-pressed", "true");
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "settings:appearance_text_size_extra_large" }),
+  );
+  expect(context.updateSettings).toHaveBeenCalledWith({ textSize: "extra-large" });
+});
+
+it("shows the default text size when none is saved", () => {
+  render(<AppearanceForm />);
+  expect(
+    screen.getByRole("button", { name: "settings:appearance_text_size_default" }),
+  ).toHaveAttribute("aria-pressed", "true");
+});
+
+it("saves the gain and loss colours, starting from green up", () => {
+  platform.isMobile = true;
+  render(<AppearanceForm />);
+
+  const group = screen.getByRole("group", { name: "settings:appearance_gain_colors_title" });
+  const greenUp = screen.getByRole("button", { name: "settings:appearance_gain_colors_green_up" });
+  expect(group).toContainElement(greenUp);
+  expect(greenUp).toHaveAttribute("aria-pressed", "true");
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "settings:appearance_gain_colors_red_up_blue_down" }),
+  );
+  expect(context.updateSettings).toHaveBeenCalledWith({ gainColors: "red-up-blue-down" });
 });
 
 it("offers the menu bar setting in the Windows and Linux app", () => {
@@ -42,29 +78,19 @@ it("leaves the web app's menu bar setting alone on macOS", () => {
   expect(screen.getByText("settings:appearance_menu_bar")).toBeInTheDocument();
 });
 
-it("defaults to green up and saves only the selected color scheme", async () => {
+it("offers one gain-colour control and preserves the inactive legacy setting", () => {
+  context.settings.gainColors = "red-up-blue-down";
+  context.settings.gainLossColorScheme = "red-up-green-down";
+  const original = structuredClone(context.settings);
   render(<AppearanceForm />);
-  const select = screen.getByTestId("gain-loss-color-select");
-  expect(select).toHaveTextContent("settings:appearance_gain_loss_green_up");
-  await userEvent.click(select);
-  await userEvent.click(
-    await screen.findByRole("option", { name: "settings:appearance_gain_loss_red_up" }),
-  );
-  await waitFor(() =>
-    expect(updateSettings).toHaveBeenCalledWith({ gainLossColorScheme: "red-up-green-down" }),
-  );
-  expect(select).toHaveTextContent("settings:appearance_gain_loss_red_up");
-});
-
-it("restores the saved color scheme if saving fails", async () => {
-  updateSettings.mockRejectedValueOnce(new Error("save failed"));
-  render(<AppearanceForm />);
-  const select = screen.getByTestId("gain-loss-color-select");
-  await userEvent.click(select);
-  await userEvent.click(
-    await screen.findByRole("option", { name: "settings:appearance_gain_loss_red_up" }),
-  );
-  await waitFor(() => expect(updateSettings).toHaveBeenCalledOnce());
-  await waitFor(() => expect(select).toHaveTextContent("settings:appearance_gain_loss_green_up"));
-  expect(select).not.toBeDisabled();
+  expect(
+    screen.getAllByRole("group", { name: "settings:appearance_gain_colors_title" }),
+  ).toHaveLength(1);
+  expect(screen.queryByText("settings:appearance_gain_loss_color_title")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "settings:appearance_gain_colors_red_up_blue_down" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(screen.getByRole("button", { name: "settings:appearance_gain_colors_green_up" }));
+  expect(context.updateSettings).toHaveBeenCalledWith({ gainColors: "green-up" });
+  expect(context.settings).toEqual(original);
 });

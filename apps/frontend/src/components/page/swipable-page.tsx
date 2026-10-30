@@ -305,8 +305,8 @@ export function SwipablePage({
           /* Desktop: Navigation at top center + content below */
           <div className="hidden h-full flex-col md:flex">
             {/* Header with Navigation and Actions */}
-            <div className="flex shrink-0 items-center justify-between gap-4 px-2 pt-4 pb-3 lg:px-4">
-              <div className="titlebar-nudge flex items-center gap-3">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-2 pt-4 pb-3 lg:px-4">
+              <div className="titlebar-nudge flex shrink-0 items-center gap-3">
                 {title && <h1 className="text-muted-foreground text-sm font-medium">{title}</h1>}
                 <NavigationPills
                   views={views}
@@ -315,7 +315,9 @@ export function SwipablePage({
                 />
               </div>
               {/* Actions slot - renders current view's actions */}
-              <div className="flex items-center gap-2">{currentActions}</div>
+              <div className="ms-auto flex max-w-full min-w-0 items-center gap-2">
+                {currentActions}
+              </div>
             </div>
 
             {/* Content - relative for absolute positioned actions within */}

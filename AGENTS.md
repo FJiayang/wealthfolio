@@ -139,48 +139,56 @@ Run commands from the repository root unless noted. Use the Node version in
 | Focused Rust tests         | `cargo test --locked -p <crate> <test_filter>`                                 |
 | Rust runtime compilation   | `cargo check --locked -p wealthfolio-app -p wealthfolio-server`                |
 
-## Validation by change
+## Development and validation workflow
 
-Start with focused regression checks, then cover the affected consumers. After
-checks pass, repeat or broaden them only for new changes, failures, or
-unresolved risk. Do not substitute a running dev server for a completed build
-check.
+1. Fetch the latest fork `main` and start a feature branch from it:
+   `git fetch origin main && git switch -c feature/<name> origin/main`. Do not
+   develop directly on `main` or start from a stale local branch.
+2. Implement the change and run the relevant **one-shot local unit/regression
+   tests**. Add focused lint/type/static checks when appropriate. Record their
+   commands and results; do not run the entire test suite or every browser suite
+   locally for each change.
+3. After focused tests pass, commit, push the feature branch, and create a PR
+   against `main`. Explain the architecture impact and any unverified behavior.
+4. CI owns the full Rust/TypeScript/script/locale checks, both frontend builds,
+   and complete deterministic browser suites. Wait for `PR Check`'s **Build
+   Status** on the current revision. Failed, canceled, or unexpectedly skipped
+   required jobs block merging; never bypass them or retry until green without
+   diagnosing the failure.
+5. Enable GitHub's native auto-merge for the ready PR only after confirming that
+   `main` requires **Build Status** from GitHub Actions with strict up-to-date
+   protection. GitHub merges after those checks and any configured reviews pass.
+   Do not force merge, self-approve, embed a PAT, or weaken protections. A
+   changed head/base needs fresh CI; do not treat an earlier green run as proof.
 
-- **Documentation/instructions:** verify referenced paths, commands, imports,
-  and consistency; check formatting and diff. Application builds/tests are
-  unnecessary.
-- **Frontend or shared TS packages:** run relevant one-shot tests, lint, and
-  `pnpm type-check`. Routine component changes do not require both builds. For
-  adapter/runtime wiring, Vite/build configuration, dependencies, or shared
-  package changes affecting both bundles, run `pnpm build` and
-  `pnpm build:tauri`. For target-specific build changes, build that target.
-- **Adapter/API wiring:** also run
-  `pnpm --filter frontend exec vitest run src/adapters/adapter-command-parity.test.ts`;
-  check affected Rust runtimes and relevant handler/service tests.
-- **Rust logic or persistence:** run focused crate tests,
-  `cargo fmt --all -- --check`, and Clippy for affected crates with
-  `cargo clippy --locked -p <crate> --all-targets --all-features -- -D warnings`.
-  Compile affected consumers; shared backend changes require both runtime
-  packages in the command above. CI runs Clippy across `--workspace`.
-- **UI text/translations:** update affected keys and plural forms in every
-  supported locale; run `pnpm --filter frontend i18n:check`.
-- **UI behavior/layout:** exercise the changed flow, also with `?dir=rtl`. Run
-  `pnpm test:e2e:net-worth` for relevant net-worth layout changes and
-  `pnpm test:e2e:addon-sandbox` for addon sandbox changes. For application
-  flows, use `pnpm test:e2e` or focused specs. Before running E2E tests, consult
-  `.claude/skills/run-e2e-tests/SKILL.md` and `e2e/README.md` for setup; use the
-  selected suite's script/config for its server and browser requirements.
+For focused local verification:
 
-For full PR checks and environment prerequisites, consult
-`.github/workflows/pr-check.yml` and relevant specialized workflows when working
-in that area. Rust storage outbox tests need
-`CONNECT_API_URL=http://test.local`; Tauri compilation needs frontend assets at
-the configured `frontendDist` (build with `pnpm build:tauri`; CI documents its
-placeholder setup). Native/mobile checks also require the target's system
-dependencies and SDKs.
+- **Documentation/CI:** check referenced commands, workflow/helper tests,
+  formatting, and the diff; no application build or browser run is necessary.
+- **Frontend/shared TS:** run the relevant Vitest files with
+  `pnpm --filter frontend exec vitest run <test-path>` and appropriate focused
+  static checks. CI runs all tests, types, lint, and web/Tauri frontend builds.
+- **Adapter/API wiring:** include the adapter-command-parity test and affected
+  handler/service tests. CI compiles the shared runtime consumers.
+- **Rust/persistence:** run `cargo test --locked -p <crate> <test_filter>`,
+  formatting and focused Clippy as needed. CI runs workspace checks/tests and
+  the cross-platform HTTP and secret-store compatibility suites.
+- **UI text/translations:** update affected keys/plurals in every supported
+  locale and run `pnpm --filter frontend i18n:check`.
+- **UI behavior/layout:** add or update the regression test, including RTL. A
+  focused browser reproduction is useful when needed, not a requirement to run
+  all browsers locally. Consult `.claude/skills/run-e2e-tests/SKILL.md` and
+  `e2e/README.md` before any local E2E run; use disposable test data.
 
-Report checks that were blocked or not run and why; never imply they passed.
-Review the final diff for unrelated changes before finishing.
+CI browser suites must not suppress assertions, hide skips, increase retries to
+obtain a pass, or regenerate screenshots as their own expected result. Missing
+or changed design snapshots fail; candidate artifacts require independent review
+before committing accepted baseline changes. Follow
+[the development workflow](docs/development-workflow.md) for baseline bootstrap,
+merge protection, and failure diagnosis.
+
+Report checks that failed, were blocked, or were not run and why. Focused local
+checks are not a full-suite pass. Review the final diff for unrelated changes.
 
 ## Code review rules
 

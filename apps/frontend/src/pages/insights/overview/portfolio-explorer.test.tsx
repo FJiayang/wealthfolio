@@ -3,7 +3,9 @@ import { createInstance } from "i18next";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import { describe, expect, it, vi } from "vitest";
 import enCommon from "@/i18n/locales/en/common.json";
+import enTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import enInsights from "@/i18n/locales/en/insights.json";
 import zhInsights from "@/i18n/locales/zh/insights.json";
 import type {
@@ -45,8 +47,8 @@ async function setup(data = allocations()) {
     fallbackLng: "en",
     interpolation: { escapeValue: false },
     resources: {
-      en: { common: enCommon, insights: enInsights },
-      zh: { common: zhCommon, insights: zhInsights },
+      en: { common: enCommon, taxonomies: enTaxonomies, insights: enInsights },
+      zh: { common: zhCommon, taxonomies: zhTaxonomies, insights: zhInsights },
     },
   });
   const onOpenAllocation = vi.fn();

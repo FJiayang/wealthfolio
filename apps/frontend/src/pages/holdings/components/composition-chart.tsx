@@ -101,7 +101,6 @@ interface CustomizedContentProps {
   displayMode?: DisplayMode;
   returnType?: ReturnType;
   palette?: TreemapPalette;
-  redUp?: boolean;
 }
 
 const CustomizedContent: FC<CustomizedContentProps> = ({
@@ -117,12 +116,11 @@ const CustomizedContent: FC<CustomizedContentProps> = ({
   displayMode = "symbol",
   returnType = "daily",
   palette = fallbackPalette,
-  redUp = false,
 }) => {
   const formatting = useNumberFormatting();
   const fontSize = Math.min(width, height) < 80 ? Math.min(width, height) * 0.16 : 13;
   const fontSize2 = Math.min(width, height) < 80 ? Math.min(width, height) * 0.14 : 12;
-  const { fill: fillColor, isLightTile } = getTreemapColor(gain, returnType, palette, redUp);
+  const { fill: fillColor, isLightTile } = getTreemapColor(gain, returnType, palette);
   // Labels by tile luminance; dark mode's translucent tiles always need the light one.
   const label = palette.isDark || !isLightTile ? palette.labelLight : palette.labelDark;
   const textColor = `rgb(${label.join(",")})`;
@@ -406,7 +404,6 @@ export function PortfolioComposition({ holdings, isLoading }: PortfolioCompositi
                 displayMode={displayMode}
                 returnType={returnType}
                 palette={palette}
-                redUp={settings?.gainLossColorScheme === "red-up-green-down"}
               />
             )}
           >

@@ -9,7 +9,7 @@ for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await completeOnboardingIfNeeded(page);
     await gotoAppPath(page, "/settings/appearance?dir=rtl");
-    const select = page.getByTestId("gain-loss-color-select");
+    const control = page.getByRole("group", { name: "Gain and loss colors", exact: true });
     const refreshes: string[] = [];
     let checkingSave = false;
     page.on("request", (request) => {
@@ -24,39 +24,32 @@ for (const width of [390, 1280]) {
       }
     });
     for (const [label, scheme] of [
-      ["Red up, green down", "red-up-green-down"],
-      ["Green up, red down", "green-up-red-down"],
+      ["Red up, green down", "red-up"],
+      ["Red up, blue down", "red-up-blue-down"],
+      ["Green up, red down", "green-up"],
     ] as const) {
       // The ready control, not an optional startup request, gates this setting change.
-      await expect(select).toBeEnabled();
+      const option = control.getByRole("button", { name: label, exact: true });
+      await expect(option).toBeEnabled();
       checkingSave = true;
-      await select.click();
       const saved = page.waitForResponse(
         (response) =>
           response.request().method() === "PUT" &&
           new URL(response.url()).pathname.endsWith("/settings"),
       );
-      await page.getByRole("option", { name: label, exact: true }).press("Enter");
+      await option.click();
       const response = await saved;
       expect(response.status(), await response.text()).toBe(200);
-      expect(response.request().postDataJSON()).toEqual({ gainLossColorScheme: scheme });
-      expect(await response.json()).toMatchObject({ gainLossColorScheme: scheme });
-      await expect(select).toHaveText(label);
-      await expect
-        .poll(() =>
-          page.locator("html").evaluate((root) => root.classList.contains("red-up-green-down")),
-        )
-        .toBe(scheme === "red-up-green-down");
+      expect(response.request().postDataJSON()).toEqual({ gainColors: scheme });
+      expect(await response.json()).toMatchObject({ gainColors: scheme });
+      await expect(option).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator("html")).toHaveAttribute("data-gain-colors", scheme);
       checkingSave = false;
       expect(refreshes).toEqual([]);
       await page.reload();
-      await expect(select).toBeEnabled();
-      await expect(select).toHaveText(label);
-      await expect
-        .poll(() =>
-          page.locator("html").evaluate((root) => root.classList.contains("red-up-green-down")),
-        )
-        .toBe(scheme === "red-up-green-down");
+      await expect(option).toBeEnabled();
+      await expect(option).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator("html")).toHaveAttribute("data-gain-colors", scheme);
     }
     expect(refreshes).toEqual([]);
   });

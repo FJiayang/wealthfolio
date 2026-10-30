@@ -2,7 +2,9 @@ import { createInstance } from "i18next";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import { useTaxonomy } from "@/hooks/use-taxonomies";
 import enCommon from "@/i18n/locales/en/common.json";
+import enCommonTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import enSpending from "@/i18n/locales/en/spending.json";
 import zhSpending from "@/i18n/locales/zh/spending.json";
 import { act, render, screen, waitFor } from "@/test/render";
@@ -100,6 +102,63 @@ describe("CashActivityForm currency", () => {
   });
 
   beforeEach(() => vi.clearAllMocks());
+
+  it("keeps the neutral-transfer label for an existing transfer", () => {
+    render(
+      <CashActivityForm
+        open
+        onOpenChange={vi.fn()}
+        activity={
+          {
+            ...foreignCharge,
+            accountId: "chequing",
+            activityType: "TRANSFER_IN",
+            sourceGroupId: "linked-transfer",
+            cashFlowBucket: "neutral",
+          } as Activity
+        }
+      />,
+      { wrapper },
+    );
+    expect(screen.getByText("Neutral transfer")).toBeInTheDocument();
+  });
+
+  it.each([null, "ADJUSTMENT", "BONUS"])(
+    "labels an existing CREDIT/%s accurately and preserves its meaning on save",
+    async (subtype) => {
+      const user = userEvent.setup();
+      render(
+        <CashActivityForm
+          open
+          onOpenChange={vi.fn()}
+          activity={
+            {
+              ...foreignCharge,
+              accountId: "chequing",
+              activityType: "CREDIT",
+              subtype,
+              cashFlowBucket: subtype === "BONUS" ? "income" : "neutral",
+              metadata: { flow: { is_external: false } },
+            } as Activity
+          }
+        />,
+        { wrapper },
+      );
+
+      expect(screen.getByRole("combobox", { name: "Type" })).toHaveTextContent("Credit");
+      expect(screen.queryByText("Reimbursement / refund")).not.toBeInTheDocument();
+      expect(screen.queryByText("Neutral transfer")).not.toBeInTheDocument();
+      if (subtype !== "BONUS") expect(screen.getByText("Neutral")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /update/i }));
+      await waitFor(() => expect(updateActivity).toHaveBeenCalled());
+      expect(vi.mocked(updateActivity).mock.calls[0][0]).toMatchObject({
+        activityType: "CREDIT",
+        subtype,
+        metadata: { flow: { is_external: false } },
+      });
+    },
+  );
 
   /**
    * The currency used to be recomputed from the account on every save. Saving
@@ -251,8 +310,8 @@ describe("CashActivityForm category display", () => {
         fallbackLng: "en",
         interpolation: { escapeValue: false },
         resources: {
-          en: { common: enCommon, spending: enSpending },
-          zh: { common: zhCommon, spending: zhSpending },
+          en: { common: enCommon, taxonomies: enCommonTaxonomies, spending: enSpending },
+          zh: { common: zhCommon, taxonomies: zhCommonTaxonomies, spending: zhSpending },
         },
       });
       const activity = {
@@ -272,10 +331,12 @@ describe("CashActivityForm category display", () => {
       );
       const displayParent =
         parentName === "Food & Dining"
-          ? zhCommon.categoryNames.spending_categories.cat_food
+          ? zhCommonTaxonomies.categoryNames.spending_categories.cat_food
           : parentName;
       const displayName =
-        name === "Groceries" ? zhCommon.categoryNames.spending_categories.cat_groceries : name;
+        name === "Groceries"
+          ? zhCommonTaxonomies.categoryNames.spending_categories.cat_groceries
+          : name;
       expect(screen.getByText(`${displayParent} / ${displayName}`)).toBeInTheDocument();
       expect(
         screen.getByRole("button", {

@@ -2,7 +2,10 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createInstance } from "i18next";
 import { I18nextProvider, initReactI18next } from "react-i18next";
 import enCommon from "@/i18n/locales/en/common.json";
+import enCommonTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
+import zhCommonSpending from "@/i18n/locales/zh/spending.json";
 import enSpending from "@/i18n/locales/en/spending.json";
 import zhSpending from "@/i18n/locales/zh/spending.json";
 import { FormattingProvider } from "@wealthfolio/ui";
@@ -169,15 +172,32 @@ function report(
   income: number,
   buckets: DayCategoryBucket[],
   incomeBreakdown?: CategoryBreakdownRow[],
+  { toSavings = 0, fromSavings = 0 } = {},
 ): MonthlyReport {
-  const summary = { income, outflow: 1618, saved: 0, net: income - 1618, count: 3 };
+  const summary = {
+    income,
+    outflow: 1618,
+    saved: toSavings,
+    fromSavings,
+    net: income - 1618 - toSavings + fromSavings,
+    count: 3,
+  };
   return {
     baseCurrency: "USD",
     current: summary,
     prior: summary,
     spendingBreakdown: [],
     incomeBreakdown: incomeBreakdown ?? (income ? [incomeRow("cat_income_salary", income)] : []),
-    savingsBreakdown: [],
+    savingsBreakdown: toSavings
+      ? [
+          {
+            taxonomyId: "savings_categories",
+            categoryId: "cat_savings_brokerage",
+            amount: toSavings,
+            count: 1,
+          },
+        ]
+      : [],
     byDay: [],
     byDayByCategory: buckets,
   };
@@ -191,6 +211,8 @@ interface FlowOptions {
   buckets?: DayCategoryBucket[];
   incomeBreakdown?: CategoryBreakdownRow[];
   incomeCategories?: TaxonomyCategory[];
+  toSavings?: number;
+  fromSavings?: number;
 }
 
 function flow({
@@ -201,12 +223,14 @@ function flow({
   buckets = [],
   incomeBreakdown,
   incomeCategories = salaryOnly,
+  toSavings,
+  fromSavings,
 }: FlowOptions) {
   return (
     <FormattingProvider locale="en-US">
       <MoneyFlowSection
         periodLabel="April"
-        currentReport={report(income, buckets, incomeBreakdown)}
+        currentReport={report(income, buckets, incomeBreakdown, { toSavings, fromSavings })}
         budget={groups}
         spendingCategories={spendingCategories}
         incomeCategories={incomeCategories}
@@ -401,6 +425,40 @@ describe("MoneyFlowSection", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent(
       "Before subtracting $200.00 in net refunds.",
     );
+  });
+
+  it("draws money brought back from savings beside income, apart from money going to savings", () => {
+    setup({ income: 2000, toSavings: 500, fromSavings: 400 });
+
+    const fromSavings = screen.getByRole("img", { name: "From savings, $400" });
+    expect(screen.getByRole("img", { name: "Left over, $282" })).toBeInTheDocument();
+    expect(screen.queryByText("Shortfall")).not.toBeInTheDocument();
+    expect(screen.getByText("To savings")).toBeInTheDocument();
+
+    act(() => fromSavings.focus());
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toHaveTextContent("Brought back from savings and investment accounts.");
+    // Not a share of income it wasn't part of: shares switch to the total.
+    expect(tooltip).toHaveTextContent("17% of total");
+  });
+
+  it("treats a month funded only from savings as money in", () => {
+    setup({ income: 0, fromSavings: 2000 });
+
+    act(() => screen.getByRole("img", { name: "Total, $2,000" }).focus());
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Money in, plus net refunds and any shortfall.",
+    );
+    expect(screen.getByRole("img", { name: "Left over, $382" })).toBeInTheDocument();
+  });
+
+  it("masks money brought back from savings in privacy mode", () => {
+    privacy.isBalanceHidden = true;
+    const { container } = setup({ income: 2000, toSavings: 500, fromSavings: 400 });
+
+    expect(screen.getByRole("img", { name: "From savings, ••••" })).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/\$\d/);
   });
 
   it("masks every amount in privacy mode", () => {
@@ -676,8 +734,8 @@ it("refreshes raw category and budget-group names inside an already-open Sankey"
     fallbackLng: "en",
     interpolation: { escapeValue: false },
     resources: {
-      en: { common: enCommon, spending: enSpending },
-      zh: { common: zhCommon, spending: zhSpending },
+      en: { common: enCommon, taxonomies: enCommonTaxonomies, spending: enSpending },
+      zh: { common: zhCommon, taxonomies: zhCommonTaxonomies, spending: zhSpending },
     },
   });
   const seededGroup = {
@@ -691,24 +749,24 @@ it("refreshes raw category and budget-group names inside an already-open Sankey"
     <I18nextProvider i18n={i18n}>{flow({ groups: snapshot, onCategoryClick })}</I18nextProvider>,
   );
   expect(
-    screen.getByText(zhCommon.categoryNames.income_sources.cat_income_salary),
+    screen.getByText(zhCommonTaxonomies.categoryNames.income_sources.cat_income_salary),
   ).toBeInTheDocument();
   fireEvent.click(
     screen.getByRole("button", {
       name: new RegExp(
-        `^${zhCommon.budgetGroupNames[seededGroup.group.id as keyof typeof zhCommon.budgetGroupNames]}`,
+        `^${zhCommonSpending.budgetGroupNames[seededGroup.group.id as keyof typeof zhCommonSpending.budgetGroupNames]}`,
       ),
     }),
   );
   expect(
     screen.getByRole("heading", {
-      name: zhCommon.budgetGroupNames[
-        seededGroup.group.id as keyof typeof zhCommon.budgetGroupNames
+      name: zhCommonSpending.budgetGroupNames[
+        seededGroup.group.id as keyof typeof zhCommonSpending.budgetGroupNames
       ],
     }),
   ).toBeInTheDocument();
   expect(
-    screen.getByText(zhCommon.categoryNames.spending_categories.cat_housing),
+    screen.getByText(zhCommonTaxonomies.categoryNames.spending_categories.cat_housing),
   ).toBeInTheDocument();
   await act(() => i18n.changeLanguage("en"));
   expect(screen.getByRole("heading", { name: "Needs" })).toBeInTheDocument();

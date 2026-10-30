@@ -35,13 +35,13 @@ describe("MarketDataSyncSettings", () => {
     const view = render(<MarketDataSyncSettings />);
     expect(screen.getByRole("combobox", { name: "Hour" })).toHaveTextContent("22");
     await user.click(screen.getByRole("combobox", { name: "Hour" }));
-    expect(screen.getAllByRole("option")).toHaveLength(24);
+    expect(await screen.findAllByRole("option")).toHaveLength(24);
     await user.click(screen.getByRole("option", { name: "21" }));
     expect(mocks.updateSettings).toHaveBeenCalledWith({ marketDataSyncTime: "21:00" });
     mocks.time = "21:00";
     view.rerender(<MarketDataSyncSettings />);
     await user.click(screen.getByRole("combobox", { name: "Minute" }));
-    expect(screen.getAllByRole("option")).toHaveLength(60);
+    expect(await screen.findAllByRole("option")).toHaveLength(60);
     await user.click(screen.getByRole("option", { name: "35" }));
     expect(mocks.updateSettings).toHaveBeenCalledWith({ marketDataSyncTime: "21:35" });
   });

@@ -11,6 +11,7 @@ for (const width of [390, 1280]) {
         root.classList.remove("dark", "light");
         root.classList.add(mode);
         root.setAttribute("dir", "rtl");
+        root.setAttribute("data-gain-colors", "green-up");
       }, theme);
       const gain = page.locator(".text-gain").first();
       const asset = page.locator(".text-success").first();
@@ -22,12 +23,16 @@ for (const width of [390, 1280]) {
         (element) => getComputedStyle(element).color,
       );
       expect(originalGain).toBe(originalAsset);
-      await page.locator("html").evaluate((root) => root.classList.add("red-up-green-down"));
+      await page
+        .locator("html")
+        .evaluate((root) => root.setAttribute("data-gain-colors", "red-up"));
       await expect(gain).toHaveCSS("color", originalLiability);
       await expect(asset).toHaveCSS("color", originalAsset);
       await expect(liability).toHaveCSS("color", originalLiability);
       await page.screenshot({ path: test.info().outputPath("red-up.png") });
-      await page.locator("html").evaluate((root) => root.classList.remove("red-up-green-down"));
+      await page
+        .locator("html")
+        .evaluate((root) => root.setAttribute("data-gain-colors", "green-up"));
       await expect(gain).toHaveCSS("color", originalGain);
     });
   }

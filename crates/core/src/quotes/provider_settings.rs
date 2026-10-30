@@ -146,6 +146,11 @@ impl ProviderCapabilities {
                     "Profiles".into(),
                 ],
             }),
+            "AMFI" => Some(Self {
+                instruments: "Mutual funds".to_string(),
+                coverage: "India".to_string(),
+                features: vec!["Historical".to_string(), "No API key".to_string()],
+            }),
             "CUSTOM_SCRAPER" => Some(Self {
                 instruments: "Any".to_string(),
                 coverage: "User-defined".to_string(),

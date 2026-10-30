@@ -1,0 +1,87 @@
+name: Design baseline candidate
+
+# Produce review evidence only. This workflow cannot commit, approve or merge.
+on:
+  workflow_call:
+    inputs:
+      revision:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Exact 40-character commit SHA to capture for independent review
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-design-baseline-${{ inputs.revision }}
+  cancel-in-progress: true
+
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
+      options: --ipc=host
+    timeout-minutes: 90
+    env:
+      REVISION: ${{ inputs.revision }}
+      PLAYWRIGHT_HTML_OPEN: never
+    steps:
+      - name: Require an immutable revision
+        run: |
+          printf '%s' "$REVISION" | grep -Eq '^[0-9a-f]{40}$'
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.revision }}
+          persist-credentials: false
+      - name: Check whether initial baseline evidence is needed
+        id: bootstrap
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] || \
+             ! find e2e/design-system/baselines -type f -name '*.png' -print -quit | grep -q .; then
+            echo 'generate=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'generate=false' >> "$GITHUB_OUTPUT"
+          fi
+      - uses: pnpm/action-setup@v4
+        if: steps.bootstrap.outputs.generate == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.bootstrap.outputs.generate == 'true'
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+        if: steps.bootstrap.outputs.generate == 'true'
+      - name: Verify browser image matches the locked Playwright version
+        if: steps.bootstrap.outputs.generate == 'true'
+        run:
+          node -e 'if (require("@playwright/test/package.json").version !== "1.58.2")
+          process.exit(1)'
+      - run: pnpm build:types
+        if: steps.bootstrap.outputs.generate == 'true'
+      - name: Record source and environment
+        if: steps.bootstrap.outputs.generate == 'true'
+        run: |
+          mkdir -p .local/design-system
+          printf 'Source: %s\nImage: mcr.microsoft.com/playwright:v1.58.2-noble\n' \
+            "$REVISION" > .local/design-system/provenance.txt
+      - name: Generate candidate snapshots (not an acceptance check)
+        if: steps.bootstrap.outputs.generate == 'true'
+        run: >-
+          pnpm exec playwright test --config playwright.design-system.ci.config.ts --workers=1
+          --retries=0 --forbid-only --update-snapshots=all --reporter=line,html
+      - name: Upload candidates and review evidence, including on failure
+        if: always() && steps.bootstrap.outputs.generate == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: design-baseline-candidate-${{ inputs.revision }}
+          include-hidden-files: true
+          path: |
+            e2e/design-system/baselines/
+            .local/design-system/
+            playwright-report/
+          retention-days: 14

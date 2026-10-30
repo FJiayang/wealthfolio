@@ -117,6 +117,7 @@ pub fn trigger_full_portfolio_recalc(state: Arc<AppState>) {
 pub struct ServerJobObserver {
     event_bus: EventBus,
     health_service: Arc<dyn HealthServiceTrait + Send + Sync>,
+    goal_service: Arc<dyn wealthfolio_core::goals::GoalServiceTrait + Send + Sync>,
 }
 
 impl ServerJobObserver {
@@ -124,16 +125,19 @@ impl ServerJobObserver {
         Self {
             event_bus: state.event_bus.clone(),
             health_service: state.health_service.clone(),
+            goal_service: state.goal_service.clone(),
         }
     }
 
     pub fn with_parts(
         event_bus: EventBus,
         health_service: Arc<dyn HealthServiceTrait + Send + Sync>,
+        goal_service: Arc<dyn wealthfolio_core::goals::GoalServiceTrait + Send + Sync>,
     ) -> Self {
         Self {
             event_bus,
             health_service,
+            goal_service,
         }
     }
 
@@ -145,6 +149,7 @@ impl ServerJobObserver {
     }
 }
 
+#[async_trait::async_trait]
 impl JobObserver for ServerJobObserver {
     fn enrichment_started(&self, total: usize) {
         self.event_bus.publish(ServerEvent::with_payload(
@@ -209,11 +214,20 @@ impl JobObserver for ServerJobObserver {
             .publish(ServerEvent::with_payload(PORTFOLIO_UPDATE_ERROR, payload));
     }
 
-    fn update_completed(&self) {
+    async fn update_completed(&self) {
         // Freshness verdicts and stale-projection issues are cached.
         self.clear_health_cache();
         self.event_bus
             .publish(ServerEvent::new(PORTFOLIO_UPDATE_COMPLETE));
+        match self.goal_service.refresh_all_goal_summaries().await {
+            Ok(goals) => {
+                crate::api::goals::emit_goal_summaries_updated(&self.event_bus, &goals, false)
+            }
+            Err(error) => tracing::warn!(
+                "Goal summary batch refresh failed ({})",
+                wealthfolio_core::goals::summary_refresh_error_kind(&error)
+            ),
+        }
     }
 }
 

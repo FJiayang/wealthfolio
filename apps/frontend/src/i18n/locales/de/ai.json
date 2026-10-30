@@ -649,6 +649,7 @@
     "revalidateFailed": "Erneute Validierung fehlgeschlagen.",
     "nothing": "Nichts zu importieren.",
     "allInvalid": "Alle Aktivitäten weisen Validierungsfehler auf. Korrigieren Sie diese und versuchen Sie es erneut.",
-    "importFailed": "Aktivitäten konnten nicht importiert werden."
+    "importFailed": "Aktivitäten konnten nicht importiert werden.",
+    "reviewAndRetry": "Import fehlgeschlagen. Überprüfen Sie die Fehler und versuchen Sie es erneut."
   }
 }

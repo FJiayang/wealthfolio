@@ -96,10 +96,7 @@ pub async fn valuation_map(
 pub async fn refresh_summary_after_save(env: &Arc<dyn AgentEnvironment>, goal_id: &str) {
     // Match the UI: summary failure must not undo a successfully saved plan/funding rule.
     let result = async {
-        let valuations = valuation_map(env).await?;
-        env.goal_service()
-            .refresh_goal_summary(goal_id, &valuations)
-            .await?;
+        env.goal_service().refresh_goal_summary(goal_id).await?;
         Ok::<_, AgentToolError>(())
     }
     .await;

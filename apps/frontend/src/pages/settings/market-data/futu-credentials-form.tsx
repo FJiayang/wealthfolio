@@ -131,7 +131,7 @@ export function FutuCredentialsForm({ provider }: { provider: MarketDataProvider
       )}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={busy || !visible}>
-          {t("settings:common_save")}
+          {t("common:save")}
         </Button>
         <Button
           type="button"

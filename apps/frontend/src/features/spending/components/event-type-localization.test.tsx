@@ -4,7 +4,9 @@ import { I18nextProvider, initReactI18next } from "react-i18next";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, it, vi } from "vitest";
 import enCommon from "@/i18n/locales/en/common.json";
+import enCommonTaxonomies from "@/i18n/locales/en/taxonomies.json";
 import zhCommon from "@/i18n/locales/zh/common.json";
+import zhCommonTaxonomies from "@/i18n/locales/zh/taxonomies.json";
 import enSpending from "@/i18n/locales/en/spending.json";
 import zhSpending from "@/i18n/locales/zh/spending.json";
 import { EventTypesOverviewCard } from "@/pages/settings/spending/components/event-types-overview-card";
@@ -45,8 +47,8 @@ async function setup() {
     fallbackLng: "en",
     interpolation: { escapeValue: false },
     resources: {
-      en: { common: enCommon, spending: enSpending },
-      zh: { common: zhCommon, spending: zhSpending },
+      en: { common: enCommon, taxonomies: enCommonTaxonomies, spending: enSpending },
+      zh: { common: zhCommon, taxonomies: zhCommonTaxonomies, spending: zhSpending },
     },
   });
   return i18n;

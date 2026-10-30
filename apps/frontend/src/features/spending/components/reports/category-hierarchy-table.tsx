@@ -5,7 +5,8 @@ import { Icons, PrivacyAmount, Skeleton, useNumberFormatting } from "@wealthfoli
 import { useNameComparator } from "@/hooks/use-name-comparator";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import type { TaxonomyCategory } from "@/lib/types";
-import { getBudgetGroupLabel, getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getBudgetGroupLabel } from "@/features/spending/lib/labels";
 import { cn } from "@/lib/utils";
 
 import { DIRECT_ROW_ID } from "../../lib/category-drilldown";

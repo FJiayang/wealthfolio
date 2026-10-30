@@ -31,9 +31,9 @@ Other editors should use their Oxc and TypeScript 7 language-server
 integrations. Rebuild an existing devcontainer to pick up its updated extension
 list.
 
-Installed Git hooks continue to call the same package scripts; reinstalling them
-is unnecessary. For a new clone, `pnpm hooks:install` enables the optional
-pre-push checks.
+Installed tracked Git hooks automatically use the lightweight push check;
+reinstalling them is unnecessary. For a new clone, `pnpm hooks:install` enables
+it. Run relevant unit tests locally; full verification belongs to PR CI.
 
 ## TypeScript
 
@@ -50,8 +50,9 @@ This follows Microsoft's
 `pnpm type-check` builds the shared declarations before checking consumers. The
 UI and SDK explicitly retain `rootDir: "."`: their published exports point to
 `dist/src/*.d.ts`. The frontend's TypeScript aliases default to Tauri, so type
-checking alone does not verify both runtime configurations. Use `pnpm build` and
-`pnpm build:tauri` when changing shared tooling.
+checking alone does not verify both runtime configurations. CI runs `pnpm build`
+and `pnpm build:tauri`; run a focused local build if useful when changing
+tooling.
 
 ## Linting
 
@@ -125,3 +126,15 @@ job's `pnpm install --frozen-lockfile --ignore-scripts` remains supported
 because the formatter uses prebuilt platform binaries. Keep optional
 dependencies and development dependencies enabled in jobs that run frontend
 checks.
+
+Every PR runs the complete application, profile, net-worth, addon sandbox, and
+design-system browser suites in independent CI jobs. Browser suites are not
+path-filtered. The required **Build Status** gate rejects failed, canceled, or
+unexpectedly skipped jobs. Android/iOS compilation retains its existing
+changed-file filter; full test coverage does not depend on it.
+
+Use relevant local unit tests during development instead of rerunning all tests
+and browsers on each change. See the
+[browser setup](../e2e/README.md#ci-coverage-and-focused-local-runs) and
+[development workflow](development-workflow.md) for coverage, visual baseline
+review and native auto-merge prerequisites.

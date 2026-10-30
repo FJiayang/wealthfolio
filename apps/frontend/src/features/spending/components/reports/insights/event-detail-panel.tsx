@@ -17,7 +17,8 @@ import { useNavigate } from "react-router-dom";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import type { Activity, TaxonomyCategory } from "@/lib/types";
-import { getCategoryLabel, getEventTypeLabel } from "@/lib/taxonomy-labels";
+import { getCategoryLabel } from "@/lib/taxonomy-labels";
+import { getEventTypeLabel } from "@/features/spending/lib/labels";
 import { cn, parseLocalDate } from "@/lib/utils";
 import {
   Button,

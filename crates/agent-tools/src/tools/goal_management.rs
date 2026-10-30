@@ -32,7 +32,7 @@ business_tool!(
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct UpdateGoalArgs {
     pub goal_id: String,
-    pub input: wealthfolio_core::goals::Goal,
+    pub input: wealthfolio_core::goals::GoalUpdate,
 }
 
 business_tool!(
@@ -40,17 +40,17 @@ business_tool!(
     UpdateGoalArgs,
     "update_goal",
     "Update a complete goal returned by get_goal. Currency follows the application base currency.",
-    json!({"type":"object","properties":{"goalId":{"type":"string"},"input":{"type":"object","properties":{"goalType":{"type":"string"},"title":{"type":"string"},"description":{"type":"string"},"targetAmount":{"type":"number"},"statusLifecycle":{"type":"string"},"statusHealth":{"type":"string"},"priority":{"type":"integer"},"coverImageKey":{"type":"string"},"startDate":{"type":"string"},"targetDate":{"type":"string"},"id":{"type":"string"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"}},"required":["id","goalType","title","statusLifecycle","statusHealth","priority","createdAt","updatedAt"]}},"required":["goalId","input"]}),
+    json!({"type":"object","properties":{"goalId":{"type":"string"},"input":{"type":"object","properties":{"goalType":{"type":"string"},"title":{"type":"string"},"description":{"type":"string"},"targetAmount":{"type":"number"},"statusLifecycle":{"type":"string"},"statusHealth":{"type":"string"},"priority":{"type":"integer"},"coverImageKey":{"type":"string"},"startDate":{"type":"string"},"targetDate":{"type":["string","null"]},"id":{"type":"string"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"}},"required":["id","goalType","title","statusLifecycle","statusHealth","priority","createdAt","updatedAt"]}},"required":["goalId","input"]}),
     [AgentScope::FinancialPlanningWrite],
     Write,
     |env, args| {
         let mut goal = args.input;
-        if goal.id != args.goal_id {
+        if goal.goal.id != args.goal_id {
             return Err(AgentToolError::InvalidInput(
                 "goalId must match input.id".into(),
             ));
         }
-        goal.currency = Some(env.base_currency());
+        goal.goal.currency = Some(env.base_currency());
         output(env.goal_service().update_goal(goal).await?)
     }
 );
@@ -154,10 +154,9 @@ business_tool!(
     [AgentScope::FinancialPlanningWrite, AgentScope::HoldingsRead],
     Write,
     |env, args| {
-        let valuations = valuation_map(&env).await?;
         output(
             env.goal_service()
-                .refresh_goal_summary(&args.goal_id, &valuations)
+                .refresh_goal_summary(&args.goal_id)
                 .await?,
         )
     }
@@ -219,9 +218,10 @@ business_tool!(RefreshAllGoalSummaries, RefreshAllGoalSummariesArgs, "refresh_al
     "Refresh all goal progress summaries using current valuations. Does not rebuild portfolio history.",
     json!({"type":"object","properties":{},"required":[]}), [AgentScope::FinancialPlanningWrite, AgentScope::HoldingsRead], Write, |env, args| {
         let _ = args;
-        let valuations = valuation_map(&env).await?;
         let mut goals = Vec::new();
-        for goal in env.goal_service().get_goals()? { goals.push(env.goal_service().refresh_goal_summary(&goal.id, &valuations).await?); }
+        // Preserve this tool's all-goal, fail-on-error contract. The upstream
+        // bulk helper selects active goals and isolates per-goal errors instead.
+        for goal in env.goal_service().get_goals()? { goals.push(env.goal_service().refresh_goal_summary(&goal.id).await?); }
         output(goals)
     });
 
@@ -239,4 +239,35 @@ pub fn tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(GetSaveUpOverview),
         Arc::new(RefreshAllGoalSummaries),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::UpdateGoalArgs;
+    use serde_json::json;
+
+    #[test]
+    fn goal_update_preserves_upstream_deadline_presence() {
+        let input = json!({
+            "id": "goal-1", "goalType": "save-up", "title": "Goal",
+            "statusLifecycle": "active", "statusHealth": "on-track", "priority": 0,
+            "createdAt": "2026-10-30", "updatedAt": "2026-10-30"
+        });
+        let parse = |input| {
+            serde_json::from_value::<UpdateGoalArgs>(json!({
+                "goalId": "goal-1", "input": input
+            }))
+            .unwrap()
+        };
+        assert_eq!(parse(input.clone()).input.target_date, None);
+        let mut cleared = input.clone();
+        cleared["targetDate"] = serde_json::Value::Null;
+        assert_eq!(parse(cleared).input.target_date, Some(None));
+        let mut dated = input;
+        dated["targetDate"] = json!("2030-01-01");
+        assert_eq!(
+            parse(dated).input.target_date,
+            Some(Some("2030-01-01".into()))
+        );
+    }
 }

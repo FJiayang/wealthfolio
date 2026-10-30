@@ -1,4 +1,4 @@
-import { getEventTypeLabel } from "@/lib/taxonomy-labels";
+import { getEventTypeLabel } from "@/features/spending/lib/labels";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate } from "react-router-dom";
