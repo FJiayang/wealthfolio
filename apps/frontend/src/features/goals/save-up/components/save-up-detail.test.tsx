@@ -28,6 +28,10 @@ vi.mock("@/lib/settings-provider", () => ({
 }));
 vi.mock("../../components/goal-funding-editor", () => ({ GoalFundingEditor: () => null }));
 vi.mock("./save-up-projection-card", () => ({ SaveUpProjectionCard: () => null }));
+// Trade instructions have their own query/adapter tests; this suite exercises plan saves.
+vi.mock("@/pages/trade-instructions/goal-trade-instructions", () => ({
+  GoalTradeInstructions: () => null,
+}));
 
 const goal: Goal = {
   id: "goal-1",

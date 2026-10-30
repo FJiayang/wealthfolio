@@ -68,8 +68,13 @@ jobs:
       - name: Record source and environment
         if: steps.bootstrap.outputs.generate == 'true'
         run: |
+          test -n "${GITHUB_WORKSPACE:-}"
+          test "$PWD" = "$GITHUB_WORKSPACE"
+          # Container ownership differs from checkout's host ownership. Trust
+          # only this verified workspace, only for this read, never globally.
+          checkout_revision="$(git -c safe.directory="$GITHUB_WORKSPACE" -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
+          test "$checkout_revision" = "$REVISION"
           mkdir -p .local/design-system
-          test "$(git rev-parse HEAD)" = "$REVISION"
           printf 'Source: %s\nPR head: %s\nPR base: %s\nImage: mcr.microsoft.com/playwright:v1.58.2-noble\n' \
             "$REVISION" "${PR_HEAD_SHA:-not-a-pull-request}" "${PR_BASE_SHA:-not-a-pull-request}" \
             > .local/design-system/provenance.txt
