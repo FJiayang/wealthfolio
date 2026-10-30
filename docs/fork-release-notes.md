@@ -12,7 +12,22 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
-## v3.11.0.18 — unreleased (CI pending)
+## v3.11.0.19 — unreleased (CI pending)
+
+- Create immutable fork tags automatically after a verified, protected main PR
+  merge, using the version committed in the PR and explicitly dispatching Docker
+  publication without a personal token.
+- Validate release version evolution in required CI. Unchanged release metadata
+  means a non-releasing PR; changed upstream application versions reset revision
+  to 1, otherwise revisions increment by exactly one.
+- Serialize image publication, protect exact image versions from replacement,
+  and prevent an older build from moving `latest` backwards. Preserve parallel
+  architecture builds and the existing encryption smoke gate.
+
+Architecture impact: release orchestration and metadata only; application
+behavior, provider calls, storage and security settings remain unchanged.
+
+## v3.11.0.18 — 2026-10-30
 
 - Integrate upstream main `2f234185`, including the merged localization work,
   editable API-key permissions, allocation worksheet, spending and theme

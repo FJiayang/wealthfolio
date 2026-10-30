@@ -29,7 +29,8 @@ For supported functionality and changes by version, see the
 - Fork Docker releases publish the full four-component version, a commit SHA
   alias, and `latest`. They do not publish upstream-shaped `3.11` or `3.11.0`
   aliases. Prefer an exact version or image digest for reproducible deployments.
-  `latest` is mutable; publishing an older release can move it backwards.
+  `latest` is mutable; the automatic publication guard prevents older versions
+  from moving it backwards.
 
 The current upstream base is commit `3fb05af985b3039ee875065a736cdafd8fc3bd45`,
 integrated through the localization branch after the stable `v3.11.0` release.
@@ -40,34 +41,88 @@ branches are merged separately without modifying or closing the upstream PRs. A
 newer upstream release does not change this fork's base until deliberately
 integrated.
 
-## Publishing the next fork revision
+## Automatic releases after a main merge
 
-1. Integrate and test changes on the fork. Increment `forkRevision` for each new
-   release; the 3.11.0 upstream version resets this fork to revision 1.
-2. Run
-   `python3 -m unittest discover -s .github/scripts -p 'test_fork_release.py'`
-   and validate the intended tag:
-   `python3 .github/scripts/fork_release.py --repository FJiayang/wealthfolio --ref refs/tags/v3.11.0.1 --event push`.
-3. After review, create the matching immutable release tag on the intended
-   commit. Do not recreate or move a previously published tag.
-4. The Docker workflow validates the identity before building. Both architecture
-   images must pass encryption smoke tests before release manifests publish.
-5. Verify the exact version tag and both architectures in GHCR before treating
-   the release as available. A tag alone is not evidence of a successful build.
+1. Start a feature branch from the latest fork `main`. A releasing PR increments
+   `forkRevision` by exactly one. If the upstream application version increases,
+   reset the revision to 1 and update `upstreamCommit` and application
+   manifests. Merely syncing more upstream commits does not reset the revision.
+   An unchanged `fork-release.json` explicitly means **no release**;
+   documentation-only changes can use this path. A metadata change without the
+   required version transition fails the PR's required `Build Status` through
+   the CI helper job.
+2. Run the related helper tests locally and let full PR CI verify the final
+   merge revision. Do not write a second version-bump commit after merging.
+3. `Automatic fork release` runs on a push to `main`. It selects the exact event
+   commit, requires an associated merged PR into this fork's `main`, and
+   verifies successful `PR Check` / `Build Status` for the PR head, base and
+   resulting tree. It uses the mandatory reusable browser workflow's recorded
+   merge SHA, not just the PR head SHA. Missing or stale evidence fails closed.
+   Keep the existing strict branch protection and native auto-merge process.
+4. The handler reads the committed release manifest and creates its exact
+   lightweight Git tag. A same-name tag on the same commit is a safe retry; a
+   different target fails without moving or deleting anything. The manifest and
+   publication scripts are already present in the tagged revision, including
+   this initial rollout PR. The handler never writes to `main`.
+5. Creating a tag with `GITHUB_TOKEN` does not trigger another workflow's `push`
+   event. The handler explicitly dispatches `docker-publish.yml` on that tag
+   with `publish=true`. Its token uses `contents: write`, `actions: write`, and
+   read access to PR/check metadata; no PAT or stored credential is needed. The
+   Docker workflow keeps its existing `packages: write` permission. Automatic
+   handling is restricted to `FJiayang/wealthfolio`, not upstream or other
+   forks.
+6. Both architecture builds and encryption smoke tests must succeed before
+   publication. Builds can run concurrently; the publication job queues rather
+   than cancelling releases. It inspects the already-published `latest` image's
+   actual version, compares all four numeric components, and only advances
+   `latest` to a newer version. An older release may publish its exact tag and
+   SHA alias without rolling back `latest`. Both platform image labels must
+   agree with the release manifest and commit. Registry inspection errors fail
+   closed; this existing fork requires a previously published `latest`
+   (currently established by .18), not an implicit first-release bootstrap.
+7. Exact image versions are immutable too. An existing version with different
+   content fails instead of being overwritten. Publication uses a run-local
+   staging index and copies aliases from its pinned digest. If a partial publish
+   fails, rerun the failed publish job against those same staging images. Do not
+   rebuild and overwrite an already published version with different bytes.
+8. A Git tag alone is not a successful release: verify the Docker workflow and
+   the exact GHCR version's `linux/amd64` and `linux/arm64` manifests.
+
+### Retry and trigger behavior
+
+- Rerun a failed automatic-tag job or use **Automatic fork release → Run
+  workflow**, branch `main`, with the original full merged `merge_sha`. The
+  selected commit must remain an ancestor of `main`. This does not manufacture a
+  new version or tag an arbitrary feature branch.
+- Existing successful or running publishing runs for the same tag/commit are not
+  dispatched again. Manual build-only runs do not count as published.
+- If tag creation succeeds but dispatch fails, a rerun verifies the tag and
+  dispatches it. A failed build keeps its tag; fix the cause and retry that
+  version, or submit a new reviewed version if source changes are needed.
+- A network error during a write is not automatically retried. Inspect the
+  remote tag/run before rerunning. No workflow moves or deletes a release tag.
+- Human merges and GitHub native auto-merge use the normal `main` event. If a
+  future workflow itself merges with `GITHUB_TOKEN`, GitHub's recursive-event
+  suppression can also suppress `main` events; that workflow must explicitly
+  dispatch this handler. Do not add a PAT to work around this rule.
+- GitHub's queued concurrency preserves pending requests but does not guarantee
+  version order, so the numeric `latest` guard is still required. A manual
+  release from an older revision that predates this guard must not be used after
+  rollout; its historical workflow cannot enforce the new serialization policy.
 
 Manual Docker runs remain build/test-only by default. Publishing requires both
 an explicitly enabled `publish` input and a valid version tag. A publishing run
 on a branch fails before the build. Legacy three-component fork tags are
-rejected by the new policy. Upstream repository runs retain their SemVer tag
-generation.
+rejected. Upstream repository runs retain their SemVer generation.
 
-When integrating upstream, preserve upstream tags unchanged, update the exact
-`upstreamCommit`, and verify application manifests against `upstreamVersion`. If
-the upstream application version changes, reset the fork revision to 1 for that
-new base; if it does not, continue the current revision sequence. Do not reset
-just because more upstream commits were integrated. Avoid force-fetching
-upstream tags over local fork tags; inspect remote refs or use a separate
-upstream tag namespace when resolving historical collisions.
+When integrating upstream, preserve upstream tags unchanged and update the exact
+`upstreamCommit`. Never force-fetch upstream tags over local fork tags. A newer
+upstream release does not change the fork's base until deliberately integrated.
+
+Architecture impact: release workflow sequencing and publication metadata only.
+Runtime networking, persistence, provider settings, encryption and application
+version semantics remain unchanged. No new storage, service, PAT, main-branch
+write or protection bypass is introduced.
 
 ## Historical tag migration
 

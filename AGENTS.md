@@ -161,6 +161,13 @@ Run commands from the repository root unless noted. Use the Node version in
    Do not force merge, self-approve, embed a PAT, or weaken protections. A
    changed head/base needs fresh CI; do not treat an earlier green run as proof.
 
+A releasing PR also updates `fork-release.json`: increment the revision by one
+on the same upstream version, or reset to 1 for a newer integrated upstream
+application version. Unchanged metadata means no release. The required CI helper
+checks this against the current base; after merging, automatic publication tags
+the exact tested merge and dispatches Docker without a PAT or a main write.
+Follow `docs/fork-maintenance.md` for recovery; never move an existing tag.
+
 For focused local verification:
 
 - **Documentation/CI:** check referenced commands, workflow/helper tests,
