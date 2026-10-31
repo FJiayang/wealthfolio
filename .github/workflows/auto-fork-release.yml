@@ -1,0 +1,47 @@
+name: Automatic fork release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      merge_sha:
+        description: Full merged main commit SHA to retry (never moves a tag)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Preserve every release request; the handler is idempotent per tag and commit.
+concurrency:
+  group: automatic-fork-release
+  queue: max
+
+jobs:
+  tag-and-dispatch:
+    if: github.repository == 'FJiayang/wealthfolio' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+      pull-requests: read
+      checks: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Select the exact merged revision
+        env:
+          MERGE_SHA: ${{ inputs.merge_sha || github.sha }}
+        run: |
+          [[ "$MERGE_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          git merge-base --is-ancestor "$MERGE_SHA" origin/main
+          git checkout --detach "$MERGE_SHA"
+      - name: Validate, tag, and dispatch publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ inputs.merge_sha || github.sha }}
+        run: python3 .github/scripts/auto_fork_release.py

@@ -93,6 +93,23 @@ auto-merge, leave the PR open and report the exact prerequisite—do not fall ba
 to an unprotected merge. This repository intentionally has no privileged PR
 checkout/auto-approval workflow.
 
+## Automatic fork publication
+
+A releasing PR updates `fork-release.json` with the next revision before CI: +1
+on the same upstream version, or revision 1 when adopting a newer upstream
+application version. An unchanged manifest explicitly opts out of publication.
+The CI helper job validates this evolution against the current base, so stale
+parallel PR version choices must be updated before merging.
+
+After a protected main merge, `Automatic fork release` verifies the exact tested
+head/base/tree, creates the immutable manifest tag, and explicitly dispatches
+Docker publication on that tag. `GITHUB_TOKEN` tag pushes alone do not trigger
+another workflow. No post-merge version commit, PAT or protection bypass is
+required. See
+[fork maintenance](fork-maintenance.md#automatic-releases-after-a-main-merge)
+for idempotence, failed-build recovery, serialization and the numeric `latest`
+anti-regression rule. Native app releases remain outside this Docker process.
+
 ## Design baseline review
 
 CI visual acceptance uses committed PNG/JSON files under
