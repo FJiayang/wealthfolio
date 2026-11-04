@@ -26,6 +26,16 @@ for (const dir of directions) {
           const errors = await openGallery(page, { mode, width, dir });
           await overlay.open(page);
           await expect(overlay.content(page)).toBeVisible();
+          if (overlay.name === "bottom-sheet") {
+            // Visibility includes the off-screen starting transform; wait for the final edge.
+            await expect
+              .poll(() =>
+                overlay
+                  .content(page)
+                  .evaluate((element) => element.getBoundingClientRect().bottom - innerHeight),
+              )
+              .toBe(0);
+          }
           await expect(page).toHaveScreenshot(`${overlay.name}-${mode}-${width}${suffix}.png`);
           expect(errors).toEqual([]);
         });

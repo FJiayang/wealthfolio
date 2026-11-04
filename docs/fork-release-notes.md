@@ -48,8 +48,15 @@ evolution and diff checks passed. Full tests, builds and browser suites belong
 to PR CI; no live provider or physical-device checks were run locally. The CI
 follow-up passed 34 focused mobile-stack unit tests and 11 related Chromium
 cases with zero retries; the late-heading regression fails before the focus fix.
-Signature baselines were independently reviewed before acceptance. Publication
-remains pending the protected main merge and automatic release.
+Signature baselines were independently reviewed before acceptance. The next CI
+run passed all 270 application cases (two existing opt-in skips), but one WebKit
+screenshot did not stabilize before its timeout; its final image was
+byte-identical to the reviewed baseline. Bottom-sheet screenshot checks now
+assert the exact final viewport edge before comparing pixels. No baseline,
+tolerance, timeout or retry setting changes. Eight focused WebKit cases passed
+against pre-change same-machine diagnostic snapshots with zero retries; Linux
+pixel comparisons remain delegated to CI. Publication remains pending the
+protected main merge and automatic release.
 
 ## v3.11.0.19 — unreleased (CI pending)
 
