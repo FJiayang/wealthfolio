@@ -3,13 +3,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const GAIN_LOSS_COLOR_SCHEME_KEY: &str = "gain_loss_color_scheme";
-pub const DEFAULT_GAIN_LOSS_COLOR_SCHEME: &str = "green-up-red-down";
-
-fn default_gain_loss_color_scheme() -> String {
-    DEFAULT_GAIN_LOSS_COLOR_SCHEME.to_string()
-}
-
 pub const INSIGHTS_OVERVIEW_LAYOUT_KEY: &str = "insights_overview_layout";
 pub const MARKET_DATA_SYNC_INTERVAL_HOURS_KEY: &str = "market_data_sync_interval_hours";
 pub const DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS: u32 = 6;
@@ -95,8 +88,6 @@ pub struct Settings {
     /// Appearance mode: light, dark or system.
     pub theme: String,
     pub font: String,
-    #[serde(default = "default_gain_loss_color_scheme")]
-    pub gain_loss_color_scheme: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text_size: Option<String>,
     pub language: String,
@@ -142,7 +133,6 @@ impl Default for Settings {
             theme_id: default_theme_id(),
             gain_colors: default_gain_colors(),
             theme: "light".to_string(),
-            gain_loss_color_scheme: default_gain_loss_color_scheme(),
             font: DEFAULT_FONT.to_string(),
             text_size: None,
             language: "en".to_string(),
@@ -172,7 +162,6 @@ pub struct SettingsUpdate {
     pub gain_colors: Option<String>,
     pub theme: Option<String>,
     pub font: Option<String>,
-    pub gain_loss_color_scheme: Option<String>,
     pub text_size: Option<String>,
     pub language: Option<String>,
     pub formatting_region: Option<String>,

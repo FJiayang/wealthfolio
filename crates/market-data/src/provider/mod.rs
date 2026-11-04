@@ -32,6 +32,7 @@ pub mod futu;
 pub mod ifind;
 pub mod marketdata_app;
 pub mod metal_price_api;
+pub mod moex;
 pub(crate) mod native;
 pub mod openfigi;
 pub mod sina;

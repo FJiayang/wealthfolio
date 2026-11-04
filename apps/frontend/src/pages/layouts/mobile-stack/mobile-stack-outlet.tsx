@@ -130,6 +130,22 @@ function focusScreen(
   const heading = layer.querySelector<HTMLElement>("h1") ?? layer;
   if (heading.tabIndex < 0 && !heading.hasAttribute("tabindex")) heading.tabIndex = -1;
   heading.focus({ preventScroll: true });
+  if (heading !== layer) return;
+
+  // Data-backed screens can finish loading after the transition has moved focus.
+  const observer = new MutationObserver(() => {
+    if (document.activeElement !== layer) {
+      observer.disconnect();
+      return;
+    }
+    const loadedHeading = layer.querySelector<HTMLElement>("h1");
+    if (!loadedHeading) return;
+    if (!loadedHeading.hasAttribute("tabindex")) loadedHeading.tabIndex = -1;
+    loadedHeading.focus({ preventScroll: true });
+    observer.disconnect();
+  });
+  observer.observe(layer, { childList: true, subtree: true });
+  return () => observer.disconnect();
 }
 
 interface StackLayerProps {
@@ -287,7 +303,7 @@ export function MobileStackOutlet({ scrollProps }: MobileStackOutletProps) {
     if (transition || !target) return;
     pendingFocus.current = null;
     const restore = target.restore ? focusOrigins.current.get(target.screenId) : undefined;
-    focusScreen(containerRef.current, target.screenId, restore);
+    return focusScreen(containerRef.current, target.screenId, restore);
   }, [transition]);
 
   const onStart = useCallback(

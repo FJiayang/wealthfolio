@@ -14,7 +14,7 @@ use wealthfolio_core::settings::{
     validate_provider_request_timezone, Settings, SettingsRepositoryTrait, SettingsUpdate,
     CURRENCY_FORMATTING_REGIONS_KEY, DEFAULT_FONT, DEFAULT_GAIN_COLORS,
     DEFAULT_PROVIDER_REQUEST_TIMEZONE, DEFAULT_THEME_ID, GAIN_COLORS, GAIN_COLORS_KEY,
-    GAIN_LOSS_COLOR_SCHEME_KEY, INSIGHTS_OVERVIEW_LAYOUT_KEY, MARKET_DATA_SYNC_INTERVAL_HOURS_KEY,
+    INSIGHTS_OVERVIEW_LAYOUT_KEY, MARKET_DATA_SYNC_INTERVAL_HOURS_KEY,
     MARKET_DATA_SYNC_TIMEZONE_KEY, MARKET_DATA_SYNC_TIME_KEY, PROVIDER_REQUEST_TIMEZONE_KEY,
     TEXT_SIZE_KEY, THEME_ID_KEY,
 };
@@ -40,9 +40,6 @@ impl SettingsRepositoryTrait for SettingsRepository {
             .load::<(String, String)>(&mut conn)
             .map_err(StorageError::from)?;
 
-        // Presence, not validity, selects the upstream setting. Unknown values
-        // retain upstream's default instead of reviving a legacy preference.
-        let has_gain_colors = all_settings.iter().any(|(key, _)| key == GAIN_COLORS_KEY);
         let mut settings = Settings::default(); // Use default implementation
 
         for (key, value) in all_settings {
@@ -55,7 +52,6 @@ impl SettingsRepositoryTrait for SettingsRepository {
                 }
                 "theme" => settings.theme = value,
                 "font" => settings.font = value,
-                GAIN_LOSS_COLOR_SCHEME_KEY => settings.gain_loss_color_scheme = value,
                 TEXT_SIZE_KEY => settings.text_size = Some(value),
                 "language" => settings.language = value,
                 "formatting_region" => settings.formatting_region = value,
@@ -100,14 +96,6 @@ impl SettingsRepositoryTrait for SettingsRepository {
                 }
                 _ => {} // Ignore unknown settings
             }
-        }
-
-        if !has_gain_colors {
-            settings.gain_colors = match settings.gain_loss_color_scheme.as_str() {
-                "red-up-green-down" => "red-up",
-                _ => DEFAULT_GAIN_COLORS,
-            }
-            .to_string();
         }
 
         Ok(settings)
@@ -173,16 +161,6 @@ impl SettingsRepositoryTrait for SettingsRepository {
                         .values(&AppSettingDB {
                             setting_key: "theme".to_string(),
                             setting_value: theme.clone(),
-                        })
-                        .execute(tx.conn())
-                        .map_err(StorageError::from)?;
-                }
-
-                if let Some(ref scheme) = settings.gain_loss_color_scheme {
-                    diesel::replace_into(app_settings)
-                        .values(&AppSettingDB {
-                            setting_key: GAIN_LOSS_COLOR_SCHEME_KEY.to_string(),
-                            setting_value: scheme.clone(),
                         })
                         .execute(tx.conn())
                         .map_err(StorageError::from)?;
@@ -638,47 +616,6 @@ mod tests {
             .get_result(&mut receiver_conn)
             .unwrap();
         assert_eq!(receiver_outbox, 0, "Receiving must not echo");
-    }
-
-    #[tokio::test]
-    async fn legacy_gain_colors_are_read_only_fallback_when_new_key_is_absent() {
-        let (repo, _dir) = setup().await;
-        for (legacy, expected) in [
-            ("red-up-green-down", "red-up"),
-            ("green-up-red-down", "green-up"),
-            ("unknown", "green-up"),
-        ] {
-            repo.update_setting(GAIN_LOSS_COLOR_SCHEME_KEY, legacy)
-                .await
-                .unwrap();
-            assert_eq!(repo.get_settings().unwrap().gain_colors, expected);
-            let mut conn = get_connection(&repo.pool).unwrap();
-            let count: i64 = app_settings
-                .filter(setting_key.eq(GAIN_COLORS_KEY))
-                .count()
-                .get_result(&mut conn)
-                .unwrap();
-            assert_eq!(count, 0, "reading must not persist the derived setting");
-            assert_eq!(
-                repo.get_setting(GAIN_LOSS_COLOR_SCHEME_KEY).unwrap(),
-                legacy
-            );
-        }
-        repo.update_setting(GAIN_LOSS_COLOR_SCHEME_KEY, "red-up-green-down")
-            .await
-            .unwrap();
-        for explicit in ["green-up", "red-up", "red-up-blue-down", "unknown", ""] {
-            repo.update_setting(GAIN_COLORS_KEY, explicit)
-                .await
-                .unwrap();
-            let expected = if GAIN_COLORS.contains(&explicit) {
-                explicit
-            } else {
-                DEFAULT_GAIN_COLORS
-            };
-            assert_eq!(repo.get_settings().unwrap().gain_colors, expected);
-            assert_eq!(repo.get_setting(GAIN_COLORS_KEY).unwrap(), explicit);
-        }
     }
 
     #[tokio::test]

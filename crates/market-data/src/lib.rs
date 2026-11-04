@@ -96,6 +96,7 @@ pub use provider::futu::{FutuCredentials, FutuProvider};
 pub use provider::ifind::IfindProvider;
 pub use provider::marketdata_app::MarketDataAppProvider;
 pub use provider::metal_price_api::MetalPriceApiProvider;
+pub use provider::moex::MoexProvider;
 pub use provider::openfigi::OpenFigiProvider;
 pub use provider::sina::SinaProvider;
 pub use provider::tencent::TencentProvider;

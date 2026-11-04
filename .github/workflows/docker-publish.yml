@@ -116,8 +116,10 @@ jobs:
             CONNECT_AUTH_URL=${{ vars.CONNECT_AUTH_URL }}
             CONNECT_AUTH_PUBLISHABLE_KEY=${{ vars.CONNECT_AUTH_PUBLISHABLE_KEY }}
             CONNECT_API_URL=${{ vars.CONNECT_API_URL }}
-      - name: Test encryption in the built image
-        run: python3 .github/scripts/encryption_smoke.py --image wealthfolio-smoke:ci
+      - name: Test runtime compatibility and encryption in the built image
+        run: |
+          python3 .github/scripts/encryption_smoke.py --image wealthfolio-smoke:ci
+          python3 .github/scripts/encryption_smoke.py --image wealthfolio-smoke:ci --user 99:100
       - name: Log into GHCR
         if: needs.release-policy.outputs.publish == 'true'
         uses: docker/login-action@v3

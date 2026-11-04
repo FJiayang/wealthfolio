@@ -148,3 +148,24 @@ it("localizes seeded native names while preserving custom names", () => {
   expect(getProviderName(i18n.getFixedT("zh"), "EASTMONEY", "Eastmoney")).toBe("东方财富");
   expect(getProviderName(i18n.getFixedT("zh"), "EASTMONEY", "My source")).toBe("My source");
 });
+
+it.each(Object.entries(settingsCatalogs))(
+  "localizes MOEX descriptions and receipt capabilities in %s",
+  (_, catalog) => {
+    expect(catalog.market_data_page.providerDescriptions.MOEX).toBeTruthy();
+    expect(catalog.market_data_page.instrumentLabels.depositary_receipts).toBeTruthy();
+  },
+);
+
+it("translates MOEX descriptions and receipt capabilities", () => {
+  expect(
+    getProviderDescription(
+      i18n.getFixedT("zh"),
+      "MOEX",
+      en.market_data_page.providerDescriptions.MOEX,
+    ),
+  ).toBe(zh.market_data_page.providerDescriptions.MOEX);
+  expect(getProviderInstruments(i18n.getFixedT("zh"), "Stocks • ETFs • DRs")).toBe(
+    "股票 • ETF • 存托凭证",
+  );
+});

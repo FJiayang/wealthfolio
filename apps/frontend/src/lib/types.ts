@@ -948,8 +948,6 @@ export interface QuoteUpdate {
   dataSource: string;
 }
 
-export type GainLossColorScheme = "green-up-red-down" | "red-up-green-down";
-
 export interface Settings {
   insightsOverviewLayout?: Record<string, unknown> | null;
   /** Read-only restore state, absent on older backends. */
@@ -961,7 +959,6 @@ export interface Settings {
   gainColors?: string;
   /** Appearance mode: light, dark or system. */
   theme: string;
-  gainLossColorScheme?: GainLossColorScheme;
   font: string;
   /** Text size name; absent on older backends, which show the default size. */
   textSize?: string;
@@ -2606,6 +2603,8 @@ export interface RetirementOverview {
   requiredCapitalAtGoalAge: number;
   leanRequiredCapitalAtGoalAge?: number | null;
   fatRequiredCapitalAtGoalAge?: number | null;
+  /** What active savings goals plan to add each month, from their own plans. */
+  savingsGoalsMonthlyContribution?: number;
   shortfallAtGoalAge: number;
   surplusAtGoalAge: number;
   fundedThroughAge: number | null;
@@ -2707,11 +2706,17 @@ export interface SaveUpPreviewInputDTO {
 }
 
 export interface SaveUpTrajectoryPointDTO {
+  /** YYYY-MM-DD: today, then each month-end, then the target date. */
   date: string;
   nominal: number;
   optimistic: number;
   pessimistic: number;
   target: number;
+  /**
+   * Balance needed on this date to still reach the target on time with the planned
+   * contribution. Not below zero, or below `nominal` when that is negative.
+   */
+  needed: number;
 }
 
 export interface SaveUpProjectionPointDTO extends SaveUpTrajectoryPointDTO {

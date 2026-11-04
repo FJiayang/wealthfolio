@@ -12,6 +12,65 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.12.0.1 — Unreleased
+
+- Merge upstream main through `367615abd9db92a046b9d1fb65eb2c1ae33d8b47`,
+  including v3.12.0 and the subsequent CSV delimiter, currency picker, updater
+  and profile-timezone fixes. Application versions advance to 3.12.0.
+- Adopt upstream trade amount preservation and currency rounding, AMFI
+  identifier lookups, MOEX support, goal funding and performance changes. The
+  web app hides its desktop-only menu bar setting.
+- Use only upstream gain/loss colors. Remove the fork's retired setting,
+  fallback reader, API field, validation and translations. Old fork-only color
+  preferences are intentionally ignored without migration; profiles without
+  upstream `gainColors` use its green-up default and can choose red-up again.
+- Preserve compatible fork providers, daily synchronization, request
+  diagnostics, trade instructions, benchmark selection and addon import handoff.
+  Preserve the shared local manual asset resolver and isolated browser profile
+  fixtures.
+- Allow dropping a replacement CSV over the selected file, following upstream;
+  drops remain blocked while parsing is in progress.
+- Extend the existing image encryption checks with upstream read-only runtime,
+  healthcheck and custom UID/GID checks, retaining fork-only GHCR publication.
+- Move mobile stack focus to a page's heading when its data arrives after the
+  transition, while preserving intentional field focus. Isolate dashboard and
+  Spending browser fixtures; select the calendar's own account and clear
+  securities filters before checking an unheld MOEX asset.
+
+Architecture impact: adopt upstream domain behavior, provider search and the
+MOEX provider migration, which adds a disabled source. Existing SQLite data,
+user-entered prices, opt-in provider settings, SecretStore, daily scheduling and
+asynchronous enrichment remain in their existing boundaries. No new worker,
+retry mechanism or external data transmission is added by the merge adaptation.
+Mobile focus observes the active page while its heading is loading, preserves
+user focus changes and disconnects on completion or the next transition. Color
+settings now expose only the upstream contract and retain its existing
+device-sync behavior. No migration or legacy preference conversion is added.
+
+Validation: 314 focused frontend tests, 520 focused Rust tests, 44 release and
+encryption helper tests, and seven E2E launcher unit tests passed. Locale parity
+(22 namespaces), changed-file formatting, focused frontend lint, release version
+evolution and diff checks passed. Full tests, builds and browser suites belong
+to PR CI; no live provider or physical-device checks were run locally. The CI
+follow-up passed 34 focused mobile-stack unit tests and 11 related Chromium
+cases with zero retries; the late-heading regression fails before the focus fix.
+Signature baselines were independently reviewed before acceptance. The next CI
+run passed all 270 application cases (two existing opt-in skips), but one WebKit
+screenshot did not stabilize before its timeout; its final image was
+byte-identical to the reviewed baseline. Bottom-sheet screenshot checks now
+assert the exact final viewport edge before comparing pixels. No baseline,
+tolerance, timeout or retry setting changes. Eight focused WebKit cases passed
+against pre-change same-machine diagnostic snapshots with zero retries; Linux
+pixel comparisons remain delegated to CI. Publication remains pending the
+protected main merge and automatic release.
+
+Retired color cleanup: 85 focused frontend tests, 21 core settings tests, nine
+SQLite settings repository tests and 12 settings-update integration tests
+passed. All locales (22 namespaces), changed-file formatting and focused lint
+passed; lint reports six existing warnings outside the changed lines. The new
+integration regression confirms retired saved values are ignored and omitted
+from the settings response. Full runtime checks remain assigned to current CI.
+
 ## v3.11.0.19 — unreleased (CI pending)
 
 - Create immutable fork tags automatically after a verified, protected main PR

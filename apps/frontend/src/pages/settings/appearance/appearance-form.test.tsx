@@ -71,22 +71,23 @@ it("hides the menu bar setting in the macOS app, which always keeps its menu", (
   expect(screen.queryByText("settings:appearance_menu_bar")).not.toBeInTheDocument();
 });
 
-it("leaves the web app's menu bar setting alone on macOS", () => {
-  platform.isMacOS = true;
-  platform.isTauri = false;
-  render(<AppearanceForm />);
-  expect(screen.getByText("settings:appearance_menu_bar")).toBeInTheDocument();
-});
+it.each([false, true])(
+  "hides the menu bar setting in the web app, which has no menu bar (macOS: %s)",
+  (isMacOS) => {
+    platform.isMacOS = isMacOS;
+    platform.isTauri = false;
+    render(<AppearanceForm />);
+    expect(screen.queryByText("settings:appearance_menu_bar")).not.toBeInTheDocument();
+  },
+);
 
-it("offers one gain-colour control and preserves the inactive legacy setting", () => {
+it("offers one upstream gain-colour control", () => {
   context.settings.gainColors = "red-up-blue-down";
-  context.settings.gainLossColorScheme = "red-up-green-down";
   const original = structuredClone(context.settings);
   render(<AppearanceForm />);
   expect(
     screen.getAllByRole("group", { name: "settings:appearance_gain_colors_title" }),
   ).toHaveLength(1);
-  expect(screen.queryByText("settings:appearance_gain_loss_color_title")).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "settings:appearance_gain_colors_red_up_blue_down" }),
   ).toHaveAttribute("aria-pressed", "true");

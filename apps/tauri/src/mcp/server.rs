@@ -23,9 +23,10 @@ use super::RunningServer;
 pub const DEFAULT_PORT: u16 = 8639;
 
 const INSTRUCTIONS: &str = "Scoped access to Wealthfolio investment and spending business data: \
-accounts, portfolios, assets, holdings, valuations, activities, goals, allocations, rebalancing, \
+accounts, portfolios, assets, holdings, valuations, performance, activities, income, goals, health, \
+allocations, rebalancing, spending, \
 planning calculations, market data, classifications and budgets. Available tools depend on \
-the access token's permissions. Preview activity, quote and holdings imports before committing \
+the access token's permissions, including organizing spending and managing budgets. Preview activity, quote and holdings imports before committing \
 the reviewed input. Rebalance calculations do not record trades. Provider diagnostics expose local business parameters and HTTP/SDK outcomes for 30 days. System operations, provider \
 refresh/configuration, exports and API Key permission management are not exposed.";
 

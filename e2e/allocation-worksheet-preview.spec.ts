@@ -65,6 +65,24 @@ const test = base.extend<{ ownedProfile: { id: string; name: string } }>({
   ],
 });
 
+let profileToDelete: { id: string; name: string } | null = null;
+
+// While a second profile exists, the server refuses requests that name no profile,
+// so the specs that run after this one would fail. Delete it even when the test fails.
+test.afterEach(async ({ page }) => {
+  if (!profileToDelete) return;
+  // Deleting needs the profile's scope, and the test may have failed before it unlocked.
+  const session = await post<{ scopeId: string }>(page, "/profiles/unlock_profile", {
+    profileId: profileToDelete.id,
+  });
+  requestHeaders = { "x-wf-profile-scope": session.scopeId };
+  await post(page, "/profiles/delete_profile", {
+    profileId: profileToDelete.id,
+    confirmation: profileToDelete.name,
+  });
+  profileToDelete = null;
+});
+
 async function enterAmount(field: Locator, value: string) {
   await field.focus();
   await field.press("ControlOrMeta+A");
@@ -296,8 +314,12 @@ test("whole-share edits update impact and require account placement, in LTR and 
     await expect(current).toBeVisible();
     await expect(projected).toBeVisible();
     const impact = page.locator("[data-impact-rail]");
-    await expect(impact.locator("[data-track-legend]")).toHaveText(/Current → Projected \/ Target/);
-    await expect(impact.locator("[data-impact-summary]")).not.toContainText("→");
+    // The arrow points the way the line reads.
+    const arrow = dir === "rtl" ? "←" : "→";
+    await expect(impact.locator("[data-track-legend]")).toHaveText(
+      new RegExp(`Current ${arrow} Projected / Target`),
+    );
+    await expect(impact.locator("[data-impact-summary]")).not.toContainText(arrow);
     await expect(impact.getByText(/Largest difference| adjusted$/)).toHaveCount(0);
     await impact.locator("[data-impact-summary]").click();
     await expect(impact.getByText("Net change", { exact: true })).toHaveCount(0);
@@ -315,9 +337,10 @@ test("whole-share edits update impact and require account placement, in LTR and 
     await expect(amount).toHaveValue(nextAmount);
     await expect(page.locator("html")).toHaveAttribute("dir", dir);
     await page.screenshot({ path: `test-results/worksheet-preview-${dir}.png`, fullPage: true });
-    // Wrapping follows the heading's 36rem container query, not the viewport breakpoint.
-    // Keep the desktop sidebar while making the remaining heading container genuinely narrow.
-    await page.setViewportSize({ width: 900, height: 768 });
+    // The steps move under the title when the heading area is narrower than 36rem. At
+    // 1024 px with the sidebar open it is within a few pixels of that under any font
+    // (586 px with Sans, 567 px with Mono), so check the narrow layout clearly below it.
+    await page.setViewportSize({ width: 960, height: 768 });
     const expandSidebar = page.getByRole("button", { name: "Expand Sidebar", exact: true });
     await expandSidebar.click();
     await expect(page.getByRole("button", { name: "Collapse Sidebar", exact: true })).toBeVisible();

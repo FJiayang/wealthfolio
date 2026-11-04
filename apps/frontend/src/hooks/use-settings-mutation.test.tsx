@@ -191,7 +191,7 @@ it("only invalidates settings when gain/loss colors change", async () => {
   vi.mocked(updateSettings).mockResolvedValue({
     language: "en",
     onboardingCompleted: true,
-    gainLossColorScheme: "red-up-green-down",
+    gainColors: "red-up",
   } as Settings);
   const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
   const invalidate = vi.spyOn(queryClient, "invalidateQueries");
@@ -201,14 +201,12 @@ it("only invalidates settings when gain/loss colors change", async () => {
   );
   const { result } = renderHook(() => useSettingsMutation(vi.fn(), apply), { wrapper });
   await act(async () => {
-    await result.current.mutateAsync({ gainLossColorScheme: "red-up-green-down" });
+    await result.current.mutateAsync({ gainColors: "red-up" });
   });
   expect(invalidate.mock.calls.map(([options]) => options?.queryKey)).toEqual([
     [QueryKeys.SETTINGS],
   ]);
-  expect(apply).toHaveBeenCalledWith(
-    expect.objectContaining({ gainLossColorScheme: "red-up-green-down" }),
-  );
+  expect(apply).toHaveBeenCalledWith(expect.objectContaining({ gainColors: "red-up" }));
 });
 
 it("invalidates request counts without changing portfolio or spending timezone caches", async () => {
