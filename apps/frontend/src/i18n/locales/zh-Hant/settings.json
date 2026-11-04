@@ -1844,10 +1844,6 @@
       }
     }
   },
-  "appearance_gain_loss_color_title": "漲跌配色",
-  "appearance_gain_loss_color_description": "選擇投資上漲和下跌的顯示顏色。",
-  "appearance_gain_loss_green_up": "綠漲紅跌",
-  "appearance_gain_loss_red_up": "紅漲綠跌",
   "provider_request_details": {
     "title": "Provider 請求明細",
     "from": "開始日期",

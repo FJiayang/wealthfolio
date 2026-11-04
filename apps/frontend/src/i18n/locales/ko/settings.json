@@ -1834,10 +1834,6 @@
       }
     }
   },
-  "appearance_gain_loss_color_title": "등락 색상",
-  "appearance_gain_loss_color_description": "투자 상승과 하락을 표시할 색상을 선택하세요.",
-  "appearance_gain_loss_green_up": "상승 초록, 하락 빨강",
-  "appearance_gain_loss_red_up": "상승 빨강, 하락 초록",
   "tax_categories_count_one": "카테고리 {{count}}개",
   "addon_store_filter_all_one": "전체 ({{count}})",
   "addon_store_filter_uninstalled_one": "설치 안 됨 ({{count}})",

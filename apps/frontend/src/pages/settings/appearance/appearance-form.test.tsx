@@ -81,15 +81,13 @@ it.each([false, true])(
   },
 );
 
-it("offers one gain-colour control and preserves the inactive legacy setting", () => {
+it("offers one upstream gain-colour control", () => {
   context.settings.gainColors = "red-up-blue-down";
-  context.settings.gainLossColorScheme = "red-up-green-down";
   const original = structuredClone(context.settings);
   render(<AppearanceForm />);
   expect(
     screen.getAllByRole("group", { name: "settings:appearance_gain_colors_title" }),
   ).toHaveLength(1);
-  expect(screen.queryByText("settings:appearance_gain_loss_color_title")).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "settings:appearance_gain_colors_red_up_blue_down" }),
   ).toHaveAttribute("aria-pressed", "true");

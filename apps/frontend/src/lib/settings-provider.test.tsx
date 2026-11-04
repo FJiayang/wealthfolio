@@ -62,7 +62,6 @@ beforeEach(() => {
   settings.themeId = undefined;
   settings.textSize = undefined;
   settings.gainColors = undefined;
-  settings.gainLossColorScheme = undefined;
   document.documentElement.className = "";
   document.documentElement.removeAttribute("data-theme");
   document.documentElement.removeAttribute("data-text-size");
@@ -282,17 +281,15 @@ it("applies a Dynamic Type change when the app comes back to the foreground", as
 });
 
 it.each(["green-up", "red-up", "red-up-blue-down"])(
-  "uses the resolved %s contract without activating the retained legacy preference",
+  "applies the upstream %s gain-colour contract",
   async (gainColors) => {
     mocks.platform.mockResolvedValue({ os: "linux", is_mobile: false, is_desktop: true });
     settings.gainColors = gainColors;
-    settings.gainLossColorScheme = "red-up-green-down";
     const original = structuredClone(settings);
     render(<SettingsProvider>content</SettingsProvider>);
     await waitFor(() =>
       expect(document.documentElement).toHaveAttribute("data-gain-colors", gainColors),
     );
-    expect(document.documentElement).not.toHaveClass("red-up-green-down");
     expect(localStorage.getItem("wealthfolio-gain-colors")).toBe(gainColors);
     expect(settings).toEqual(original);
   },
