@@ -3,6 +3,68 @@ use diesel::connection::SimpleConnection;
 use diesel::RunQueryDsl;
 
 const VERSION: &str = "20261023000001";
+
+#[test]
+fn moex_migration_upgrades_existing_forks_without_rewriting_data() {
+    let mut conn = SqliteConnection::establish(":memory:").unwrap();
+    let mut migrations = conn.pending_migrations(MIGRATIONS).unwrap();
+    migrations.sort_by_key(|m| m.name().version().to_string());
+    for migration in migrations {
+        if migration.name().version().to_string() != "20260929000001" {
+            conn.run_migration(&*migration).unwrap();
+        }
+    }
+    conn.batch_execute(r#"
+        UPDATE market_data_providers SET enabled=1,priority=99 WHERE id='EASTMONEY';
+        INSERT INTO assets(id,kind,name,display_code,quote_mode,quote_ccy,instrument_type,instrument_symbol)
+        VALUES ('saved','INVESTMENT','My asset','KEEP','MANUAL','CNY','EQUITY','KEEP');
+        INSERT INTO quotes(id,asset_id,day,source,close,currency,created_at,timestamp)
+        VALUES ('saved-price','saved','2026-10-30','MANUAL','1.2345','CNY','2026-10-30T00:00:00Z','2026-10-30T00:00:00Z');
+    "#).unwrap();
+    let applied = conn.run_pending_migrations(MIGRATIONS).unwrap();
+    assert_eq!(
+        applied.iter().map(ToString::to_string).collect::<Vec<_>>(),
+        ["20260929000001"]
+    );
+    assert_eq!(
+        scalar(
+            &mut conn,
+            "SELECT name||':'||quote_mode AS value FROM assets WHERE id='saved'"
+        ),
+        "My asset:MANUAL"
+    );
+    assert_eq!(
+        scalar(
+            &mut conn,
+            "SELECT source||':'||close AS value FROM quotes WHERE id='saved-price'"
+        ),
+        "MANUAL:1.2345"
+    );
+    assert_eq!(scalar(&mut conn, "SELECT enabled||':'||priority AS value FROM market_data_providers WHERE id='EASTMONEY'"), "1:99");
+    assert_eq!(
+        scalar(
+            &mut conn,
+            "SELECT CAST(enabled AS TEXT) AS value FROM market_data_providers WHERE id='MOEX'"
+        ),
+        "0"
+    );
+    assert!(conn.run_pending_migrations(MIGRATIONS).unwrap().is_empty());
+}
+
+#[test]
+fn moex_migration_leaves_new_profiles_disabled() {
+    let mut conn = SqliteConnection::establish(":memory:").unwrap();
+    conn.run_pending_migrations(MIGRATIONS).unwrap();
+    assert_eq!(
+        scalar(
+            &mut conn,
+            "SELECT CAST(enabled AS TEXT) AS value FROM market_data_providers WHERE id='MOEX'"
+        ),
+        "0"
+    );
+    assert!(conn.run_pending_migrations(MIGRATIONS).unwrap().is_empty());
+}
+
 fn older_database() -> SqliteConnection {
     let mut conn = SqliteConnection::establish(":memory:").unwrap();
     let mut migrations = conn.pending_migrations(MIGRATIONS).unwrap();
@@ -71,7 +133,7 @@ fn native_migration_preserves_identity_prices_and_user_modes() {
         let activity = scalar(&mut conn,"SELECT json_group_array(json_array(id,account_id,asset_id,quantity,unit_price)) AS value FROM activities");
         conn.run_pending_migrations(MIGRATIONS).unwrap();
         assert_eq!(activity, scalar(&mut conn,"SELECT json_group_array(json_array(id,account_id,asset_id,quantity,unit_price)) AS value FROM activities"));
-        assert_eq!(scalar(&mut conn,"SELECT group_concat(id,',') AS value FROM (SELECT id FROM market_data_providers ORDER BY priority,id)"), format!("{},FUTU,IFIND,AMFI", order.replace("HTTP_API", "EASTMONEY,TENCENT,SINA")));
+        assert_eq!(scalar(&mut conn,"SELECT group_concat(id,',') AS value FROM (SELECT id FROM market_data_providers ORDER BY priority,id)"), format!("{},FUTU,AMFI,IFIND", order.replace("HTTP_API", "EASTMONEY,TENCENT,SINA")));
         assert_eq!(identity,scalar(&mut conn,"SELECT json_group_array(json_array(id,name,display_code,quote_mode,quote_ccy,instrument_symbol)) AS value FROM assets ORDER BY id"));
         assert_eq!(
             scalar(
@@ -194,7 +256,8 @@ fn ifind_migration_is_disabled_appended_and_not_reapplied() {
     let after_ifind = scalar(&mut conn, "SELECT group_concat(id || ':' || priority || ':' || enabled) AS value FROM (SELECT * FROM market_data_providers ORDER BY id)");
     conn.run_pending_migrations(MIGRATIONS).unwrap();
     assert_eq!(after_ifind, scalar(&mut conn, "SELECT group_concat(id || ':' || priority || ':' || enabled) AS value FROM (SELECT * FROM market_data_providers WHERE id != 'AMFI' ORDER BY id)"));
-    assert_eq!(scalar(&mut conn, "SELECT group_concat(id, ',') AS value FROM (SELECT id FROM market_data_providers WHERE id IN ('FUTU','IFIND','AMFI') ORDER BY priority)"), "FUTU,IFIND,AMFI");
+    // MOEX precedes the appended fork providers; AMFI retains upstream's fixed priority 15.
+    assert_eq!(scalar(&mut conn, "SELECT group_concat(id, ',') AS value FROM (SELECT id FROM market_data_providers WHERE id IN ('FUTU','IFIND','AMFI') ORDER BY priority,id)"), "FUTU,AMFI,IFIND");
     assert_eq!(scalar(&mut conn, "SELECT CAST(priority AS TEXT)||':'||CAST(enabled AS TEXT) AS value FROM market_data_providers WHERE id='AMFI'"), "15:0");
     conn.batch_execute("UPDATE market_data_providers SET enabled=1, priority=100 WHERE id='IFIND'")
         .unwrap();

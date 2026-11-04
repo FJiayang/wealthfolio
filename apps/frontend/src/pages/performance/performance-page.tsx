@@ -748,7 +748,7 @@ function AttributionDetailMetric({
   // A missing mixed-scope return series does not make attributed P&L incomplete.
   // Keep that warning with the return metric, alongside the existing IRR filter.
   const attributionWarnings = warnings.filter(
-    (warning) => !warning.startsWith("Return series unavailable for all-time mixed scopes"),
+    (warning) => !warning.startsWith("Return series unavailable for "),
   );
   const isPartial = result.summary?.quality === "partial" && attributionWarnings.length > 0;
 
@@ -1246,6 +1246,7 @@ export default function PerformancePage() {
   // Use the custom hook for parallel data fetching with effective date calculation
   const {
     data: performanceData,
+    allTimeFrom,
     isLoading: isLoadingPerformance,
     hasErrors,
     errorMessages,
@@ -1638,6 +1639,7 @@ export default function PerformancePage() {
           value={dateRange}
           onChange={setDateRange}
           hiddenRanges={PERFORMANCE_HIDDEN_DATE_RANGES}
+          allTimeFrom={allTimeFrom}
         />
       </div>
 
@@ -1674,6 +1676,7 @@ export default function PerformancePage() {
             value={dateRange}
             onChange={setDateRange}
             hiddenRanges={PERFORMANCE_HIDDEN_DATE_RANGES}
+            allTimeFrom={allTimeFrom}
           />
         </div>
 

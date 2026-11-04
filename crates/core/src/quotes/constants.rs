@@ -12,13 +12,14 @@ pub const DATA_SOURCE_OPENFIGI: &str = "OPENFIGI";
 pub const DATA_SOURCE_US_TREASURY_CALC: &str = "US_TREASURY_CALC";
 pub const DATA_SOURCE_BOERSE_FRANKFURT: &str = "BOERSE_FRANKFURT";
 pub const DATA_SOURCE_AMFI: &str = "AMFI";
+pub const DATA_SOURCE_MOEX: &str = "MOEX";
 pub const DATA_SOURCE_BROKER: &str = "BROKER";
 pub use wealthfolio_market_data::provider::futu::DATA_SOURCE_FUTU;
 pub use wealthfolio_market_data::provider::DATA_SOURCE_CUSTOM_SCRAPER;
 pub use wealthfolio_market_data::provider::{
     DATA_SOURCE_EASTMONEY, DATA_SOURCE_IFIND, DATA_SOURCE_SINA, DATA_SOURCE_TENCENT,
 };
-pub const MARKET_DATA_PROVIDER_IDS: [&str; 15] = [
+pub const MARKET_DATA_PROVIDER_IDS: [&str; 16] = [
     DATA_SOURCE_FUTU,
     DATA_SOURCE_YAHOO,
     DATA_SOURCE_ALPHA_VANTAGE,
@@ -29,6 +30,7 @@ pub const MARKET_DATA_PROVIDER_IDS: [&str; 15] = [
     DATA_SOURCE_US_TREASURY_CALC,
     DATA_SOURCE_BOERSE_FRANKFURT,
     DATA_SOURCE_AMFI,
+    DATA_SOURCE_MOEX,
     DATA_SOURCE_CUSTOM_SCRAPER,
     DATA_SOURCE_EASTMONEY,
     DATA_SOURCE_TENCENT,

@@ -3,21 +3,24 @@ import { describe, expect, it, vi } from "vitest";
 import { FileDropzone } from "./file-dropzone";
 
 describe("native import file dropzone", () => {
-  it("accepts a drop and ignores replacements while loading or a file is selected", () => {
+  it("accepts replacement files while idle and ignores drops while loading", () => {
     const onFileChange = vi.fn();
     const file = new File(["synthetic"], "test.csv");
     const { container, rerender } = render(
       <FileDropzone file={null} onFileChange={onFileChange} />,
     );
-    const drop = () => fireEvent.drop(container.firstChild!, { dataTransfer: { files: [file] } });
+    const drop = (value = file) =>
+      fireEvent.drop(container.firstChild!, { dataTransfer: { files: [value] } });
     drop();
     expect(onFileChange).toHaveBeenCalledWith(file);
     onFileChange.mockClear();
     rerender(<FileDropzone file={null} isLoading onFileChange={onFileChange} />);
     drop();
-    rerender(<FileDropzone file={file} onFileChange={onFileChange} />);
-    drop();
     expect(onFileChange).not.toHaveBeenCalled();
+    rerender(<FileDropzone file={file} onFileChange={onFileChange} />);
+    const replacement = new File(["replacement"], "second.csv");
+    drop(replacement);
+    expect(onFileChange).toHaveBeenCalledExactlyOnceWith(replacement);
   });
 
   it("removes the selected file", () => {

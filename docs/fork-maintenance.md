@@ -10,9 +10,9 @@ For supported functionality and changes by version, see the
 
 ## Version contract
 
-- Upstream application version: `3.11.0`.
-- Fork release tag: `v3.11.0.1`; exact Docker image tag:
-  `ghcr.io/fjiayang/wealthfolio:3.11.0.1`.
+- Upstream application version: `3.12.0`.
+- Fork release tag: `v3.12.0.1`; exact Docker image tag:
+  `ghcr.io/fjiayang/wealthfolio:3.12.0.1`.
 - `fork-release.json` records the upstream version, fork revision, and exact
   upstream commit incorporated into the fork. The revision is reserved for the
   next release; editing this file does not itself publish anything.
@@ -27,19 +27,17 @@ For supported functionality and changes by version, see the
   revisions, prerelease suffixes, or reused tags. The tag must exactly match the
   release manifest at that commit.
 - Fork Docker releases publish the full four-component version, a commit SHA
-  alias, and `latest`. They do not publish upstream-shaped `3.11` or `3.11.0`
+  alias, and `latest`. They do not publish upstream-shaped `3.12` or `3.12.0`
   aliases. Prefer an exact version or image digest for reproducible deployments.
   `latest` is mutable; the automatic publication guard prevents older versions
   from moving it backwards.
 
-The current upstream base is commit `3fb05af985b3039ee875065a736cdafd8fc3bd45`,
-integrated through the localization branch after the stable `v3.11.0` release.
-Application manifests remain at 3.11.0. Upstream synchronization uses a real
+The current upstream base is commit `367615abd9db92a046b9d1fb65eb2c1ae33d8b47`,
+including the stable `v3.12.0` release and nine subsequent main commits.
+Application manifests remain at 3.12.0. Upstream synchronization uses a real
 merge, retaining the fork's history and compatible fork-only features. When
-behavior is incompatible, upstream takes precedence. The two contributed PR
-branches are merged separately without modifying or closing the upstream PRs. A
-newer upstream release does not change this fork's base until deliberately
-integrated.
+behavior is incompatible, upstream takes precedence. A newer upstream release
+does not change this fork's base until deliberately integrated.
 
 ## Automatic releases after a main merge
 
