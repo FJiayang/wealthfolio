@@ -1,5 +1,29 @@
 # Initial Linux CI baseline review
 
+## Upstream 3.12 Signature buttons — 2026-11-04
+
+Independent reviewer: `/root/baseline_review`, separately authorized by the user.
+Candidate artifact: [13305434678](https://github.com/FJiayang/wealthfolio/actions/runs/41795112488/artifacts/13305434678).
+Source: `e184d732c53d938cc63904988d188b1871dbd012`.
+Image: `mcr.microsoft.com/playwright:v1.58.2-noble`.
+The tested PR merge `8f446114b9ef8a7647851390148db4d10039f19e` has the same
+tree as this source: `95ec0da4e870f1b606380d4f27f0e957ffe929d3`.
+
+The reviewer inspected all eight expected/actual/diff comparisons and verified
+that the candidate contains the complete 238-file inventory. Only eight PNGs
+change: `theme-signature-{dark,light}-1440.png` and
+`theme-signature-menu-{dark,light}-1440.png`, in both Chromium and WebKit.
+All other 230 files, including all 22 accessibility JSON summaries, remain
+byte-identical. Each accepted candidate matches the independently reviewed CI
+actual image byte-for-byte. Differences are limited to upstream's destructive
+button fill, border, shadow and exposed edges behind the menu. The relevant
+theme tokens and button implementation match upstream exactly.
+
+Architecture impact: expectations only; assertions, tolerances and retries are
+unchanged. Ordinary CI must compare the new revision with updates disabled.
+
+## Original bootstrap review
+
 Reviewed on 2026-10-30 by a separate source/pixel reviewer and the integration
 coordinator. Architecture impact: snapshots only; no application behavior, test
 assertions or comparison tolerances change.
