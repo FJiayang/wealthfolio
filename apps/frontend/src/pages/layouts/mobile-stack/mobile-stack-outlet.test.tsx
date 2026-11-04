@@ -85,6 +85,27 @@ function mountedScreens(state: StackState) {
   );
 }
 
+describe("focus after asynchronous page loading", () => {
+  it.each([false, true])(
+    "focuses a late heading without stealing a field's focus (field: %s)",
+    async (focusField) => {
+      const { container, rerender } = render(outletFor(stackOf(1)));
+      rerender(outletFor(stackOf(2)));
+      const layer = container.querySelector<HTMLElement>('[data-stack-screen="holdings:1"]')!;
+      await waitFor(() => expect(document.activeElement).toBe(layer));
+
+      const field = document.createElement("input");
+      layer.appendChild(field);
+      if (focusField) field.focus();
+      const heading = document.createElement("h1");
+      heading.textContent = "Loaded holding";
+      layer.appendChild(heading);
+
+      await waitFor(() => expect(document.activeElement).toBe(focusField ? field : heading));
+    },
+  );
+});
+
 describe("tabs kept mounted", () => {
   it("keeps the screens of the tab shown and the two shown before it", () => {
     const fourTabs: StackConfig = {

@@ -64,6 +64,12 @@ for (const direction of ["ltr", "rtl"] as const) {
     await expect(page.getByRole("heading", { name: "Securities", exact: true })).toBeVisible();
     const reset = page.getByRole("button", { name: "Reset", exact: true });
     if (await reset.isVisible()) await reset.click();
+    // Newly created securities have no holdings and are outside the default Current filter.
+    await page.getByRole("button", { name: /^Portfolio/ }).click();
+    const clearFilters = page.getByRole("option", { name: "Clear filters", exact: true });
+    if (await clearFilters.isVisible()) await clearFilters.click();
+    await page.keyboard.press("Escape");
+    await page.getByPlaceholder("Search ...", { exact: true }).fill("AFLT");
     const row = page.getByRole("row").filter({ hasText: "AFLT" }).first();
     await expect(row).toBeVisible();
     await row.getByRole("button", { name: "Open actions" }).click();

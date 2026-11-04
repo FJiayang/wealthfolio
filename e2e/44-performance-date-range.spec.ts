@@ -1,11 +1,13 @@
 import { expect, test, type Page, type Response } from "@playwright/test";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
-function allTimeResponse(page: Page) {
+function allTimeResponse(page: Page, accountId: string) {
   return page.waitForResponse((response: Response) => {
     if (!response.url().endsWith("/performance/history") || !response.ok()) return false;
     const body = response.request().postDataJSON();
-    return body.itemType === "account" && !body.startDate && !body.endDate;
+    return (
+      body.itemType === "account" && body.itemId === accountId && !body.startDate && !body.endDate
+    );
   });
 }
 
@@ -41,9 +43,34 @@ for (const mobile of [false, true]) {
         },
       });
       expect(deposit.ok()).toBeTruthy();
+      const state = await (
+        await page.request.post(`${BASE_URL}/api/v1/profiles/get_profile_state`, { data: {} })
+      ).json();
+      expect(state.session?.profileId).toBeTruthy();
+      await gotoAppPath(page, "/insights?tab=performance");
+      await expect(page.locator(".app-shell").first()).toBeVisible();
+      // Other serial specs keep older accounts; this calendar belongs to the account above.
+      await page.evaluate(
+        ({ profileId, accountId }) => {
+          const key = (name: string) => `profile:${profileId}:${name}`;
+          localStorage.setItem(
+            key("performance:selectedItems"),
+            JSON.stringify([
+              {
+                id: accountId,
+                type: "account",
+                name: "Calendar account",
+                accountScope: { type: "account", accountId },
+              },
+            ]),
+          );
+          localStorage.setItem(key("performance:selectedItemId"), JSON.stringify(accountId));
+        },
+        { profileId: state.session.profileId, accountId: id },
+      );
       await gotoAppPath(page, `/insights?tab=performance&dir=${direction}`);
       const all = page.getByRole("button", { name: "ALL", exact: true }).filter({ visible: true });
-      const responsePromise = allTimeResponse(page);
+      const responsePromise = allTimeResponse(page, id);
       await all.click();
       const response = await responsePromise;
       const { period } = await response.json();
@@ -62,7 +89,7 @@ for (const mobile of [false, true]) {
         await dialog.getByRole("button", { name: "Done", exact: true }).click();
         await expect(dialog).toHaveCount(0);
         // Reload crosses the persistence boundary and starts a fresh query.
-        const persisted = allTimeResponse(page);
+        const persisted = allTimeResponse(page, id);
         await page.reload();
         await persisted;
 
@@ -74,7 +101,7 @@ for (const mobile of [false, true]) {
         await dialog.getByRole("button", { name: "Clear", exact: true }).click();
         await dialog.getByRole("button", { name: "Done", exact: true }).click();
         await expect(dialog).toHaveCount(0);
-        const cleared = allTimeResponse(page);
+        const cleared = allTimeResponse(page, id);
         await page.reload();
         await cleared;
       } else {

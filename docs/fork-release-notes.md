@@ -28,19 +28,28 @@ Git tag alone does not establish Docker image availability.
   drops remain blocked while parsing is in progress.
 - Extend the existing image encryption checks with upstream read-only runtime,
   healthcheck and custom UID/GID checks, retaining fork-only GHCR publication.
+- Move mobile stack focus to a page's heading when its data arrives after the
+  transition, while preserving intentional field focus. Isolate dashboard and
+  Spending browser fixtures; select the calendar's own account and clear
+  securities filters before checking an unheld MOEX asset.
 
 Architecture impact: adopt upstream domain behavior, provider search and the
 MOEX provider migration, which adds a disabled source. Existing SQLite data,
 user-entered prices, opt-in provider settings, SecretStore, daily scheduling and
 asynchronous enrichment remain in their existing boundaries. No new worker,
 retry mechanism or external data transmission is added by the merge adaptation.
+Mobile focus observes the active page while its heading is loading, preserves
+user focus changes and disconnects on completion or the next transition.
 
 Validation: 314 focused frontend tests, 520 focused Rust tests, 44 release and
 encryption helper tests, and seven E2E launcher unit tests passed. Locale parity
 (22 namespaces), changed-file formatting, focused frontend lint, release version
 evolution and diff checks passed. Full tests, builds and browser suites belong
-to PR CI; no live provider or physical-device checks were run locally.
-Publication remains pending the protected main merge and automatic release.
+to PR CI; no live provider or physical-device checks were run locally. The CI
+follow-up passed 34 focused mobile-stack unit tests and 11 related Chromium
+cases with zero retries; the late-heading regression fails before the focus fix.
+Signature baselines were independently reviewed before acceptance. Publication
+remains pending the protected main merge and automatic release.
 
 ## v3.11.0.19 — unreleased (CI pending)
 

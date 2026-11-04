@@ -309,6 +309,12 @@ test("a holding opened at a larger text size: no ring on its title, quantity and
   };
   try {
     await page.request.put(`${BASE_URL}/api/v1/settings`, { data: { textSize: "large" } });
+    // The data-backed title may arrive after the push animation has ended.
+    await page.route(`**/api/v1/assets/${assetId}`, async (route) => {
+      const response = await route.fetch();
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await route.fulfill({ response });
+    });
     await gotoAppPath(page, "/holdings?swipe=app");
     const holding = page.getByText(symbol, { exact: true }).locator("visible=true").first();
     await expect(holding).toBeVisible({ timeout: 15_000 });
@@ -317,14 +323,16 @@ test("a holding opened at a larger text size: no ring on its title, quantity and
     await page.waitForTimeout(600);
 
     // Focus moves to the holding's title for screen readers, without a focus ring around it.
-    expect(
-      await page.evaluate(() => {
-        const focused = document.activeElement;
-        return focused?.tagName === "H1"
-          ? getComputedStyle(focused).outlineStyle
-          : focused?.tagName;
-      }),
-    ).toBe("none");
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const focused = document.activeElement;
+          return focused?.tagName === "H1"
+            ? getComputedStyle(focused).outlineStyle
+            : focused?.tagName;
+        }),
+      )
+      .toBe("none");
 
     const header = page
       .locator('[data-slot="card-title"]')
