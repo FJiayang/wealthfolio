@@ -127,3 +127,6 @@ wealthfolio.db
 skills-lock.json
 .agents/
 .agent/
+opencode.json
+start.sh
+stop.sh
