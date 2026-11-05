@@ -150,14 +150,6 @@ pub fn auto_categorize(env: Arc<dyn AgentEnvironment>, accounts: Vec<String>) {
     });
 }
 
-pub async fn auto_categorize_opted_in(env: Arc<dyn AgentEnvironment>) {
-    match env.spending_settings_service().get().await {
-        Ok(settings) if settings.enabled => auto_categorize(env, settings.account_ids),
-        Ok(_) => {}
-        Err(_) => log::warn!("Could not load spending scope after rule change"),
-    }
-}
-
 // The MCP-only service tools share transport metadata, deserialization and audit redaction.
 macro_rules! business_tool {
     ($tool:ident, $args_ty:ident, $name:literal, $description:literal,

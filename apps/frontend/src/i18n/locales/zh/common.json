@@ -316,8 +316,7 @@
     "unable_to_open_changelog": "无法打开更新日志",
     "try_open_changelog_manually": "请尝试在浏览器中手动打开更新日志。",
     "all_portfolio": "全部投资组合",
-    "calculation_notes_other": "计算说明({{count}})",
-    "calculation_notes_one": "计算注释 ({{count}})"
+    "calculation_notes_other": "计算说明({{count}})"
   },
   "globalEvents": {
     "syncingMarket": "正在同步市场数据...",
@@ -346,15 +345,7 @@
     "everythingUpToDate": "所有内容均为最新状态",
     "brokerSyncComplete": "券商同步完成",
     "brokerSyncFailed": "券商同步失败",
-    "brokerSyncFailedDescription": "无法同步券商数据。请稍后重试。",
-    "activities_one": "{{count}} 条活动",
-    "priceUpdateFailed_one": "{{count}} 资产的价格更新失败",
-    "priceUpdateSkipped_one": "已跳过 {{count}} 资产的价格更新",
-    "newAccountsDescription_one": "{{count}} 需要配置新帐户",
-    "newAccounts_one": "{{count}} 新帐户",
-    "accountsUpdated_one": "{{count}} 帐户已更新",
-    "positions_one": "{{count}} 位置（{{accounts}} 个帐户）",
-    "newAssets_one": "{{count}} 新资产"
+    "brokerSyncFailedDescription": "无法同步券商数据。请稍后重试。"
   },
   "notFound": {
     "title": "未找到页面",
@@ -684,12 +675,7 @@
     "activity_failed_deleting": "删除活动失败",
     "activity_failed_duplicating": "无法复制活动",
     "addon_error": "附加组件“{{addonId}}”错误",
-    "security_update_failed": "更新证券失败",
-    "error_try_later": "{{error}}。请稍后重试。",
-    "issues_found_one": "发现 {{count}} 个问题",
-    "categorized_one": "已分类 {{count}} 笔交易。",
-    "categorized_other": "已分类 {{count}} 笔交易。",
-    "recategorized_one": "已重新分类 {{count}} 笔交易。"
+    "security_update_failed": "更新证券失败"
   },
   "validation": {
     "accountNameMin": "名称至少需要 2 个字符。",

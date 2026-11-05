@@ -316,8 +316,7 @@
     "unable_to_open_changelog": "변경 내역을 열 수 없습니다",
     "try_open_changelog_manually": "브라우저에서 변경 내역을 직접 열어보세요.",
     "all_portfolio": "전체 포트폴리오",
-    "calculation_notes_other": "계산 참고사항 ({{count}}개)",
-    "calculation_notes_one": "계산 참고사항({{count}})"
+    "calculation_notes_other": "계산 참고사항 ({{count}}개)"
   },
   "globalEvents": {
     "syncingMarket": "시장 데이터 동기화 중...",
@@ -346,15 +345,7 @@
     "everythingUpToDate": "모두 최신 상태입니다",
     "brokerSyncComplete": "브로커 동기화 완료",
     "brokerSyncFailed": "브로커 동기화 실패",
-    "brokerSyncFailedDescription": "브로커 데이터를 동기화할 수 없습니다. 나중에 다시 시도해 주세요.",
-    "activities_one": "활동 {{count}}건",
-    "priceUpdateFailed_one": "{{count}} 자산의 가격 업데이트에 실패했습니다.",
-    "priceUpdateSkipped_one": "{{count}} 자산의 가격 업데이트를 건너뛰었습니다.",
-    "newAccountsDescription_one": "{{count}} 새 계정을 구성해야 합니다",
-    "newAccounts_one": "{{count}} 새 계정",
-    "accountsUpdated_one": "{{count}} 계정이 업데이트되었습니다.",
-    "positions_one": "{{count}} 위치({{accounts}} 계정)",
-    "newAssets_one": "{{count}} 새 자산"
+    "brokerSyncFailedDescription": "브로커 데이터를 동기화할 수 없습니다. 나중에 다시 시도해 주세요."
   },
   "notFound": {
     "title": "페이지를 찾을 수 없습니다",
@@ -684,12 +675,7 @@
     "activity_failed_deleting": "활동을 삭제하지 못했습니다.",
     "activity_failed_duplicating": "활동을 복제하지 못했습니다.",
     "addon_error": "부가기능 '{{addonId}}' 오류",
-    "security_update_failed": "보안을 업데이트하지 못했습니다.",
-    "error_try_later": "{{error}}. 나중에 다시 시도해 주세요.",
-    "issues_found_one": "{{count}}개의 문제가 발견되었습니다",
-    "categorized_one": "활동 {{count}}건을 분류했습니다.",
-    "categorized_other": "활동 {{count}}건을 분류했습니다.",
-    "recategorized_one": "{{count}} 활동을 다시 분류했습니다."
+    "security_update_failed": "보안을 업데이트하지 못했습니다."
   },
   "validation": {
     "accountNameMin": "이름은 2자 이상이어야 합니다.",

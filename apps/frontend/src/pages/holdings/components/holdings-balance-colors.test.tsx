@@ -1,12 +1,13 @@
 import { render, screen } from "@/test/render";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountType, AssetKind, HoldingType, QuoteMode } from "@/lib/constants";
 import type { Holding } from "@/lib/types";
 import { HoldingsGroupedTable } from "./holdings-grouped-table";
 import { HoldingsSummaryBar } from "./holdings-summary-bar";
 
+const privacy = vi.hoisted(() => ({ isBalanceHidden: false }));
 vi.mock("@/hooks/use-balance-privacy", () => ({
-  useBalancePrivacy: () => ({ isBalanceHidden: false }),
+  useBalancePrivacy: () => privacy,
 }));
 vi.mock("@/lib/settings-provider", () => ({
   useSettingsContext: () => ({ settings: { baseCurrency: "USD" } }),
@@ -17,7 +18,11 @@ vi.mock("react-router-dom", async (importOriginal) => ({
 }));
 vi.mock("@/components/ticker-avatar", () => ({ TickerAvatar: () => null }));
 const modes = ["green-up", "red-up", "red-up-blue-down"] as const;
-afterEach(() => document.documentElement.removeAttribute("data-gain-colors"));
+afterEach(() => {
+  document.documentElement.removeAttribute("data-gain-colors");
+  document.documentElement.removeAttribute("dir");
+  privacy.isBalanceHidden = false;
+});
 
 function holding(value: number, liability: boolean, gain = 0): Holding {
   return {
@@ -68,19 +73,18 @@ function amountValue(element: HTMLElement) {
   return Number(element.textContent?.replace(/[$,]/g, "")) || 0;
 }
 
-function expectSemantic(element: HTMLElement, value: number, className: string) {
+function expectColor(element: HTMLElement, value: number, className: string) {
   expect(amountValue(element)).toBe(value === 0 ? 0 : value);
   expect(element).toHaveClass(className);
-  expect(element).not.toHaveClass(
-    className === "text-success" ? "text-destructive" : "text-success",
-  );
-  expect(element).not.toHaveClass("text-gain");
-  expect(element).not.toHaveClass("text-loss");
+  for (const other of ["text-success", "text-destructive", "text-gain", "text-loss"]) {
+    if (other !== className) expect(element).not.toHaveClass(other);
+  }
 }
 
-describe("holdings balance colors are semantic, not gain preferences", () => {
+describe.each(["ltr", "rtl"])("holdings use upstream gain/loss roles in %s", (direction) => {
+  beforeEach(() => document.documentElement.setAttribute("dir", direction));
   it.each([100, 0, -100])(
-    "keeps net worth %s and debt summary semantics across preferences",
+    "delegates net worth %s to gain/loss roles and keeps debt status across preferences",
     (netWorth) => {
       const view = render(
         <HoldingsSummaryBar totalAssets={200 + netWorth} totalLiabilities={200} currency="USD" />,
@@ -92,8 +96,8 @@ describe("holdings balance colors are semantic, not gain preferences", () => {
         );
         const amounts = amountsIn();
         expect(amountValue(amounts[0])).toBe(200 + netWorth);
-        expectSemantic(amounts[1], 200, "text-destructive");
-        expectSemantic(amounts[2], netWorth, netWorth >= 0 ? "text-success" : "text-destructive");
+        expectColor(amounts[1], 200, "text-destructive");
+        expectColor(amounts[2], netWorth, netWorth >= 0 ? "text-gain" : "text-loss");
       }
     },
   );
@@ -108,16 +112,8 @@ describe("holdings balance colors are semantic, not gain preferences", () => {
         const group = amountsIn(screen.getByRole("button", { name: /Liabilities/ }))[0];
         const row = amountsIn().find((amount) => amount !== group)!;
         // Group negates the stored amount; row displays -abs(amount). Keep both contracts.
-        expectSemantic(
-          group,
-          -storedValue,
-          -storedValue >= 0 ? "text-success" : "text-destructive",
-        );
-        expectSemantic(
-          row,
-          -Math.abs(storedValue),
-          storedValue === 0 ? "text-success" : "text-destructive",
-        );
+        expectColor(group, -storedValue, -storedValue >= 0 ? "text-gain" : "text-loss");
+        expectColor(row, -Math.abs(storedValue), storedValue === 0 ? "text-gain" : "text-loss");
         expect(amountsIn()).toHaveLength(2);
       }
     },
@@ -143,4 +139,10 @@ describe("holdings balance colors are semantic, not gain preferences", () => {
       }
     },
   );
+  it("hides balance amounts without changing their upstream color roles", () => {
+    privacy.isBalanceHidden = true;
+    render(<HoldingsSummaryBar totalAssets={300} totalLiabilities={200} currency="USD" />);
+    expect(amountsIn()).toHaveLength(0);
+    expect(document.querySelector(".text-gain")).toBeInTheDocument();
+  });
 });

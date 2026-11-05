@@ -48,28 +48,6 @@ business_tool!(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct FindTransferMatchCandidatesArgs {
-    pub request: wealthfolio_core::activities::TransferMatchCandidateRequest,
-}
-
-business_tool!(
-    FindTransferMatchCandidates,
-    FindTransferMatchCandidatesArgs,
-    "find_transfer_match_candidates",
-    "Read potential matches for one transfer activity using existing scoring.",
-    json!({"type":"object","properties":{"request":{"type":"object","properties":{"activityId":{"type":"string"},"windowDays":{"type":"integer"},"limit":{"type":"integer"}},"required":["activityId"]}},"required":["request"]}),
-    [AgentScope::ActivitiesRead],
-    Read,
-    |env, args| {
-        output(
-            env.activity_service()
-                .find_transfer_match_candidates(args.request)?,
-        )
-    }
-);
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SaveInternalTransferPairArgs {
     pub request: wealthfolio_core::activities::InternalTransferPairRequest,
 }
@@ -206,7 +184,6 @@ pub fn tools() -> Vec<Arc<dyn AgentTool>> {
     vec![
         Arc::new(GetActivity),
         Arc::new(GetTransferPairForActivity),
-        Arc::new(FindTransferMatchCandidates),
         Arc::new(SaveInternalTransferPair),
         Arc::new(ListImportTemplates),
         Arc::new(GetImportTemplate),

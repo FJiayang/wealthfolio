@@ -8,11 +8,6 @@ use super::service::CategorizationRulesService;
 /// Mirrors the inherent method signatures exactly.
 #[async_trait]
 pub trait CategorizationRulesServiceTrait: Send + Sync {
-    async fn update(&self, id: &str, patch: UpdateCategorizationRule)
-        -> Result<CategorizationRule>;
-
-    async fn upsert(&self, rule: NewCategorizationRule) -> Result<CategorizationRule>;
-
     async fn list(&self) -> Result<Vec<CategorizationRule>>;
     async fn create(&self, new_rule: NewCategorizationRule) -> Result<CategorizationRule>;
     async fn rerun_all(&self, account_ids: &[String], only_uncategorized: bool) -> Result<usize>;
@@ -51,18 +46,6 @@ pub trait CategorizationRulesServiceTrait: Send + Sync {
 
 #[async_trait]
 impl CategorizationRulesServiceTrait for CategorizationRulesService {
-    async fn update(
-        &self,
-        id: &str,
-        patch: UpdateCategorizationRule,
-    ) -> Result<CategorizationRule> {
-        CategorizationRulesService::update(self, id, patch).await
-    }
-
-    async fn upsert(&self, rule: NewCategorizationRule) -> Result<CategorizationRule> {
-        CategorizationRulesService::upsert(self, rule).await
-    }
-
     async fn rerun_detailed(
         &self,
         account_ids: &[String],

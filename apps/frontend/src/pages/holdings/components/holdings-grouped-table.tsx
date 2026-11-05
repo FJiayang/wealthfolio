@@ -169,11 +169,8 @@ export function HoldingsGroupedTable({
               value={group.totalValue}
               currency={group.holdings[0]?.baseCurrency ?? baseCurrency}
               isHidden={isBalanceHidden}
-              className={cn(
-                "font-medium",
-                group.name === "Liabilities" &&
-                  (group.totalValue >= 0 ? "text-success" : "text-destructive"),
-              )}
+              colorFormat={group.name === "Liabilities"}
+              className="font-medium"
             />
           </CollapsibleTrigger>
           <CollapsibleContent>
@@ -306,13 +303,7 @@ function HoldingRow({
             value={displayValue}
             currency={currency}
             isHidden={isBalanceHidden}
-            className={
-              holding.isLiability
-                ? displayValue >= 0
-                  ? "text-success"
-                  : "text-destructive"
-                : undefined
-            }
+            colorFormat={holding.isLiability}
           />
           <div className="text-muted-foreground text-xs">{currency}</div>
         </div>

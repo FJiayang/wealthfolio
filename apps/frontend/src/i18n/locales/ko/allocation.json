@@ -71,10 +71,7 @@
     "colAccount": "계좌",
     "accountCount_other": "계좌 {{count}}개",
     "summary_other": "보유 종목 {{count}}개 · {{currency}}",
-    "summaryUpdated_other": "보유 종목 {{count}}개 · {{currency}} · {{updatedAt}} 업데이트",
-    "accountCount_one": "계좌 {{count}}개",
-    "summary_one": "{{count}} 보유 · {{currency}}",
-    "summaryUpdated_one": "{{count}} 보유 · {{currency}} · 업데이트됨 {{updatedAt}}"
+    "summaryUpdated_other": "보유 종목 {{count}}개 · {{currency}} · {{updatedAt}} 업데이트"
   },
   "presets": {
     "currentAllocation": "현재 배분",
@@ -508,10 +505,6 @@
     "region_other": "지역",
     "category_other": "카테고리",
     "assetClass_other": "자산 클래스",
-    "industry_other": "산업",
-    "assetClass_one": "자산 클래스",
-    "region_one": "지역",
-    "industry_one": "산업",
-    "category_one": "범주"
+    "industry_other": "산업"
   }
 }

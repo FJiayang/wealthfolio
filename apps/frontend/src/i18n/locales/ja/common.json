@@ -316,8 +316,7 @@
     "unable_to_open_changelog": "変更履歴を開けません",
     "try_open_changelog_manually": "ブラウザで変更履歴を手動で開いてみてください。",
     "all_portfolio": "ポートフォリオ全体",
-    "calculation_notes_other": "計算メモ({{count}})",
-    "calculation_notes_one": "計算メモ ({{count}})"
+    "calculation_notes_other": "計算メモ({{count}})"
   },
   "globalEvents": {
     "syncingMarket": "市場データを同期中...",
@@ -346,15 +345,7 @@
     "everythingUpToDate": "すべて最新です",
     "brokerSyncComplete": "証券会社との同期が完了しました",
     "brokerSyncFailed": "証券会社との同期に失敗しました",
-    "brokerSyncFailedDescription": "証券会社のデータを同期できませんでした。後でもう一度お試しください。",
-    "activities_one": "{{count}}件の取引",
-    "priceUpdateFailed_one": "{{count}} アセットの価格更新に失敗しました",
-    "priceUpdateSkipped_one": "{{count}} アセットの価格更新はスキップされました",
-    "newAccountsDescription_one": "{{count}} 個の新しいアカウントを設定する必要があります",
-    "newAccounts_one": "{{count}} 個の新しいアカウント",
-    "accountsUpdated_one": "{{count}} アカウントが更新されました",
-    "positions_one": "{{count}} ポジション ({{accounts}} アカウント)",
-    "newAssets_one": "{{count}} 個の新しいアセット"
+    "brokerSyncFailedDescription": "証券会社のデータを同期できませんでした。後でもう一度お試しください。"
   },
   "notFound": {
     "title": "ページが見つかりません",
@@ -684,12 +675,7 @@
     "activity_failed_deleting": "アクティビティの削除に失敗しました",
     "activity_failed_duplicating": "アクティビティの複製に失敗しました",
     "addon_error": "アドオン「{{addonId}}」エラー",
-    "security_update_failed": "セキュリティの更新に失敗しました",
-    "error_try_later": "{{error}}。後でもう一度お試しください。",
-    "issues_found_one": "{{count}} の問題が見つかりました",
-    "categorized_one": "取引{{count}}件を分類しました。",
-    "categorized_other": "取引{{count}}件を分類しました。",
-    "recategorized_one": "{{count}} アクティビティを再分類しました。"
+    "security_update_failed": "セキュリティの更新に失敗しました"
   },
   "validation": {
     "accountNameMin": "名前は2文字以上で入力してください。",

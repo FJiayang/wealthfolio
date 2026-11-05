@@ -71,10 +71,7 @@
     "colAccount": "账户",
     "accountCount_other": "{{count}} 个账户",
     "summary_other": "{{count}} 项持仓 · {{currency}}",
-    "summaryUpdated_other": "{{count}} 项持仓 · {{currency}} · 更新于 {{updatedAt}}",
-    "accountCount_one": "{{count}} 个账户",
-    "summary_one": "{{count}} 持有 · {{currency}}",
-    "summaryUpdated_one": "{{count}} 持有 · {{currency}} · 已更新 {{updatedAt}}"
+    "summaryUpdated_other": "{{count}} 项持仓 · {{currency}} · 更新于 {{updatedAt}}"
   },
   "presets": {
     "currentAllocation": "当前配置",
@@ -508,10 +505,6 @@
     "region_other": "地区",
     "category_other": "类别",
     "assetClass_other": "资产类别",
-    "industry_other": "行业",
-    "assetClass_one": "资产类别",
-    "region_one": "地区",
-    "industry_one": "行业",
-    "category_one": "类别"
+    "industry_other": "行业"
   }
 }

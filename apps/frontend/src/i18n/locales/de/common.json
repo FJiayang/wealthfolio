@@ -686,10 +686,7 @@
     "activity_failed_deleting": "Die Aktivität konnte nicht gelöscht werden",
     "activity_failed_duplicating": "Die Aktivität konnte nicht dupliziert werden",
     "addon_error": "Add-on-Fehler „{{addonId}}“.",
-    "security_update_failed": "Die Sicherheit konnte nicht aktualisiert werden",
-    "error_try_later": "{{error}}. Bitte versuchen Sie es später erneut.",
-    "categorized_one": "{{count}} Aktivität kategorisiert.",
-    "categorized_other": "{{count}} Aktivitäten kategorisiert."
+    "security_update_failed": "Die Sicherheit konnte nicht aktualisiert werden"
   },
   "validation": {
     "accountNameMin": "Der Name muss mindestens 2 Zeichen enthalten.",

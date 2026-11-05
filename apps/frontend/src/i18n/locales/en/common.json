@@ -686,10 +686,7 @@
     "activity_failed_deleting": "Failed to delete activity",
     "activity_failed_duplicating": "Failed to duplicate activity",
     "addon_error": "Add-on '{{addonId}}' error",
-    "security_update_failed": "Failed to update security",
-    "error_try_later": "{{error}}. Please try again later.",
-    "categorized_one": "Categorized {{count}} activity.",
-    "categorized_other": "Categorized {{count}} activities."
+    "security_update_failed": "Failed to update security"
   },
   "validation": {
     "accountNameMin": "Name must be at least 2 characters.",

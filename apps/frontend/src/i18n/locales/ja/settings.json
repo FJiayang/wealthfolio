@@ -879,21 +879,6 @@
     "benchmark_local_notice": "ベンチマークは保存済み価格を使用します。不足分は毎日の更新を待つか手動取得してください。比較から削除しても更新は続きます。停止するには銘柄を無効にしてください。",
     "benchmark_fetch": "ベンチマーク履歴を取得・補完",
     "benchmark_reselect": "登録できないベンチマークがあります。削除して選び直してください。",
-    "sync_interval_label": "自動同期の間隔",
-    "sync_interval_description": "デスクトップアプリまたは Web サーバーの実行中の定期同期に適用されます。変更は1分以内に反映され、起動時や手動の同期には影響しません。",
-    "sync_interval_hours_other": "{{count}} 時間ごと",
-    "imported_count_one": "{{count}}件インポート",
-    "failed_count_one": "{{count}}件失敗",
-    "table_click_column_to_map_field_one": "{{count}} 行 · {{field}} にマップする列ヘッダーをクリックします",
-    "table_click_column_to_map_one": "{{count}} 行 · マップするには列ヘッダーをクリックします",
-    "csv_rows_detected_field_one": "{{count}} 行が検出されました。列ヘッダーをクリックして {{field}} にマッピングします。",
-    "csv_rows_detected_one": "{{count}} 行が検出されました。列ヘッダーをクリックしてマップします。",
-    "elements_detected_field_one": "{{count}} 要素が検出されました。それをクリックしてセレクターを {{field}} に割り当てます。",
-    "elements_detected_one": "{{count}} 要素が検出されました。それをクリックしてセレクターを割り当てます。",
-    "show_more_elements_one": "さらに {{count}} 個の要素を表示",
-    "preview_data_rows_one": "データのプレビュー ({{count}} 行)",
-    "review_first_rows_one": "CSV データの最初の行を確認します。",
-    "import_quotes_count_one": "{{count}} 見積をインポート",
     "native_provider_names": {
       "IFIND": "同花順 iFinD",
       "EASTMONEY": "Eastmoney",
@@ -966,8 +951,7 @@
       "stat_active": "有効",
       "no_rules_prompt": "分類ルールがまだありません — 取引名のパターンで自動的にタグを付けられます。",
       "setup_rules": "ルールを設定",
-      "stat_accounts_unit_other": "現金口座{{count}}件中",
-      "stat_accounts_unit_one": "{{count}} 個の現金口座"
+      "stat_accounts_unit_other": "現金口座{{count}}件中"
     },
     "accounts": {
       "title": "支出管理の口座",
@@ -1048,8 +1032,7 @@
       "error_title": "読み込めませんでした",
       "error_description": "管理ページから再度お試しください。",
       "more": "他{{count}}件",
-      "more_other": "他{{count}}件",
-      "more_one": "他{{count}}件"
+      "more_other": "他{{count}}件"
     },
     "setup": {
       "title": "毎月の基本予算プラン",
@@ -1074,10 +1057,7 @@
       "duplicate_error": "このキーは別のカテゴリで使用されています。別の名前をお試しください。",
       "tab_expense_other": "支出 ({{count}})",
       "tab_income_other": "収入 ({{count}})",
-      "tab_savings_other": "貯蓄 ({{count}})",
-      "tab_expense_one": "支出 ({{count}})",
-      "tab_income_one": "収入 ({{count}})",
-      "tab_savings_one": "貯蓄 ({{count}})"
+      "tab_savings_other": "貯蓄 ({{count}})"
     },
     "events": {
       "heading": "支出イベント",
@@ -1409,8 +1389,7 @@
     "edit_title": "{{name}} の権限",
     "edit_description": "キーは変更されません。権限は以降のリクエストに適用されます。新しいツールを表示するには、ツール一覧を更新するかクライアントを再接続してください。",
     "edit_success": "権限を更新しました",
-    "edit_failed": "権限の更新に失敗しました",
-    "pat_scope_custom_one": "カスタム · {{count}} スコープ"
+    "edit_failed": "権限の更新に失敗しました"
   },
   "tax_add_category": "カテゴリを追加",
   "tax_categories_count": "{{count}}件のカテゴリ",
@@ -1834,12 +1813,6 @@
       }
     }
   },
-  "tax_categories_count_one": "{{count}}カテゴリ",
-  "addon_store_filter_all_one": "すべて ({{count}})",
-  "addon_store_filter_uninstalled_one": "未インストール ({{count}})",
-  "addon_store_showing_one": "全{{total}}件中{{count}}件のアドオンを表示",
-  "tax_migration_body_one": "{{count}} アセットには従来のセクター/国データが含まれており、組織化と分析を向上させるために新しい分類システムに移行できます。",
-  "addon_rating_characters_one": "{{count}}/500 文字",
   "provider_request_details": {
     "title": "プロバイダーのリクエスト明細",
     "from": "開始日",

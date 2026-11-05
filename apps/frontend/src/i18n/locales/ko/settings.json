@@ -879,21 +879,6 @@
     "benchmark_local_notice": "벤치마크는 저장된 가격을 사용합니다. 누락된 내역은 일일 업데이트를 기다리거나 직접 가져오세요. 비교에서 제거해도 업데이트는 계속됩니다. 중지하려면 종목을 비활성화하세요.",
     "benchmark_fetch": "벤치마크 내역 가져오기",
     "benchmark_reselect": "벤치마크를 등록하지 못했습니다. 제거 후 다시 선택하세요.",
-    "sync_interval_label": "자동 동기화 간격",
-    "sync_interval_description": "데스크톱 앱 또는 웹 서버 실행 중 예약 동기화에 적용됩니다. 변경 사항은 1분 이내에 적용되며 시작 시 동기화와 수동 동기화에는 영향을 주지 않습니다.",
-    "sync_interval_hours_other": "{{count}}시간마다",
-    "imported_count_one": "{{count}}건 가져옴",
-    "failed_count_one": "{{count}}건 실패",
-    "table_click_column_to_map_field_one": "{{count}} 행 · {{field}}에 매핑할 열 헤더를 클릭하세요.",
-    "table_click_column_to_map_one": "{{count}}개 행 · 매핑할 열 헤더를 클릭하세요.",
-    "csv_rows_detected_field_one": "{{count}} 행이 감지되었습니다. 열 헤더를 클릭하여 {{field}}에 매핑합니다.",
-    "csv_rows_detected_one": "{{count}} 행이 감지되었습니다. 열 헤더를 클릭하여 매핑합니다.",
-    "elements_detected_field_one": "{{count}} 요소가 감지되었습니다. 선택기를 {{field}}에 할당하려면 클릭하세요.",
-    "elements_detected_one": "{{count}} 요소가 감지되었습니다. 선택기를 할당하려면 클릭하세요.",
-    "show_more_elements_one": "{{count}}개 추가 요소 표시",
-    "preview_data_rows_one": "데이터 미리보기({{count}}행)",
-    "review_first_rows_one": "CSV 데이터의 첫 번째 행을 검토하세요.",
-    "import_quotes_count_one": "{{count}} 견적 가져오기",
     "native_provider_names": {
       "IFIND": "퉁화순 iFinD",
       "EASTMONEY": "Eastmoney",
@@ -966,8 +951,7 @@
       "stat_active": "활성",
       "no_rules_prompt": "아직 분류 규칙이 없습니다 — 이름 패턴으로 거래를 자동 태그하세요.",
       "setup_rules": "규칙 설정",
-      "stat_accounts_unit_other": "현금 계좌 {{count}}개 중",
-      "stat_accounts_unit_one": "{{count}} 현금 계좌 중"
+      "stat_accounts_unit_other": "현금 계좌 {{count}}개 중"
     },
     "accounts": {
       "title": "지출 계좌",
@@ -1048,8 +1032,7 @@
       "error_title": "불러올 수 없습니다",
       "error_description": "관리 페이지에서 다시 시도하세요.",
       "more": "+{{count}}개 더",
-      "more_other": "+{{count}}개 더",
-      "more_one": "+{{count}} 더보기"
+      "more_other": "+{{count}}개 더"
     },
     "setup": {
       "title": "기본 월간 예산 계획",
@@ -1074,10 +1057,7 @@
       "duplicate_error": "다른 카테고리에서 이미 사용 중인 키입니다. 다른 이름을 입력해 주세요.",
       "tab_expense_other": "지출 ({{count}})",
       "tab_income_other": "수입 ({{count}})",
-      "tab_savings_other": "저축 ({{count}})",
-      "tab_expense_one": "지출 ({{count}})",
-      "tab_income_one": "수입 ({{count}})",
-      "tab_savings_one": "저축 ({{count}})"
+      "tab_savings_other": "저축 ({{count}})"
     },
     "events": {
       "heading": "지출 이벤트",
@@ -1409,8 +1389,7 @@
     "edit_title": "{{name}}의 권한",
     "edit_description": "키는 변경되지 않습니다. 권한은 이후 요청부터 적용됩니다. 새 도구를 보려면 도구 목록을 새로 고치거나 클라이언트를 다시 연결하세요.",
     "edit_success": "권한이 업데이트되었습니다",
-    "edit_failed": "권한을 업데이트하지 못했습니다",
-    "pat_scope_custom_one": "사용자 정의 · {{count}} 범위"
+    "edit_failed": "권한을 업데이트하지 못했습니다"
   },
   "tax_add_category": "카테고리 추가",
   "tax_categories_count": "카테고리 {{count}}개",
@@ -1834,12 +1813,6 @@
       }
     }
   },
-  "tax_categories_count_one": "카테고리 {{count}}개",
-  "addon_store_filter_all_one": "전체 ({{count}})",
-  "addon_store_filter_uninstalled_one": "설치 안 됨 ({{count}})",
-  "addon_store_showing_one": "전체 {{total}}개 중 {{count}}개 애드온 표시",
-  "tax_migration_body_one": "{{count}} 자산에는 더 나은 구성 및 분석을 위해 새로운 분류 시스템으로 마이그레이션할 수 있는 기존 부문/국가 데이터가 있습니다.",
-  "addon_rating_characters_one": "{{count}}/500자",
   "provider_request_details": {
     "title": "제공업체 요청 내역",
     "from": "시작 날짜",

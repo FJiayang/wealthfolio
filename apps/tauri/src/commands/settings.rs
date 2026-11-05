@@ -10,17 +10,6 @@ use wealthfolio_core::health::HealthServiceTrait;
 use wealthfolio_core::quotes::MarketSyncMode;
 use wealthfolio_core::settings::{Settings, SettingsUpdate};
 
-fn recalculate_mode_for_settings_change(
-    base_currency_changed: bool,
-    timezone_changed: bool,
-) -> Option<MarketSyncMode> {
-    if base_currency_changed || timezone_changed {
-        Some(MarketSyncMode::None)
-    } else {
-        None
-    }
-}
-
 #[tauri::command]
 pub async fn get_settings(state: ProfileAccess) -> Result<Settings, String> {
     let context = state.context()?;
@@ -105,7 +94,7 @@ pub async fn update_settings(
     }
 
     if let Some(market_sync_mode) =
-        recalculate_mode_for_settings_change(base_currency_changed, timezone_changed)
+        MarketSyncMode::for_settings_change(base_currency_changed, timezone_changed)
     {
         let payload = PortfolioRequestPayload::builder()
             .account_ids(None)
@@ -179,7 +168,10 @@ pub async fn add_exchange_rate(
         .await
         .map_err(|e| format!("Failed to add exchange rate: {}", e))?;
 
-    let market_sync_mode = MarketSyncMode::None;
+    // Manual rates are saved as-is and need no market sync. Provider-backed
+    // pairs store no quote on add (#1143); sync their real rate now so the pair
+    // populates immediately instead of waiting for the next periodic sync.
+    let market_sync_mode = MarketSyncMode::for_added_exchange_rate(&result.source, &result.id);
 
     let handle = handle.clone();
     tauri::async_runtime::spawn(async move {
@@ -215,38 +207,4 @@ pub async fn delete_exchange_rate(
         emit_portfolio_trigger_recalculate(&handle, payload, &context);
     });
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn recalculate_mode_none_when_nothing_changed() {
-        assert_eq!(recalculate_mode_for_settings_change(false, false), None);
-    }
-
-    #[test]
-    fn recalculate_mode_none_for_timezone_only_change() {
-        assert_eq!(
-            recalculate_mode_for_settings_change(false, true),
-            Some(MarketSyncMode::None)
-        );
-    }
-
-    #[test]
-    fn recalculate_mode_is_local_for_base_currency_change() {
-        assert_eq!(
-            recalculate_mode_for_settings_change(true, false),
-            Some(MarketSyncMode::None)
-        );
-    }
-
-    #[test]
-    fn recalculate_mode_is_local_when_both_changed() {
-        assert_eq!(
-            recalculate_mode_for_settings_change(true, true),
-            Some(MarketSyncMode::None)
-        );
-    }
 }

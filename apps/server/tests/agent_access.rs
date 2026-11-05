@@ -4243,6 +4243,7 @@ async fn reviewed_spending_splits_rules_events_and_tags_roundtrip_without_activi
         .find(|c| c["id"] == first)
         .unwrap()["key"]
         .clone();
+    let assignments_before_rule_save = category_rows(&server, &cookie, &activities[1]).await;
     let draft=mcp_call_tool(&server,&pat,&session,"create_categorization_rule",serde_json::json!({"pattern":"Synthetic merchant","taxonomyId":"spending_categories","categoryKey":key})).await;
     let saved = mcp_call_tool(
         &server,
@@ -4253,6 +4254,11 @@ async fn reviewed_spending_splits_rules_events_and_tags_roundtrip_without_activi
     )
     .await["created"]
         .clone();
+    assert_eq!(
+        category_rows(&server, &cookie, &activities[1]).await,
+        assignments_before_rule_save,
+        "saving a rule must not classify historical activities"
+    );
     let preview = mcp_call_tool(
         &server,
         &pat,
@@ -5666,6 +5672,129 @@ async fn mcp_asset_provider_config_can_be_created_and_updated() {
 }
 
 #[tokio::test]
+async fn mcp_asset_taxonomy_management_cannot_mutate_transaction_taxonomies() {
+    let server = spawn_server(true, true).await;
+    let cookie = login(&server).await;
+    disable_market_data_providers(&server, &cookie).await;
+    let (_, token) = create_pat(
+        &server,
+        &cookie,
+        serde_json::json!({
+            "name":"asset-classification-only",
+            "scopes":["classification:read","classification:suggest","classification:write"]
+        }),
+    )
+    .await;
+    let pat = token["token"].as_str().unwrap();
+    let session = mcp_initialize(&server, pat).await;
+    let taxonomy = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "create_taxonomy",
+        serde_json::json!({"input":{
+            "name":"MCP assets", "color":"#808080", "isSystem":false,
+            "isSingleSelect":false, "sortOrder":0, "scope":"asset"
+        }}),
+    )
+    .await;
+    let id = taxonomy["id"].as_str().unwrap();
+    let category = mcp_call_tool(&server, pat, &session, "create_category", serde_json::json!({"input":{
+        "taxonomyId":id,"name":"Asset category","key":"asset-category","color":"#808080","sortOrder":0
+    }})).await;
+    let mut edited = category.clone();
+    edited["name"] = serde_json::json!("Renamed asset category");
+    let saved = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "update_category",
+        serde_json::json!({"input":edited}),
+    )
+    .await;
+    assert_eq!(saved["name"], "Renamed asset category");
+    mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "move_category",
+        serde_json::json!({"taxonomyId":id,"categoryId":category["id"],"position":1}),
+    )
+    .await;
+    let mut renamed = taxonomy.clone();
+    renamed["name"] = serde_json::json!("Renamed asset taxonomy");
+    let saved = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "update_taxonomy",
+        serde_json::json!({"input":renamed}),
+    )
+    .await;
+    assert_eq!(saved["name"], "Renamed asset taxonomy");
+
+    let before = category_api_get(&server, &cookie, "taxonomies/spending_categories").await;
+    let mut spoofed = before["taxonomy"].clone();
+    spoofed["scope"] = serde_json::json!("asset");
+    let transaction_category = before["categories"][0].clone();
+    for (tool, args) in [
+        (
+            "create_taxonomy",
+            serde_json::json!({"input":spoofed.clone()}),
+        ),
+        ("update_taxonomy", serde_json::json!({"input":spoofed})),
+        (
+            "create_category",
+            serde_json::json!({"input":transaction_category.clone()}),
+        ),
+        (
+            "update_category",
+            serde_json::json!({"input":transaction_category.clone()}),
+        ),
+        (
+            "move_category",
+            serde_json::json!({"taxonomyId":"spending_categories","categoryId":transaction_category["id"],"position":1}),
+        ),
+    ] {
+        let error = mcp_call_tool_error(&server, pat, &session, tool, args).await;
+        assert!(error.contains("asset-scoped"), "{tool}: {error}");
+    }
+    let mut spoofed_category = transaction_category;
+    spoofed_category["taxonomyId"] = serde_json::json!(id);
+    let error = mcp_call_tool_error(
+        &server,
+        pat,
+        &session,
+        "update_category",
+        serde_json::json!({"input":spoofed_category}),
+    )
+    .await;
+    assert!(error.contains("Asset category not found"), "{error}");
+    assert_eq!(
+        category_api_get(&server, &cookie, "taxonomies/spending_categories").await,
+        before
+    );
+    for tool in [
+        "update_categorization_rule",
+        "upsert_categorization_rule",
+        "import_rule_preset",
+    ] {
+        let response = mcp_post(&server, Some(pat), Some(&session), serde_json::json!({
+            "jsonrpc":"2.0","id":tool,"method":"tools/call","params":{"name":tool,"arguments":{}}
+        })).await;
+        assert_eq!(response.status(), 200);
+        let result = parse_sse_data(&response.text().await.unwrap());
+        assert!(
+            result["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("unknown tool"),
+            "{tool}: {result}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn mcp_investment_configuration_and_snapshot_workflow() {
     let server = spawn_server(true, true).await;
     let cookie = login(&server).await;
@@ -5790,25 +5919,34 @@ async fn mcp_investment_configuration_and_snapshot_workflow() {
         &server,
         pat,
         &session,
-        "get_taxonomies",
-        serde_json::json!({}),
+        "list_asset_taxonomies",
+        serde_json::json!({"taxonomyId":"asset_classes","includeCategories":true,"categoryDepth":"all"}),
     )
     .await;
-    let taxonomy = taxonomies
+    let taxonomy = taxonomies["taxonomies"]
         .as_array()
         .unwrap()
         .iter()
-        .find(|t| t["taxonomy"]["id"] == "asset_classes")
+        .find(|t| t["taxonomyId"] == "asset_classes")
         .unwrap();
     let category_id = taxonomy["categories"]
         .as_array()
         .unwrap()
         .iter()
-        .find(|c| c["id"] == "EQUITY")
-        .expect("asset taxonomy has the equity category")["id"]
+        .find(|c| c["categoryId"] == "EQUITY")
+        .expect("asset taxonomy has the equity category")["categoryId"]
         .as_str()
         .unwrap();
-    mcp_call_tool(&server,pat,&session,"assign_asset_to_category",serde_json::json!({"input":{"assetId":asset_id,"taxonomyId":"asset_classes","categoryId":category_id,"weight":10000,"source":"manual"}})).await;
+    let classification = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "prepare_asset_classification",
+        serde_json::json!({"assetQuery":asset_id,"taxonomyId":"asset_classes","assignments":[{"categoryId":category_id,"weightBasisPoints":10000,"sourceLabel":"Reviewed allocation"}]}),
+    )
+    .await;
+    assert_eq!(classification["resolvedAsset"]["assetId"], asset_id);
+    mcp_call_tool(&server,pat,&session,"commit_asset_classification_draft",serde_json::json!({"assetId":asset_id,"taxonomyId":"asset_classes","assignments":classification["proposedAssignments"]})).await;
     let configuration = serde_json::json!({"input":{"name":"Allocation","scopeType":"account","scopeId":account_id,"taxonomyId":"asset_classes","triggerType":"threshold","driftBandBps":500},"weights":[{"categoryId":category_id,"targetBps":10000,"isLocked":false,"isRequired":true}]});
     let saved = mcp_call_tool(
         &server,
@@ -6018,7 +6156,7 @@ async fn mcp_business_configuration_and_calculation_contracts() {
     .await;
     let activity = api_post(&server,&cookie,"activities",serde_json::json!({"accountId":account_id,"activityType":"WITHDRAWAL","activityDate":"2026-07-01T12:00:00Z","currency":"EUR","amount":"100","notes":"MCP contract payee"})).await;
     let activity_id = &activity["id"];
-    let search = mcp_call_tool(&server,pat,&session,"search_cash_activities",serde_json::json!({"request":{"limit":1,"offset":0,"sortBy":"amount","sortDir":"asc","search":"MCP contract payee"}})).await;
+    let search = mcp_call_tool(&server,pat,&session,"search_spending_transactions",serde_json::json!({"limit":1,"offset":0,"sortBy":"amount","sortDir":"asc","query":"MCP contract payee"})).await;
     assert!(
         search.to_string().contains(activity_id.as_str().unwrap()),
         "{search}"
@@ -6027,27 +6165,36 @@ async fn mcp_business_configuration_and_calculation_contracts() {
         &server,
         pat,
         &session,
-        "get_taxonomy",
-        serde_json::json!({"id":"spending_categories"}),
+        "list_transaction_categories",
+        serde_json::json!({"taxonomyId":"spending_categories"}),
     )
     .await;
-    let category = taxonomy["categories"]
+    let category = taxonomy["taxonomies"][0]["categories"]
         .as_array()
         .unwrap()
         .iter()
         .find(|c| !c["parentId"].is_null())
         .unwrap();
-    mcp_call_tool(&server,pat,&session,"assign_activity_category",serde_json::json!({"activityId":activity_id,"taxonomyId":"spending_categories","categoryId":category["id"]})).await;
-    mcp_call_tool(&server,pat,&session,"replace_activity_splits",serde_json::json!({"activityId":activity_id,"splits":[{"taxonomyId":"spending_categories","categoryId":category["id"],"amount":"100"}]})).await;
+    mcp_call_tool(&server,pat,&session,"commit_transaction_categories",serde_json::json!({"assignments":[{"activityId":activity_id,"taxonomyId":"spending_categories","categoryId":category["id"]}]})).await;
+    let split_review = mcp_call_tool(&server,pat,&session,"prepare_spending_splits",serde_json::json!({"activityId":activity_id,"splits":[{"taxonomyId":"spending_categories","categoryId":category["id"],"amount":"100"}]})).await;
     let splits = mcp_call_tool(
         &server,
         pat,
         &session,
-        "get_activity_splits",
-        serde_json::json!({"activityId":activity_id}),
+        "commit_spending_splits",
+        split_review["change"].clone(),
     )
     .await;
-    assert_eq!(splits.as_array().unwrap().len(), 1);
+    assert_eq!(splits["splits"].as_array().unwrap().len(), 1);
+    let saved = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "search_spending_transactions",
+        serde_json::json!({"activityIds":[activity_id]}),
+    )
+    .await;
+    assert_eq!(saved["items"][0]["splits"], splits["splits"]);
     let event_type = mcp_call_tool(
         &server,
         pat,
@@ -6056,25 +6203,42 @@ async fn mcp_business_configuration_and_calculation_contracts() {
         serde_json::json!({"input":{"name":"Contract event"}}),
     )
     .await;
-    let event = mcp_call_tool(&server,pat,&session,"create_event",serde_json::json!({"input":{"name":"Trip","eventTypeId":event_type["id"],"startDate":"2026-07-01T00:00:00Z","endDate":"2026-07-03T23:59:59Z"}})).await;
+    let event_review = mcp_call_tool(&server,pat,&session,"prepare_spending_event",serde_json::json!({"event":{"name":"Trip","eventTypeId":event_type["id"],"startDate":"2026-07-01T00:00:00Z","endDate":"2026-07-03T23:59:59Z"}})).await;
+    let event = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "commit_spending_event",
+        event_review["change"].clone(),
+    )
+    .await["created"]
+        .clone();
+    let tag_review = mcp_call_tool(
+        &server,
+        pat,
+        &session,
+        "prepare_spending_event_tag",
+        serde_json::json!({"activityId":activity_id,"eventId":event["id"]}),
+    )
+    .await;
     mcp_call_tool(
         &server,
         pat,
         &session,
-        "set_activity_event",
-        serde_json::json!({"activityId":activity_id,"eventId":event["id"]}),
+        "commit_spending_event_tag",
+        tag_review["change"].clone(),
     )
     .await;
-    let budget = mcp_call_tool(&server,pat,&session,"create_budget_group",serde_json::json!({"input":{"name":"MCP budget","key":"mcp-contract"},"periodKey":"2026-07"})).await;
+    let budget = reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"create_group","group":{"name":"MCP budget","key":"mcp-contract"}}),"2026-07").await;
     let group_id = &budget["computed"]["groupRows"]
         .as_array()
         .unwrap()
         .iter()
         .find(|g| g["group"]["name"] == "MCP budget")
         .unwrap()["group"]["id"];
-    mcp_call_tool(&server,pat,&session,"upsert_budget_target",serde_json::json!({"input":{"periodKey":"2026-07","targetType":"group_buffer","groupId":group_id,"amount":"500"},"periodKey":"2026-07"})).await;
-    mcp_call_tool(&server,pat,&session,"upsert_budget_rollover_setting",serde_json::json!({"input":{"targetType":"group","groupId":group_id,"enabled":true,"startMonth":"2026-07","startingBalance":"10"},"periodKey":"2026-07"})).await;
-    mcp_call_tool(&server,pat,&session,"copy_budget_targets",serde_json::json!({"sourcePeriodKey":"2026-07","targetPeriodKey":"2026-08","overwrite":false})).await;
+    reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"set_target","target":{"periodKey":"2026-07","targetType":"group_buffer","groupId":group_id,"amount":"500"}}),"2026-07").await;
+    reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"set_rollover","setting":{"targetType":"group","groupId":group_id,"enabled":true,"startMonth":"2026-07","startingBalance":"10"}}),"2026-07").await;
+    reviewed_budget_change(&server,pat,&session,serde_json::json!({"operation":"copy_targets","sourcePeriodKey":"2026-07","targetPeriodKey":"2026-08","overwrite":false}),"2026-08").await;
     let copied = mcp_call_tool(
         &server,
         pat,
@@ -6369,17 +6533,10 @@ fn assert_catalog_visibility(actual: &[&str], scopes: &[&str]) {
 }
 
 #[tokio::test]
-async fn fork_budget_mutations_require_explicit_budget_grants() {
+async fn budget_mutations_require_explicit_budget_grants() {
     let server = spawn_server(true, true).await;
     let cookie = login(&server).await;
-    let budget_tools = [
-        "upsert_budget_target",
-        "upsert_budget_rollover_setting",
-        "create_budget_group",
-        "update_budget_group",
-        "assign_category_to_group",
-        "copy_budget_targets",
-    ];
+    let budget_tools = ["commit_budget_change"];
     for (write_scope, can_budget) in [("spending:write", false), ("budget:write", true)] {
         let (status, token) = create_pat(
             &server,
@@ -6416,5 +6573,15 @@ async fn fork_budget_mutations_require_explicit_budget_grants() {
         }
         assert!(!names.contains(&"create_asset"));
         assert!(!names.contains(&"commit_activity_draft"));
+        for retired in [
+            "upsert_budget_target",
+            "upsert_budget_rollover_setting",
+            "create_budget_group",
+            "update_budget_group",
+            "assign_category_to_group",
+            "copy_budget_targets",
+        ] {
+            assert!(!names.contains(&retired), "retired tool {retired}");
+        }
     }
 }

@@ -919,11 +919,6 @@
     "benchmark_local_notice": "Les références utilisent les cours enregistrés. Les données manquantes attendent la mise à jour quotidienne ou un chargement manuel. Retirer une comparaison ne suspend pas les mises à jour ; désactivez le titre.",
     "benchmark_fetch": "Charger / compléter les cours de référence",
     "benchmark_reselect": "Impossible d’enregistrer une référence. Retirez-la et sélectionnez-la à nouveau.",
-    "sync_interval_label": "Intervalle de synchronisation automatique",
-    "sync_interval_description": "Concerne les synchronisations planifiées pendant le fonctionnement de l’application de bureau ou du serveur web. Les modifications prennent effet sous une minute, sans modifier les synchronisations au démarrage ou manuelles.",
-    "sync_interval_hours_one": "Toutes les {{count}} heure",
-    "sync_interval_hours_many": "Toutes les {{count}} heures",
-    "sync_interval_hours_other": "Toutes les {{count}} heures",
     "native_provider_names": {
       "IFIND": "Tonghuashun iFinD",
       "EASTMONEY": "Eastmoney",

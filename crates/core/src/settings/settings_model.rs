@@ -4,13 +4,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub const INSIGHTS_OVERVIEW_LAYOUT_KEY: &str = "insights_overview_layout";
-pub const MARKET_DATA_SYNC_INTERVAL_HOURS_KEY: &str = "market_data_sync_interval_hours";
-pub const DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS: u32 = 6;
-
-fn default_market_data_sync_interval_hours() -> u32 {
-    DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS
-}
-
 pub const MARKET_DATA_SYNC_TIME_KEY: &str = "market_data_sync_time";
 pub const MARKET_DATA_SYNC_TIMEZONE_KEY: &str = "market_data_sync_timezone";
 pub const MARKET_DATA_AUTO_SYNC_LAST_ATTEMPT_KEY: &str = "market_data_auto_sync_last_attempt_at";
@@ -104,8 +97,6 @@ pub struct Settings {
     pub auto_update_check_enabled: bool,
     pub menu_bar_visible: bool,
     pub sync_enabled: bool,
-    #[serde(default = "default_market_data_sync_interval_hours")]
-    pub market_data_sync_interval_hours: u32,
     #[serde(default = "default_market_data_sync_time")]
     pub market_data_sync_time: String,
     #[serde(default = "default_market_data_sync_timezone")]
@@ -145,7 +136,6 @@ impl Default for Settings {
             auto_update_check_enabled: true,
             menu_bar_visible: true,
             sync_enabled: true,
-            market_data_sync_interval_hours: DEFAULT_MARKET_DATA_SYNC_INTERVAL_HOURS,
             market_data_sync_time: default_market_data_sync_time(),
             market_data_sync_timezone: default_market_data_sync_timezone(),
             restore_reconnect_required: false,
@@ -174,7 +164,6 @@ pub struct SettingsUpdate {
     pub auto_update_check_enabled: Option<bool>,
     pub menu_bar_visible: Option<bool>,
     pub sync_enabled: Option<bool>,
-    pub market_data_sync_interval_hours: Option<u32>,
     pub market_data_sync_time: Option<String>,
     pub market_data_sync_timezone: Option<String>,
     pub default_return_metric: Option<String>,

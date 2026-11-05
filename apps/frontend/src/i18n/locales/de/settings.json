@@ -858,10 +858,6 @@
     "benchmark_local_notice": "Benchmarks verwenden gespeicherte Kurse. Fehlende Daten werden täglich oder manuell geladen. Entfernen aus dem Vergleich beendet die Updates nicht; deaktivieren Sie dafür das Wertpapier.",
     "benchmark_fetch": "Benchmark-Historie laden / ergänzen",
     "benchmark_reselect": "Ein Benchmark konnte nicht registriert werden. Entfernen Sie ihn und wählen Sie ihn erneut.",
-    "sync_interval_label": "Automatisches Synchronisierungsintervall",
-    "sync_interval_description": "Gilt für geplante Synchronisierungen, während die Desktop-App oder der Webserver läuft. Änderungen werden innerhalb einer Minute wirksam; Start- und manuelle Synchronisierungen bleiben unverändert.",
-    "sync_interval_hours_one": "Alle {{count}} Stunde",
-    "sync_interval_hours_other": "Alle {{count}} Stunden",
     "native_provider_names": {
       "IFIND": "Tonghuashun iFinD",
       "EASTMONEY": "Eastmoney",

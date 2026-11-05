@@ -666,7 +666,6 @@ function createSettings(): Settings {
     autoUpdateCheckEnabled: true,
     menuBarVisible: true,
     syncEnabled: false,
-    marketDataSyncIntervalHours: 6,
     marketDataSyncTime: "22:00",
     marketDataSyncTimezone: "Asia/Shanghai",
   };

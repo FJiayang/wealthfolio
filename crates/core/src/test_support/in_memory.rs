@@ -1155,11 +1155,14 @@ impl LotRepositoryTrait for InMemoryLotRepository {
 // Quotes
 // ---------------------------------------------------------------------------
 
+pub type QuoteSyncCall = (SyncMode, Option<Vec<String>>);
+
 /// Quote service over fixture observations. Implements the sparse reads the
 /// valuation path uses (in-range keyframes plus one pre-range seed per asset)
-/// and the latest-on-or-before lookups; provider/sync methods are not needed.
+/// and the latest-on-or-before lookups; direct sync recording is opt-in.
 pub struct InMemoryQuoteService {
     pub daily_sync_calls: std::sync::atomic::AtomicUsize,
+    pub sync_calls: Mutex<Option<Vec<QuoteSyncCall>>>,
     pub fail_daily_sync: std::sync::atomic::AtomicBool,
     quotes_by_asset: RwLock<HashMap<String, Vec<Quote>>>,
     assets: HashMap<String, Asset>,
@@ -1194,6 +1197,7 @@ impl InMemoryQuoteService {
     pub fn new(quotes: Vec<Quote>, assets: Vec<Asset>) -> Self {
         let service = Self {
             daily_sync_calls: Default::default(),
+            sync_calls: Default::default(),
             fail_daily_sync: Default::default(),
             quotes_by_asset: RwLock::new(HashMap::new()),
             assets: assets
@@ -1487,8 +1491,14 @@ impl QuoteServiceTrait for InMemoryQuoteService {
         not_needed!("QuoteServiceTrait::fetch_quotes_for_symbol")
     }
 
-    async fn sync(&self, _mode: SyncMode, _asset_ids: Option<Vec<String>>) -> Result<SyncResult> {
-        not_needed!("QuoteServiceTrait::sync")
+    async fn sync(&self, mode: SyncMode, asset_ids: Option<Vec<String>>) -> Result<SyncResult> {
+        self.sync_calls
+            .lock()
+            .unwrap()
+            .as_mut()
+            .expect("QuoteServiceTrait::sync not enabled for this fixture")
+            .push((mode, asset_ids));
+        Ok(SyncResult::default())
     }
 
     async fn resync(&self, _asset_ids: Option<Vec<String>>) -> Result<SyncResult> {

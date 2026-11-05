@@ -63,31 +63,19 @@ async fn update_settings(
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) =
             updated_settings.base_currency.clone();
+    }
 
+    if let Some(market_sync_mode) =
+        MarketSyncMode::for_settings_change(base_currency_changed, timezone_changed)
+    {
         let state_for_job = state.clone();
         tokio::spawn(async move {
-            // Recalculate with saved FX prices; the daily batch fills missing history.
             let job_config = PortfolioJobConfig {
-                account_ids: None,
-                market_sync_mode: MarketSyncMode::None,
+                market_sync_mode,
                 ..PortfolioJobConfig::default()
             };
-
             if let Err(err) = process_portfolio_job(state_for_job, job_config).await {
-                tracing::warn!("Base currency change recalculation failed: {}", err);
-            }
-        });
-    } else if timezone_changed {
-        let state_for_job = state.clone();
-        tokio::spawn(async move {
-            let job_config = PortfolioJobConfig {
-                account_ids: None,
-                market_sync_mode: MarketSyncMode::None,
-                force_full: false,
-            };
-
-            if let Err(err) = process_portfolio_job(state_for_job, job_config).await {
-                tracing::warn!("Timezone change recalculation failed: {}", err);
+                tracing::warn!("Settings change recalculation failed: {}", err);
             }
         });
     }

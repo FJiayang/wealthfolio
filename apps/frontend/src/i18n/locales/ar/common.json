@@ -754,14 +754,7 @@
     "activity_failed_deleting": "فشل في حذف النشاط",
     "activity_failed_duplicating": "فشل في تكرار النشاط",
     "addon_error": "خطأ في الوظيفة الإضافية '{{addonId}}'",
-    "security_update_failed": "فشل في تحديث الأمان",
-    "error_try_later": "{{error}}. يُرجى المحاولة مرة أخرى لاحقًا.",
-    "categorized_one": "تم تصنيف {{count}} نشاط.",
-    "categorized_other": "تم تصنيف {{count}} نشاط.",
-    "categorized_few": "أنشطة {{count}} مصنفة.",
-    "categorized_many": "أنشطة {{count}} مصنفة.",
-    "categorized_two": "أنشطة {{count}} مصنفة.",
-    "categorized_zero": "أنشطة {{count}} مصنفة."
+    "security_update_failed": "فشل في تحديث الأمان"
   },
   "validation": {
     "accountNameMin": "يجب ألا يقل الاسم عن حرفين.",

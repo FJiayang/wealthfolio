@@ -12,7 +12,48 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
-## v3.12.0.1 — Unreleased
+## v3.12.0.2 — Unreleased
+
+- Remove 26 overlapping fork MCP tools, their service extensions and old direct
+  write paths. Use upstream Spending, rules, budgets, transfers and asset
+  classification contracts; see the
+  [tool migration table](architecture/mcp-capability-coverage.md#removed-fork-tools-and-upstream-replacements).
+  Old names return unknown-tool errors. Existing tokens receive no new grants.
+- Restrict retained taxonomy maintenance to persisted asset taxonomies,
+  rejecting transaction taxonomies even when a request forges its scope. Retain
+  independent Spending settings and event-type tools. Saving rules does not
+  classify history; explicit upstream reruns preserve manual classifications and
+  splits.
+- Restore immediate targeted sync for provider-backed FX additions and history
+  backfill before recalculation after base-currency changes. Manual FX changes
+  and display-timezone changes recalculate locally. These operations do not use
+  the daily attempt record.
+- Retain the fork's daily time, schedule timezone, persisted attempt and
+  existing startup/resume policy. Normal business events keep that policy; no
+  additional upstream commits are integrated.
+- Restore upstream enrichment name/currency precedence while retaining identity
+  checks, metadata merging, initial enrichment, deduplication and atomic
+  cleanup. Restore upstream AmountDisplay gain/loss behavior for the three
+  balance fields and remove their CI exemptions.
+- Remove the unused interval setting API, validation, types and translations.
+  Historical database keys are ignored without migration. Remove unused fork
+  translation keys and the no-op allocation alias.
+- Preserve fork providers, request diagnostics, trade instructions, benchmark
+  selection and addon import. Include the original local gitignore change with
+  author and cherry-pick provenance; local helper files are not committed.
+
+Architecture impact: required FX operations may request market data immediately,
+using the existing job queue and lock. Daily scheduling remains an explicit fork
+difference. Upstream MCP scopes, preview/commit and concurrent-write protection
+apply. SQLite, SecretStore, provider opt-in and local asset resolution
+boundaries remain unchanged; no new background task, retry or persisted state is
+added.
+
+Validation: focused results are recorded in the PR. Full checks, both frontend
+builds and the deterministic browser matrix run in CI. Live market providers and
+physical devices are not verified locally.
+
+## v3.12.0.1
 
 - Merge upstream main through `367615abd9db92a046b9d1fb65eb2c1ae33d8b47`,
   including v3.12.0 and the subsequent CSV delimiter, currency picker, updater

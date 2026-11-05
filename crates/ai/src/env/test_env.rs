@@ -1629,54 +1629,6 @@ pub struct MockCashActivityService {
 
 #[async_trait]
 impl CashActivityServiceTrait for MockCashActivityService {
-    async fn list(
-        &self,
-        _filter: wealthfolio_spending::cash_activities::CashActivityFilter,
-    ) -> anyhow::Result<Vec<wealthfolio_spending::cash_activities::CashActivity>> {
-        unimplemented!("unused mock operation")
-    }
-
-    async fn list_assignments(
-        &self,
-        _activity_id: &str,
-    ) -> anyhow::Result<Vec<wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignment>>
-    {
-        unimplemented!("unused mock operation")
-    }
-
-    async fn assign_category(
-        &self,
-        _activity_id: &str,
-        _taxonomy_id: &str,
-        _category_id: &str,
-    ) -> anyhow::Result<wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignment>
-    {
-        unimplemented!("unused mock operation")
-    }
-
-    async fn list_splits(
-        &self,
-        _activity_id: &str,
-    ) -> anyhow::Result<Vec<wealthfolio_spending::activity_splits::ActivitySplit>> {
-        unimplemented!("unused mock operation")
-    }
-
-    async fn replace_splits(
-        &self,
-        _activity_id: &str,
-        _splits: Vec<wealthfolio_spending::activity_splits::NewActivitySplit>,
-    ) -> anyhow::Result<Vec<wealthfolio_spending::activity_splits::ActivitySplit>> {
-        unimplemented!("unused mock operation")
-    }
-
-    async fn set_event(
-        &self,
-        _activity_id: &str,
-        _event_id: Option<String>,
-    ) -> anyhow::Result<wealthfolio_core::activities::Activity> {
-        unimplemented!("unused mock operation")
-    }
-
     async fn set_event_reviewed(
         &self,
         _: &str,
@@ -1755,21 +1707,6 @@ pub struct MockCategorizationRulesService {
 
 #[async_trait]
 impl CategorizationRulesServiceTrait for MockCategorizationRulesService {
-    async fn update(
-        &self,
-        _id: &str,
-        _patch: wealthfolio_spending::categorization_rules::UpdateCategorizationRule,
-    ) -> anyhow::Result<wealthfolio_spending::categorization_rules::CategorizationRule> {
-        unimplemented!("unused mock operation")
-    }
-
-    async fn upsert(
-        &self,
-        _rule: wealthfolio_spending::categorization_rules::NewCategorizationRule,
-    ) -> anyhow::Result<wealthfolio_spending::categorization_rules::CategorizationRule> {
-        unimplemented!("unused mock operation")
-    }
-
     async fn rerun_all(
         &self,
         _account_ids: &[String],
@@ -1914,10 +1851,6 @@ impl AgentEnvironment for MockEnvironment {
     }
 
     fn asset_logo_service(&self) -> Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait> {
-        unimplemented!("unused test service")
-    }
-
-    fn budget_management_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
         unimplemented!("unused test service")
     }
 

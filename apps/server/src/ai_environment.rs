@@ -310,10 +310,6 @@ impl AgentEnvironment for ServerAiEnvironment {
         self.budget_service.clone()
     }
 
-    fn budget_management_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
-        self.budget_service.clone()
-    }
-
     fn spending_events_service(&self) -> Arc<dyn wealthfolio_spending::events::EventsServiceTrait> {
         self.events_service.clone()
     }

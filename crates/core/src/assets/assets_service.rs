@@ -1434,14 +1434,30 @@ impl AssetService {
             }
         }
 
+        let effective_instrument_type = updated_instrument_type
+            .clone()
+            .or(existing_asset.instrument_type.clone());
+        let canonical = canonicalize_market_identity(
+            effective_instrument_type,
+            existing_asset
+                .instrument_symbol
+                .as_deref()
+                .or(existing_asset.display_code.as_deref()),
+            existing_asset.instrument_exchange_mic.as_deref(),
+            Some(provider_profile.currency.as_str()),
+        );
+        let resolved_quote_ccy = canonical
+            .quote_ccy
+            .unwrap_or_else(|| existing_asset.quote_ccy.clone());
+
         // Build profile update from provider data
         let mut update = UpdateAssetProfile {
             display_code: existing_asset.display_code.clone(),
-            name: existing_asset.name.clone().or(provider_profile.name),
+            name: provider_profile.name.or(existing_asset.name.clone()),
             notes: existing_asset.notes.clone().unwrap_or_default(),
             kind: None,
             quote_mode: Some(existing_asset.quote_mode),
-            quote_ccy: Some(existing_asset.quote_ccy.clone()),
+            quote_ccy: Some(resolved_quote_ccy),
             instrument_type: updated_instrument_type,
             instrument_symbol: None,
             instrument_exchange_mic: None,
@@ -3103,7 +3119,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     #[tokio::test]
-    async fn native_creation_is_idempotent_and_enrichment_preserves_user_fields() {
+    async fn native_creation_is_idempotent_and_enrichment_uses_provider_fields() {
         use crate::activities::activities_service_tests::tests::MockActivityRepository;
         let repo = Arc::new(TestAssetRepository::with_assets(vec![]));
         let quotes = Arc::new(TestQuoteService::default());
@@ -3143,8 +3159,8 @@ mod tests {
             },
         );
         let enriched = service.enrich_asset_profile(id).await.unwrap();
-        assert_eq!(enriched.name.as_deref(), Some("用户名称"));
-        assert_eq!(enriched.quote_ccy, "CNY");
+        assert_eq!(enriched.name.as_deref(), Some("提供方名称"));
+        assert_eq!(enriched.quote_ccy, "USD");
         assert_eq!(enriched.provider_config, asset.provider_config);
         assert_eq!(enriched.instrument_symbol, asset.instrument_symbol);
     }
