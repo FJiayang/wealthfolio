@@ -197,7 +197,26 @@ detail page contains its own paginated list. The UI supplies the current goal
 ID; MCP creation requires `goalId`, and the shared service verifies it before
 asset resolution. `notes` is optional in both entry points; the separate
 `rationale` field has been removed. The creation sheet reuses the activity type
-picker and form sections, showing the form only after Buy or Sell is selected.
+picker and form sections for BUY, SELL, TRANSFER, DEPOSIT, WITHDRAWAL and
+CONVERSION. Cash instructions have no asset. Internal transfers use accountId
+for the source and transfer.toAccountId for the destination; external transfers
+use accountId for the local account and transfer.direction for in/out. Cash
+transfers include both currencies, with an optional destination amount;
+same-currency amounts must match. Securities transfers use quantity, with
+optional unitPrice/costCurrency only for external transfers in. Conversion uses
+asset/quantity for the outgoing investment and conversion.toAsset/toQuantity for
+the incoming investment. Incoming amounts, units and cost may remain unknown,
+including at completion. Instructions do not check current balances or holdings.
+
+The existing side filter remains supported; sides filters multiple operation
+types, and callers cannot send both. Account filtering matches either end of an
+internal transfer without duplicate results. Edits replace all editable content
+and clear omitted details when changing type. Cash operations skip asset
+resolution; asset-backed operations retain the existing manual resolver and
+provider policy. The new migration preserves every legacy instruction column and
+creation hash, makes asset snapshots nullable and adds typed transfer and
+conversion JSON details. It uses the existing SQLite writer and migration backup
+path without activities, quotes, sync outbox entries or portfolio recalculation.
 
 Architecture impact: the goal is a required parent. Deleting a goal cascades to
 its local instructions; instructions still do not affect goal valuations or

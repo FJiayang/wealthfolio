@@ -29,6 +29,79 @@ impl InstructionStatus {
 pub enum InstructionSide {
     Buy,
     Sell,
+    Transfer,
+    Deposit,
+    Withdrawal,
+    Conversion,
+}
+impl InstructionSide {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Buy => "BUY",
+            Self::Sell => "SELL",
+            Self::Transfer => "TRANSFER",
+            Self::Deposit => "DEPOSIT",
+            Self::Withdrawal => "WITHDRAWAL",
+            Self::Conversion => "CONVERSION",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InstructionTransferMode {
+    Cash,
+    Securities,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InstructionTransferDirection {
+    In,
+    Out,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InstructionTransferInput {
+    pub mode: InstructionTransferMode,
+    pub is_external: bool,
+    pub direction: Option<InstructionTransferDirection>,
+    pub to_account_id: Option<String>,
+    pub destination_currency: Option<String>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub destination_amount: Option<Decimal>,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub unit_price: Option<Decimal>,
+    pub cost_currency: Option<String>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstructionTransfer {
+    pub mode: InstructionTransferMode,
+    pub is_external: bool,
+    pub direction: Option<InstructionTransferDirection>,
+    pub to_account_id: Option<String>,
+    pub to_account_name: Option<String>,
+    pub destination_currency: Option<String>,
+    #[serde(with = "rust_decimal::serde::str_option")]
+    pub destination_amount: Option<Decimal>,
+    #[serde(with = "rust_decimal::serde::str_option")]
+    pub unit_price: Option<Decimal>,
+    pub cost_currency: Option<String>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InstructionConversionInput {
+    pub to_asset: AssetResolutionInput,
+    #[serde(default, with = "rust_decimal::serde::str_option")]
+    pub to_quantity: Option<Decimal>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstructionConversion {
+    pub to_asset_id: String,
+    pub to_asset_snapshot: InstructionAssetSnapshot,
+    #[serde(with = "rust_decimal::serde::str_option")]
+    pub to_quantity: Option<Decimal>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
@@ -43,7 +116,7 @@ pub struct NewTradeInstruction {
     pub goal_id: String,
     pub request_id: String,
     pub account_id: String,
-    pub asset: AssetResolutionInput,
+    pub asset: Option<AssetResolutionInput>,
     pub side: InstructionSide,
     #[serde(default, with = "rust_decimal::serde::str_option")]
     pub quantity: Option<Decimal>,
@@ -54,6 +127,11 @@ pub struct NewTradeInstruction {
     pub limit_price: Option<Decimal>,
     pub notes: Option<String>,
     pub expected_completion_at: Option<DateTime<Utc>>,
+    // Omit new fields so legacy buy/sell request hashes remain identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transfer: Option<InstructionTransferInput>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversion: Option<InstructionConversionInput>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,9 +152,9 @@ pub struct TradeInstruction {
     #[serde(skip_serializing, default)]
     pub request_hash: String,
     pub account_id: String,
-    pub asset_id: String,
+    pub asset_id: Option<String>,
     pub account_name: String,
-    pub asset_snapshot: InstructionAssetSnapshot,
+    pub asset_snapshot: Option<InstructionAssetSnapshot>,
     pub side: InstructionSide,
     #[serde(with = "rust_decimal::serde::str_option")]
     pub quantity: Option<Decimal>,
@@ -96,6 +174,8 @@ pub struct TradeInstruction {
     pub closed_at: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,
     pub version: i32,
+    pub transfer: Option<InstructionTransfer>,
+    pub conversion: Option<InstructionConversion>,
 }
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -111,6 +191,7 @@ pub struct InstructionFilter {
     pub statuses: Option<Vec<InstructionStatus>>,
     pub account_id: Option<String>,
     pub side: Option<InstructionSide>,
+    pub sides: Option<Vec<InstructionSide>>,
     pub expected_completion_from: Option<DateTime<Utc>>,
     pub expected_completion_before: Option<DateTime<Utc>>,
     pub sort: Option<InstructionSort>,
@@ -128,7 +209,7 @@ pub struct InstructionPage {
 pub struct UpdateTradeInstruction {
     pub expected_version: i32,
     pub account_id: String,
-    pub asset: AssetResolutionInput,
+    pub asset: Option<AssetResolutionInput>,
     pub side: InstructionSide,
     #[serde(default, with = "rust_decimal::serde::str_option")]
     pub quantity: Option<Decimal>,
@@ -139,6 +220,8 @@ pub struct UpdateTradeInstruction {
     pub limit_price: Option<Decimal>,
     pub notes: Option<String>,
     pub expected_completion_at: Option<DateTime<Utc>>,
+    pub transfer: Option<InstructionTransferInput>,
+    pub conversion: Option<InstructionConversionInput>,
 }
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

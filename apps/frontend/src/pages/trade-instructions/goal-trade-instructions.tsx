@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { DateRange } from "react-day-picker";
 import type { OnChangeFn, SortingState } from "@tanstack/react-table";
-import type { InstructionStatus, TradeInstruction } from "@/adapters";
+import {
+  INSTRUCTION_SIDES,
+  type InstructionSide,
+  type InstructionStatus,
+  type TradeInstruction,
+} from "@/adapters";
 import { useAccounts } from "@/hooks/use-accounts";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import {
@@ -42,7 +47,7 @@ export function GoalTradeInstructions({ goalId }: { goalId: string }) {
     goalId,
     statuses: [...status] as InstructionStatus[],
     accountId: [...account][0],
-    side: sides.size === 1 ? ([...sides][0] as "BUY" | "SELL") : undefined,
+    sides: [...sides] as InstructionSide[],
     ...completionDateBounds(dateRange, timezone),
     sort: sorting[0]?.desc ? "expectedCompletionDesc" : "expectedCompletionAsc",
     limit: pageSize,
@@ -94,7 +99,7 @@ export function GoalTradeInstructions({ goalId }: { goalId: string }) {
         />
         <FacetedFilter
           title={t("side")}
-          options={["BUY", "SELL"].map((value) => ({ value, label: t(value) }))}
+          options={INSTRUCTION_SIDES.map((value) => ({ value, label: t(value) }))}
           selectedValues={sides}
           onFilterChange={(next) => {
             setSides(next);

@@ -335,7 +335,7 @@ for (const rtl of [false, true]) {
     await expect(list.getByRole("row").filter({ hasText: "Pagination 20" })).toBeVisible();
     await list
       .getByTestId("instruction-filters")
-      .getByRole("button", { name: "Side", exact: true })
+      .getByRole("button", { name: "Operation type", exact: true })
       .click();
     await page.getByRole("option", { name: "Sell", exact: true }).click();
     await page.keyboard.press("Escape");
@@ -346,7 +346,7 @@ for (const rtl of [false, true]) {
     await expect(list.getByRole("combobox", { name: "Rows per page" })).toHaveText("50");
     await expect(list.getByRole("grid")).toHaveAttribute("aria-rowcount", "25");
     await list.getByRole("button", { name: "Toggle columns", exact: true }).click();
-    await expect(page.getByRole("menuitemcheckbox")).toHaveCount(10);
+    await expect(page.getByRole("menuitemcheckbox")).toHaveCount(11);
     await expect(page.getByRole("menuitemcheckbox", { name: /actions/i })).toHaveCount(0);
     await page.keyboard.press("Escape");
     const gridViewport = list.getByRole("grid");
@@ -758,6 +758,77 @@ test("MCP manages the instruction lifecycle with one write permission", async ({
       ).result.isError,
     ).not.toBe(true);
     expect(await listRows()).toHaveLength(0);
+
+    for (const fields of [
+      { side: "DEPOSIT", amount: "10.123456789", amountCurrency: "USD" },
+      { side: "WITHDRAWAL", amount: "2", amountCurrency: "USD" },
+      {
+        side: "TRANSFER",
+        amount: "3",
+        amountCurrency: "USD",
+        transfer: {
+          mode: "cash",
+          isExternal: false,
+          toAccountId: account.id,
+          destinationCurrency: "EUR",
+        },
+      },
+      {
+        side: "TRANSFER",
+        asset: { id: initial.assetId },
+        quantity: "1",
+        transfer: { mode: "securities", isExternal: true, direction: "in" },
+      },
+      {
+        side: "CONVERSION",
+        asset: { id: initial.assetId },
+        quantity: "1",
+        conversion: {
+          toAsset: {
+            symbol: "MCPTO",
+            name: "Conversion target",
+            quoteMode: "MANUAL",
+            quoteCcy: "USD",
+            instrumentType: "ETF",
+          },
+        },
+      },
+    ]) {
+      const requestId = randomUUID();
+      const created = await rpc("tools/call", {
+        name: "create_trade_instruction",
+        arguments: { input: { goalId: goal.id, requestId, accountId: account.id, ...fields } },
+      });
+      expect(created.result.isError).not.toBe(true);
+      const row = (await listRows()).find(
+        (item: { requestId: string }) => item.requestId === requestId,
+      );
+      expect(row.side).toBe(fields.side);
+      const filtered = await rpc("tools/call", {
+        name: "list_trade_instructions",
+        arguments: { filter: { goalId: goal.id, sides: [fields.side], accountId: account.id } },
+      });
+      expect(filtered.result.isError).not.toBe(true);
+      expect(
+        (
+          await rpc("tools/call", {
+            name: "complete_trade_instruction",
+            arguments: { id: row.id, input: { expectedVersion: row.version } },
+          })
+        ).result.isError,
+      ).not.toBe(true);
+      const completed = await readRow(row.id);
+      expect(completed.status).toBe("COMPLETED");
+      expect(
+        (
+          await rpc("tools/call", {
+            name: "delete_trade_instruction",
+            arguments: { id: row.id, input: { expectedVersion: completed.version } },
+          })
+        ).result.isError,
+      ).not.toBe(true);
+    }
+    expect(await listRows()).toHaveLength(0);
     const activities = await (
       await page.request.post(`${api}/activities/search`, {
         data: { page: 0, pageSize: 100, accountIdFilter: [account.id] },
@@ -768,3 +839,137 @@ test("MCP manages the instruction lifecycle with one write permission", async ({
     for (const id of tokenIds) await page.request.delete(`${api}/agent-access/tokens/${id}`);
   }
 });
+
+for (const rtl of [false, true]) {
+  test(`instruction actions: cash, transfer and conversion (${rtl ? "RTL" : "LTR"})`, async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await loginIfNeeded(page);
+    await page.setViewportSize({ width: rtl ? 390 : 1280, height: 900 });
+    const api = `${BASE_URL}/api/v1`;
+    const suffix = randomUUID().slice(0, 8);
+    const accountName = `Action account ${suffix}`;
+    const accountResponse = await page.request.post(`${api}/accounts`, {
+      data: {
+        name: accountName,
+        accountType: "SECURITIES",
+        currency: "USD",
+        isDefault: false,
+        isActive: true,
+        isArchived: false,
+        trackingMode: "TRANSACTIONS",
+      },
+    });
+    expect(accountResponse.ok()).toBeTruthy();
+    const account = await accountResponse.json();
+    const goalResponse = await page.request.post(`${api}/goals`, {
+      data: {
+        title: `Action goal ${suffix}`,
+        goalType: "custom_save_up",
+        targetAmount: 1000,
+        currency: "USD",
+      },
+    });
+    expect(goalResponse.ok()).toBeTruthy();
+    const goal = await goalResponse.json();
+    const symbols = [`FROM${suffix}`, `TO${suffix}`];
+    for (const symbol of symbols) {
+      const response = await page.request.post(`${api}/assets`, {
+        data: {
+          kind: "INVESTMENT",
+          name: symbol,
+          displayCode: symbol,
+          instrumentSymbol: symbol,
+          instrumentType: "ETF",
+          quoteMode: "MANUAL",
+          quoteCcy: "USD",
+        },
+      });
+      expect(response.ok()).toBeTruthy();
+    }
+    await page.goto(`${BASE_URL}/goals/${goal.id}${rtl ? "?dir=rtl" : ""}`);
+    const dialog = page.getByTestId("instruction-form-dialog");
+    const rows = async (side: string) => {
+      const response = await page.request.post(`${api}/trade-instructions/list`, {
+        data: { goalId: goal.id, sides: [side] },
+      });
+      expect(response.ok()).toBeTruthy();
+      return (await response.json()).items;
+    };
+    for (const side of ["DEPOSIT", "WITHDRAWAL"]) {
+      await page.getByRole("button", { name: "New instruction", exact: true }).click();
+      await dialog.getByTestId(`activity-type-${side.toLowerCase()}`).click();
+      await expect(dialog.getByRole("textbox", { name: "Quantity", exact: true })).toHaveCount(0);
+      await selectAccountOption(page, accountName, "USD", dialog.getByTestId("account-select"));
+      await dialog.getByRole("textbox", { name: "Amount", exact: true }).fill("12.123456789");
+      await dialog.getByRole("button", { name: "New instruction", exact: true }).click();
+      await expect(dialog).toBeHidden();
+      const [saved] = await rows(side);
+      expect(saved.assetId).toBeNull();
+      expect(saved.assetSnapshot).toBeNull();
+      expect(saved.amount).toBe("12.123456789");
+    }
+    await page.getByRole("button", { name: "New instruction", exact: true }).click();
+    await dialog.getByTestId("activity-type-transfer").click();
+    for (const label of ["From Account", "To Account"]) {
+      await selectAccountOption(
+        page,
+        accountName,
+        "USD",
+        dialog.getByRole("combobox", { name: label, exact: true }),
+      );
+    }
+    await dialog.getByRole("textbox", { name: "Amount", exact: true }).fill("10");
+    await dialog.getByRole("combobox", { name: "Destination currency" }).click();
+    await page.getByRole("option", { name: /EUR/ }).first().click();
+    await dialog.getByRole("button", { name: "New instruction", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    const [transfer] = await rows("TRANSFER");
+    expect(transfer.transfer.toAccountId).toBe(account.id);
+    expect(transfer.transfer.destinationCurrency).toBe("EUR");
+    expect(transfer.transfer.destinationAmount).toBeNull();
+
+    await page.getByRole("button", { name: "New instruction", exact: true }).click();
+    await dialog.getByTestId("activity-type-buy").click();
+    await dialog.getByRole("textbox", { name: "Quantity", exact: true }).fill("99");
+    await dialog.getByTestId("activity-type-conversion").click();
+    await expect(dialog.getByRole("textbox", { name: "Quantity", exact: true })).toHaveValue("");
+    await selectAccountOption(page, accountName, "USD", dialog.getByTestId("account-select"));
+    for (const symbol of symbols) {
+      await dialog
+        .getByRole("combobox")
+        .filter({ hasText: /Select symbol/i })
+        .first()
+        .click();
+      await page.getByPlaceholder("Search for symbol").fill(symbol);
+      await page
+        .getByRole("option")
+        .filter({ hasText: symbol, hasNotText: /Create custom/i })
+        .first()
+        .click();
+    }
+    await dialog.getByRole("textbox", { name: "Quantity", exact: true }).fill("2.123456789");
+    await dialog.getByRole("button", { name: "New instruction", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    const [conversion] = await rows("CONVERSION");
+    expect(conversion.conversion.toQuantity).toBeNull();
+    expect(conversion.assetId).not.toBe(conversion.conversion.toAssetId);
+    const item = page
+      .getByTestId("goal-trade-instructions")
+      .getByRole("row")
+      .filter({ hasText: symbols[0] });
+    await item.getByRole("button", { name: new RegExp(symbols[0]) }).click();
+    const detail = page.getByRole("dialog", { name: "Instruction details" });
+    await expect(detail.getByText("Undetermined", { exact: true })).toBeVisible();
+    await detail.getByRole("button", { name: "Mark complete", exact: true }).click();
+    await detail.getByRole("button", { name: "Confirm", exact: true }).click();
+    await expect(detail.getByText("Completed", { exact: true })).toBeVisible();
+    const activities = await (
+      await page.request.post(`${api}/activities/search`, {
+        data: { page: 0, pageSize: 100, accountIdFilter: [account.id] },
+      })
+    ).json();
+    expect(activities.data).toHaveLength(0);
+  });
+}

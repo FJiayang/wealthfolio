@@ -14,11 +14,11 @@ import {
   useLocalizationSettings,
 } from "@wealthfolio/ui";
 import { DataGrid, useDataGrid } from "@wealthfolio/ui/components/data-grid";
-import type { TradeInstruction } from "@/adapters";
+import { INSTRUCTION_SIDES, type InstructionSide, type TradeInstruction } from "@/adapters";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
-import { ActivityTypeBadge } from "@/pages/activity/components/activity-type-badge";
+import { InstructionTypeBadge } from "./instruction-display";
+import { instructionAssetLabel } from "./instruction-label";
 import { InstructionActions } from "./instruction-actions";
-import { ActivityType } from "@/lib/constants";
 
 interface InstructionGridProps {
   items: TradeInstruction[];
@@ -47,6 +47,16 @@ export function InstructionGrid({
             ...row,
             quantity: row.quantity === null ? null : "••••",
             amount: row.amount === null ? null : "••••",
+            transfer: row.transfer
+              ? {
+                  ...row.transfer,
+                  destinationAmount: row.transfer.destinationAmount ? "••••" : null,
+                  unitPrice: row.transfer.unitPrice ? "••••" : null,
+                }
+              : row.transfer,
+            conversion: row.conversion
+              ? { ...row.conversion, toQuantity: row.conversion.toQuantity ? "••••" : null }
+              : row.conversion,
           }))
         : items,
     [items, isBalanceHidden],
@@ -64,7 +74,26 @@ export function InstructionGrid({
         accessorKey: "accountName",
         header: t("account"),
         size: 160,
-        meta: { cell: { variant: "select", options: [] } },
+        meta: {
+          cell: {
+            variant: "select",
+            options: [],
+            valueRenderer: (_value, _option, data) => {
+              const row = data as TradeInstruction;
+              return row.transfer ? (
+                <span className="truncate">
+                  {row.transfer.isExternal
+                    ? row.transfer.direction === "in"
+                      ? `${t("external")} → ${row.accountName}`
+                      : `${row.accountName} → ${t("external")}`
+                    : `${row.accountName} → ${row.transfer.toAccountName}`}
+                </span>
+              ) : (
+                row.accountName
+              );
+            },
+          },
+        },
       },
       {
         accessorKey: "side",
@@ -73,10 +102,8 @@ export function InstructionGrid({
         meta: {
           cell: {
             variant: "select",
-            options: ["BUY", "SELL"].map((value) => ({ value, label: t(value) })),
-            valueRenderer: (value) => (
-              <ActivityTypeBadge type={value === "BUY" ? ActivityType.BUY : ActivityType.SELL} />
-            ),
+            options: INSTRUCTION_SIDES.map((value) => ({ value, label: t(value) })),
+            valueRenderer: (value) => <InstructionTypeBadge side={value as InstructionSide} />,
           },
         },
       },
@@ -91,26 +118,24 @@ export function InstructionGrid({
               className="h-full max-w-full justify-start truncate p-0 text-xs"
               onClick={() => onOpen(row.original.id)}
             >
-              {row.original.assetSnapshot.symbol || row.original.assetSnapshot.name}
+              {instructionAssetLabel(row.original)}
             </Button>
-            {row.original.assetSnapshot.symbol &&
-              row.original.assetSnapshot.name &&
-              row.original.assetSnapshot.name !== row.original.assetSnapshot.symbol && (
+            {row.original.assetSnapshot?.symbol &&
+              row.original.assetSnapshot?.name &&
+              row.original.assetSnapshot?.name !== row.original.assetSnapshot?.symbol && (
                 <Badge
                   variant="secondary"
                   className="min-w-0 truncate"
-                  title={row.original.assetSnapshot.name}
+                  title={row.original.assetSnapshot?.name}
                 >
-                  {row.original.assetSnapshot.name}
+                  {row.original.assetSnapshot?.name}
                 </Badge>
               )}
           </div>
         ),
         size: 320,
         accessorFn: (row) =>
-          [row.assetSnapshot.symbol || row.assetSnapshot.name, row.assetSnapshot.exchangeMic]
-            .filter(Boolean)
-            .join(" "),
+          [instructionAssetLabel(row), row.assetSnapshot?.exchangeMic].filter(Boolean).join(" "),
       },
       {
         accessorKey: "quantity",
@@ -141,7 +166,11 @@ export function InstructionGrid({
                 ? "—"
                 : isBalanceHidden
                   ? "••••"
-                  : formatAmount(value, row.amountCurrency ?? row.assetSnapshot.quoteCcy, false);
+                  : formatAmount(
+                      value,
+                      row.amountCurrency ?? row.assetSnapshot?.quoteCcy ?? "",
+                      false,
+                    );
             },
           },
         },
@@ -150,7 +179,31 @@ export function InstructionGrid({
         id: "currency",
         header: t("currency"),
         size: 80,
-        accessorFn: (row) => row.amountCurrency ?? row.assetSnapshot.quoteCcy,
+        accessorFn: (row) => row.amountCurrency ?? row.assetSnapshot?.quoteCcy ?? "",
+      },
+      {
+        id: "destination",
+        header: t("destination"),
+        size: 190,
+        accessorFn: (row) => {
+          if (row.conversion)
+            return row.conversion.toQuantity == null
+              ? t("undetermined")
+              : isBalanceHidden
+                ? "••••"
+                : formatQuantity(row.conversion.toQuantity);
+          if (row.transfer?.mode === "cash" && !row.transfer.isExternal)
+            return row.transfer.destinationAmount == null
+              ? t("undetermined")
+              : isBalanceHidden
+                ? "••••"
+                : formatAmount(
+                    row.transfer.destinationAmount,
+                    row.transfer.destinationCurrency ?? "",
+                    false,
+                  );
+          return "—";
+        },
       },
       {
         accessorKey: "status",

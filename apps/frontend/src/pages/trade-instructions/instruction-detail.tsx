@@ -20,7 +20,8 @@ import {
 } from "@wealthfolio/ui";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
 import { DetailRow, DetailSection } from "@/pages/activity/components/activity-detail-sheet";
-import { ActivityTypeBadge } from "@/pages/activity/components/activity-type-badge";
+import { InstructionTypeBadge } from "./instruction-display";
+import { instructionAssetLabel } from "./instruction-label";
 import { Label } from "@wealthfolio/ui/components/ui/label";
 import { Textarea } from "@wealthfolio/ui/components/ui/textarea";
 import { useNumberFormatting, useDateFormatting, useLocalizationSettings } from "@wealthfolio/ui";
@@ -81,7 +82,7 @@ export function InstructionDetail({ id }: { id: string }) {
           <span>{t("detail")}</span>
           {query.data && (
             <span className="text-muted-foreground text-xs font-normal">
-              {query.data.assetSnapshot.symbol || query.data.assetSnapshot.name}
+              {instructionAssetLabel(query.data)}
             </span>
           )}
         </div>
@@ -127,7 +128,7 @@ export function InstructionDetail({ id }: { id: string }) {
       ? t("notSet")
       : isBalanceHidden
         ? "••••"
-        : formatPrice(row.limitPrice, row.assetSnapshot.quoteCcy);
+        : formatPrice(row.limitPrice, row.assetSnapshot?.quoteCcy ?? "");
   const late =
     row.expectedCompletionAt &&
     row.completedAt &&
@@ -142,9 +143,9 @@ export function InstructionDetail({ id }: { id: string }) {
               <div className="text-muted-foreground mb-1 text-xs tracking-wide uppercase">
                 {t(row.side)}
               </div>
-              <div className="text-xl font-bold break-words">{row.assetSnapshot.symbol}</div>
+              <div className="text-xl font-bold break-words">{instructionAssetLabel(row)}</div>
               <div className="text-muted-foreground text-sm break-words">
-                {row.assetSnapshot.name}
+                {row.assetSnapshot?.name}
               </div>
             </div>
             <Badge
@@ -177,14 +178,30 @@ export function InstructionDetail({ id }: { id: string }) {
           title={t("activity:detail.transaction")}
           icon={<Icons.ArrowLeftRight className="h-4 w-4" />}
         >
-          <DetailRow label={t("side")} value={<ActivityTypeBadge type={row.side} />} />
+          <DetailRow label={t("side")} value={<InstructionTypeBadge side={row.side} />} />
           <DetailRow label={t("account")} value={row.accountName} />
-          <DetailRow
-            label={t("asset")}
-            value={[row.assetSnapshot.symbol, row.assetSnapshot.exchangeMic]
-              .filter(Boolean)
-              .join(" · ")}
-          />
+          {row.transfer && (
+            <>
+              <DetailRow label={t("transferMode")} value={t(row.transfer.mode)} />
+              <DetailRow
+                label={t("transferScope")}
+                value={t(row.transfer.isExternal ? "external" : "internal")}
+              />
+              {row.transfer.isExternal ? (
+                <DetailRow label={t("direction")} value={t(row.transfer.direction!)} />
+              ) : (
+                <DetailRow label={t("toAccount")} value={row.transfer.toAccountName} />
+              )}
+            </>
+          )}
+          {row.assetSnapshot && (
+            <DetailRow
+              label={t("asset")}
+              value={[row.assetSnapshot.symbol, row.assetSnapshot.exchangeMic]
+                .filter(Boolean)
+                .join(" · ")}
+            />
+          )}
           <DetailRow label={t("expectedCompletionAt")} value={date(row.expectedCompletionAt)} />
           <DetailRow label={t("completedAt")} value={date(row.completedAt)} />
           {row.completedAt && row.expectedCompletionAt && (
@@ -198,10 +215,70 @@ export function InstructionDetail({ id }: { id: string }) {
           icon={<Icons.DollarSign className="h-4 w-4" />}
         >
           <DetailRow label={sizeLabel} value={size} />
-          <DetailRow label={t("limitPrice")} value={price} />
+          {(row.side === "BUY" || row.side === "SELL") && (
+            <DetailRow label={t("limitPrice")} value={price} />
+          )}
+          {row.transfer?.mode === "cash" && !row.transfer.isExternal && (
+            <>
+              <DetailRow
+                label={t("destinationCurrency")}
+                value={row.transfer.destinationCurrency}
+              />
+              <DetailRow
+                label={t("destinationAmount")}
+                value={
+                  row.transfer.destinationAmount == null
+                    ? t("undetermined")
+                    : isBalanceHidden
+                      ? "••••"
+                      : formatAmount(
+                          row.transfer.destinationAmount,
+                          row.transfer.destinationCurrency!,
+                        )
+                }
+              />
+            </>
+          )}
+          {row.transfer?.mode === "securities" &&
+            row.transfer.isExternal &&
+            row.transfer.direction === "in" && (
+              <DetailRow
+                label={t("unitPrice")}
+                value={
+                  row.transfer.unitPrice == null
+                    ? t("undetermined")
+                    : isBalanceHidden
+                      ? "••••"
+                      : formatPrice(row.transfer.unitPrice, row.transfer.costCurrency!)
+                }
+              />
+            )}
+          {row.conversion && (
+            <>
+              <DetailRow
+                label={t("conversionTo")}
+                value={[
+                  row.conversion.toAssetSnapshot.symbol || row.conversion.toAssetSnapshot.name,
+                  row.conversion.toAssetSnapshot.exchangeMic,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              />
+              <DetailRow
+                label={t("toQuantity")}
+                value={
+                  row.conversion.toQuantity == null
+                    ? t("undetermined")
+                    : isBalanceHidden
+                      ? "••••"
+                      : formatQuantity(row.conversion.toQuantity)
+                }
+              />
+            </>
+          )}
           <DetailRow
             label={t("currency")}
-            value={row.amountCurrency ?? row.assetSnapshot.quoteCcy}
+            value={row.amountCurrency ?? row.assetSnapshot?.quoteCcy ?? ""}
           />
         </DetailSection>
         {row.notes && (

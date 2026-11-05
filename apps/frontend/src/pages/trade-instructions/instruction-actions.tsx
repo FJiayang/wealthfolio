@@ -1,3 +1,4 @@
+import { instructionAssetLabel } from "./instruction-label";
 import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -167,7 +168,7 @@ export function InstructionActions({
             <AlertDialogTitle>{t("deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("deleteDescription", {
-                symbol: row.assetSnapshot.symbol || row.assetSnapshot.name,
+                symbol: instructionAssetLabel(row),
                 account: row.accountName,
               })}
             </AlertDialogDescription>
@@ -200,7 +201,7 @@ export function InstructionActions({
             <DialogTitle>{action ? t(action) : ""}</DialogTitle>
           </DialogHeader>
           <DialogDescription>
-            {row.assetSnapshot.symbol || row.assetSnapshot.name} · {row.accountName}
+            {instructionAssetLabel(row)} · {row.accountName}
           </DialogDescription>
           <form
             className="space-y-4"

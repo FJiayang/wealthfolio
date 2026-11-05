@@ -962,9 +962,9 @@ diesel::table! {
         request_id -> Text,
         request_hash -> Text,
         account_id -> Text,
-        asset_id -> Text,
+        asset_id -> Nullable<Text>,
         account_name -> Text,
-        asset_snapshot -> Text,
+        asset_snapshot -> Nullable<Text>,
         side -> Text,
         quantity -> Nullable<Text>,
         amount -> Nullable<Text>,
@@ -982,5 +982,7 @@ diesel::table! {
         version -> Integer,
         goal_id -> Text,
         notes -> Nullable<Text>,
+        transfer -> Nullable<Text>,
+        conversion -> Nullable<Text>,
     }
 }

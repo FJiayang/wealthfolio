@@ -57,23 +57,78 @@ struct ListArgs {
     filter: InstructionFilter,
 }
 
+fn instruction_schema(edit: bool) -> Value {
+    let asset = json!({"type":"object","additionalProperties":false,"properties":{
+        "id":{"type":"string"},"symbol":{"type":"string"},"exchangeMic":{"type":"string"},
+        "kind":{"type":"string"},"name":{"type":"string"},"quoteMode":{"type":"string","enum":["MARKET","MANUAL"]},
+        "quoteCcy":{"type":"string"},"instrumentType":{"type":"string"},"providerId":{"type":"string"},"providerSymbol":{"type":"string"}
+    }});
+    let mut input = json!({"type":"object","additionalProperties":false,
+        "properties":{
+            "accountId":{"type":"string","minLength":1},"asset":asset,
+            "side":{"type":"string","enum":["BUY","SELL","TRANSFER","DEPOSIT","WITHDRAWAL","CONVERSION"]},
+            "quantity":{"type":"string"},"amount":{"type":"string"},"amountCurrency":{"type":"string"},
+            "limitPrice":{"type":"string"},"notes":{"type":"string","maxLength":8000},
+            "expectedCompletionAt":{"type":"string","format":"date-time"},
+            "transfer":{"type":"object","additionalProperties":false,"required":["mode","isExternal"],"properties":{
+                "mode":{"type":"string","enum":["cash","securities"]},"isExternal":{"type":"boolean"},
+                "direction":{"type":"string","enum":["in","out"]},"toAccountId":{"type":"string","minLength":1},
+                "destinationCurrency":{"type":"string"},"destinationAmount":{"type":"string"},
+                "unitPrice":{"type":"string"},"costCurrency":{"type":"string"}
+            },"allOf":[
+                {"if":{"properties":{"isExternal":{"const":true}}},"then":{"required":["direction"],"not":{"anyOf":[{"required":["toAccountId"]},{"required":["destinationCurrency"]},{"required":["destinationAmount"]}]}},"else":{"required":["toAccountId"],"not":{"required":["direction"]}}},
+                {"if":{"properties":{"mode":{"const":"cash"},"isExternal":{"const":false}}},"then":{"required":["destinationCurrency"]}},
+                {"if":{"properties":{"mode":{"const":"securities"},"isExternal":{"const":true},"direction":{"const":"in"}},"required":["direction"]},"then":{"oneOf":[{"required":["unitPrice","costCurrency"]},{"not":{"anyOf":[{"required":["unitPrice"]},{"required":["costCurrency"]}]}}]},"else":{"not":{"anyOf":[{"required":["unitPrice"]},{"required":["costCurrency"]}]}}}
+            ]},
+            "conversion":{"type":"object","additionalProperties":false,"required":["toAsset"],"properties":{"toAsset":asset,"toQuantity":{"type":"string"}}}
+        },
+        "required":["accountId","side"],
+        "oneOf":[{"required":["quantity"],"not":{"required":["amount"]}},{"required":["amount","amountCurrency"],"not":{"required":["quantity"]}}],
+        "allOf":[
+            {"if":{"properties":{"side":{"enum":["BUY","SELL"]}}},"then":{"required":["asset"]},"else":{"not":{"required":["limitPrice"]}}},
+            {"if":{"properties":{"side":{"enum":["DEPOSIT","WITHDRAWAL"]}}},"then":{"required":["amount","amountCurrency"],"not":{"required":["asset"]}}},
+            {"if":{"properties":{"side":{"const":"TRANSFER"}}},"then":{"required":["transfer"],"allOf":[
+                {"if":{"properties":{"transfer":{"properties":{"mode":{"const":"cash"}}}}},"then":{"required":["amount","amountCurrency"],"not":{"required":["asset"]}},"else":{"required":["asset","quantity"]}}
+            ]},"else":{"not":{"required":["transfer"]}}},
+            {"if":{"properties":{"side":{"const":"CONVERSION"}}},"then":{"required":["asset","quantity","conversion"]},"else":{"not":{"required":["conversion"]}}}
+        ]
+    });
+    let properties = input["properties"]
+        .as_object_mut()
+        .expect("schema properties");
+    if edit {
+        properties.insert(
+            "expectedVersion".into(),
+            json!({"type":"integer","minimum":1}),
+        );
+        input["required"]
+            .as_array_mut()
+            .expect("schema requirements")
+            .push(json!("expectedVersion"));
+    } else {
+        properties.insert("goalId".into(), json!({"type":"string","minLength":1}));
+        properties.insert("requestId".into(), json!({"type":"string","format":"uuid"}));
+        input["required"]
+            .as_array_mut()
+            .expect("schema requirements")
+            .extend([json!("goalId"), json!("requestId")]);
+    }
+    if edit {
+        json!({"type":"object","additionalProperties":false,"required":["id","input"],"properties":{"id":{"type":"string","minLength":1},"input":input}})
+    } else {
+        json!({"type":"object","additionalProperties":false,"required":["input"],"properties":{"input":input}})
+    }
+}
+
 business_tool!(CreateTradeInstruction, CreateArgs, "create_trade_instruction",
-    "Save a trade instruction under an existing goal for a human to execute externally. May register an asset using manual-entry rules. Does NOT place an order or record an activity. Reuse requestId when retrying. Quantity and amount are mutually exclusive decimal strings. limitPrice is a buy ceiling/sell floor in the asset quote currency; absent means trader discretion. expectedCompletionAt is an optional soft deadline with timezone.",
-    json!({"type":"object","additionalProperties":false,"properties":{"input":{"type":"object","additionalProperties":false,"properties":{
-        "goalId":{"type":"string","minLength":1},"requestId":{"type":"string","format":"uuid"},"accountId":{"type":"string"},
-        "asset":{"type":"object","properties":{"id":{"type":"string"},"symbol":{"type":"string"},"exchangeMic":{"type":"string"},"kind":{"type":"string"},"name":{"type":"string"},"quoteMode":{"type":"string","enum":["MARKET","MANUAL"]},"quoteCcy":{"type":"string"},"instrumentType":{"type":"string"},"providerId":{"type":"string"},"providerSymbol":{"type":"string"}}},
-        "side":{"type":"string","enum":["BUY","SELL"]},"quantity":{"type":"string"},"amount":{"type":"string"},"amountCurrency":{"type":"string"},"limitPrice":{"type":"string"},"notes":{"type":"string","maxLength":8000,"description":"Optional free-text notes, including reasons or execution details."},"expectedCompletionAt":{"type":"string","format":"date-time"}
-    },"required":["goalId","requestId","accountId","asset","side"],"oneOf":[{"required":["quantity"],"not":{"required":["amount"]}},{"required":["amount","amountCurrency"],"not":{"required":["quantity"]}}]}},"required":["input"]}),
+    "Save a BUY, SELL, TRANSFER, DEPOSIT, WITHDRAWAL or CONVERSION instruction under an existing goal for a human to execute externally. Cash operations have no asset. TRANSFER uses accountId as the source account internally or the local account externally; transfer contains mode, isExternal, and toAccountId or direction. Internal cash transfers specify both currencies, with optional destinationAmount; same-currency amounts match. Securities transfers require quantity; optional unitPrice and costCurrency apply only to external securities in. CONVERSION exchanges two distinct investment assets in one account: asset/quantity leave, conversion.toAsset arrives with optional toQuantity. Incoming amounts, units and cost may remain unknown. No balance or holdings check. May register an asset using manual-entry rules. Does NOT place an order or record an activity. Reuse requestId when retrying. Quantity and amount are mutually exclusive decimal strings. limitPrice is a buy ceiling/sell floor in the asset quote currency; absent means trader discretion. expectedCompletionAt is an optional soft deadline with timezone.",
+    instruction_schema(false),
     [AgentScope::TradeInstructionsWrite, AgentScope::TradeInstructionsRead, AgentScope::AccountsRead, AgentScope::AssetsWrite, AgentScope::FinancialPlanningRead], Write, |env, args| {
         output(env.trade_instruction_service().create(args.input, InstructionSource::Mcp).await?)
     });
 business_tool!(UpdateTradeInstructionTool, UpdateArgs, "update_trade_instruction",
-    "Replace the editable content of a PENDING trade instruction. Read the instruction first and pass its version as expectedVersion. Send the full editable content: omitted optional fields are cleared, not preserved. Identity, goal, source, creation time and original creation idempotency key stay unchanged. Unchanged assets should be sent as asset.id to preserve their snapshot. May register a changed asset under the same manual-entry rules as creation. Stale versions or non-PENDING instructions fail; reread before deciding whether to retry. This tool does NOT place orders, create activities or change execution status. ",
-    json!({"type":"object","additionalProperties":false,"required":["id","input"],"properties":{"id":{"type":"string","minLength":1},"input":{"type":"object","additionalProperties":false,"properties":{
-        "expectedVersion":{"type":"integer","minimum":1},"accountId":{"type":"string","minLength":1},
-        "asset":{"type":"object","properties":{"id":{"type":"string"},"symbol":{"type":"string"},"exchangeMic":{"type":"string"},"kind":{"type":"string"},"name":{"type":"string"},"quoteMode":{"type":"string","enum":["MARKET","MANUAL"]},"quoteCcy":{"type":"string"},"instrumentType":{"type":"string"},"providerId":{"type":"string"},"providerSymbol":{"type":"string"}}},
-        "side":{"type":"string","enum":["BUY","SELL"]},"quantity":{"type":"string"},"amount":{"type":"string"},"amountCurrency":{"type":"string"},"limitPrice":{"type":"string"},"notes":{"type":"string","maxLength":8000},"expectedCompletionAt":{"type":"string","format":"date-time"}
-    },"required":["expectedVersion","accountId","asset","side"],"oneOf":[{"required":["quantity"],"not":{"required":["amount"]}},{"required":["amount","amountCurrency"],"not":{"required":["quantity"]}}]}}}),
+    "Replace the editable content of a PENDING instruction of any of the six operation types. Use the same operation-specific fields as create_trade_instruction; omit irrelevant fields when changing type. Read the instruction first and pass its version as expectedVersion. Send the full editable content: omitted optional fields are cleared, not preserved. Identity, goal, source, creation time and original creation idempotency key stay unchanged. Unchanged assets should be sent as asset.id to preserve their snapshot. May register a changed asset under the same manual-entry rules as creation. Stale versions or non-PENDING instructions fail; reread before deciding whether to retry. This tool does NOT place orders, create activities or change execution status. ",
+    instruction_schema(true),
     [AgentScope::TradeInstructionsWrite, AgentScope::TradeInstructionsRead, AgentScope::AccountsRead, AgentScope::AssetsWrite], Write, |env, args| {
         output(env.trade_instruction_service().edit(&args.id, args.input).await?)
     });
@@ -82,8 +137,8 @@ business_tool!(GetTradeInstruction, GetArgs, "get_trade_instruction",
     json!({"type":"object","properties":{"id":{"type":"string"}},"required":["id"],"additionalProperties":false}),
     [AgentScope::TradeInstructionsRead], Read, |env, args| { output(env.trade_instruction_service().get(&args.id)?) });
 business_tool!(ListTradeInstructions, ListArgs, "list_trade_instructions",
-    "List locally stored trade instructions, newest first unless sort is specified. Expected completion bounds are inclusive from and exclusive before. Missing expected times sort last. Default statuses are PENDING and IN_PROGRESS; an empty statuses array includes all. No provider requests.",
-    json!({"type":"object","additionalProperties":false,"properties":{"filter":{"type":"object","additionalProperties":false,"properties":{"goalId":{"type":"string"},"statuses":{"type":"array","items":{"type":"string","enum":["PENDING","IN_PROGRESS","COMPLETED","CANCELLED"]}},"accountId":{"type":"string"},"side":{"type":"string","enum":["BUY","SELL"]},"expectedCompletionFrom":{"type":"string","format":"date-time"},"expectedCompletionBefore":{"type":"string","format":"date-time"},"sort":{"type":"string","enum":["expectedCompletionAsc","expectedCompletionDesc"]},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50},"offset":{"type":"integer","minimum":0}}}}}),
+    "List locally stored trade instructions, newest first unless sort is specified. Expected completion bounds are inclusive from and exclusive before. Missing expected times sort last. Use side for one type or sides for multiple, never both; empty sides includes all types. accountId matches either internal transfer endpoint without duplicate rows. Default statuses are PENDING and IN_PROGRESS; an empty statuses array includes all. No provider requests.",
+    json!({"type":"object","additionalProperties":false,"properties":{"filter":{"type":"object","additionalProperties":false,"properties":{"goalId":{"type":"string"},"statuses":{"type":"array","items":{"type":"string","enum":["PENDING","IN_PROGRESS","COMPLETED","CANCELLED"]}},"accountId":{"type":"string"},"side":{"type":"string","enum":["BUY","SELL","TRANSFER","DEPOSIT","WITHDRAWAL","CONVERSION"]},"sides":{"type":"array","items":{"type":"string","enum":["BUY","SELL","TRANSFER","DEPOSIT","WITHDRAWAL","CONVERSION"]}},"expectedCompletionFrom":{"type":"string","format":"date-time"},"expectedCompletionBefore":{"type":"string","format":"date-time"},"sort":{"type":"string","enum":["expectedCompletionAsc","expectedCompletionDesc"]},"limit":{"type":"integer","minimum":1,"maximum":100,"default":50},"offset":{"type":"integer","minimum":0}}}}}),
     [AgentScope::TradeInstructionsRead], Read, |env, args| { output(env.trade_instruction_service().list(args.filter)?) });
 business_tool!(StartTradeInstruction, VersionArgs, "start_trade_instruction",
     "Start a PENDING instruction. Read it first and pass its version as expectedVersion. Records local execution status only; does not place an order or create bookkeeping activities.",
@@ -218,5 +273,47 @@ mod tests {
             CreateTradeInstruction.sanitize_args_for_audit(&json!({"input":{"notes":"private"}})),
             Value::Null
         );
+    }
+
+    #[test]
+    fn instruction_schemas_expose_actions_and_optional_incoming_values() {
+        for schema in [
+            CreateTradeInstruction.input_schema(),
+            UpdateTradeInstructionTool.input_schema(),
+        ] {
+            let input = &schema["properties"]["input"];
+            assert_eq!(
+                input["properties"]["side"]["enum"],
+                json!([
+                    "BUY",
+                    "SELL",
+                    "TRANSFER",
+                    "DEPOSIT",
+                    "WITHDRAWAL",
+                    "CONVERSION"
+                ])
+            );
+            assert!(!input["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("asset")));
+            let transfer = &input["properties"]["transfer"];
+            assert_eq!(transfer["additionalProperties"], false);
+            assert_eq!(transfer["required"], json!(["mode", "isExternal"]));
+            assert!(!transfer["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("destinationAmount")));
+            assert_eq!(
+                input["properties"]["conversion"]["required"],
+                json!(["toAsset"])
+            );
+            for value in ["quantity", "amount", "limitPrice"] {
+                assert_eq!(input["properties"][value]["type"], "string");
+            }
+        }
+        let list = ListTradeInstructions.input_schema();
+        assert!(list["properties"]["filter"]["properties"]["sides"].is_object());
+        assert!(list["properties"]["filter"]["properties"]["side"].is_object());
     }
 }
