@@ -11,8 +11,8 @@ For supported functionality and changes by version, see the
 ## Version contract
 
 - Upstream application version: `3.12.0`.
-- Fork release tag: `v3.12.0.1`; exact Docker image tag:
-  `ghcr.io/fjiayang/wealthfolio:3.12.0.1`.
+- Fork release tag: `v3.12.0.2`; exact Docker image tag:
+  `ghcr.io/fjiayang/wealthfolio:3.12.0.2`.
 - `fork-release.json` records the upstream version, fork revision, and exact
   upstream commit incorporated into the fork. The revision is reserved for the
   next release; editing this file does not itself publish anything.
