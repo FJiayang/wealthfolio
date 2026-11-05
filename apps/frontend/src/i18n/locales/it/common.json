@@ -703,11 +703,7 @@
     "activity_failed_deleting": "Impossibile eliminare l'attività",
     "activity_failed_duplicating": "Impossibile duplicare l'attività",
     "addon_error": "Errore componente aggiuntivo '{{addonId}}'",
-    "security_update_failed": "Impossibile aggiornare la sicurezza",
-    "error_try_later": "{{error}}. Riprova più tardi.",
-    "categorized_one": "Categorizzato {{count}} movimento.",
-    "categorized_other": "Categorizzati {{count}} movimenti.",
-    "categorized_many": "Attività {{count}} categorizzate."
+    "security_update_failed": "Impossibile aggiornare la sicurezza"
   },
   "validation": {
     "accountNameMin": "Il nome deve contenere almeno 2 caratteri.",

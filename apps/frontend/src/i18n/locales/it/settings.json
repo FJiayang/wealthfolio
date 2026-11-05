@@ -917,11 +917,6 @@
     "benchmark_local_notice": "I benchmark usano prezzi salvati. Lo storico mancante attende l’aggiornamento giornaliero o il recupero manuale. Rimuovere un confronto non interrompe gli aggiornamenti; disattivare il titolo.",
     "benchmark_fetch": "Recupera / completa storico benchmark",
     "benchmark_reselect": "Impossibile registrare un benchmark. Rimuoverlo e selezionarlo di nuovo.",
-    "sync_interval_label": "Intervallo di sincronizzazione automatica",
-    "sync_interval_description": "Si applica alle sincronizzazioni pianificate mentre l’app desktop o il server web sono in esecuzione. Le modifiche hanno effetto entro un minuto; le sincronizzazioni all’avvio e manuali restano invariate.",
-    "sync_interval_hours_one": "Ogni {{count}} ora",
-    "sync_interval_hours_many": "Ogni {{count}} ore",
-    "sync_interval_hours_other": "Ogni {{count}} ore",
     "native_provider_names": {
       "IFIND": "Tonghuashun iFinD",
       "EASTMONEY": "Eastmoney",

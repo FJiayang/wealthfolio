@@ -8,15 +8,14 @@ use crate::errors::StorageError;
 use crate::schema::app_settings::dsl::*;
 use crate::schema::{accounts, assets};
 use wealthfolio_core::assets::AssetKind;
-use wealthfolio_core::errors::{Error, Result};
+use wealthfolio_core::errors::Result;
 use wealthfolio_core::settings::{
     validate_market_data_sync_time, validate_market_data_sync_timezone,
     validate_provider_request_timezone, Settings, SettingsRepositoryTrait, SettingsUpdate,
     CURRENCY_FORMATTING_REGIONS_KEY, DEFAULT_FONT, DEFAULT_GAIN_COLORS,
     DEFAULT_PROVIDER_REQUEST_TIMEZONE, DEFAULT_THEME_ID, GAIN_COLORS, GAIN_COLORS_KEY,
-    INSIGHTS_OVERVIEW_LAYOUT_KEY, MARKET_DATA_SYNC_INTERVAL_HOURS_KEY,
-    MARKET_DATA_SYNC_TIMEZONE_KEY, MARKET_DATA_SYNC_TIME_KEY, PROVIDER_REQUEST_TIMEZONE_KEY,
-    TEXT_SIZE_KEY, THEME_ID_KEY,
+    INSIGHTS_OVERVIEW_LAYOUT_KEY, MARKET_DATA_SYNC_TIMEZONE_KEY, MARKET_DATA_SYNC_TIME_KEY,
+    PROVIDER_REQUEST_TIMEZONE_KEY, TEXT_SIZE_KEY, THEME_ID_KEY,
 };
 
 pub struct SettingsRepository {
@@ -81,11 +80,6 @@ impl SettingsRepositoryTrait for SettingsRepository {
                 }
                 "sync_enabled" => {
                     settings.sync_enabled = value.parse().unwrap_or(true);
-                }
-                MARKET_DATA_SYNC_INTERVAL_HOURS_KEY => {
-                    settings.market_data_sync_interval_hours = value.parse().map_err(|_| {
-                        Error::InvalidConfigValue("Invalid market data sync interval".to_string())
-                    })?;
                 }
                 "restore_reconnect_required" => {
                     settings.restore_reconnect_required = value == "true";
@@ -287,16 +281,6 @@ impl SettingsRepositoryTrait for SettingsRepository {
                         .values(&AppSettingDB {
                             setting_key: "sync_enabled".to_string(),
                             setting_value: sync_enabled.to_string(),
-                        })
-                        .execute(tx.conn())
-                        .map_err(StorageError::from)?;
-                }
-
-                if let Some(hours) = settings.market_data_sync_interval_hours {
-                    diesel::replace_into(app_settings)
-                        .values(&AppSettingDB {
-                            setting_key: MARKET_DATA_SYNC_INTERVAL_HOURS_KEY.to_string(),
-                            setting_value: hours.to_string(),
                         })
                         .execute(tx.conn())
                         .map_err(StorageError::from)?;

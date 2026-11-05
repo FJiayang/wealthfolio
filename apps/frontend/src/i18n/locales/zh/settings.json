@@ -879,21 +879,6 @@
     "benchmark_local_notice": "基准使用本地行情。缺失历史等待每日更新或手动获取；移除对比不会停止更新，可在证券管理中停用。",
     "benchmark_fetch": "获取／补齐基准行情",
     "benchmark_reselect": "部分基准登记失败，请移除后重新选择。",
-    "sync_interval_label": "自动同步间隔",
-    "sync_interval_description": "控制桌面应用或 Web 服务运行期间的定时同步。修改后一分钟内生效，不影响启动时和手动同步。",
-    "sync_interval_hours_other": "每 {{count}} 小时",
-    "imported_count_one": "已导入 {{count}} 条",
-    "failed_count_one": "失败 {{count}} 条",
-    "table_click_column_to_map_field_one": "{{count}} 行 · 单击列标题以映射到 {{field}}",
-    "table_click_column_to_map_one": "{{count}} 行 · 单击列标题进行映射",
-    "csv_rows_detected_field_one": "检测到 {{count}} 行。单击列标题将其映射到 {{field}}。",
-    "csv_rows_detected_one": "检测到 {{count}} 行。单击列标题以对其进行映射。",
-    "elements_detected_field_one": "检测到 {{count}} 元素。单击它将其选择器分配给 {{field}}。",
-    "elements_detected_one": "检测到 {{count}} 元素。单击它以分配其选择器。",
-    "show_more_elements_one": "显示另外 {{count}} 个元素",
-    "preview_data_rows_one": "预览数据（{{count}} 行）",
-    "review_first_rows_one": "查看 CSV 数据的第一行",
-    "import_quotes_count_one": "导入 {{count}} 报价",
     "native_provider_names": {
       "IFIND": "同花顺 iFinD",
       "EASTMONEY": "东方财富",
@@ -966,8 +951,7 @@
       "stat_active": "活跃",
       "no_rules_prompt": "尚无分类规则——按名称模式自动标记交易。",
       "setup_rules": "设置规则",
-      "stat_accounts_unit_other": "共 {{count}} 个现金账户",
-      "stat_accounts_unit_one": "{{count}} 个现金帐户"
+      "stat_accounts_unit_other": "共 {{count}} 个现金账户"
     },
     "accounts": {
       "title": "支出账户",
@@ -1048,8 +1032,7 @@
       "error_title": "无法加载",
       "error_description": "请从管理页面重试。",
       "more": "+{{count}} 更多",
-      "more_other": "+{{count}} 更多",
-      "more_one": "+{{count}} 项"
+      "more_other": "+{{count}} 更多"
     },
     "setup": {
       "title": "默认月度预算计划",
@@ -1074,10 +1057,7 @@
       "duplicate_error": "此类别键已被使用，请尝试其他名称。",
       "tab_expense_other": "支出（{{count}}）",
       "tab_income_other": "收入（{{count}}）",
-      "tab_savings_other": "储蓄（{{count}}）",
-      "tab_expense_one": "支出（{{count}}）",
-      "tab_income_one": "收入（{{count}}）",
-      "tab_savings_one": "储蓄（{{count}}）"
+      "tab_savings_other": "储蓄（{{count}}）"
     },
     "events": {
       "heading": "支出事件",
@@ -1409,8 +1389,7 @@
     "edit_title": "{{name}} 的权限",
     "edit_description": "Key 保持不变，新权限对后续请求生效。新增工具可能需要刷新工具列表或重新连接客户端。",
     "edit_success": "权限已更新",
-    "edit_failed": "权限更新失败",
-    "pat_scope_custom_one": "自定义 · {{count}} 范围"
+    "edit_failed": "权限更新失败"
   },
   "tax_add_category": "添加类别",
   "tax_categories_count": "{{count}} 个类别",
@@ -1834,12 +1813,6 @@
       }
     }
   },
-  "tax_categories_count_one": "{{count}} 个类别",
-  "addon_store_filter_all_one": "全部（{{count}}）",
-  "addon_store_filter_uninstalled_one": "未安装（{{count}}）",
-  "addon_store_showing_one": "显示 {{total}} 个插件中的 {{count}} 个",
-  "tax_migration_body_one": "{{count}} 资产具有旧的部门/国家/地区数据，可以将其迁移到新的分类系统，以实现更好的组织和分析。",
-  "addon_rating_characters_one": "{{count}}/500 个字符",
   "provider_request_details": {
     "title": "Provider 请求明细",
     "from": "开始日期",

@@ -975,7 +975,6 @@ export interface Settings {
   autoUpdateCheckEnabled: boolean;
   menuBarVisible: boolean;
   syncEnabled: boolean;
-  marketDataSyncIntervalHours: number;
   marketDataSyncTime: string;
   marketDataSyncTimezone: string;
 }

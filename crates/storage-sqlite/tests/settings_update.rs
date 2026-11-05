@@ -121,29 +121,35 @@ async fn failed_save_keeps_the_base_currency() {
 }
 
 #[tokio::test]
-async fn market_data_sync_interval_defaults_round_trips_and_survives_other_updates() {
+async fn retired_sync_interval_is_ignored_while_daily_settings_remain_available() {
     let fixture = fixture().await;
-    assert_eq!(
+    fixture
+        .settings
+        .update_settings(&update(json!({
+            "marketDataSyncTime": "08:30", "marketDataSyncTimezone": "Europe/Paris"
+        })))
+        .await
+        .unwrap();
+    for value in ["garbage", "0", "2", "4294967296"] {
         fixture
             .settings
-            .get_settings()
-            .unwrap()
-            .market_data_sync_interval_hours,
-        6
-    );
-    for hours in [1, 6, 12, 24] {
-        fixture
-            .settings
-            .update_settings(&update(json!({"marketDataSyncIntervalHours": hours})))
+            .set_setting_value("market_data_sync_interval_hours", value)
             .await
             .unwrap();
+        let settings = fixture.settings.get_settings().unwrap();
+        assert_eq!(settings.market_data_sync_time, "08:30");
+        assert_eq!(settings.market_data_sync_timezone, "Europe/Paris");
+        assert!(serde_json::to_value(settings)
+            .unwrap()
+            .get("marketDataSyncIntervalHours")
+            .is_none());
         assert_eq!(
             fixture
                 .settings
-                .get_settings()
+                .get_setting_value("market_data_sync_interval_hours")
                 .unwrap()
-                .market_data_sync_interval_hours,
-            hours
+                .as_deref(),
+            Some(value)
         );
     }
     fixture
@@ -151,49 +157,8 @@ async fn market_data_sync_interval_defaults_round_trips_and_survives_other_updat
         .update_settings(&update(json!({"theme": "dark"})))
         .await
         .unwrap();
-    assert_eq!(
-        fixture
-            .settings
-            .get_settings()
-            .unwrap()
-            .market_data_sync_interval_hours,
-        24
-    );
+    assert_unchanged(&fixture);
     assert!(fixture.events.events().is_empty());
-}
-
-#[tokio::test]
-async fn invalid_market_data_sync_interval_rejects_the_whole_update() {
-    let fixture = fixture().await;
-    for hours in [0, 2, 5, 25] {
-        let rejected = update(json!({"marketDataSyncIntervalHours": hours, "baseCurrency": "EUR"}));
-        assert!(fixture.settings.update_settings(&rejected).await.is_err());
-        assert_unchanged(&fixture);
-        assert_eq!(
-            fixture
-                .settings
-                .get_settings()
-                .unwrap()
-                .market_data_sync_interval_hours,
-            6
-        );
-        assert_eq!(fx_pairs(&fixture.pool), [Some("FX:CAD/USD".to_string())]);
-    }
-    assert!(fixture.events.events().is_empty());
-}
-
-#[tokio::test]
-async fn invalid_persisted_market_data_sync_interval_is_reported() {
-    use wealthfolio_core::settings::MARKET_DATA_SYNC_INTERVAL_HOURS_KEY;
-    let fixture = fixture().await;
-    for value in ["garbage", "0", "2", "4294967296"] {
-        fixture
-            .settings
-            .set_setting_value(MARKET_DATA_SYNC_INTERVAL_HOURS_KEY, value)
-            .await
-            .unwrap();
-        assert!(fixture.settings.get_settings().is_err());
-    }
 }
 
 #[tokio::test]

@@ -53,7 +53,7 @@ export function HoldingsSummaryBar({
         value={netWorth}
         currency={currency}
         isHidden={isBalanceHidden}
-        className={netWorth >= 0 ? "text-success" : "text-destructive"}
+        colorFormat={true}
         isBold={true}
       />
     </div>

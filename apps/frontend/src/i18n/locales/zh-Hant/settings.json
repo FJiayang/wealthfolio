@@ -891,10 +891,6 @@
     "benchmark_local_notice": "基準使用本機行情。缺少歷史資料時等待每日更新或手動取得；移除比較不會停止更新，可在證券管理中停用。",
     "benchmark_fetch": "取得／補齊基準行情",
     "benchmark_reselect": "部分基準登記失敗，請移除後重新選擇。",
-    "sync_interval_label": "自動同步間隔",
-    "sync_interval_description": "控制桌面應用程式或 Web 服務執行期間的定時同步。修改後一分鐘內生效，不影響啟動時與手動同步。",
-    "sync_interval_hours_one": "每 {{count}} 小時",
-    "sync_interval_hours_other": "每 {{count}} 小時",
     "native_provider_names": {
       "IFIND": "同花順 iFinD",
       "EASTMONEY": "東方財富",

@@ -71,10 +71,7 @@
     "colAccount": "口座",
     "accountCount_other": "{{count}}口座",
     "summary_other": "保有銘柄{{count}}件 · {{currency}}",
-    "summaryUpdated_other": "保有銘柄{{count}}件 · {{currency}} · 更新{{updatedAt}}",
-    "accountCount_one": "{{count}}件の口座",
-    "summary_one": "{{count}} 保持 · {{currency}}",
-    "summaryUpdated_one": "{{count}} 保持 · {{currency}} · 更新済み {{updatedAt}}"
+    "summaryUpdated_other": "保有銘柄{{count}}件 · {{currency}} · 更新{{updatedAt}}"
   },
   "presets": {
     "currentAllocation": "現在の資産配分",
@@ -508,10 +505,6 @@
     "region_other": "地域",
     "category_other": "カテゴリ",
     "assetClass_other": "資産クラス",
-    "industry_other": "産業",
-    "assetClass_one": "資産クラス",
-    "region_one": "地域",
-    "industry_one": "業界",
-    "category_one": "カテゴリ"
+    "industry_other": "産業"
   }
 }

@@ -703,11 +703,7 @@
     "activity_failed_deleting": "Échec de la suppression de l'activité",
     "activity_failed_duplicating": "Échec de la duplication de l'activité",
     "addon_error": "Erreur du module complémentaire '{{addonId}}'",
-    "security_update_failed": "Échec de la mise à jour de la sécurité",
-    "error_try_later": "{{error}}. Veuillez réessayer plus tard.",
-    "categorized_one": "{{count}} activité catégorisée.",
-    "categorized_other": "{{count}} activités catégorisées.",
-    "categorized_many": "Activités {{count}} catégorisées."
+    "security_update_failed": "Échec de la mise à jour de la sécurité"
   },
   "validation": {
     "accountNameMin": "Le nom doit comporter au moins 2 caractères.",

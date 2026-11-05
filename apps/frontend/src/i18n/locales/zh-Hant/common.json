@@ -686,10 +686,7 @@
     "activity_failed_deleting": "刪除活動失敗",
     "activity_failed_duplicating": "無法複製活動",
     "addon_error": "附加組件「{{addonId}}」錯誤",
-    "security_update_failed": "更新證券失敗",
-    "error_try_later": "{{error}}。請稍後重試。",
-    "categorized_one": "已分類 {{count}} 筆交易。",
-    "categorized_other": "已分類 {{count}} 筆交易。"
+    "security_update_failed": "更新證券失敗"
   },
   "validation": {
     "accountNameMin": "名稱至少需要 2 個字元。",

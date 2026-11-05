@@ -703,11 +703,7 @@
     "activity_failed_deleting": "Falha ao excluir atividade",
     "activity_failed_duplicating": "Falha ao duplicar atividade",
     "addon_error": "Erro do complemento '{{addonId}}'",
-    "security_update_failed": "Falha ao atualizar a segurança",
-    "error_try_later": "{{error}}. Tente novamente mais tarde.",
-    "categorized_one": "{{count}} atividade categorizada.",
-    "categorized_other": "{{count}} atividades categorizadas.",
-    "categorized_many": "Atividades {{count}} categorizadas."
+    "security_update_failed": "Falha ao atualizar a segurança"
   },
   "validation": {
     "accountNameMin": "O nome deve ter pelo menos 2 caracteres.",
