@@ -1,6 +1,9 @@
 use super::*;
 use crate::{
-    accounts::{account_supports_portfolio_scope, Account, AccountPurpose, AccountServiceTrait},
+    accounts::{
+        account_supports_portfolio_scope, is_liability_account_type, Account, AccountPurpose,
+        AccountServiceTrait, TrackingMode,
+    },
     activities::AssetResolutionInput,
     assets::{Asset, AssetKind, AssetServiceTrait, ManualAssetResolver},
     errors::ValidationError,
@@ -58,14 +61,112 @@ impl TradeInstructionService {
             goals,
         }
     }
-    fn account(&self, id: &str) -> Result<Account> {
+    fn account(&self, id: &str, transfer_mode: Option<InstructionTransferMode>) -> Result<Account> {
         let account = self.accounts.get_account(id)?;
-        if !account.is_active
-            || !account_supports_portfolio_scope(&account, AccountPurpose::Holdings)
-        {
-            return Err(invalid("An active investment account is required"));
+        if !account.is_active || account.is_archived {
+            return Err(invalid("An active, unarchived account is required"));
+        }
+        if let Some(mode) = transfer_mode {
+            if is_liability_account_type(&account.account_type) {
+                if mode != InstructionTransferMode::Cash {
+                    return Err(invalid(
+                        "Securities cannot be transferred to or from a credit card",
+                    ));
+                }
+            } else if account.tracking_mode == TrackingMode::Holdings {
+                return Err(invalid("Transfers require transaction tracking"));
+            }
+        } else if !account_supports_portfolio_scope(&account, AccountPurpose::Holdings) {
+            return Err(invalid("An investment account is required"));
         }
         Ok(account)
+    }
+    async fn asset_snapshot(
+        &self,
+        input: Option<&AssetResolutionInput>,
+        currency: &str,
+        previous: Option<(&str, &InstructionAssetSnapshot)>,
+    ) -> Result<(Option<String>, Option<InstructionAssetSnapshot>)> {
+        let Some(input) = input else {
+            return Ok((None, None));
+        };
+        if let Some((id, snapshot)) = previous {
+            if input.id.as_deref() == Some(id) {
+                return Ok((Some(id.into()), Some(snapshot.clone())));
+            }
+        }
+        let asset = self.resolve_asset(input.clone(), currency.into()).await?;
+        Ok((
+            Some(asset.id),
+            Some(InstructionAssetSnapshot {
+                name: asset.name,
+                symbol: asset.instrument_symbol.or(asset.display_code),
+                exchange_mic: asset.instrument_exchange_mic,
+                instrument_type: asset.instrument_type.map(|v| v.as_db_str().to_string()),
+                quote_ccy: asset.quote_ccy,
+            }),
+        ))
+    }
+    fn transfer(
+        &self,
+        input: Option<&InstructionTransferInput>,
+        previous: Option<&InstructionTransfer>,
+    ) -> Result<Option<InstructionTransfer>> {
+        input
+            .map(|input| {
+                let to_account_name = input
+                    .to_account_id
+                    .as_deref()
+                    .map(|id| {
+                        let account = self.account(id, Some(input.mode))?;
+                        Ok::<_, Error>(
+                            previous
+                                .filter(|old| old.to_account_id.as_deref() == Some(id))
+                                .and_then(|old| old.to_account_name.clone())
+                                .unwrap_or(account.name),
+                        )
+                    })
+                    .transpose()?;
+                Ok(InstructionTransfer {
+                    mode: input.mode,
+                    is_external: input.is_external,
+                    direction: input.direction,
+                    to_account_id: input.to_account_id.clone(),
+                    to_account_name,
+                    destination_currency: input.destination_currency.clone(),
+                    destination_amount: input.destination_amount,
+                    unit_price: input.unit_price,
+                    cost_currency: input.cost_currency.clone(),
+                })
+            })
+            .transpose()
+    }
+    async fn conversion(
+        &self,
+        input: Option<&InstructionConversionInput>,
+        currency: &str,
+        from_asset: Option<&str>,
+        previous: Option<&InstructionConversion>,
+    ) -> Result<Option<InstructionConversion>> {
+        let Some(input) = input else {
+            return Ok(None);
+        };
+        let (id, snapshot) = self
+            .asset_snapshot(
+                Some(&input.to_asset),
+                currency,
+                previous.map(|old| (old.to_asset_id.as_str(), &old.to_asset_snapshot)),
+            )
+            .await?;
+        let id = id.expect("conversion always resolves an asset");
+        if Some(id.as_str()) == from_asset {
+            return Err(invalid("Choose two different assets for a conversion"));
+        }
+        Ok(Some(InstructionConversion {
+            to_asset_id: id,
+            to_asset_snapshot: snapshot.expect("conversion always resolves a snapshot"),
+            to_quantity: input.to_quantity,
+        }))
     }
     async fn resolve_asset(
         &self,
@@ -159,7 +260,136 @@ fn normalize(input: &mut NewTradeInstruction) -> Result<()> {
     if input.notes.as_ref().is_some_and(|value| value.len() > 8000) {
         return Err(invalid("Notes exceed 8000 bytes"));
     }
-    let a = &mut input.asset;
+    for a in input
+        .asset
+        .iter_mut()
+        .chain(input.conversion.iter_mut().map(|v| &mut v.to_asset))
+    {
+        normalize_asset(a);
+    }
+    if (input.side == InstructionSide::Transfer) != input.transfer.is_some()
+        || (input.side == InstructionSide::Conversion) != input.conversion.is_some()
+    {
+        return Err(invalid("Operation details must match the instruction type"));
+    }
+    let securities = input
+        .transfer
+        .as_ref()
+        .is_some_and(|v| v.mode == InstructionTransferMode::Securities);
+    let needs_asset = matches!(
+        input.side,
+        InstructionSide::Buy | InstructionSide::Sell | InstructionSide::Conversion
+    ) || securities;
+    if input.asset.is_some() != needs_asset {
+        return Err(invalid(
+            "An asset is required only for asset-backed instructions",
+        ));
+    }
+    if !matches!(input.side, InstructionSide::Buy | InstructionSide::Sell) {
+        if input.limit_price.is_some() {
+            return Err(invalid("limitPrice is only valid for buy or sell"));
+        }
+        if input.quantity.is_some() != needs_asset {
+            return Err(invalid(
+                "Cash instructions require amount; securities and conversions require quantity",
+            ));
+        }
+    }
+    if let Some(conversion) = &mut input.conversion {
+        positive(&mut conversion.to_quantity)?;
+    }
+    if let Some(transfer) = &mut input.transfer {
+        if let Some(id) = &mut transfer.to_account_id {
+            *id = id.trim().into();
+        }
+        if transfer.is_external {
+            if transfer.direction.is_none()
+                || transfer.to_account_id.is_some()
+                || transfer.destination_currency.is_some()
+                || transfer.destination_amount.is_some()
+            {
+                return Err(invalid(
+                    "External transfers require a direction and no internal destination",
+                ));
+            }
+        } else {
+            if transfer.direction.is_some()
+                || transfer.to_account_id.as_deref().is_none_or(str::is_empty)
+            {
+                return Err(invalid(
+                    "Internal transfers require a destination account and no external direction",
+                ));
+            }
+            if securities && transfer.to_account_id.as_deref() == Some(&input.account_id) {
+                return Err(invalid("Securities transfers require different accounts"));
+            }
+        }
+        positive(&mut transfer.destination_amount)?;
+        positive(&mut transfer.unit_price)?;
+        if !transfer.is_external && !securities {
+            let currency = transfer
+                .destination_currency
+                .as_mut()
+                .ok_or_else(|| invalid("A destination currency is required"))?;
+            normalize_currency(currency)?;
+            if transfer.to_account_id.as_deref() == Some(&input.account_id)
+                && Some(currency.as_str()) == input.amount_currency.as_deref()
+            {
+                return Err(invalid(
+                    "Same-account transfers require different currencies",
+                ));
+            }
+            if Some(currency.as_str()) == input.amount_currency.as_deref() {
+                if transfer.destination_amount.is_some()
+                    && transfer.destination_amount != input.amount
+                {
+                    return Err(invalid("Same-currency transfer amounts must match"));
+                }
+                transfer.destination_amount = input.amount;
+            }
+        } else if transfer.destination_currency.is_some() || transfer.destination_amount.is_some() {
+            return Err(invalid(
+                "Destination cash values are only valid for internal cash transfers",
+            ));
+        }
+        let incoming_securities = securities
+            && transfer.is_external
+            && transfer.direction == Some(InstructionTransferDirection::In);
+        if !incoming_securities
+            && (transfer.unit_price.is_some() || transfer.cost_currency.is_some())
+        {
+            return Err(invalid(
+                "Cost basis is only valid for external securities transfers in",
+            ));
+        }
+        if transfer.unit_price.is_some() != transfer.cost_currency.is_some() {
+            return Err(invalid(
+                "Provide both unitPrice and costCurrency or neither",
+            ));
+        }
+        if let Some(currency) = &mut transfer.cost_currency {
+            normalize_currency(currency)?;
+        }
+    }
+    Ok(())
+}
+fn positive(value: &mut Option<Decimal>) -> Result<()> {
+    if let Some(value) = value {
+        if *value <= Decimal::ZERO {
+            return Err(invalid("Financial values must be positive"));
+        }
+        *value = value.normalize();
+    }
+    Ok(())
+}
+fn normalize_currency(value: &mut String) -> Result<()> {
+    *value = value.trim().to_uppercase();
+    if !(3..=5).contains(&value.len()) || !value.bytes().all(|b| b.is_ascii_uppercase()) {
+        return Err(invalid("A valid currency is required"));
+    }
+    Ok(())
+}
+fn normalize_asset(a: &mut AssetResolutionInput) {
     for field in [
         &mut a.id,
         &mut a.symbol,
@@ -177,7 +407,6 @@ fn normalize(input: &mut NewTradeInstruction) -> Result<()> {
             .map(|v| v.trim().to_string())
             .filter(|v| !v.is_empty());
     }
-    Ok(())
 }
 #[async_trait]
 impl TradeInstructionServiceTrait for TradeInstructionService {
@@ -196,6 +425,9 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
             if from >= before {
                 return Err(invalid("Invalid expected completion range"));
             }
+        }
+        if filter.side.is_some() && filter.sides.is_some() {
+            return Err(invalid("Provide side or sides, not both"));
         }
         filter.limit = Some(limit);
         self.repository.list(filter)
@@ -216,9 +448,18 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
             return Ok(existing);
         }
         self.goals.get_goal(&input.goal_id)?;
-        let account = self.account(&input.account_id)?;
-        let asset = self
-            .resolve_asset(input.asset, account.currency.clone())
+        let account = self.account(&input.account_id, input.transfer.as_ref().map(|v| v.mode))?;
+        let transfer = self.transfer(input.transfer.as_ref(), None)?;
+        let (asset_id, asset_snapshot) = self
+            .asset_snapshot(input.asset.as_ref(), &account.currency, None)
+            .await?;
+        let conversion = self
+            .conversion(
+                input.conversion.as_ref(),
+                &account.currency,
+                asset_id.as_deref(),
+                None,
+            )
             .await?;
         let now = Utc::now();
         let row = TradeInstruction {
@@ -228,14 +469,10 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
             request_hash: hash,
             account_id: account.id,
             account_name: account.name,
-            asset_id: asset.id,
-            asset_snapshot: InstructionAssetSnapshot {
-                name: asset.name,
-                symbol: asset.instrument_symbol.or(asset.display_code),
-                exchange_mic: asset.instrument_exchange_mic,
-                instrument_type: asset.instrument_type.map(|v| v.as_db_str().to_string()),
-                quote_ccy: asset.quote_ccy,
-            },
+            asset_id,
+            asset_snapshot,
+            transfer,
+            conversion,
             side: input.side,
             quantity: input.quantity,
             amount: input.amount,
@@ -273,26 +510,36 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
             limit_price: input.limit_price,
             notes: input.notes,
             expected_completion_at: input.expected_completion_at,
+            transfer: input.transfer,
+            conversion: input.conversion,
         };
         normalize(&mut content)?;
-        let account = self.account(&content.account_id)?;
+        let account = self.account(
+            &content.account_id,
+            content.transfer.as_ref().map(|v| v.mode),
+        )?;
+        row.transfer = self.transfer(content.transfer.as_ref(), row.transfer.as_ref())?;
+        let (asset_id, snapshot) = self
+            .asset_snapshot(
+                content.asset.as_ref(),
+                &account.currency,
+                row.asset_id.as_deref().zip(row.asset_snapshot.as_ref()),
+            )
+            .await?;
+        row.conversion = self
+            .conversion(
+                content.conversion.as_ref(),
+                &account.currency,
+                asset_id.as_deref(),
+                row.conversion.as_ref(),
+            )
+            .await?;
         if row.account_id != account.id {
             row.account_id = account.id;
             row.account_name = account.name;
         }
-        if content.asset.id.as_deref() != Some(row.asset_id.as_str()) {
-            let asset = self.resolve_asset(content.asset, account.currency).await?;
-            row.asset_id = asset.id;
-            row.asset_snapshot = InstructionAssetSnapshot {
-                name: asset.name,
-                symbol: asset.instrument_symbol.or(asset.display_code),
-                exchange_mic: asset.instrument_exchange_mic,
-                instrument_type: asset
-                    .instrument_type
-                    .map(|value| value.as_db_str().to_string()),
-                quote_ccy: asset.quote_ccy,
-            };
-        }
+        row.asset_id = asset_id;
+        row.asset_snapshot = snapshot;
         row.side = content.side;
         row.quantity = content.quantity;
         row.amount = content.amount;
@@ -311,10 +558,22 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
         if row.status != InstructionStatus::Pending {
             return Err(conflict());
         }
-        self.account(&row.account_id)?;
-        let asset = self.assets.get_asset_by_id(&row.asset_id)?;
-        if !asset.is_active || asset.kind != AssetKind::Investment {
-            return Err(invalid("Asset is unavailable"));
+        self.account(&row.account_id, row.transfer.as_ref().map(|v| v.mode))?;
+        if let Some(transfer) = &row.transfer {
+            if let Some(id) = &transfer.to_account_id {
+                self.account(id, Some(transfer.mode))?;
+            }
+        }
+        for id in row
+            .asset_id
+            .iter()
+            .map(String::as_str)
+            .chain(row.conversion.iter().map(|v| v.to_asset_id.as_str()))
+        {
+            let asset = self.assets.get_asset_by_id(id)?;
+            if !asset.is_active || asset.kind != AssetKind::Investment {
+                return Err(invalid("Asset is unavailable"));
+            }
         }
         row.status = InstructionStatus::InProgress;
         row.started_at = Some(Utc::now());

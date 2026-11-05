@@ -157,31 +157,26 @@ function CarouselView({
 }) {
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
+  const initialIndex = useRef(types.findIndex((type) => type.value === value));
 
   // Set API and track scroll state
-  const handleSetApi = useCallback(
-    (api: CarouselApi) => {
-      if (!api) return;
+  const handleSetApi = useCallback((api: CarouselApi) => {
+    if (!api) return;
 
-      const updateScrollState = () => {
-        setCanScrollPrev(api.canScrollPrev());
-        setCanScrollNext(api.canScrollNext());
-      };
+    const updateScrollState = () => {
+      setCanScrollPrev(api.canScrollPrev());
+      setCanScrollNext(api.canScrollNext());
+    };
 
-      updateScrollState();
-      api.on("select", updateScrollState);
-      api.on("reInit", updateScrollState);
+    updateScrollState();
+    api.on("select", updateScrollState);
+    api.on("reInit", updateScrollState);
 
-      // Scroll to selected item on mount
-      if (value) {
-        const selectedIndex = types.findIndex((t) => t.value === value);
-        if (selectedIndex >= 0) {
-          setTimeout(() => api.scrollTo(selectedIndex), 0);
-        }
-      }
-    },
-    [value, types],
-  );
+    // Scroll to selected item on mount
+    if (initialIndex.current >= 0) {
+      api.scrollTo(initialIndex.current, true);
+    }
+  }, []);
 
   return (
     <div className="relative overflow-hidden">
@@ -194,7 +189,7 @@ function CarouselView({
             containScroll: "trimSnaps",
           }}
           setApi={handleSetApi}
-          className="w-full"
+          className="w-full px-8"
         >
           <CarouselContent className="-ms-2">
             {types.map((type) => (

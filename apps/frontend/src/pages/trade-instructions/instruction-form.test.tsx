@@ -21,14 +21,31 @@ vi.mock("@wealthfolio/ui/lib/currencies", async (importOriginal) => {
   };
 });
 vi.mock("@/hooks/use-accounts", () => ({
-  useAccounts: () => ({ accounts: [{ id: "account", name: "Investment", currency: "USD" }] }),
+  useAccounts: () => ({
+    accounts: [
+      {
+        id: "account",
+        name: "Investment",
+        currency: "USD",
+        accountType: "SECURITIES",
+        isActive: true,
+        isArchived: false,
+        trackingMode: "TRANSACTIONS",
+      },
+    ],
+  }),
 }));
+const selections = vi.hoisted(() => ({ count: 0 }));
 vi.mock("@/components/ticker-search", () => ({
   default: ({ onSelectResult }: { onSelectResult: (symbol: string, result: object) => void }) => (
     <button
       type="button"
       onClick={() =>
-        onSelectResult("AAPL", { symbol: "AAPL", currency: "USD", quoteType: "EQUITY" })
+        onSelectResult(selections.count++ === 0 ? "AAPL" : "MSFT", {
+          symbol: selections.count === 1 ? "AAPL" : "MSFT",
+          currency: "USD",
+          quoteType: "EQUITY",
+        })
       }
     >
       Select asset
@@ -36,6 +53,15 @@ vi.mock("@/components/ticker-search", () => ({
   ),
 }));
 
+function showForm(side: import("@/adapters").InstructionSide) {
+  render(
+    <FormattingProvider locale="en-US">
+      <QueryClientProvider client={new QueryClient()}>
+        <InstructionForm goalId="goal" side={side} onSaved={vi.fn()} onCancel={vi.fn()} />
+      </QueryClientProvider>
+    </FormattingProvider>,
+  );
+}
 describe("instruction form financial controls", () => {
   beforeEach(() => {
     vi.stubGlobal(
@@ -47,6 +73,7 @@ describe("instruction form financial controls", () => {
       },
     );
     HTMLElement.prototype.scrollIntoView = vi.fn();
+    selections.count = 0;
     vi.mocked(createTradeInstruction).mockReset();
     i18n.addResourceBundle("en", "trade-instructions", enInstructions);
   });
@@ -64,7 +91,7 @@ describe("instruction form financial controls", () => {
       );
       await user.click(screen.getByRole("button", { name: "Select asset" }));
       await user.click(screen.getByTestId("account-select"));
-      await user.click(screen.getByRole("option", { name: /Investment/ }));
+      await user.click(await screen.findByRole("option", { name: /Investment/ }));
       await user.click(
         screen.getByRole("radio", {
           name: mode === "quantity" ? "Quantity" : "Amount",
@@ -172,5 +199,98 @@ describe("instruction form financial controls", () => {
       ),
     );
     expect(createTradeInstruction).not.toHaveBeenCalled();
+  });
+
+  it.each(["DEPOSIT", "WITHDRAWAL"] as const)(
+    "submits %s without resolving an asset",
+    async (side) => {
+      const user = userEvent.setup();
+      showForm(side);
+      expect(screen.queryByRole("button", { name: "Select asset" })).not.toBeInTheDocument();
+      await user.click(screen.getByTestId("account-select"));
+      await user.click(await screen.findByRole("option", { name: /Investment/ }));
+      await user.type(screen.getByRole("textbox", { name: "Amount" }), "12.123456789123456789");
+      await user.click(screen.getByRole("button", { name: "New instruction" }));
+      await waitFor(() =>
+        expect(createTradeInstruction).toHaveBeenCalledWith(
+          expect.objectContaining({
+            side,
+            amount: "12.123456789123456789",
+            amountCurrency: "USD",
+          }),
+        ),
+      );
+      expect(vi.mocked(createTradeInstruction).mock.calls[0][0].asset).toBeUndefined();
+    },
+  );
+  it("records a same-account currency transfer with an unknown received amount", async () => {
+    const user = userEvent.setup();
+    showForm("TRANSFER");
+    for (const label of ["From Account", "To Account"]) {
+      await user.click(screen.getByRole("combobox", { name: label }));
+      await user.click(await screen.findByRole("option", { name: /Investment/ }));
+    }
+    await user.type(screen.getByRole("textbox", { name: "Amount" }), "10");
+    await user.click(screen.getByRole("combobox", { name: "Destination currency" }));
+    await user.click(screen.getAllByRole("option", { name: /EUR/ })[0]);
+    await user.click(screen.getByRole("button", { name: "New instruction" }));
+    await waitFor(() =>
+      expect(createTradeInstruction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          side: "TRANSFER",
+          accountId: "account",
+          amount: "10",
+          amountCurrency: "USD",
+          transfer: {
+            mode: "cash",
+            isExternal: false,
+            toAccountId: "account",
+            destinationCurrency: "EUR",
+          },
+        }),
+      ),
+    );
+  });
+  it("records external securities in without requiring a cost basis", async () => {
+    const user = userEvent.setup();
+    showForm("TRANSFER");
+    await user.click(screen.getByRole("radio", { name: "Securities" }));
+    await user.click(screen.getByRole("radio", { name: "External" }));
+    await user.click(screen.getByTestId("account-select"));
+    await user.click(await screen.findByRole("option", { name: /Investment/ }));
+    await user.click(screen.getByRole("button", { name: "Select asset" }));
+    await user.type(screen.getByRole("textbox", { name: "Quantity" }), "3.123456789");
+    await user.click(screen.getByRole("button", { name: "New instruction" }));
+    await waitFor(() =>
+      expect(createTradeInstruction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          side: "TRANSFER",
+          quantity: "3.123456789",
+          transfer: { mode: "securities", isExternal: true, direction: "in" },
+        }),
+      ),
+    );
+  });
+  it("records conversion assets and leaves incoming units unknown", async () => {
+    const user = userEvent.setup();
+    showForm("CONVERSION");
+    await user.click(screen.getByTestId("account-select"));
+    await user.click(await screen.findByRole("option", { name: /Investment/ }));
+    const searches = screen.getAllByRole("button", { name: "Select asset" });
+    await user.click(searches[0]);
+    await user.click(searches[1]);
+    await user.type(screen.getByRole("textbox", { name: "Quantity" }), "2");
+    await user.click(screen.getByRole("button", { name: "New instruction" }));
+    await waitFor(() =>
+      expect(createTradeInstruction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          side: "CONVERSION",
+          quantity: "2",
+        }),
+      ),
+    );
+    const request = vi.mocked(createTradeInstruction).mock.calls[0][0];
+    expect(request.asset?.symbol).toBe("AAPL");
+    expect(request.conversion?.toAsset.symbol).toBe("MSFT");
   });
 });

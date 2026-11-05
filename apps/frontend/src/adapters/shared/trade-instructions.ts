@@ -1,19 +1,51 @@
 import { invoke } from "./platform";
 import type { AssetResolutionInput } from "@/lib/types";
 
+export const INSTRUCTION_SIDES = [
+  "BUY",
+  "SELL",
+  "TRANSFER",
+  "DEPOSIT",
+  "WITHDRAWAL",
+  "CONVERSION",
+] as const;
+export type InstructionSide = (typeof INSTRUCTION_SIDES)[number];
+export interface InstructionAssetSnapshot {
+  name: string | null;
+  symbol: string | null;
+  exchangeMic: string | null;
+  instrumentType: string | null;
+  quoteCcy: string;
+}
+export interface InstructionTransferInput {
+  mode: "cash" | "securities";
+  isExternal: boolean;
+  direction?: "in" | "out" | null;
+  toAccountId?: string | null;
+  destinationCurrency?: string | null;
+  destinationAmount?: string | null;
+  unitPrice?: string | null;
+  costCurrency?: string | null;
+}
+export interface InstructionConversionInput {
+  toAsset: AssetResolutionInput;
+  toQuantity?: string | null;
+}
 export type InstructionStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 export interface NewTradeInstruction {
   goalId: string;
   requestId: string;
   accountId: string;
-  asset: AssetResolutionInput;
-  side: "BUY" | "SELL";
+  asset?: AssetResolutionInput;
+  side: InstructionSide;
   quantity?: string;
   amount?: string;
   amountCurrency?: string;
   limitPrice?: string;
   notes?: string;
   expectedCompletionAt?: string;
+  transfer?: InstructionTransferInput;
+  conversion?: InstructionConversionInput;
 }
 export interface UpdateTradeInstruction extends Omit<NewTradeInstruction, "goalId" | "requestId"> {
   expectedVersion: number;
@@ -24,15 +56,9 @@ export interface TradeInstruction {
   requestId: string;
   accountId: string;
   accountName: string;
-  assetId: string;
-  assetSnapshot: {
-    name: string | null;
-    symbol: string | null;
-    exchangeMic: string | null;
-    instrumentType: string | null;
-    quoteCcy: string;
-  };
-  side: "BUY" | "SELL";
+  assetId: string | null;
+  assetSnapshot: InstructionAssetSnapshot | null;
+  side: InstructionSide;
   quantity: string | null;
   amount: string | null;
   amountCurrency: string | null;
@@ -48,12 +74,19 @@ export interface TradeInstruction {
   closedAt: string | null;
   completedAt: string | null;
   version: number;
+  transfer?: (InstructionTransferInput & { toAccountName: string | null }) | null;
+  conversion?: {
+    toAssetId: string;
+    toAssetSnapshot: InstructionAssetSnapshot;
+    toQuantity: string | null;
+  } | null;
 }
 export interface InstructionFilter {
   goalId?: string;
   statuses?: InstructionStatus[];
   accountId?: string;
-  side?: "BUY" | "SELL";
+  side?: InstructionSide;
+  sides?: InstructionSide[];
   expectedCompletionFrom?: string;
   expectedCompletionBefore?: string;
   sort?: "expectedCompletionAsc" | "expectedCompletionDesc";

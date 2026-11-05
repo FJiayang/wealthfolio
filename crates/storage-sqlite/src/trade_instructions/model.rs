@@ -8,9 +8,9 @@ pub struct InstructionDb {
     pub request_id: String,
     pub request_hash: String,
     pub account_id: String,
-    pub asset_id: String,
+    pub asset_id: Option<String>,
     pub account_name: String,
-    pub asset_snapshot: String,
+    pub asset_snapshot: Option<String>,
     pub side: String,
     pub quantity: Option<String>,
     pub amount: Option<String>,
@@ -28,6 +28,8 @@ pub struct InstructionDb {
     pub version: i32,
     pub goal_id: String,
     pub notes: Option<String>,
+    pub transfer: Option<String>,
+    pub conversion: Option<String>,
 }
 fn decode<T: serde::de::DeserializeOwned>(value: String) -> Result<T, StorageError> {
     serde_json::from_value(serde_json::Value::String(value))
@@ -43,13 +45,25 @@ impl TryFrom<TradeInstruction> for InstructionDb {
             account_id: row.account_id,
             asset_id: row.asset_id,
             account_name: row.account_name,
-            asset_snapshot: serde_json::to_string(&row.asset_snapshot)
+            asset_snapshot: row
+                .asset_snapshot
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()
                 .map_err(|e| StorageError::SerializationError(e.to_string()))?,
-            side: match row.side {
-                InstructionSide::Buy => "BUY",
-                InstructionSide::Sell => "SELL",
-            }
-            .into(),
+            transfer: row
+                .transfer
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(|e| StorageError::SerializationError(e.to_string()))?,
+            conversion: row
+                .conversion
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()
+                .map_err(|e| StorageError::SerializationError(e.to_string()))?,
+            side: row.side.as_str().into(),
             quantity: row.quantity.map(|v| v.to_string()),
             amount: row.amount.map(|v| v.to_string()),
             amount_currency: row.amount_currency,
@@ -83,7 +97,23 @@ impl TryFrom<InstructionDb> for TradeInstruction {
             account_id: row.account_id,
             asset_id: row.asset_id,
             account_name: row.account_name,
-            asset_snapshot: serde_json::from_str(&row.asset_snapshot)
+            asset_snapshot: row
+                .asset_snapshot
+                .as_deref()
+                .map(serde_json::from_str)
+                .transpose()
+                .map_err(|e| StorageError::SerializationError(e.to_string()))?,
+            transfer: row
+                .transfer
+                .as_deref()
+                .map(serde_json::from_str)
+                .transpose()
+                .map_err(|e| StorageError::SerializationError(e.to_string()))?,
+            conversion: row
+                .conversion
+                .as_deref()
+                .map(serde_json::from_str)
+                .transpose()
                 .map_err(|e| StorageError::SerializationError(e.to_string()))?,
             side: decode(row.side)?,
             quantity: row.quantity.map(decode).transpose()?,

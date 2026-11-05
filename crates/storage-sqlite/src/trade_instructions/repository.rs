@@ -56,13 +56,21 @@ impl TradeInstructionRepositoryTrait for TradeInstructionRepository {
                 q = q.filter(status.eq_any(&states));
             }
             if let Some(ref account) = filter.account_id {
-                q = q.filter(account_id.eq(account));
+                q = q.filter(
+                    account_id.eq(account).or(diesel::dsl::sql::<
+                        diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                    >(
+                        "json_extract(transfer, '$.toAccountId')"
+                    )
+                    .eq(account)),
+                );
             }
-            if let Some(direction) = filter.side {
-                q = q.filter(side.eq(match direction {
-                    InstructionSide::Buy => "BUY",
-                    InstructionSide::Sell => "SELL",
-                }));
+            let directions: Vec<_> = filter
+                .sides
+                .clone()
+                .unwrap_or_else(|| filter.side.into_iter().collect());
+            if !directions.is_empty() {
+                q = q.filter(side.eq_any(directions.into_iter().map(InstructionSide::as_str)));
             }
             if let Some(from) = filter.expected_completion_from {
                 q = q.filter(expected_completion_at.ge(from.to_rfc3339()));
@@ -168,6 +176,8 @@ impl TradeInstructionRepositoryTrait for TradeInstructionRepository {
                     asset_id.eq(&row.asset_id),
                     asset_snapshot.eq(&row.asset_snapshot),
                     side.eq(&row.side),
+                    transfer.eq(&row.transfer),
+                    conversion.eq(&row.conversion),
                     quantity.eq(&row.quantity),
                     amount.eq(&row.amount),
                     amount_currency.eq(&row.amount_currency),
@@ -431,8 +441,8 @@ mod tests {
         let mut edited = original.clone();
         edited.account_id = "account-2".into();
         edited.account_name = "Changed account".into();
-        edited.asset_id = "asset-2".into();
-        edited.asset_snapshot.name = Some("Changed snapshot".into());
+        edited.asset_id = Some("asset-2".into());
+        edited.asset_snapshot.as_mut().unwrap().name = Some("Changed snapshot".into());
         edited.side = InstructionSide::Sell;
         edited.quantity = None;
         edited.amount = Some("25.123456789".parse().unwrap());
@@ -446,9 +456,9 @@ mod tests {
             .unwrap();
         let persisted = repo.get("a").unwrap();
         assert_eq!(persisted.account_name, "Changed account");
-        assert_eq!(persisted.asset_id, "asset-2");
+        assert_eq!(persisted.asset_id.as_deref(), Some("asset-2"));
         assert_eq!(
-            persisted.asset_snapshot.name.as_deref(),
+            persisted.asset_snapshot.as_ref().unwrap().name.as_deref(),
             Some("Changed snapshot")
         );
         assert_eq!(persisted.amount.unwrap().to_string(), "25.123456789");
@@ -481,5 +491,173 @@ mod tests {
                 .unwrap(),
             0
         );
+    }
+
+    #[tokio::test]
+    async fn trade_instruction_actions_roundtrip_filter_and_clear() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("actions.db").to_string_lossy().to_string();
+        run_migrations(&path).unwrap();
+        let pool = create_pool(&path).unwrap();
+        let repo =
+            TradeInstructionRepository::new(pool.clone(), spawn_writer((*pool).clone()).unwrap());
+        let mut conn = get_connection(&pool).unwrap();
+        diesel::sql_query(
+            "INSERT INTO goals (id,title,target_amount) VALUES ('goal-1','Goal',1000)",
+        )
+        .execute(&mut conn)
+        .unwrap();
+        for (key, fields) in [
+            (
+                "deposit",
+                json!({"side":"DEPOSIT","assetId":null,"assetSnapshot":null,"quantity":null,"amount":"1.123456789123456789","amountCurrency":"USD","limitPrice":null}),
+            ),
+            (
+                "withdrawal",
+                json!({"side":"WITHDRAWAL","assetId":null,"assetSnapshot":null,"quantity":null,"amount":"2","amountCurrency":"USD","limitPrice":null}),
+            ),
+            (
+                "cash",
+                json!({"side":"TRANSFER","assetId":null,"assetSnapshot":null,"quantity":null,"amount":"3","amountCurrency":"USD","limitPrice":null,"transfer":{"mode":"cash","isExternal":false,"direction":null,"toAccountId":"destination","toAccountName":"Destination snapshot","destinationCurrency":"EUR","destinationAmount":null,"unitPrice":null,"costCurrency":null}}),
+            ),
+            (
+                "fx",
+                json!({"side":"TRANSFER","accountId":"destination","assetId":null,"assetSnapshot":null,"quantity":null,"amount":"4","amountCurrency":"USD","limitPrice":null,"transfer":{"mode":"cash","isExternal":false,"direction":null,"toAccountId":"destination","toAccountName":"Destination snapshot","destinationCurrency":"EUR","destinationAmount":"3.123456789123456789","unitPrice":null,"costCurrency":null}}),
+            ),
+            (
+                "securities",
+                json!({"side":"TRANSFER","quantity":"5","limitPrice":null,"transfer":{"mode":"securities","isExternal":true,"direction":"in","toAccountId":null,"toAccountName":null,"destinationCurrency":null,"destinationAmount":null,"unitPrice":"6.123456789123456789","costCurrency":"USD"}}),
+            ),
+            (
+                "conversion",
+                json!({"side":"CONVERSION","quantity":"7","limitPrice":null,"conversion":{"toAssetId":"target","toAssetSnapshot":{"name":"Target snapshot","symbol":"DEF","exchangeMic":"XNAS","instrumentType":"EQUITY","quoteCcy":"USD"},"toQuantity":null}}),
+            ),
+        ] {
+            let mut value = serde_json::to_value(row()).unwrap();
+            value
+                .as_object_mut()
+                .unwrap()
+                .extend(fields.as_object().unwrap().clone());
+            value["id"] = json!(key);
+            value["requestId"] = json!(key);
+            let item: TradeInstruction = serde_json::from_value(value).unwrap();
+            let saved = repo.create(item.clone()).await.unwrap();
+            let loaded = repo.get(&saved.id).unwrap();
+            assert_eq!(
+                serde_json::to_value(&loaded).unwrap(),
+                serde_json::to_value(&item).unwrap()
+            );
+            assert_eq!(repo.create(item).await.unwrap().id, saved.id);
+        }
+        let page = repo
+            .list(InstructionFilter {
+                account_id: Some("destination".into()),
+                sides: Some(vec![InstructionSide::Transfer]),
+                limit: Some(1),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(page.total, 2);
+        assert_eq!(page.items.len(), 1);
+        assert_eq!(
+            repo.list(InstructionFilter {
+                sides: Some(vec![InstructionSide::Deposit, InstructionSide::Conversion]),
+                ..Default::default()
+            })
+            .unwrap()
+            .total,
+            2
+        );
+        let mut changed = repo.get("conversion").unwrap();
+        changed.side = InstructionSide::Deposit;
+        changed.asset_id = None;
+        changed.asset_snapshot = None;
+        changed.quantity = None;
+        changed.amount = Some("10".parse().unwrap());
+        changed.amount_currency = Some("USD".into());
+        changed.conversion = None;
+        changed.version += 1;
+        repo.update(changed, 1, InstructionStatus::Pending)
+            .await
+            .unwrap();
+        assert!(repo.get("conversion").unwrap().conversion.is_none());
+        for statement in [
+            "SELECT CAST(COUNT(*) AS TEXT) AS value FROM activities",
+            "SELECT CAST(COUNT(*) AS TEXT) AS value FROM quotes",
+            "SELECT CAST(COUNT(*) AS TEXT) AS value FROM sync_outbox",
+        ] {
+            #[derive(QueryableByName)]
+            struct Count {
+                #[diesel(sql_type=diesel::sql_types::Text)]
+                value: String,
+            }
+            assert_eq!(
+                diesel::sql_query(statement)
+                    .get_result::<Count>(&mut conn)
+                    .unwrap()
+                    .value,
+                "0"
+            );
+        }
+        diesel::sql_query("DELETE FROM goals WHERE id='goal-1'")
+            .execute(&mut conn)
+            .unwrap();
+        assert_eq!(repo.list(InstructionFilter::default()).unwrap().total, 0);
+    }
+
+    #[test]
+    fn trade_instruction_migration_preserves_all_legacy_columns_and_hashes() {
+        use diesel::connection::SimpleConnection;
+        use diesel_migrations::MigrationHarness;
+        const MIGRATIONS: diesel_migrations::EmbeddedMigrations =
+            diesel_migrations::embed_migrations!();
+        let mut conn = diesel::sqlite::SqliteConnection::establish(":memory:").unwrap();
+        conn.batch_execute("PRAGMA foreign_keys=ON").unwrap();
+        let mut migrations = conn.pending_migrations(MIGRATIONS).unwrap();
+        migrations.sort_by_key(|m| m.name().version().to_string());
+        for migration in migrations {
+            if migration.name().version().to_string().as_str() >= "20261105000001" {
+                break;
+            }
+            conn.run_migration(&*migration).unwrap();
+        }
+        conn.batch_execute(r#"
+            INSERT INTO goals(id,title,target_amount) VALUES ('g','Goal',100);
+            INSERT INTO trade_instructions(id,request_id,request_hash,account_id,asset_id,account_name,asset_snapshot,side,quantity,amount,amount_currency,limit_price,expected_completion_at,status,resolution_note,source,created_at,updated_at,started_at,closed_at,completed_at,version,goal_id,notes)
+            VALUES ('legacy','request','original-hash','account','asset','Saved account','{"name":"Saved","symbol":"ABC","exchangeMic":"XNAS","instrumentType":"EQUITY","quoteCcy":"USD"}','BUY','1.123456789123456789',NULL,NULL,'12.34','2026-01-01T00:00:00Z','COMPLETED','Done','MCP','2025-01-01T00:00:00Z','2026-01-01T00:00:00Z','2025-12-31T00:00:00Z','2026-01-01T00:00:00Z','2025-12-31T23:00:00Z',4,'g','User notes');
+        "#).unwrap();
+        #[derive(QueryableByName)]
+        struct JsonRow {
+            #[diesel(sql_type=diesel::sql_types::Text)]
+            value: String,
+        }
+        let columns = "id,request_id,request_hash,account_id,asset_id,account_name,asset_snapshot,side,quantity,amount,amount_currency,limit_price,expected_completion_at,status,resolution_note,source,created_at,updated_at,started_at,closed_at,completed_at,version,goal_id,notes";
+        let pairs = columns
+            .split(',')
+            .map(|column| format!("'{column}',{column}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let query = format!("SELECT json_object({pairs}) AS value FROM trade_instructions");
+        let before = diesel::sql_query(&query)
+            .get_result::<JsonRow>(&mut conn)
+            .unwrap()
+            .value;
+        conn.run_pending_migrations(MIGRATIONS).unwrap();
+        assert_eq!(
+            diesel::sql_query(&query)
+                .get_result::<JsonRow>(&mut conn)
+                .unwrap()
+                .value,
+            before
+        );
+        let saved: TradeInstruction = trade_instructions
+            .select(InstructionDb::as_select())
+            .first::<InstructionDb>(&mut conn)
+            .unwrap()
+            .try_into()
+            .unwrap();
+        assert_eq!(saved.request_hash, "original-hash");
+        assert!(saved.transfer.is_none() && saved.conversion.is_none());
+        assert!(conn.run_pending_migrations(MIGRATIONS).unwrap().is_empty());
     }
 }

@@ -2,17 +2,42 @@ import { ActivityType } from "@/lib/constants";
 import { render, screen } from "@/test/render";
 import userEvent from "@testing-library/user-event";
 import { DirectionProvider } from "@wealthfolio/ui";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ActivityTypePicker } from "./activity-type-picker";
 
+const carousel = vi.hoisted(() => ({
+  scrollTo: vi.fn(),
+  canScrollPrev: () => false,
+  canScrollNext: () => false,
+  on: vi.fn(),
+}));
 vi.mock("@wealthfolio/ui/components/ui/carousel", () => ({
-  Carousel: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Carousel: ({
+    children,
+    setApi,
+  }: {
+    children: ReactNode;
+    setApi: (api: typeof carousel) => void;
+  }) => {
+    useEffect(() => {
+      setApi(carousel);
+    }, [setApi]);
+    return <div>{children}</div>;
+  },
   CarouselContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   CarouselItem: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   CarouselNext: () => null,
   CarouselPrevious: () => null,
 }));
+
+it("scrolls to the initial selection without moving types away on subsequent selections", () => {
+  carousel.scrollTo.mockClear();
+  const view = render(<ActivityTypePicker value={ActivityType.BUY} onSelect={vi.fn()} />);
+  expect(carousel.scrollTo).toHaveBeenCalledWith(0, true);
+  view.rerender(<ActivityTypePicker value={ActivityType.SELL} onSelect={vi.fn()} />);
+  expect(carousel.scrollTo).toHaveBeenCalledTimes(1);
+});
 
 describe("ActivityTypePicker reclassification types", () => {
   it("keeps ADJUSTMENT out of the ordinary creation picker", () => {

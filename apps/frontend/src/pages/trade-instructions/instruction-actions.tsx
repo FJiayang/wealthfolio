@@ -1,3 +1,4 @@
+import { instructionAssetLabel } from "./instruction-label";
 import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -48,6 +49,7 @@ export function InstructionActions({
   onEdit: (id: string) => void;
 }) {
   const { t } = useTranslation("trade-instructions");
+  const summary = row.assetSnapshot ? instructionAssetLabel(row) : t(row.side);
   const { timezone = "UTC" } = useLocalizationSettings();
   const queryClient = useQueryClient();
   const fieldId = useId();
@@ -167,7 +169,7 @@ export function InstructionActions({
             <AlertDialogTitle>{t("deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("deleteDescription", {
-                symbol: row.assetSnapshot.symbol || row.assetSnapshot.name,
+                symbol: summary,
                 account: row.accountName,
               })}
             </AlertDialogDescription>
@@ -200,7 +202,7 @@ export function InstructionActions({
             <DialogTitle>{action ? t(action) : ""}</DialogTitle>
           </DialogHeader>
           <DialogDescription>
-            {row.assetSnapshot.symbol || row.assetSnapshot.name} · {row.accountName}
+            {summary} · {row.accountName}
           </DialogDescription>
           <form
             className="space-y-4"

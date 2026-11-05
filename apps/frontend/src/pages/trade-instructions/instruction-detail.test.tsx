@@ -56,6 +56,7 @@ function renderList() {
 }
 const state = vi.hoisted(() => ({
   hidden: false,
+  detail: undefined as TradeInstruction | undefined,
   total: 2,
   filter: undefined as InstructionFilter | undefined,
 }));
@@ -116,7 +117,11 @@ vi.mock("./use-trade-instructions", () => ({
       isError: false,
     };
   },
-  useTradeInstruction: () => ({ data: instruction, isPending: false, isError: false }),
+  useTradeInstruction: () => ({
+    data: state.detail ?? instruction,
+    isPending: false,
+    isError: false,
+  }),
 }));
 function showDetail() {
   render(
@@ -132,6 +137,7 @@ function showDetail() {
 describe("instruction detail", () => {
   beforeEach(() => {
     state.hidden = false;
+    state.detail = undefined;
     i18n.addResourceBundle("en", "trade-instructions", enInstructions);
   });
   it("groups the snapshot, financial values, notes and record timestamps", async () => {
@@ -222,11 +228,13 @@ describe("instruction pagination and filters", () => {
     const view = renderList();
     await user.click(screen.getByRole("button", { name: "Next page" }));
     await user.click(
-      within(screen.getByTestId("instruction-filters")).getByRole("button", { name: "Side" }),
+      within(screen.getByTestId("instruction-filters")).getByRole("button", {
+        name: "Operation type",
+      }),
     );
     await user.click(screen.getByRole("option", { name: "Sell" }));
     await user.keyboard("{Escape}");
-    expect(state.filter).toMatchObject({ side: "SELL", offset: 0 });
+    expect(state.filter).toMatchObject({ sides: ["SELL"], offset: 0 });
     await user.click(screen.getByRole("button", { name: "Go to last page" }));
     expect(state.filter?.offset).toBe(60);
     state.total = 21;
@@ -263,7 +271,7 @@ describe("instruction quick actions", () => {
     await waitFor(() => expect(startTradeInstruction).toHaveBeenCalledWith("instruction", 1));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Toggle columns" }));
-    expect(await screen.findAllByRole("menuitemcheckbox")).toHaveLength(10);
+    expect(await screen.findAllByRole("menuitemcheckbox")).toHaveLength(11);
     expect(screen.queryByRole("menuitemcheckbox", { name: /actions/i })).not.toBeInTheDocument();
   });
   it.each(["Complete", "Cancel"])(
@@ -432,7 +440,7 @@ it.each([
   render(
     <QueryClientProvider client={new QueryClient()}>
       <InstructionGrid
-        items={[{ ...instruction, assetSnapshot: { ...instruction.assetSnapshot, symbol, name } }]}
+        items={[{ ...instruction, assetSnapshot: { ...instruction.assetSnapshot!, symbol, name } }]}
         sorting={[]}
         onSortingChange={vi.fn()}
         onOpen={vi.fn()}
@@ -441,4 +449,117 @@ it.each([
     </QueryClientProvider>,
   );
   expect(screen.getAllByText(display)).toHaveLength(1);
+});
+
+describe("instruction action details", () => {
+  beforeEach(() => {
+    state.hidden = false;
+    state.detail = undefined;
+    i18n.addResourceBundle("en", "trade-instructions", enInstructions);
+  });
+  afterEach(() => {
+    state.detail = undefined;
+  });
+  it("opens a cash instruction without an asset and can ask for completion", async () => {
+    const user = userEvent.setup();
+    state.detail = {
+      ...instruction,
+      side: "DEPOSIT",
+      assetId: null,
+      assetSnapshot: null,
+      quantity: null,
+      amount: "17.25",
+      amountCurrency: "USD",
+      limitPrice: null,
+    };
+    showDetail();
+    expect(screen.getAllByText("Deposit")).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: "Mark complete" }));
+    expect(screen.getByRole("button", { name: "Confirm" })).toBeVisible();
+  });
+  it("shows both transfer accounts and an unknown incoming amount", () => {
+    state.detail = {
+      ...instruction,
+      side: "TRANSFER",
+      assetId: null,
+      assetSnapshot: null,
+      quantity: null,
+      amount: "17.25",
+      amountCurrency: "USD",
+      limitPrice: null,
+      transfer: {
+        mode: "cash",
+        isExternal: false,
+        toAccountId: "savings",
+        toAccountName: "Savings",
+        destinationCurrency: "EUR",
+        destinationAmount: null,
+      },
+    };
+    showDetail();
+    expect(screen.getByText("Savings")).toBeVisible();
+    expect(screen.getByText("Undetermined")).toBeVisible();
+  });
+  it("deletes a cash instruction using its operation and account instead of an asset", async () => {
+    const user = userEvent.setup();
+    const item: TradeInstruction = {
+      ...instruction,
+      side: "DEPOSIT",
+      assetId: null,
+      assetSnapshot: null,
+      quantity: null,
+      amount: "17.25",
+      amountCurrency: "USD",
+      limitPrice: null,
+    };
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <InstructionGrid
+          items={[item]}
+          sorting={[]}
+          onSortingChange={vi.fn()}
+          onOpen={vi.fn()}
+          onEdit={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }));
+    const confirm = screen.getByRole("alertdialog");
+    expect(
+      within(confirm).getByText(/Permanently delete Deposit in Investment account/),
+    ).toBeVisible();
+    vi.mocked(deleteTradeInstruction).mockResolvedValue();
+    await user.click(within(confirm).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleteTradeInstruction).toHaveBeenCalledWith(item.id, item.version));
+  });
+  it("masks incoming conversion units in the detail and grid", () => {
+    state.hidden = true;
+    const item: TradeInstruction = {
+      ...instruction,
+      side: "CONVERSION",
+      limitPrice: null,
+      conversion: {
+        toAssetId: "to",
+        toAssetSnapshot: { ...instruction.assetSnapshot!, symbol: "OTHER" },
+        toQuantity: "9876.54321",
+      },
+    };
+    state.detail = item;
+    showDetail();
+    expect(screen.queryByText(/9[,.]?876/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("••••").length).toBeGreaterThan(1);
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <InstructionGrid
+          items={[item]}
+          sorting={[]}
+          onSortingChange={vi.fn()}
+          onOpen={vi.fn()}
+          onEdit={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByText(/9[,.]?876/)).not.toBeInTheDocument();
+  });
 });

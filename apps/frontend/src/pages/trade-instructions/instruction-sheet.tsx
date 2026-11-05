@@ -1,4 +1,4 @@
-import type { TradeInstruction } from "@/adapters";
+import { INSTRUCTION_SIDES, type InstructionSide, type TradeInstruction } from "@/adapters";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@wealthfolio/ui/components/ui/button";
@@ -23,7 +23,7 @@ export function InstructionSheet({
   onClose: () => void;
 }) {
   const { t } = useTranslation("trade-instructions");
-  const [side, setSide] = useState<"BUY" | "SELL" | undefined>(instruction?.side);
+  const [side, setSide] = useState<InstructionSide | undefined>(instruction?.side);
   return (
     <Sheet
       open
@@ -42,14 +42,15 @@ export function InstructionSheet({
         <div className="flex-1 space-y-6 overflow-y-auto py-4">
           <ActivityTypePicker
             value={side}
-            allowedTypes={["BUY", "SELL"]}
+            allowedTypes={INSTRUCTION_SIDES}
             onSelect={(type) => {
-              if (type === "BUY" || type === "SELL") setSide(type);
+              if (INSTRUCTION_SIDES.includes(type as InstructionSide))
+                setSide(type as InstructionSide);
             }}
           />
           {side ? (
             <InstructionForm
-              key={instruction?.id ?? side}
+              key={`${instruction?.id ?? "new"}-${side}`}
               goalId={goalId}
               instruction={instruction}
               side={side}
