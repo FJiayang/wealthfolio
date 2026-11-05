@@ -96,6 +96,33 @@ pub enum MarketSyncMode {
 }
 
 impl MarketSyncMode {
+    /// Business-required FX coverage is independent of the daily schedule.
+    pub fn for_settings_change(
+        base_currency_changed: bool,
+        timezone_changed: bool,
+    ) -> Option<Self> {
+        if base_currency_changed {
+            Some(Self::BackfillHistory {
+                asset_ids: None,
+                days: super::DEFAULT_HISTORY_DAYS,
+            })
+        } else if timezone_changed {
+            Some(Self::None)
+        } else {
+            None
+        }
+    }
+
+    pub fn for_added_exchange_rate(source: &str, asset_id: &str) -> Self {
+        if source == super::DATA_SOURCE_MANUAL {
+            Self::None
+        } else {
+            Self::Incremental {
+                asset_ids: Some(vec![asset_id.to_string()]),
+            }
+        }
+    }
+
     /// Returns true if this mode requires market data synchronization.
     pub fn requires_sync(&self) -> bool {
         !matches!(self, MarketSyncMode::None)

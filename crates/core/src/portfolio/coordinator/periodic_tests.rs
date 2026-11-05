@@ -108,6 +108,88 @@ impl SettingsServiceTrait for TestSettings {
 }
 
 #[tokio::test]
+async fn required_fx_jobs_target_sync_without_consuming_the_daily_attempt() {
+    use crate::quotes::{SyncMode, DATA_SOURCE_MANUAL, DEFAULT_HISTORY_DAYS};
+    use std::sync::atomic::Ordering;
+    let h = harness(scenario("NOM-TRADE-01").facts()).await;
+    let settings = TestSettings::default();
+    let marker = "2026-10-25T22:00:00+08:00";
+    *settings.marker.lock().unwrap() = Some(marker.into());
+    *h.quote_service.sync_calls.lock().unwrap() = Some(vec![]);
+    let pair = "FX:EUR:USD";
+
+    assert_eq!(MarketSyncMode::for_settings_change(false, false), None);
+    let cases = [
+        (
+            MarketSyncMode::for_added_exchange_rate(DATA_SOURCE_MANUAL, pair),
+            None,
+        ),
+        (
+            MarketSyncMode::for_added_exchange_rate("YAHOO", pair),
+            Some((SyncMode::Incremental, Some(vec![pair.to_string()]))),
+        ),
+        (
+            MarketSyncMode::for_settings_change(false, true).unwrap(),
+            None,
+        ),
+        (
+            MarketSyncMode::for_settings_change(true, false).unwrap(),
+            Some((
+                SyncMode::BackfillHistory {
+                    days: DEFAULT_HISTORY_DAYS,
+                },
+                None,
+            )),
+        ),
+        (
+            MarketSyncMode::for_settings_change(true, true).unwrap(),
+            Some((
+                SyncMode::BackfillHistory {
+                    days: DEFAULT_HISTORY_DAYS,
+                },
+                None,
+            )),
+        ),
+    ];
+    let mut expected = vec![];
+    for (mode, sync) in cases {
+        h.coordinator
+            .try_update_all(mode, &SilentObserver)
+            .await
+            .unwrap();
+        if let Some(sync) = sync {
+            expected.push(sync);
+        }
+        assert_eq!(
+            *h.quote_service.sync_calls.lock().unwrap(),
+            Some(expected.clone())
+        );
+        assert_eq!(settings.marker.lock().unwrap().as_deref(), Some(marker));
+        assert_eq!(h.quote_service.daily_sync_calls.load(Ordering::SeqCst), 0);
+    }
+    let assets =
+        crate::assets::AssetService::new(h.sources.assets.clone(), h.quote_service.clone())
+            .unwrap();
+    assert!(h
+        .coordinator
+        .update_if_due(&settings, &assets, &SilentObserver)
+        .await
+        .unwrap()
+        .is_some());
+    let daily_marker = settings.marker.lock().unwrap().clone();
+    assert_ne!(daily_marker.as_deref(), Some(marker));
+    h.coordinator
+        .try_update_all(
+            MarketSyncMode::for_added_exchange_rate("YAHOO", pair),
+            &SilentObserver,
+        )
+        .await
+        .unwrap();
+    assert_eq!(*settings.marker.lock().unwrap(), daily_marker);
+    assert_eq!(h.quote_service.daily_sync_calls.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn daily_sync_concurrent_wakes_restart_and_failed_batch_do_not_repeat() {
     use std::sync::atomic::Ordering;
     let h = harness(scenario("NOM-TRADE-01").facts()).await;
