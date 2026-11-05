@@ -7,40 +7,26 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct GetTaxonomiesArgs {}
-
-business_tool!(
-    GetTaxonomies,
-    GetTaxonomiesArgs,
-    "get_taxonomies",
-    "Read complete taxonomies and categories for asset or activity classification.",
-    json!({"type":"object","properties":{},"required":[]}),
-    [AgentScope::ClassificationRead],
-    Read,
-    |env, args| {
-        let _ = args;
-        output(env.taxonomy_service().get_taxonomies_with_categories()?)
+fn require_asset_scope(scope: &str) -> Result<(), AgentToolError> {
+    if scope != "asset" {
+        return Err(AgentToolError::InvalidInput(
+            "Only asset-scoped taxonomies can be maintained; use the Spending tools for transaction categories".into(),
+        ));
     }
-);
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct GetTaxonomyArgs {
-    pub id: String,
+    Ok(())
 }
 
-business_tool!(
-    GetTaxonomy,
-    GetTaxonomyArgs,
-    "get_taxonomy",
-    "Read complete taxonomies and categories for asset or activity classification.",
-    json!({"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}),
-    [AgentScope::ClassificationRead],
-    Read,
-    |env, args| { output(env.taxonomy_service().get_taxonomy(&args.id)?) }
-);
+fn asset_taxonomy(
+    env: &dyn AgentEnvironment,
+    id: &str,
+) -> Result<wealthfolio_core::taxonomies::TaxonomyWithCategories, AgentToolError> {
+    let taxonomy = env
+        .taxonomy_service()
+        .get_taxonomy(id)?
+        .ok_or_else(|| AgentToolError::NotFound("Asset taxonomy not found".into()))?;
+    require_asset_scope(&taxonomy.taxonomy.scope)?;
+    Ok(taxonomy)
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -49,8 +35,14 @@ struct CreateTaxonomyArgs {
 }
 
 business_tool!(CreateTaxonomy, CreateTaxonomyArgs, "create_taxonomy",
-    "Save taxonomy/category configuration through existing domain validation. No deletion or system migration is performed.",
-    json!({"type":"object","properties":{"input":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"color":{"type":"string"},"description":{"type":"string"},"isSystem":{"type":"boolean"},"isSingleSelect":{"type":"boolean"},"sortOrder":{"type":"integer"},"scope":{"type":"string","enum":["asset","activity"]},"createdAt":{"type":"string"},"updatedAt":{"type":"string"}},"required":["name","color","isSystem","isSingleSelect","sortOrder"]}},"required":["input"]}), [AgentScope::ClassificationSuggest, AgentScope::ClassificationWrite], Write, |env, args| {
+    "Save asset taxonomy/category configuration through existing domain validation. No deletion or system migration is performed.",
+    json!({"type":"object","properties":{"input":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"color":{"type":"string"},"description":{"type":"string"},"isSystem":{"type":"boolean"},"isSingleSelect":{"type":"boolean"},"sortOrder":{"type":"integer"},"scope":{"type":"string","enum":["asset"]},"createdAt":{"type":"string"},"updatedAt":{"type":"string"}},"required":["name","color","isSystem","isSingleSelect","sortOrder"]}},"required":["input"]}), [AgentScope::ClassificationSuggest, AgentScope::ClassificationWrite], Write, |env, args| {
+        require_asset_scope(&args.input.scope)?;
+        if let Some(id) = &args.input.id {
+            if let Some(existing) = env.taxonomy_service().get_taxonomy(id)? {
+                require_asset_scope(&existing.taxonomy.scope)?;
+            }
+        }
         output(env.taxonomy_service().create_taxonomy(args.input).await?)
     });
 
@@ -61,8 +53,10 @@ struct UpdateTaxonomyArgs {
 }
 
 business_tool!(UpdateTaxonomy, UpdateTaxonomyArgs, "update_taxonomy",
-    "Save taxonomy/category configuration through existing domain validation. No deletion or system migration is performed.",
-    json!({"type":"object","properties":{"input":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"color":{"type":"string"},"description":{"type":"string"},"isSystem":{"type":"boolean"},"isSingleSelect":{"type":"boolean"},"sortOrder":{"type":"integer"},"scope":{"type":"string","enum":["asset","activity"]},"createdAt":{"type":"string"},"updatedAt":{"type":"string"}},"required":["name","color","isSystem","isSingleSelect","sortOrder","id","createdAt","updatedAt"]}},"required":["input"]}), [AgentScope::ClassificationSuggest, AgentScope::ClassificationWrite], Write, |env, args| {
+    "Save asset taxonomy/category configuration through existing domain validation. No deletion or system migration is performed.",
+    json!({"type":"object","properties":{"input":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"color":{"type":"string"},"description":{"type":"string"},"isSystem":{"type":"boolean"},"isSingleSelect":{"type":"boolean"},"sortOrder":{"type":"integer"},"scope":{"type":"string","enum":["asset"]},"createdAt":{"type":"string"},"updatedAt":{"type":"string"}},"required":["name","color","isSystem","isSingleSelect","sortOrder","id","createdAt","updatedAt"]}},"required":["input"]}), [AgentScope::ClassificationSuggest, AgentScope::ClassificationWrite], Write, |env, args| {
+        require_asset_scope(&args.input.scope)?;
+        asset_taxonomy(env.as_ref(), &args.input.id)?;
         output(env.taxonomy_service().update_taxonomy(args.input).await?)
     });
 
@@ -73,8 +67,9 @@ struct CreateCategoryArgs {
 }
 
 business_tool!(CreateCategory, CreateCategoryArgs, "create_category",
-    "Save taxonomy/category configuration through existing domain validation. No deletion or system migration is performed.",
+    "Save asset taxonomy/category configuration through existing domain validation. No deletion or system migration is performed.",
     json!({"type":"object","properties":{"input":{"type":"object","properties":{"id":{"type":"string"},"taxonomyId":{"type":"string"},"parentId":{"type":"string"},"name":{"type":"string"},"key":{"type":"string"},"color":{"type":"string"},"description":{"type":"string"},"sortOrder":{"type":"integer"},"icon":{"type":"string"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"}},"required":["taxonomyId","name","key","color","sortOrder"]}},"required":["input"]}), [AgentScope::ClassificationSuggest, AgentScope::ClassificationWrite], Write, |env, args| {
+        asset_taxonomy(env.as_ref(), &args.input.taxonomy_id)?;
         output(env.taxonomy_service().create_category(args.input).await?)
     });
 
@@ -85,8 +80,12 @@ struct UpdateCategoryArgs {
 }
 
 business_tool!(UpdateCategory, UpdateCategoryArgs, "update_category",
-    "Save taxonomy/category configuration through existing domain validation. No deletion or system migration is performed.",
+    "Save asset taxonomy/category configuration through existing domain validation. No deletion or system migration is performed.",
     json!({"type":"object","properties":{"input":{"type":"object","properties":{"id":{"type":"string"},"taxonomyId":{"type":"string"},"parentId":{"type":"string"},"name":{"type":"string"},"key":{"type":"string"},"color":{"type":"string"},"description":{"type":"string"},"sortOrder":{"type":"integer"},"icon":{"type":"string"},"createdAt":{"type":"string"},"updatedAt":{"type":"string"}},"required":["taxonomyId","name","key","color","sortOrder","id","createdAt","updatedAt"]}},"required":["input"]}), [AgentScope::ClassificationSuggest, AgentScope::ClassificationWrite], Write, |env, args| {
+        let taxonomy = asset_taxonomy(env.as_ref(), &args.input.taxonomy_id)?;
+        if !taxonomy.categories.iter().any(|category| category.id == args.input.id) {
+            return Err(AgentToolError::NotFound("Asset category not found".into()));
+        }
         output(env.taxonomy_service().update_category(args.input).await?)
     });
 
@@ -112,6 +111,7 @@ business_tool!(
     ],
     Write,
     |env, args| {
+        asset_taxonomy(env.as_ref(), &args.taxonomy_id)?;
         output(
             env.taxonomy_service()
                 .move_category(
@@ -137,151 +137,13 @@ business_tool!(ImportTaxonomyJson, ImportTaxonomyJsonArgs, "import_taxonomy_json
         output(env.taxonomy_service().import_taxonomy_json(&args.content).await?)
     });
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct AssignAssetToCategoryArgs {
-    pub input: wealthfolio_core::taxonomies::NewAssetTaxonomyAssignment,
-}
-
-business_tool!(
-    AssignAssetToCategory,
-    AssignAssetToCategoryArgs,
-    "assign_asset_to_category",
-    "Assign an asset to a taxonomy category with a basis-point weight.",
-    json!({"type":"object","properties":{"input":{"type":"object","properties":{"assetId":{"type":"string"},"taxonomyId":{"type":"string"},"categoryId":{"type":"string"},"weight":{"type":"integer"},"source":{"type":"string"}},"required":["assetId","taxonomyId","categoryId","weight","source"]}},"required":["input"]}),
-    [
-        AgentScope::ClassificationSuggest,
-        AgentScope::ClassificationWrite
-    ],
-    Write,
-    |env, args| {
-        output(
-            env.taxonomy_service()
-                .assign_asset_to_category(args.input)
-                .await?,
-        )
-    }
-);
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ReplaceAssetTaxonomyAssignmentsArgs {
-    pub asset_id: String,
-    pub taxonomy_id: String,
-    pub assignments: Vec<wealthfolio_core::taxonomies::NewAssetTaxonomyAssignment>,
-}
-
-business_tool!(ReplaceAssetTaxonomyAssignments, ReplaceAssetTaxonomyAssignmentsArgs, "replace_asset_taxonomy_assignments",
-    "Replace the complete category assignment list for one asset and taxonomy. Omitted assignments are removed; the service validates IDs and weights.",
-    json!({"type":"object","properties":{"assetId":{"type":"string"},"taxonomyId":{"type":"string"},"assignments":{"type":"array","items":{"type":"object","properties":{"assetId":{"type":"string"},"taxonomyId":{"type":"string"},"categoryId":{"type":"string"},"weight":{"type":"integer"},"source":{"type":"string"}},"required":["assetId","taxonomyId","categoryId","weight","source"]},"maxItems":100}},"required":["assetId","taxonomyId","assignments"]}), [AgentScope::ClassificationSuggest, AgentScope::ClassificationWrite], Write, |env, args| {
-        if args.assignments.len() > 100 { return Err(AgentToolError::InvalidInput("At most 100 items per call".into())); }
-        output(env.taxonomy_service().replace_asset_taxonomy_assignments(&args.asset_id, &args.taxonomy_id, args.assignments).await?)
-    });
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct UpdateCategorizationRuleArgs {
-    pub id: String,
-    pub patch: wealthfolio_spending::categorization_rules::UpdateCategorizationRule,
-}
-
-business_tool!(
-    UpdateCategorizationRule,
-    UpdateCategorizationRuleArgs,
-    "update_categorization_rule",
-    "Update a categorization rule with existing pattern, amount and account-scope validation.",
-    json!({"type":"object","properties":{"id":{"type":"string"},"patch":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"pattern":{"type":"string"},"matchType":{"type":"string","enum":["contains","starts_with","exact","regex"]},"taxonomyId":{"type":"string"},"categoryId":{"type":"string"},"activityType":{"type":"string"},"amountOp":{"type":"string","enum":["eq","gt","gte","lt","lte","between"]},"amountValue":{"oneOf":[{"type":"string"},{"type":"number"}]},"amountValue2":{"oneOf":[{"type":"string"},{"type":"number"}]},"priority":{"type":"integer"},"isGlobal":{"type":"boolean"},"accountId":{"type":"string"}},"required":[]}},"required":["id","patch"]}),
-    [
-        AgentScope::ClassificationSuggest,
-        AgentScope::ClassificationWrite
-    ],
-    Write,
-    |env, args| {
-        let saved = env
-            .categorization_rules_service()
-            .update(&args.id, args.patch)
-            .await?;
-        auto_categorize_opted_in(env.clone()).await;
-        output(saved)
-    }
-);
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct UpsertCategorizationRuleArgs {
-    pub input: wealthfolio_spending::categorization_rules::NewCategorizationRule,
-}
-
-business_tool!(
-    UpsertCategorizationRule,
-    UpsertCategorizationRuleArgs,
-    "upsert_categorization_rule",
-    "Save a complete categorization rule by ID atomically, using existing validation.",
-    json!({"type":"object","properties":{"input":{"type":"object","properties":{"id":{"type":"string"},"name":{"type":"string"},"pattern":{"type":"string"},"matchType":{"type":"string","enum":["contains","starts_with","exact","regex"]},"taxonomyId":{"type":"string"},"categoryId":{"type":"string"},"activityType":{"type":"string"},"amountOp":{"type":"string","enum":["eq","gt","gte","lt","lte","between"]},"amountValue":{"oneOf":[{"type":"string"},{"type":"number"}]},"amountValue2":{"oneOf":[{"type":"string"},{"type":"number"}]},"priority":{"type":"integer"},"isGlobal":{"type":"boolean"},"accountId":{"type":"string"}},"required":["id","name","pattern"]}},"required":["input"]}),
-    [
-        AgentScope::ClassificationSuggest,
-        AgentScope::ClassificationWrite
-    ],
-    Write,
-    |env, args| {
-        let saved = env
-            .categorization_rules_service()
-            .upsert(args.input)
-            .await?;
-        auto_categorize_opted_in(env.clone()).await;
-        output(saved)
-    }
-);
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ListRulePresetsArgs {}
-
-business_tool!(
-    ListRulePresets,
-    ListRulePresetsArgs,
-    "list_rule_presets",
-    "List available built-in categorization rule presets.",
-    json!({"type":"object","properties":{},"required":[]}),
-    [AgentScope::ClassificationRead],
-    Read,
-    |env, args| {
-        let _ = args;
-        output(env.categorization_rules_service().list_presets().await?)
-    }
-);
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ImportRulePresetArgs {
-    pub preset_id: String,
-}
-
-business_tool!(ImportRulePreset, ImportRulePresetArgs, "import_rule_preset",
-    "Import or upgrade a built-in rule preset using current taxonomy category keys. Existing user-modified rules are preserved by the service.",
-    json!({"type":"object","properties":{"presetId":{"type":"string"}},"required":["presetId"]}), [AgentScope::ClassificationSuggest, AgentScope::ClassificationWrite], Write, |env, args| {
-        let taxonomies = env.taxonomy_service().get_taxonomies_with_categories()?;
-        let resolver = taxonomies.into_iter().filter(|t| t.taxonomy.scope == "activity").flat_map(|t| t.categories).map(|c| (c.key, (c.taxonomy_id, c.id))).collect();
-        let saved = env.categorization_rules_service().import_preset(&args.preset_id, &resolver).await?;
-        auto_categorize_opted_in(env.clone()).await;
-        output(saved)
-    });
-
 pub fn tools() -> Vec<Arc<dyn AgentTool>> {
     vec![
-        Arc::new(GetTaxonomies),
-        Arc::new(GetTaxonomy),
         Arc::new(CreateTaxonomy),
         Arc::new(UpdateTaxonomy),
         Arc::new(CreateCategory),
         Arc::new(UpdateCategory),
         Arc::new(MoveCategory),
         Arc::new(ImportTaxonomyJson),
-        Arc::new(AssignAssetToCategory),
-        Arc::new(ReplaceAssetTaxonomyAssignments),
-        Arc::new(UpdateCategorizationRule),
-        Arc::new(UpsertCategorizationRule),
-        Arc::new(ListRulePresets),
-        Arc::new(ImportRulePreset),
     ]
 }

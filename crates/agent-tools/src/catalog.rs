@@ -259,6 +259,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn asset_taxonomy_management_rejects_stored_activity_scope_before_writes() {
+        let catalog = AgentToolCatalog::mcp_catalog();
+        let taxonomy = TestTaxonomyService
+            .get_taxonomy("spending_categories")
+            .unwrap()
+            .unwrap();
+        let mut spoofed = serde_json::to_value(&taxonomy.taxonomy).unwrap();
+        spoofed["scope"] = serde_json::json!("asset");
+        let env = Arc::new(PanicEnv {
+            rules: Some(Arc::new(TestRuleService::default())),
+            ..Default::default()
+        });
+        let scopes = AgentScopeSet::from_strs(["classification:suggest", "classification:write"]);
+        for (name, args) in [
+            (
+                "create_taxonomy",
+                serde_json::json!({"input": taxonomy.taxonomy}),
+            ),
+            (
+                "create_taxonomy",
+                serde_json::json!({"input": spoofed.clone()}),
+            ),
+            ("update_taxonomy", serde_json::json!({"input": spoofed})),
+            (
+                "create_category",
+                serde_json::json!({"input": taxonomy.categories[0]}),
+            ),
+            (
+                "update_category",
+                serde_json::json!({"input": taxonomy.categories[0]}),
+            ),
+            (
+                "move_category",
+                serde_json::json!({"taxonomyId":"spending_categories", "categoryId":"food", "position":0}),
+            ),
+        ] {
+            let error = catalog
+                .execute(env.clone(), &scopes, name, args)
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(error, AgentToolError::InvalidInput(_)),
+                "{name}: {error}"
+            );
+            assert!(error.to_string().contains("asset"), "{name}: {error}");
+        }
+    }
+
+    #[tokio::test]
     async fn worksheet_tools_require_both_scopes_before_accessing_services() {
         let catalog = AgentToolCatalog::mcp_catalog();
         for name in [
@@ -315,55 +364,6 @@ mod tests {
 
     #[async_trait::async_trait]
     impl wealthfolio_spending::cash_activities::CashActivityServiceTrait for TestCashService {
-        async fn list(
-            &self,
-            _filter: wealthfolio_spending::cash_activities::CashActivityFilter,
-        ) -> anyhow::Result<Vec<wealthfolio_spending::cash_activities::CashActivity>> {
-            unreachable!("not used by the rerun test")
-        }
-
-        async fn list_assignments(
-            &self,
-            _activity_id: &str,
-        ) -> anyhow::Result<
-            Vec<wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignment>,
-        > {
-            unreachable!("not used by the rerun test")
-        }
-
-        async fn assign_category(
-            &self,
-            _activity_id: &str,
-            _taxonomy_id: &str,
-            _category_id: &str,
-        ) -> anyhow::Result<wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignment>
-        {
-            unreachable!("not used by the rerun test")
-        }
-
-        async fn list_splits(
-            &self,
-            _activity_id: &str,
-        ) -> anyhow::Result<Vec<wealthfolio_spending::activity_splits::ActivitySplit>> {
-            unreachable!("not used by the rerun test")
-        }
-
-        async fn replace_splits(
-            &self,
-            _activity_id: &str,
-            _splits: Vec<wealthfolio_spending::activity_splits::NewActivitySplit>,
-        ) -> anyhow::Result<Vec<wealthfolio_spending::activity_splits::ActivitySplit>> {
-            unreachable!("not used by the rerun test")
-        }
-
-        async fn set_event(
-            &self,
-            _activity_id: &str,
-            _event_id: Option<String>,
-        ) -> anyhow::Result<wealthfolio_core::activities::Activity> {
-            unreachable!("not used by the rerun test")
-        }
-
         async fn set_event_reviewed(
             &self,
             _: &str,
@@ -430,23 +430,6 @@ mod tests {
     impl wealthfolio_spending::categorization_rules::CategorizationRulesServiceTrait
         for TestRuleService
     {
-        async fn update(
-            &self,
-            _id: &str,
-            _patch: wealthfolio_spending::categorization_rules::UpdateCategorizationRule,
-        ) -> anyhow::Result<wealthfolio_spending::categorization_rules::CategorizationRule>
-        {
-            unimplemented!("unused mock operation")
-        }
-
-        async fn upsert(
-            &self,
-            _rule: wealthfolio_spending::categorization_rules::NewCategorizationRule,
-        ) -> anyhow::Result<wealthfolio_spending::categorization_rules::CategorizationRule>
-        {
-            unimplemented!("unused mock operation")
-        }
-
         async fn update_reviewed(
             &self,
             _: wealthfolio_spending::categorization_rules::CategorizationRule,
@@ -577,10 +560,6 @@ mod tests {
         }
 
         fn asset_logo_service(&self) -> Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait> {
-            unimplemented!("unused test service")
-        }
-
-        fn budget_management_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
             unimplemented!("unused test service")
         }
 
@@ -1532,7 +1511,7 @@ mod business_catalog_tests {
             "prepare_holdings_import",
             "commit_holdings_import",
             "get_spending_report",
-            "copy_budget_targets",
+            "commit_budget_change",
         ] {
             assert!(mcp.get(required).is_some(), "missing {required}");
             assert!(
@@ -1556,6 +1535,32 @@ mod business_catalog_tests {
             "reset_budget_groups",
             "export_data",
             "mcp_update_token_scopes",
+            "list_cash_activities",
+            "search_cash_activities",
+            "get_activity_assignments",
+            "get_activity_splits",
+            "assign_activity_category",
+            "replace_activity_splits",
+            "set_activity_event",
+            "list_event_types",
+            "list_events",
+            "create_event",
+            "update_event",
+            "upsert_budget_target",
+            "upsert_budget_rollover_setting",
+            "create_budget_group",
+            "update_budget_group",
+            "assign_category_to_group",
+            "copy_budget_targets",
+            "get_taxonomies",
+            "get_taxonomy",
+            "assign_asset_to_category",
+            "replace_asset_taxonomy_assignments",
+            "update_categorization_rule",
+            "upsert_categorization_rule",
+            "list_rule_presets",
+            "import_rule_preset",
+            "find_transfer_match_candidates",
         ] {
             assert!(mcp.get(forbidden).is_none(), "forbidden tool {forbidden}");
         }
@@ -1600,39 +1605,35 @@ mod business_catalog_tests {
     fn business_schemas_match_domain_enums_and_search_pagination() {
         let catalog = AgentToolCatalog::mcp_catalog();
         let rule = catalog
-            .get("upsert_categorization_rule")
+            .get("commit_categorization_rule")
             .unwrap()
             .input_schema();
         let actual =
             serde_json::to_value(wealthfolio_spending::categorization_rules::RuleMatchType::Exact)
                 .unwrap();
         assert!(
-            rule["properties"]["input"]["properties"]["matchType"]["enum"]
+            rule["properties"]["rule"]["properties"]["matchType"]["enum"]
                 .as_array()
                 .unwrap()
                 .contains(&actual)
         );
-        let budget = catalog.get("upsert_budget_target").unwrap().input_schema();
+        let budget = catalog.get("prepare_budget_change").unwrap().input_schema();
         let actual =
             serde_json::to_value(wealthfolio_spending::budget::BudgetTargetType::GroupBuffer)
                 .unwrap();
         assert!(
-            budget["properties"]["input"]["properties"]["targetType"]["enum"]
+            budget["properties"]["change"]["oneOf"][0]["properties"]["target"]["properties"]
+                ["targetType"]["enum"]
                 .as_array()
                 .unwrap()
                 .contains(&actual)
         );
         let search = catalog
-            .get("search_cash_activities")
+            .get("search_spending_transactions")
             .unwrap()
             .input_schema();
-        for field in ["offset", "limit", "sortDir", "includeCashBalances"] {
-            assert!(
-                search["properties"]["request"]["properties"]
-                    .get(field)
-                    .is_some(),
-                "missing {field}"
-            );
+        for field in ["offset", "limit", "sortDir", "activityIds"] {
+            assert!(search["properties"].get(field).is_some(), "missing {field}");
         }
     }
 }

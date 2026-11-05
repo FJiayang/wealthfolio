@@ -861,52 +861,6 @@ mod tests {
 
     #[async_trait]
     impl CashActivityServiceTrait for MockActivityRepo {
-        async fn list(
-            &self,
-            _filter: crate::cash_activities::CashActivityFilter,
-        ) -> anyhow::Result<Vec<crate::cash_activities::CashActivity>> {
-            unreachable!("unused categorization fixture operation")
-        }
-
-        async fn list_assignments(
-            &self,
-            _activity_id: &str,
-        ) -> anyhow::Result<Vec<crate::activity_assignments::ActivityTaxonomyAssignment>> {
-            unreachable!("unused categorization fixture operation")
-        }
-
-        async fn assign_category(
-            &self,
-            _activity_id: &str,
-            _taxonomy_id: &str,
-            _category_id: &str,
-        ) -> anyhow::Result<crate::activity_assignments::ActivityTaxonomyAssignment> {
-            unreachable!("unused categorization fixture operation")
-        }
-
-        async fn list_splits(
-            &self,
-            _activity_id: &str,
-        ) -> anyhow::Result<Vec<crate::activity_splits::ActivitySplit>> {
-            unreachable!("unused categorization fixture operation")
-        }
-
-        async fn replace_splits(
-            &self,
-            _activity_id: &str,
-            _splits: Vec<crate::activity_splits::NewActivitySplit>,
-        ) -> anyhow::Result<Vec<crate::activity_splits::ActivitySplit>> {
-            unreachable!("unused categorization fixture operation")
-        }
-
-        async fn set_event(
-            &self,
-            _activity_id: &str,
-            _event_id: Option<String>,
-        ) -> anyhow::Result<wealthfolio_core::activities::Activity> {
-            unreachable!("unused categorization fixture operation")
-        }
-
         async fn list_for_rules(
             &self,
             account_ids: &[String],
