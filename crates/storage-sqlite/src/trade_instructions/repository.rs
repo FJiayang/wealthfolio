@@ -530,7 +530,7 @@ mod tests {
             ),
             (
                 "conversion",
-                json!({"side":"CONVERSION","quantity":"7","limitPrice":null,"conversion":{"toAssetId":"target","toAssetSnapshot":{"name":"Target snapshot","symbol":"DEF","exchangeMic":"XNAS","instrumentType":"ETF","quoteCcy":"USD"},"toQuantity":null}}),
+                json!({"side":"CONVERSION","quantity":"7","limitPrice":null,"conversion":{"toAssetId":"target","toAssetSnapshot":{"name":"Target snapshot","symbol":"DEF","exchangeMic":"XNAS","instrumentType":"EQUITY","quoteCcy":"USD"},"toQuantity":null}}),
             ),
         ] {
             let mut value = serde_json::to_value(row()).unwrap();
@@ -624,7 +624,7 @@ mod tests {
         conn.batch_execute(r#"
             INSERT INTO goals(id,title,target_amount) VALUES ('g','Goal',100);
             INSERT INTO trade_instructions(id,request_id,request_hash,account_id,asset_id,account_name,asset_snapshot,side,quantity,amount,amount_currency,limit_price,expected_completion_at,status,resolution_note,source,created_at,updated_at,started_at,closed_at,completed_at,version,goal_id,notes)
-            VALUES ('legacy','request','original-hash','account','asset','Saved account','{"name":"Saved","symbol":"ABC","exchangeMic":"XNAS","instrumentType":"ETF","quoteCcy":"USD"}','BUY','1.123456789123456789',NULL,NULL,'12.34','2026-01-01T00:00:00Z','COMPLETED','Done','MCP','2025-01-01T00:00:00Z','2026-01-01T00:00:00Z','2025-12-31T00:00:00Z','2026-01-01T00:00:00Z','2025-12-31T23:00:00Z',4,'g','User notes');
+            VALUES ('legacy','request','original-hash','account','asset','Saved account','{"name":"Saved","symbol":"ABC","exchangeMic":"XNAS","instrumentType":"EQUITY","quoteCcy":"USD"}','BUY','1.123456789123456789',NULL,NULL,'12.34','2026-01-01T00:00:00Z','COMPLETED','Done','MCP','2025-01-01T00:00:00Z','2026-01-01T00:00:00Z','2025-12-31T00:00:00Z','2026-01-01T00:00:00Z','2025-12-31T23:00:00Z',4,'g','User notes');
         "#).unwrap();
         #[derive(QueryableByName)]
         struct JsonRow {

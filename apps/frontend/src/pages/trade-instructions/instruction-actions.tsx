@@ -49,6 +49,7 @@ export function InstructionActions({
   onEdit: (id: string) => void;
 }) {
   const { t } = useTranslation("trade-instructions");
+  const summary = row.assetSnapshot ? instructionAssetLabel(row) : t(row.side);
   const { timezone = "UTC" } = useLocalizationSettings();
   const queryClient = useQueryClient();
   const fieldId = useId();
@@ -168,7 +169,7 @@ export function InstructionActions({
             <AlertDialogTitle>{t("deleteTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("deleteDescription", {
-                symbol: instructionAssetLabel(row),
+                symbol: summary,
                 account: row.accountName,
               })}
             </AlertDialogDescription>
@@ -201,7 +202,7 @@ export function InstructionActions({
             <DialogTitle>{action ? t(action) : ""}</DialogTitle>
           </DialogHeader>
           <DialogDescription>
-            {instructionAssetLabel(row)} · {row.accountName}
+            {summary} · {row.accountName}
           </DialogDescription>
           <form
             className="space-y-4"

@@ -789,7 +789,7 @@ test("MCP manages the instruction lifecycle with one write permission", async ({
             name: "Conversion target",
             quoteMode: "MANUAL",
             quoteCcy: "USD",
-            instrumentType: "ETF",
+            instrumentType: "EQUITY",
           },
         },
       },
@@ -848,7 +848,7 @@ for (const rtl of [false, true]) {
     await loginIfNeeded(page);
     await page.setViewportSize({ width: rtl ? 390 : 1280, height: 900 });
     const api = `${BASE_URL}/api/v1`;
-    const suffix = randomUUID().slice(0, 8);
+    const suffix = randomUUID().slice(0, 8).toUpperCase();
     const accountName = `Action account ${suffix}`;
     const accountResponse = await page.request.post(`${api}/accounts`, {
       data: {
@@ -881,7 +881,7 @@ for (const rtl of [false, true]) {
           name: symbol,
           displayCode: symbol,
           instrumentSymbol: symbol,
-          instrumentType: "ETF",
+          instrumentType: "EQUITY",
           quoteMode: "MANUAL",
           quoteCcy: "USD",
         },
@@ -922,7 +922,12 @@ for (const rtl of [false, true]) {
     }
     await dialog.getByRole("textbox", { name: "Amount", exact: true }).fill("10");
     await dialog.getByRole("combobox", { name: "Destination currency" }).click();
-    await page.getByRole("option", { name: /EUR/ }).first().click();
+    if (rtl)
+      await page
+        .getByRole("dialog", { name: "Select Currency" })
+        .getByRole("button", { name: "EUR", exact: true })
+        .click();
+    else await page.getByRole("option", { name: /EUR/ }).first().click();
     await dialog.getByRole("button", { name: "New instruction", exact: true }).click();
     await expect(dialog).toBeHidden();
     const [transfer] = await rows("TRANSFER");
@@ -948,6 +953,7 @@ for (const rtl of [false, true]) {
         .filter({ hasText: symbol, hasNotText: /Create custom/i })
         .first()
         .click();
+      await expect(page.getByPlaceholder("Search for symbol")).toHaveCount(0);
     }
     await dialog.getByRole("textbox", { name: "Quantity", exact: true }).fill("2.123456789");
     await dialog.getByRole("button", { name: "New instruction", exact: true }).click();

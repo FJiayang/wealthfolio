@@ -500,6 +500,39 @@ describe("instruction action details", () => {
     expect(screen.getByText("Savings")).toBeVisible();
     expect(screen.getByText("Undetermined")).toBeVisible();
   });
+  it("deletes a cash instruction using its operation and account instead of an asset", async () => {
+    const user = userEvent.setup();
+    const item: TradeInstruction = {
+      ...instruction,
+      side: "DEPOSIT",
+      assetId: null,
+      assetSnapshot: null,
+      quantity: null,
+      amount: "17.25",
+      amountCurrency: "USD",
+      limitPrice: null,
+    };
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <InstructionGrid
+          items={[item]}
+          sorting={[]}
+          onSortingChange={vi.fn()}
+          onOpen={vi.fn()}
+          onEdit={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }));
+    const confirm = screen.getByRole("alertdialog");
+    expect(
+      within(confirm).getByText(/Permanently delete Deposit in Investment account/),
+    ).toBeVisible();
+    vi.mocked(deleteTradeInstruction).mockResolvedValue();
+    await user.click(within(confirm).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(deleteTradeInstruction).toHaveBeenCalledWith(item.id, item.version));
+  });
   it("masks incoming conversion units in the detail and grid", () => {
     state.hidden = true;
     const item: TradeInstruction = {
