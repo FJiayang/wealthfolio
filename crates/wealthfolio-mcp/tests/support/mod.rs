@@ -68,10 +68,6 @@ impl AgentEnvironment for TaxonomyEnv {
         unimplemented!("TaxonomyEnv")
     }
 
-    fn budget_management_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
-        unimplemented!("unused fork budget management service")
-    }
-
     fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait> {
         unimplemented!("TaxonomyEnv")
     }

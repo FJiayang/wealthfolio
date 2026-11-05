@@ -92,10 +92,6 @@ impl AgentEnvironment for StubEnv {
         unimplemented!("unused test service")
     }
 
-    fn budget_management_service(&self) -> Arc<wealthfolio_spending::budget::BudgetService> {
-        unimplemented!("unused fork management service")
-    }
-
     fn budget_service(&self) -> Arc<dyn wealthfolio_spending::budget::BudgetServiceTrait> {
         unimplemented!("MCP-only service")
     }
