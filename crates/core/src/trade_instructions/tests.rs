@@ -2,6 +2,7 @@ use super::*;
 use crate::activities::activities_service_tests::tests::{
     create_test_account, create_test_asset, MockAccountService, MockAssetService,
 };
+use crate::assets::{AssetKind, AssetServiceTrait};
 use crate::{errors::DatabaseError, Error, Result};
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
@@ -68,29 +69,32 @@ fn setup() -> (TradeInstructionService, Arc<MemoryRepository>) {
 fn setup_with_accounts(
     extra: Vec<crate::accounts::Account>,
 ) -> (TradeInstructionService, Arc<MemoryRepository>) {
+    let assets = MockAssetService::new();
+    for id in ["s", "t"] {
+        let mut asset = create_test_asset(id, "USD");
+        asset.is_active = true;
+        assets.add_asset(asset);
+    }
+    let repo = Arc::new(MemoryRepository::default());
+    (service_with_assets(extra, assets, repo.clone()), repo)
+}
+fn service_with_assets(
+    extra: Vec<crate::accounts::Account>,
+    assets: MockAssetService,
+    repo: Arc<MemoryRepository>,
+) -> TradeInstructionService {
     let accounts = Arc::new(MockAccountService::new());
     accounts.add_account(create_test_account("a", "USD"));
     accounts.add_account(create_test_account("b", "USD"));
     for account in extra {
         accounts.add_account(account);
     }
-    let assets = MockAssetService::new();
-    let mut asset = create_test_asset("s", "USD");
-    asset.is_active = true;
-    assets.add_asset(asset);
-    let mut other = create_test_asset("t", "USD");
-    other.is_active = true;
-    assets.add_asset(other);
-    let repo = Arc::new(MemoryRepository::default());
     let goal = serde_json::from_value(json!({"id":"g", "goalType":"custom_save_up", "title":"Goal", "statusLifecycle":"active", "statusHealth":"not_applicable", "priority":0, "createdAt":"", "updatedAt":""})).unwrap();
     let goals = Arc::new(crate::goals::GoalService::new(
         Arc::new(crate::goals::MockGoalRepository::new(vec![goal])),
         accounts.clone(),
     ));
-    (
-        TradeInstructionService::new(repo.clone(), accounts, Arc::new(assets), goals),
-        repo,
-    )
+    TradeInstructionService::new(repo, accounts, Arc::new(assets), goals)
 }
 fn input() -> NewTradeInstruction {
     serde_json::from_value(json!({"goalId":"g","requestId":uuid::Uuid::new_v4().to_string(),"accountId":"a","asset":{"id":"s"},"side":"BUY","quantity":"1.2300","limitPrice":"0.0100","expectedCompletionAt":"2020-01-01T09:00:00+09:00"})).unwrap()
@@ -256,6 +260,109 @@ async fn trade_instruction_start_cancel_and_missing_references() {
         )
         .await
         .is_ok());
+}
+
+#[tokio::test]
+async fn trade_instruction_accepts_inactive_assets_without_reactivating_them() {
+    let assets = MockAssetService::new();
+    for id in ["s", "t"] {
+        let mut asset = create_test_asset(id, "USD");
+        asset.is_active = false;
+        assets.add_asset(asset);
+    }
+    let repo = Arc::new(MemoryRepository::default());
+    let service = service_with_assets(vec![], assets.clone(), repo);
+
+    let buy = service
+        .create(input(), InstructionSource::Ui)
+        .await
+        .unwrap();
+    assert_eq!(buy.asset_id.as_deref(), Some("s"));
+    let mut edit = edit_input(buy.version);
+    edit.asset.as_mut().unwrap().id = Some("t".into());
+    assert_eq!(
+        service
+            .edit(&buy.id, edit)
+            .await
+            .unwrap()
+            .asset_id
+            .as_deref(),
+        Some("t")
+    );
+    let conversion = service
+        .create(
+            operation(json!({"side":"CONVERSION","asset":{"id":"s"},"quantity":"1","conversion":{"toAsset":{"id":"t"}}})),
+            InstructionSource::Ui,
+        )
+        .await
+        .unwrap();
+    let started = service
+        .start(&conversion.id, conversion.version)
+        .await
+        .unwrap();
+    assert_eq!(started.status, InstructionStatus::InProgress);
+    assert!(started.started_at.is_some());
+    for id in ["s", "t"] {
+        assert!(!assets.get_asset_by_id(id).unwrap().is_active);
+    }
+}
+
+#[tokio::test]
+async fn trade_instruction_start_handles_assets_deactivated_after_creation() {
+    let (service, repo) = setup();
+    let buy = service
+        .create(input(), InstructionSource::Ui)
+        .await
+        .unwrap();
+    let conversion = service
+        .create(
+            operation(json!({"side":"CONVERSION","asset":{"id":"s"},"quantity":"1","conversion":{"toAsset":{"id":"t"}}})),
+            InstructionSource::Ui,
+        )
+        .await
+        .unwrap();
+    let assets = MockAssetService::new();
+    for id in ["s", "t"] {
+        let mut asset = create_test_asset(id, "USD");
+        asset.is_active = false;
+        assets.add_asset(asset);
+    }
+    let mut non_investment = create_test_asset("fx", "USD");
+    non_investment.kind = AssetKind::Fx;
+    assets.add_asset(non_investment);
+    let service = service_with_assets(vec![], assets.clone(), repo.clone());
+
+    assert!(service.start(&buy.id, buy.version + 1).await.is_err());
+    for id in ["missing", "fx"] {
+        let mut request = input();
+        request.asset.as_mut().unwrap().id = Some(id.into());
+        assert!(service
+            .create(request, InstructionSource::Ui)
+            .await
+            .is_err());
+        repo.0.lock().unwrap().get_mut(&buy.id).unwrap().asset_id = Some(id.into());
+        assert!(service.start(&buy.id, buy.version).await.is_err());
+        assert_eq!(
+            service.get(&buy.id).unwrap().status,
+            InstructionStatus::Pending
+        );
+    }
+    repo.0.lock().unwrap().get_mut(&buy.id).unwrap().asset_id = Some("s".into());
+    assert_eq!(
+        service.start(&buy.id, buy.version).await.unwrap().status,
+        InstructionStatus::InProgress
+    );
+    assert_eq!(
+        service
+            .start(&conversion.id, conversion.version)
+            .await
+            .unwrap()
+            .status,
+        InstructionStatus::InProgress
+    );
+    for id in ["s", "t"] {
+        assert!(!assets.get_asset_by_id(id).unwrap().is_active);
+    }
 }
 
 #[tokio::test]
