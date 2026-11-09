@@ -197,8 +197,8 @@ impl TradeInstructionService {
             .resolve(asset_input, currency, true, None)
             .await?
             .ok_or_else(|| invalid("An investment asset is required"))?;
-        if asset.kind != AssetKind::Investment || !asset.is_active {
-            return Err(invalid("An active investment asset is required"));
+        if asset.kind != AssetKind::Investment {
+            return Err(invalid("An investment asset is required"));
         }
         Ok(asset)
     }
@@ -571,7 +571,7 @@ impl TradeInstructionServiceTrait for TradeInstructionService {
             .chain(row.conversion.iter().map(|v| v.to_asset_id.as_str()))
         {
             let asset = self.assets.get_asset_by_id(id)?;
-            if !asset.is_active || asset.kind != AssetKind::Investment {
+            if asset.kind != AssetKind::Investment {
                 return Err(invalid("Asset is unavailable"));
             }
         }
