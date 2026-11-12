@@ -25,7 +25,7 @@ jobs:
   candidate:
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.58.2-noble
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host
     timeout-minutes: 90
     env:
@@ -61,7 +61,7 @@ jobs:
       - name: Verify browser image matches the locked Playwright version
         if: steps.bootstrap.outputs.generate == 'true'
         run:
-          node -e 'if (require("@playwright/test/package.json").version !== "1.58.2")
+          node -e 'if (require("@playwright/test/package.json").version !== "1.65.0")
           process.exit(1)'
       - run: pnpm build:types
         if: steps.bootstrap.outputs.generate == 'true'
@@ -75,7 +75,7 @@ jobs:
           checkout_revision="$(git -c safe.directory="$GITHUB_WORKSPACE" -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
           test "$checkout_revision" = "$REVISION"
           mkdir -p .local/design-system
-          printf 'Source: %s\nPR head: %s\nPR base: %s\nImage: mcr.microsoft.com/playwright:v1.58.2-noble\n' \
+          printf 'Source: %s\nPR head: %s\nPR base: %s\nImage: mcr.microsoft.com/playwright:v1.65.0-noble\n' \
             "$REVISION" "${PR_HEAD_SHA:-not-a-pull-request}" "${PR_BASE_SHA:-not-a-pull-request}" \
             > .local/design-system/provenance.txt
       - name: Generate candidate snapshots (not an acceptance check)

@@ -88,8 +88,8 @@ class WorkflowContractTests(unittest.TestCase):
         candidate = (ROOT / ".github/workflows/design-baseline.yml").read_text()
         browser = (ROOT / ".github/workflows/browser-e2e.yml").read_text()
         for workflow in (candidate, browser):
-            self.assertIn("mcr.microsoft.com/playwright:v1.58.2-noble", workflow)
-            self.assertIn('version !== "1.58.2"', workflow)
+            self.assertIn("mcr.microsoft.com/playwright:v1.65.0-noble", workflow)
+            self.assertIn('version !== "1.65.0"', workflow)
             self.assertIn("include-hidden-files: true", workflow)
         self.assertIn("--update-snapshots=all", candidate)
         self.assertNotIn("contents: write", candidate)

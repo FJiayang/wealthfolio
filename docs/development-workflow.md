@@ -114,7 +114,7 @@ anti-regression rule. Native app releases remain outside this Docker process.
 
 CI visual acceptance uses committed PNG/JSON files under
 `e2e/design-system/baselines/{chromium,webkit}/` in the pinned
-`mcr.microsoft.com/playwright:v1.58.2-noble` image. Its Playwright version must
+`mcr.microsoft.com/playwright:v1.65.0-noble` image. Its Playwright version must
 match the lockfile; upgrade the image and review any rendering changes in the
 same PR. Local `.local/` screenshots are useful comparison evidence but are not
 portable CI baselines.
