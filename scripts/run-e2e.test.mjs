@@ -21,9 +21,13 @@ async function listen(t, handler) {
   return `http://127.0.0.1:${server.address().port}`;
 }
 
-for (const testExitCode of [0, 1]) {
+for (const [testExitCode, existing] of [
+  [0, true],
+  [1, true],
+  [0, false],
+]) {
   test(
-    `health readiness launches Playwright and restores the environment after exit ${testExitCode}`,
+    `health readiness restores ${existing ? "existing" : "new"} environment after exit ${testExitCode}`,
     { timeout: 10_000 },
     async (t) => {
       const directory = await mkdtemp(join(tmpdir(), "wealthfolio-e2e-env-"));
@@ -43,7 +47,7 @@ for (const testExitCode of [0, 1]) {
         "",
       ].join("\n");
       const envPath = join(directory, ".env.web");
-      await writeFile(envPath, original);
+      await writeFile(existing ? envPath : `${envPath}.example`, original);
       // Run the real supervisor with owned synthetic cargo/Vite children. No
       // application, browser, or production database is started by this unit test.
       for (const name of ["cargo", "pnpm"]) {
@@ -59,6 +63,8 @@ if (${JSON.stringify(name)} === "pnpm" && process.argv[2] === "exec") {
   fs.writeFileSync(path.join(root, "playwright-args.json"), JSON.stringify(process.argv.slice(2)));
   process.exit(${testExitCode});
 }
+if (${JSON.stringify(name)} === "pnpm")
+  fs.writeFileSync(path.join(root, "vite-api-target"), process.env.VITE_API_TARGET || "");
 process.on("SIGTERM", () => {
   fs.writeFileSync(path.join(root, "${name}-stopped"), "stopped");
   process.exit(0);
@@ -96,6 +102,7 @@ setInterval(() => {}, 1000);
             FIXTURE_ROOT: directory,
             WF_E2E_BASE_URL: frontend,
             WF_E2E_BACKEND_URL: backend,
+            VITE_API_TARGET: "http://127.0.0.1:9999",
           },
           stdio: ["ignore", "ignore", "pipe"],
         },
@@ -111,6 +118,7 @@ setInterval(() => {}, 1000);
         ["exec", "playwright", "test", ...flags],
       );
       assert.equal(await readFile(envPath, "utf8"), original);
+      assert.equal(await readFile(join(directory, "vite-api-target"), "utf8"), backend);
       for (const name of ["cargo", "pnpm"])
         assert.equal(await readFile(join(directory, `${name}-stopped`), "utf8"), "stopped");
       if (testExitCode) assert.match(errors, /Playwright exited with code 1/);

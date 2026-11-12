@@ -8,7 +8,7 @@ import { stopServer } from "./e2e-server.mjs";
 import { prepE2eEnv } from "./prep-e2e.mjs";
 
 const DEV_SERVER_URL = process.env.WF_E2E_BASE_URL || "http://localhost:1420";
-const BACKEND_URL = process.env.WF_E2E_BACKEND_URL || "http://localhost:8088";
+const BACKEND_URL = process.env.WF_E2E_BACKEND_URL || "http://127.0.0.1:8088";
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const QUOTE_FIXTURE_DIR = join(REPO_ROOT, "e2e", "fixtures", "quotes");
 const DEFAULT_RUST_LOG = ["error", "wealthfolio_core::quotes::sync=warn"].join(",");
@@ -109,7 +109,13 @@ const runPlaywrightTests = (extraArgs = []) =>
 
 const run = async () => {
   const envPath = join(REPO_ROOT, ".env.web");
-  const originalEnv = await readFile(envPath, "utf8");
+  let originalEnv;
+  try {
+    originalEnv = await readFile(envPath, "utf8");
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    originalEnv = await readFile(`${envPath}.example`, "utf8");
+  }
   await prepE2eEnv();
 
   // Signal the existing supervisor directly, rather than a pnpm script wrapper.
@@ -122,6 +128,7 @@ const run = async () => {
     WF_MCP_ENABLED: "true",
     RUST_LOG: process.env.WF_E2E_RUST_LOG || DEFAULT_RUST_LOG,
     VITE_DEV_PORT: devServerPort,
+    VITE_API_TARGET: BACKEND_URL,
   });
 
   let cleanupPromise;
