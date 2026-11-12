@@ -10,7 +10,9 @@ use wealthfolio_core::{
     accounts::AccountServiceTrait,
     activities::ActivityServiceTrait,
     allocation::AllocationServiceTrait,
-    assets::AssetServiceTrait,
+    assets::{AlternativeAssetServiceTrait, AssetServiceTrait},
+    custom_provider::{CustomProviderService, CustomProviderWithSources},
+    fx::FxServiceTrait,
     goals::GoalServiceTrait,
     health::{HealthServiceTrait, HealthStatus},
     holdings::HoldingsServiceTrait,
@@ -18,15 +20,21 @@ use wealthfolio_core::{
     limits::ContributionLimitServiceTrait,
     lots::LotRepositoryTrait,
     performance::PerformanceServiceTrait,
-    portfolio::{net_worth::NetWorthServiceTrait, snapshot::SnapshotServiceTrait},
+    portfolio::{
+        coordinator::PortfolioCoordinator, net_worth::NetWorthServiceTrait,
+        snapshot::SnapshotServiceTrait,
+    },
     portfolios::PortfolioServiceTrait,
-    quotes::QuoteServiceTrait,
+    quotes::{MarketSyncMode, QuoteServiceTrait},
     secrets::SecretStore,
     settings::SettingsServiceTrait,
     taxonomies::TaxonomyServiceTrait,
     valuation::ValuationServiceTrait,
 };
 use wealthfolio_spending::activity_assignments::ActivityTaxonomyAssignmentService;
+
+use crate::api::shared::{spawn_portfolio_job, PortfolioJobConfig, ServerJobObserver};
+use crate::events::EventBus;
 use wealthfolio_spending::cash_activities::{CashActivityService, CashActivityServiceTrait};
 use wealthfolio_spending::categorization_rules::{
     CategorizationRulesService, CategorizationRulesServiceTrait,
@@ -68,9 +76,7 @@ pub struct ServerAiEnvironment {
     drift_service: Arc<dyn wealthfolio_core::portfolio::allocation_targets::DriftServiceTrait>,
     allocation_worksheet_service:
         Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationWorksheetServiceTrait>,
-    fx_service: Arc<dyn wealthfolio_core::fx::FxServiceTrait>,
     snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
-    alternative_asset_service: Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait>,
     asset_logo_service: Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait>,
     budget_service: Arc<wealthfolio_spending::budget::BudgetService>,
     events_service: Arc<wealthfolio_spending::events::EventsService>,
@@ -78,6 +84,12 @@ pub struct ServerAiEnvironment {
     spending_analytics_service: Arc<wealthfolio_spending::analytics::AnalyticsService>,
     spending_insight_service: Arc<wealthfolio_spending::insight::InsightService>,
     lot_repository: Arc<dyn LotRepositoryTrait + Send + Sync>,
+    custom_provider_service: Arc<CustomProviderService>,
+    // Starts the portfolio jobs agents request.
+    portfolio_coordinator: Arc<PortfolioCoordinator>,
+    event_bus: EventBus,
+    fx_service: Arc<dyn FxServiceTrait + Send + Sync>,
+    alternative_asset_service: Arc<dyn AlternativeAssetServiceTrait + Send + Sync>,
 }
 
 impl ServerAiEnvironment {
@@ -117,9 +129,7 @@ impl ServerAiEnvironment {
         allocation_worksheet_service: Arc<
             dyn wealthfolio_core::portfolio::allocation_targets::AllocationWorksheetServiceTrait,
         >,
-        fx_service: Arc<dyn wealthfolio_core::fx::FxServiceTrait>,
         snapshot_service: Arc<dyn SnapshotServiceTrait + Send + Sync>,
-        alternative_asset_service: Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait>,
         asset_logo_service: Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait>,
         budget_service: Arc<wealthfolio_spending::budget::BudgetService>,
         events_service: Arc<wealthfolio_spending::events::EventsService>,
@@ -130,15 +140,18 @@ impl ServerAiEnvironment {
             wealthfolio_core::quotes::request_counts::ProviderRequestService,
         >,
         lot_repository: Arc<dyn LotRepositoryTrait + Send + Sync>,
+        custom_provider_service: Arc<CustomProviderService>,
+        portfolio_coordinator: Arc<PortfolioCoordinator>,
+        event_bus: EventBus,
+        fx_service: Arc<dyn FxServiceTrait + Send + Sync>,
+        alternative_asset_service: Arc<dyn AlternativeAssetServiceTrait + Send + Sync>,
     ) -> Self {
         Self {
             provider_request_service,
             allocation_target_service,
             drift_service,
             allocation_worksheet_service,
-            fx_service,
             snapshot_service,
-            alternative_asset_service,
             asset_logo_service,
             budget_service,
             events_service,
@@ -170,6 +183,11 @@ impl ServerAiEnvironment {
             activity_taxonomy_assignment_service,
             categorization_rules_service,
             lot_repository,
+            custom_provider_service,
+            portfolio_coordinator,
+            event_bus,
+            fx_service,
+            alternative_asset_service,
         }
     }
 }
@@ -286,22 +304,6 @@ impl AgentEnvironment for ServerAiEnvironment {
         self.allocation_worksheet_service.clone()
     }
 
-    fn fx_service(&self) -> Arc<dyn wealthfolio_core::fx::FxServiceTrait> {
-        self.fx_service.clone()
-    }
-
-    fn snapshot_service(
-        &self,
-    ) -> Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait> {
-        self.snapshot_service.clone()
-    }
-
-    fn alternative_asset_service(
-        &self,
-    ) -> Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait> {
-        self.alternative_asset_service.clone()
-    }
-
     fn asset_logo_service(&self) -> Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait> {
         self.asset_logo_service.clone()
     }
@@ -334,6 +336,39 @@ impl AgentEnvironment for ServerAiEnvironment {
         &self,
     ) -> Arc<dyn wealthfolio_spending::insight::InsightServiceTrait> {
         self.spending_insight_service.clone()
+    }
+
+    fn custom_providers(&self) -> wealthfolio_core::Result<Vec<CustomProviderWithSources>> {
+        self.custom_provider_service.get_all()
+    }
+
+    async fn request_portfolio_job(&self, mode: MarketSyncMode) -> wealthfolio_core::Result<()> {
+        spawn_portfolio_job(
+            self.portfolio_coordinator.clone(),
+            ServerJobObserver::with_parts(
+                self.event_bus.clone(),
+                self.health_service.clone(),
+                self.goal_service.clone(),
+            ),
+            PortfolioJobConfig {
+                account_ids: None,
+                market_sync_mode: mode,
+                force_full: false,
+            },
+        );
+        Ok(())
+    }
+
+    fn snapshot_service(&self) -> Option<Arc<dyn SnapshotServiceTrait>> {
+        Some(self.snapshot_service.clone())
+    }
+
+    fn fx_service(&self) -> Option<Arc<dyn FxServiceTrait>> {
+        Some(self.fx_service.clone())
+    }
+
+    fn alternative_asset_service(&self) -> Option<Arc<dyn AlternativeAssetServiceTrait>> {
+        Some(self.alternative_asset_service.clone())
     }
 
     async fn run_health_checks(&self) -> wealthfolio_core::Result<HealthStatus> {

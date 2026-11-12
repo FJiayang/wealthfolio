@@ -633,7 +633,7 @@ export function ImportReviewGrid({
         quoteMode: quoteModeFromSearchResult(result),
         providerId: result.providerId,
         providerSymbol: result.providerSymbol,
-        symbolName: result.longName || result.shortName || draft.symbolName,
+        symbolName: result.longName || result.shortName,
         assetId: undefined,
         importAssetKey: undefined,
       });
@@ -670,7 +670,7 @@ export function ImportReviewGrid({
         quoteMode: quoteModeFromSearchResult(result),
         providerId: result.providerId,
         providerSymbol: result.providerSymbol,
-        symbolName: result.longName || result.shortName || draft.symbolName,
+        symbolName: result.longName || result.shortName,
         assetId: undefined,
         importAssetKey: undefined,
       });

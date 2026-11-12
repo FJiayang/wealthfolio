@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
-import { once } from "node:events";
+import { realpathSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { stopServer } from "./e2e-server.mjs";
 import { prepE2eEnv } from "./prep-e2e.mjs";
 
 const DEV_SERVER_URL = process.env.WF_E2E_BASE_URL || "http://localhost:1420";
@@ -19,9 +20,10 @@ const buildHealthUrl = (base, path = "/") =>
 export const waitForServer = async (
   url,
   serverProcess,
-  { timeout = 60_000, interval = 500, requestTimeout = 5_000 } = {},
+  { path = "/", timeout = 60_000, interval = 500, requestTimeout = 5_000 } = {},
 ) => {
   const deadline = Date.now() + timeout;
+  const healthUrl = buildHealthUrl(url, path);
   let lastStatus;
   let lastError;
   const stopped = new AbortController();
@@ -41,7 +43,7 @@ export const waitForServer = async (
       if (stopped.signal.aborted) throw stopped.signal.reason;
 
       try {
-        const response = await fetch(url, {
+        const response = await fetch(healthUrl, {
           method: "GET",
           signal: AbortSignal.any([
             stopped.signal,
@@ -62,22 +64,21 @@ export const waitForServer = async (
     }
 
     const details = [lastStatus && `HTTP ${lastStatus}`, lastError].filter(Boolean).join("; ");
-    throw new Error(`Timed out waiting for ${url}: ${details || "no response"}`);
+    throw new Error(`Timed out waiting for ${healthUrl}: ${details || "no response"}`);
   } finally {
     serverProcess.removeListener("exit", onExit);
     serverProcess.removeListener("error", onError);
   }
 };
 
-export const stopServer = async (serverProcess, { timeout = 5_000 } = {}) => {
-  if (serverProcess.exitCode !== null || serverProcess.signalCode) return;
-  const exited = once(serverProcess, "exit").then(() => true);
-  const waitForExit = () => Promise.race([exited, setTimeout(timeout, false, { ref: false })]);
-  serverProcess.kill("SIGTERM");
-  if (await waitForExit()) return;
-  serverProcess.kill("SIGKILL");
-  if (!(await waitForExit())) throw new Error("Dev server did not exit after forced shutdown");
-};
+// `/` needs a web build in dist/; the health route answers without one.
+export const waitForBackend = (url, serverProcess, options = {}) =>
+  waitForServer(url, serverProcess, {
+    path: "/api/v1/healthz",
+    timeout: 120_000,
+    interval: 1000,
+    ...options,
+  });
 
 const spawnCommand = (command, args, extraEnv = {}) =>
   spawn(command, args, {
@@ -124,7 +125,7 @@ const run = async () => {
   });
 
   let cleanupPromise;
-  const cleanup = () => (cleanupPromise ??= stopServer(devServer));
+  const cleanup = () => (cleanupPromise ??= stopServer(devServer, "SIGTERM"));
 
   const handleSignal = () => {
     cleanup().catch(() => {});
@@ -138,12 +139,7 @@ const run = async () => {
     console.log("Waiting for frontend server...");
     await waitForServer(buildHealthUrl(DEV_SERVER_URL), devServer);
     console.log("Frontend ready. Waiting for backend server...");
-    // The backend's root serves dist/index.html, which dev mode does not build.
-    // Probe the same API health endpoint as wait-for-both-servers-to-be-ready.sh.
-    await waitForServer(buildHealthUrl(BACKEND_URL, "/api/v1/healthz"), devServer, {
-      timeout: 120_000,
-      interval: 1000,
-    });
+    await waitForBackend(BACKEND_URL, devServer);
     console.log("Backend ready. Starting tests...");
     await runPlaywrightTests(cliArgs);
   } catch (error) {
@@ -159,7 +155,10 @@ const run = async () => {
   }
 };
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+) {
   run().catch((error) => {
     console.error(error);
     process.exitCode = 1;

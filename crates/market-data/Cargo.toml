@@ -7,7 +7,7 @@ edition = "2021"
 base64 = "0.22"
 ed25519-dalek = { version = "2.2", features = ["pem"] }
 rsa = { version = "0.9", features = ["pem", "sha2"] }
-sha2 = { workspace = true, features = ["oid"] }
+sha2 = { version = "0.10", features = ["oid"] }
 uuid = { workspace = true }
 async-trait = "0.1"
 encoding_rs = "0.8"

@@ -34,6 +34,8 @@ describe("Spending permission composition", () => {
       "classification:suggest",
       "classification:write",
     ]);
+    expect(applyScopeDependencies(["accounts:write"])).toEqual(["accounts:read", "accounts:write"]);
+    expect(applyScopeDependencies(["holdings:write"])).toEqual(["holdings:read", "holdings:write"]);
   });
   it("does not interpret legacy read tokens as broader new presets", () => {
     const legacy = READ_SCOPES.filter((scope) => scope !== "spending:read");
@@ -50,6 +52,8 @@ describe("Spending permission composition", () => {
         expect(preset.scopes).not.toContain("spending:write");
         expect(preset.scopes).not.toContain("budget:write");
       }
+      expect(preset.scopes).not.toContain("accounts:write");
+      expect(preset.scopes).not.toContain("holdings:write");
     }
     expect(matchPreset(["spending:read"])?.key).toBe("spending-view");
     expect(matchPreset(["spending:read", "budget:write"])?.key).toBe("spending-budgets");

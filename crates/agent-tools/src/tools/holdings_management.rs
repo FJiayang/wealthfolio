@@ -125,11 +125,13 @@ business_tool!(
     [AgentScope::HoldingsRead],
     Read,
     |env, args| {
-        output(env.snapshot_service().get_snapshot_metadata(
-            &args.account_id,
-            args.date_from,
-            args.date_to,
-        )?)
+        output(
+            env.snapshot_service()
+                .ok_or_else(|| {
+                    AgentToolError::ExecutionFailed("snapshot_service is unavailable".into())
+                })?
+                .get_snapshot_metadata(&args.account_id, args.date_from, args.date_to)?,
+        )
     }
 );
 
@@ -149,11 +151,12 @@ business_tool!(
     [AgentScope::HoldingsRead],
     Read,
     |env, args| {
-        let snapshots = env.snapshot_service().get_holdings_keyframes(
-            &args.account_id,
-            Some(args.date),
-            Some(args.date),
-        )?;
+        let snapshots = env
+            .snapshot_service()
+            .ok_or_else(|| {
+                AgentToolError::ExecutionFailed("snapshot_service is unavailable".into())
+            })?
+            .get_holdings_keyframes(&args.account_id, Some(args.date), Some(args.date))?;
         let snapshot = snapshots
             .into_iter()
             .find(|s| s.snapshot_date == args.date)
@@ -228,7 +231,15 @@ business_tool!(
     Read,
     |env, args| {
         let _ = args;
-        output(env.alternative_asset_service().get_alternative_holdings()?)
+        output(
+            env.alternative_asset_service()
+                .ok_or_else(|| {
+                    AgentToolError::ExecutionFailed(
+                        "alternative_asset_service is unavailable".into(),
+                    )
+                })?
+                .get_alternative_holdings()?,
+        )
     }
 );
 
@@ -249,6 +260,11 @@ business_tool!(
     |env, args| {
         output(
             env.alternative_asset_service()
+                .ok_or_else(|| {
+                    AgentToolError::ExecutionFailed(
+                        "alternative_asset_service is unavailable".into(),
+                    )
+                })?
                 .get_loan_payments(&args.asset_id)?,
         )
     }
@@ -317,6 +333,11 @@ business_tool!(
     |env, args| {
         output(
             env.alternative_asset_service()
+                .ok_or_else(|| {
+                    AgentToolError::ExecutionFailed(
+                        "alternative_asset_service is unavailable".into(),
+                    )
+                })?
                 .preview_loan_terms(args.asset_id.as_deref(), &args.setup)?,
         )
     }
@@ -346,7 +367,7 @@ business_tool!(GetCurrentValuation, GetCurrentValuationArgs, "get_current_valuat
     "Read live current valuation for an account scope using existing local snapshots, quotes and FX. Does not refresh providers.",
     json!({"type":"object","properties":{"filter":{"type":"object","properties":{"type":{"type":"string","enum":["all","account","portfolio","accounts"]},"accountId":{"type":"string"},"portfolioId":{"type":"string"},"accountIds":{"type":"array","items":{"type":"string"},"maxItems":100}},"required":["type"]},"includeAccounts":{"type":"boolean"}},"required":["filter"]}), [AgentScope::HoldingsRead], Read, |env, args| {
         let scope = resolve_scope(&env, &args.filter)?;
-        let accounts = env.account_service(); let snapshots = env.snapshot_service(); let assets = env.asset_service(); let quotes = env.quote_service(); let fx = env.fx_service();
+        let accounts = env.account_service(); let snapshots = env.snapshot_service().ok_or_else(|| AgentToolError::ExecutionFailed("snapshot_service is unavailable".into()))?; let assets = env.asset_service(); let quotes = env.quote_service(); let fx = env.fx_service().ok_or_else(|| AgentToolError::ExecutionFailed("fx_service is unavailable".into()))?;
         let service = wealthfolio_core::portfolio::valuation::CurrentAccountValuationService::new(accounts.as_ref(), snapshots.as_ref(), assets.as_ref(), quotes.as_ref(), fx.as_ref());
         let cutoff = wealthfolio_core::utils::time_utils::user_today(wealthfolio_core::utils::time_utils::parse_user_timezone_or_default(&timezone(&env)?));
         output(service.get_current_valuation_for_scope(&scope.scope_id, &scope.account_ids, &env.base_currency(), cutoff, args.include_accounts.unwrap_or(false)).await?)

@@ -65,10 +65,14 @@ pub async fn valuation_map(
         .into_iter()
         .map(|a| a.id)
         .collect();
-    let snapshots = env.snapshot_service();
+    let snapshots = env
+        .snapshot_service()
+        .ok_or_else(|| AgentToolError::ExecutionFailed("snapshot_service is unavailable".into()))?;
     let assets = env.asset_service();
     let quotes = env.quote_service();
-    let fx = env.fx_service();
+    let fx = env
+        .fx_service()
+        .ok_or_else(|| AgentToolError::ExecutionFailed("fx_service is unavailable".into()))?;
     let service = CurrentAccountValuationService::new(
         accounts.as_ref(),
         snapshots.as_ref(),
