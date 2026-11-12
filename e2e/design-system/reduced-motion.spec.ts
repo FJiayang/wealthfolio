@@ -54,6 +54,8 @@ test("an accordion opens without growing when the system asks for reduced motion
 test("the performance chart draws without animating when the system asks for reduced motion", async ({
   page,
 }) => {
+  // Advance animation frames independently of CI runner scheduling.
+  await page.clock.install();
   // Counts writes to dash patterns from the first render on.
   await page.addInitScript(() => {
     const counter = window as unknown as { dashWrites: number };
@@ -73,7 +75,7 @@ test("the performance chart draws without animating when the system asks for red
     await expect(page.locator("path.recharts-area-curve")).toHaveCount(1);
     await expect(page.locator("path.recharts-line-curve")).toHaveCount(1);
     // The series draw in over 300 ms.
-    await page.waitForTimeout(1000);
+    await page.clock.runFor(1000);
     return page.evaluate(() => (window as unknown as { dashWrites: number }).dashWrites);
   };
   // Without the setting the series draw in, the benchmark line by rewriting its
