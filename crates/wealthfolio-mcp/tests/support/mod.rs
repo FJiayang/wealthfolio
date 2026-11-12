@@ -19,12 +19,6 @@ impl AgentEnvironment for TaxonomyEnv {
         unimplemented!("TaxonomyEnv")
     }
 
-    fn alternative_asset_service(
-        &self,
-    ) -> Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait> {
-        unimplemented!("TaxonomyEnv")
-    }
-
     fn asset_logo_service(&self) -> Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait> {
         unimplemented!("TaxonomyEnv")
     }
@@ -39,20 +33,10 @@ impl AgentEnvironment for TaxonomyEnv {
         unimplemented!("TaxonomyEnv")
     }
 
-    fn fx_service(&self) -> Arc<dyn wealthfolio_core::fx::FxServiceTrait> {
-        unimplemented!("TaxonomyEnv")
-    }
-
     fn allocation_worksheet_service(
         &self,
     ) -> Arc<dyn wealthfolio_core::portfolio::allocation_targets::AllocationWorksheetServiceTrait>
     {
-        unimplemented!("TaxonomyEnv")
-    }
-
-    fn snapshot_service(
-        &self,
-    ) -> Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait> {
         unimplemented!("TaxonomyEnv")
     }
 

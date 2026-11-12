@@ -63,22 +63,6 @@ impl AgentEnvironment for StubEnv {
         unimplemented!("unused test service")
     }
 
-    fn fx_service(&self) -> Arc<dyn wealthfolio_core::fx::FxServiceTrait> {
-        unimplemented!("unused test service")
-    }
-
-    fn snapshot_service(
-        &self,
-    ) -> Arc<dyn wealthfolio_core::portfolio::snapshot::SnapshotServiceTrait> {
-        unimplemented!("unused test service")
-    }
-
-    fn alternative_asset_service(
-        &self,
-    ) -> Arc<dyn wealthfolio_core::assets::AlternativeAssetServiceTrait> {
-        unimplemented!("unused test service")
-    }
-
     fn asset_logo_service(&self) -> Arc<dyn wealthfolio_core::assets::AssetLogoServiceTrait> {
         unimplemented!("unused test service")
     }

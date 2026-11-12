@@ -128,14 +128,28 @@ export function navigate(page: Page, key: string) {
 
 /** Waits for every finite animation, such as an overlay fading in, to finish. */
 export function settle(page: Page) {
-  return page.evaluate(() =>
-    Promise.all(
-      document
+  return page.evaluate(async () => {
+    while (true) {
+      await new Promise(requestAnimationFrame);
+      await new Promise(requestAnimationFrame);
+      const animations = document
         .getAnimations()
-        .filter((animation) => animation.effect?.getTiming().iterations !== Infinity)
-        .map((animation) => animation.finished),
-    ),
-  );
+        .filter(
+          (animation) =>
+            animation.playState === "running" &&
+            animation.effect?.getTiming().iterations !== Infinity,
+        );
+      if (animations.length === 0) return;
+      await Promise.all(
+        animations.map((animation) =>
+          animation.finished.catch((error: unknown) => {
+            if (error instanceof DOMException && error.name === "AbortError") return;
+            throw error;
+          }),
+        ),
+      );
+    }
+  });
 }
 
 export interface Motion {

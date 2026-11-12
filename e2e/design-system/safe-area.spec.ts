@@ -34,10 +34,19 @@ async function expectSafe(page: Page, element: Locator, insets: Insets) {
   const rect = await element.boundingBox();
   expect(rect).not.toBeNull();
   const viewport = page.viewportSize()!;
+  const bottomBorder = await element.evaluate((node) =>
+    node.getAttribute("data-slot") === "sheet-content" &&
+    node.getAttribute("data-side") === "bottom"
+      ? parseFloat(getComputedStyle(node).borderBottomWidth)
+      : 0,
+  );
   expect(rect!.x).toBeGreaterThanOrEqual(insets.left - 1);
   expect(rect!.y).toBeGreaterThanOrEqual(insets.top - 1);
   expect(rect!.x + rect!.width).toBeLessThanOrEqual(viewport.width - insets.right + 1);
-  expect(rect!.y + rect!.height).toBeLessThanOrEqual(viewport.height - insets.bottom + 1);
+  // Bottom sheets paint a transparent border through the safe area; content stays above it.
+  expect(rect!.y + rect!.height - bottomBorder).toBeLessThanOrEqual(
+    viewport.height - insets.bottom + 1,
+  );
 }
 
 for (const kind of ["dialog", "bottom", "right", "inline-end", "alert"]) {
@@ -232,7 +241,7 @@ for (const dir of ["ltr", "rtl"]) {
     await page.evaluate(() =>
       document.documentElement.style.setProperty("--keyboard-inset-bottom", "400px"),
     );
-    await nextFrames(page);
+    await settle(page);
     await expectSafe(page, popup, { top: 0, left: 0, right: 0, bottom: 400 });
     await expectSafe(page, popup.getByRole("button", { name: "Continue", exact: true }), {
       top: 0,

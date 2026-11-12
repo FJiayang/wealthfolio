@@ -44,7 +44,6 @@ export const FileDropzone = ({
     e.stopPropagation();
     setIsDragging(false);
 
-    if (isLoading) return;
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       onFileChange(e.dataTransfer.files[0]);
     }
