@@ -3266,7 +3266,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     #[tokio::test]
-    async fn native_creation_is_idempotent_and_enrichment_uses_provider_fields() {
+    async fn native_creation_is_idempotent_and_enrichment_preserves_listing_currency() {
         use crate::activities::activities_service_tests::tests::MockActivityRepository;
         let repo = Arc::new(TestAssetRepository::with_assets(vec![]));
         let quotes = Arc::new(TestQuoteService::default());
@@ -3307,7 +3307,7 @@ mod tests {
         );
         let enriched = service.enrich_asset_profile(id).await.unwrap();
         assert_eq!(enriched.name.as_deref(), Some("提供方名称"));
-        assert_eq!(enriched.quote_ccy, "USD");
+        assert_eq!(enriched.quote_ccy, "CNY");
         assert_eq!(enriched.provider_config, asset.provider_config);
         assert_eq!(enriched.instrument_symbol, asset.instrument_symbol);
     }
