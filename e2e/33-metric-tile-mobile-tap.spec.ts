@@ -50,7 +50,9 @@ test("tapping a return tile's value on mobile opens its explanation", async ({ p
   await expect(trigger).toBeVisible({ timeout: 30_000 });
   const value = trigger.locator("xpath=..").locator("number-flow-react").first();
   await expect(value).toBeVisible({ timeout: 60_000 });
-  await value.scrollIntoViewIfNeeded();
+  await expect(async () => {
+    await value.scrollIntoViewIfNeeded({ timeout: 2_000 });
+  }).toPass({ timeout: 15_000 });
 
   const box = await value.boundingBox();
   if (!box) throw new Error("The tile's value has no box");
