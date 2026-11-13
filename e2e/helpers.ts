@@ -9,7 +9,7 @@ export async function getHoldingWhenReady<T>(
   assetId: string,
 ): Promise<T | null> {
   const params = new URLSearchParams({ accountId, assetId });
-  const response = await page.request.get(`${BASE_URL}/api/v1/holdings/item?${params}`);
+  let response = await page.request.get(`${BASE_URL}/api/v1/holdings/item?${params}`);
   if (response.status() === 400) {
     const scope = await page.request.post(`${BASE_URL}/api/v1/holdings/list/query`, {
       data: { filter: { type: "account", accountId } },
@@ -25,6 +25,8 @@ export async function getHoldingWhenReady<T>(
       )
     )
       return null;
+    // The projection may have completed between the item and scope reads.
+    response = await page.request.get(`${BASE_URL}/api/v1/holdings/item?${params}`);
   }
   expect(response.ok(), `GET /holdings/item failed with ${response.status()}`).toBeTruthy();
   return response.json() as Promise<T | null>;

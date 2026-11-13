@@ -422,6 +422,9 @@ for (const mobile of [false, true]) {
         await expect(visible("ALL")).toHaveAttribute("aria-pressed", "true");
         for (const year of ["2026", "invalid"]) {
           await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}&spendingYear=${year}`);
+          await expect(visible("Spending")).toHaveAttribute("aria-current", "page", {
+            timeout: 15_000,
+          });
           await expect(page).not.toHaveURL(/spendingYear/);
           await gotoAppPath(page, `/dashboard?tab=investments&dir=${direction}`);
           await expect(visible("ALL")).toHaveAttribute("aria-pressed", "true", { timeout: 15_000 });

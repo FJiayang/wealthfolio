@@ -146,19 +146,38 @@ test("a swipe released while moving back toward the edge stays on the screen", a
   await expect.poll(() => pathOf(page)).toBe("/settings/general");
   await page.waitForTimeout(600);
 
-  // Past 60% of the width, then a quick flick back to 45% before lifting.
+  // Past 60% of the width, then a quick flick back to 41% before lifting.
   const cdp = await page.context().newCDPSession(page);
   const point = (x: number) => ({ x, y: 500 });
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point(4)] });
+  let timestamp = Date.now() / 1000;
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [point(4)],
+    timestamp,
+  });
   for (let x = 24; x <= 244; x += 20) {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [point(x)] });
+    timestamp += 0.016;
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [point(x)],
+      timestamp,
+    });
     await page.waitForTimeout(16);
   }
-  for (const x of [220, 196, 175]) {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [point(x)] });
+  for (const x of [224, 204, 184, 164]) {
+    timestamp += 0.016;
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [point(x)],
+      timestamp,
+    });
     await page.waitForTimeout(16);
   }
-  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+    timestamp: timestamp + 0.016,
+  });
   await cdp.detach();
 
   await page.waitForTimeout(800);
