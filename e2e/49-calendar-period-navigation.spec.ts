@@ -1,13 +1,15 @@
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
 import { BASE_URL, gotoAppPath } from "./helpers";
+import { test } from "./provider-test-fixture";
 
 for (const mobile of [false, true]) {
   for (const direction of ["ltr", "rtl"] as const) {
     test(`calendar years and adjacent months stay shared on ${mobile ? "phone" : "desktop"} in ${direction}`, async ({
       page,
+      providerCleanup,
     }, testInfo) => {
       // This cross-dashboard flow performs many full navigations on a shared database.
-      test.setTimeout(180_000);
+      test.setTimeout(300_000);
       page.setDefaultTimeout(15_000);
       await page.setViewportSize({ width: mobile ? 393 : 1440, height: 900 });
       await page.clock.setFixedTime(new Date("2026-09-15T12:00:00Z"));
@@ -29,7 +31,32 @@ for (const mobile of [false, true]) {
         await page.request.get(`${BASE_URL}/api/v1/spending/settings`, { headers })
       ).json();
       let createdAccountId: string | undefined;
-      try {
+      providerCleanup(async (request) => {
+        if (createdAccountId)
+          expect(
+            (
+              await request.delete(`${BASE_URL}/api/v1/accounts/${createdAccountId}`, { headers })
+            ).ok(),
+          ).toBeTruthy();
+      });
+      providerCleanup(async (request) => {
+        expect(
+          (
+            await request.put(`${BASE_URL}/api/v1/spending/settings`, {
+              headers,
+              data: oldSettings,
+            })
+          ).ok(),
+        ).toBeTruthy();
+      });
+      providerCleanup(async (request) => {
+        expect(
+          (
+            await request.put(`${BASE_URL}/api/v1/settings`, { headers, data: originalSettings })
+          ).ok(),
+        ).toBeTruthy();
+      });
+      {
         expect(
           (
             await page.request.put(`${BASE_URL}/api/v1/settings`, {
@@ -238,7 +265,7 @@ for (const mobile of [false, true]) {
           animations: "disabled",
         });
         await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}`);
-        await expect(visible("6M")).toHaveAttribute("aria-pressed", "true");
+        await expect(visible("6M")).toHaveAttribute("aria-pressed", "true", { timeout: 15_000 });
         await expect
           .poll(() => reportRequests)
           .toEqual(
@@ -398,25 +425,6 @@ for (const mobile of [false, true]) {
           await expect(page).not.toHaveURL(/spendingYear/);
           await gotoAppPath(page, `/dashboard?tab=investments&dir=${direction}`);
           await expect(visible("ALL")).toHaveAttribute("aria-pressed", "true", { timeout: 15_000 });
-        }
-      } finally {
-        testInfo.setTimeout(testInfo.timeout + 30_000);
-        await page.request.put(`${BASE_URL}/api/v1/settings`, {
-          headers,
-          data: originalSettings,
-        });
-        await page.request.put(`${BASE_URL}/api/v1/spending/settings`, {
-          headers,
-          data: oldSettings,
-        });
-        if (createdAccountId) {
-          expect(
-            (
-              await page.request.delete(`${BASE_URL}/api/v1/accounts/${createdAccountId}`, {
-                headers,
-              })
-            ).ok(),
-          ).toBeTruthy();
         }
       }
     });

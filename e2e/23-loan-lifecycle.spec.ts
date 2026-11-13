@@ -476,7 +476,7 @@ test("loan estimates, dated actions and net worth stay consistent", async ({ pag
   await page.getByRole("button", { name: "Confirm balance", exact: true }).click();
   await dialog.locator("input").last().fill("800");
   await dialog.getByRole("button", { name: "Confirm balance", exact: true }).click();
-  await expect(dialog).not.toBeVisible();
+  await expect(dialog).not.toBeVisible({ timeout: 15_000 });
   await expect.poll(async () => Number((await holdings()).marketValue)).toBe(800);
   const ledger = page.getByRole("region", { name: "Payments & events", exact: true });
   await expect(

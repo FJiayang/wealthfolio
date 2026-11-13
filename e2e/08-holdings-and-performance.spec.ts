@@ -1,5 +1,5 @@
 import { expect, Page, test } from "@playwright/test";
-import { BASE_URL, loginIfNeeded, waitForSyncToast } from "./helpers";
+import { BASE_URL, getHoldingWhenReady, loginIfNeeded, waitForSyncToast } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -329,26 +329,8 @@ async function getTaxTradeState(
   accountId: string,
   assetId: string,
 ): Promise<TaxTradeState | null> {
-  const path = `/holdings/item?accountId=${encodeURIComponent(accountId)}&assetId=${encodeURIComponent(assetId)}`;
-  const response = await page.request.get(`${BASE_URL}/api/v1${path}`);
-  if (response.status() === 400) {
-    const scope = await page.request.post(`${BASE_URL}/api/v1/holdings/list/query`, {
-      data: { filter: { type: "account", accountId } },
-    });
-    expect(scope.ok()).toBeTruthy();
-    const result = await scope.json();
-    if (
-      result.incompleteAccounts?.some(
-        (account: { accountId: string; status: string; reasonCode: string }) =>
-          account.accountId === accountId &&
-          account.status === "pending" &&
-          account.reasonCode === "PROJECTION_PENDING",
-      )
-    )
-      return null;
-  }
-  expect(response.ok(), `GET ${path} failed with ${response.status()}`).toBeTruthy();
-  const holding = (await response.json()) as HoldingPayload | null;
+  const holding = await getHoldingWhenReady<HoldingPayload>(page, accountId, assetId);
+  if (!holding) return null;
   const assetLots = await apiGet<AssetLotPayload[]>(
     page,
     `/holdings/lots?assetId=${encodeURIComponent(assetId)}&includeSnapshotPositions=false`,

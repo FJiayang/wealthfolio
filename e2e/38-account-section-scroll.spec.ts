@@ -76,7 +76,7 @@ test("switching an account's sections keeps the page where it was", async ({ pag
   await expect(container.getByText(`SEC${runId}9`, { exact: true })).toBeVisible();
 
   // Bring the section switch near the top, with the holdings filling the screen.
-  const before = await container.evaluate((element) => {
+  await container.evaluate((element) => {
     const toggle = [...element.querySelectorAll<HTMLElement>('[role="group"]')].find((group) =>
       /Activities/.test(group.textContent ?? ""),
     );
@@ -85,8 +85,10 @@ test("switching an account's sections keeps the page where it was", async ({ pag
     element.style.scrollBehavior = "auto";
     element.scrollTop += offset;
     element.style.scrollBehavior = "";
-    return element.scrollTop;
   });
+  // Exclude Playwright's own actionability scroll from the measured switch.
+  await activities.scrollIntoViewIfNeeded();
+  const before = await container.evaluate((element) => element.scrollTop);
   expect(before).toBeGreaterThan(100);
 
   for (const section of ["Activities", "Holdings"] as const) {

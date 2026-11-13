@@ -3,6 +3,33 @@ import { expect, type Locator, type Page } from "@playwright/test";
 export const BASE_URL = process.env.WF_E2E_BASE_URL || "http://localhost:1420";
 export const TEST_PASSWORD = "password001";
 
+export async function getHoldingWhenReady<T>(
+  page: Page,
+  accountId: string,
+  assetId: string,
+): Promise<T | null> {
+  const params = new URLSearchParams({ accountId, assetId });
+  const response = await page.request.get(`${BASE_URL}/api/v1/holdings/item?${params}`);
+  if (response.status() === 400) {
+    const scope = await page.request.post(`${BASE_URL}/api/v1/holdings/list/query`, {
+      data: { filter: { type: "account", accountId } },
+    });
+    expect(scope.ok()).toBeTruthy();
+    const result = await scope.json();
+    if (
+      result.incompleteAccounts?.some(
+        (account: { accountId: string; status: string; reasonCode: string }) =>
+          account.accountId === accountId &&
+          account.status === "pending" &&
+          account.reasonCode === "PROJECTION_PENDING",
+      )
+    )
+      return null;
+  }
+  expect(response.ok(), `GET /holdings/item failed with ${response.status()}`).toBeTruthy();
+  return response.json() as Promise<T | null>;
+}
+
 const ACTIVITY_TYPE_TEST_IDS: Record<string, string> = {
   Buy: "activity-type-buy",
   Sell: "activity-type-sell",
