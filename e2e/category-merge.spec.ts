@@ -187,16 +187,23 @@ for (const direction of ["ltr", "rtl"]) {
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
     // A real intervening write invalidates the review without partial merging.
-    await api(
-      "spending/budget/targets",
-      {
-        taxonomyId: "spending_categories",
-        categoryId: source.id,
-        periodKey: "2026-03",
-        targetType: "category",
-        amount: "60",
+    await page.route(
+      "**/spending/categories/merge",
+      async (route) => {
+        await api(
+          "spending/budget/targets",
+          {
+            taxonomyId: "spending_categories",
+            categoryId: source.id,
+            periodKey: "2026-03",
+            targetType: "category",
+            amount: "60",
+          },
+          "POST",
+        );
+        await route.continue();
       },
-      "POST",
+      { times: 1 },
     );
     const staleResponse = page.waitForResponse((response) =>
       response.url().endsWith("/spending/categories/merge"),

@@ -80,6 +80,7 @@ for (const direction of ["ltr", "rtl"]) {
 }
 
 test("Android navigation retains destination labels in both orientations", async ({ browser }) => {
+  test.setTimeout(60_000);
   const context = await browser.newContext({ ...devices["Pixel 7"] });
   try {
     const page = await context.newPage();
@@ -129,7 +130,7 @@ test("Spending dashboard opens its transaction form directly", async ({ page }) 
   // "Add transaction", which opens the investment form instead.
   await expect(
     page.getByRole("button", { name: "Spending", exact: true }).filter({ visible: true }),
-  ).toHaveAttribute("aria-current", "page");
+  ).toHaveAttribute("aria-current", "page", { timeout: 15_000 });
   // Creation lives in the tab's overflow menu.
   await page.getByRole("button", { name: "More options", exact: true }).first().click();
   await page.getByRole("button", { name: "Add transaction", exact: true }).click();

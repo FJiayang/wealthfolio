@@ -64,11 +64,14 @@ for (const dir of ["ltr", "rtl"]) {
     await expect(source).toBeVisible();
     await expect(source).not.toBeChecked();
     await source.click();
-    const recalculation = page.waitForResponse(
-      (response) => response.url().endsWith(`/limits/${limitId}/deposits`) && response.ok(),
-    );
     await page.getByRole("button", { name: "Update", exact: true }).click();
-    expect(Number((await (await recalculation).json()).total)).toBe(0);
+    await expect
+      .poll(async () => {
+        const deposits = await page.request.get(`${api}/limits/${limitId}/deposits`);
+        expect(deposits.ok()).toBe(true);
+        return Number((await deposits.json()).total);
+      })
+      .toBe(0);
     await expect(card.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
 
     // Reload proves the hidden selection persists and remains editable.

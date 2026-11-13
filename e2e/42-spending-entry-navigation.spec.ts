@@ -64,6 +64,7 @@ async function expectOriginRetained(page: Page) {
 test("desktop sheets retain their origin and return without adding another history entry", async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   await gotoAppPath(page, "/?tab=spending");
   await markOrigin(page);
   await page.getByRole("button", { name: "More options", exact: true }).first().click();

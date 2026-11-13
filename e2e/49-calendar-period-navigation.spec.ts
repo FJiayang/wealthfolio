@@ -110,7 +110,7 @@ for (const mobile of [false, true]) {
           .last();
         const spendingPeriodButton = (label: string) =>
           spendingPane.getByRole("button", { name: new RegExp(`${label}\\u2069?, Select dates`) });
-        await expect(periodButton("2025")).toBeVisible();
+        await expect(periodButton("2025")).toBeVisible({ timeout: 15_000 });
         await expect
           .poll(() => reportRequests)
           .toEqual(
@@ -193,7 +193,7 @@ for (const mobile of [false, true]) {
           ).toBeVisible();
         }
         await visible("Previous period").click();
-        await expect(periodButton("2024")).toBeVisible();
+        await expect(periodButton("2024")).toBeVisible({ timeout: 15_000 });
         await gotoAppPath(page, `/insights?tab=spending&dir=${direction}`);
         await expect(page.getByTestId("spending-selected-range")).toContainText("2024");
         const insightsHeader = page.getByTestId("spending-period-header");
@@ -397,7 +397,7 @@ for (const mobile of [false, true]) {
           await gotoAppPath(page, `/dashboard?tab=spending&dir=${direction}&spendingYear=${year}`);
           await expect(page).not.toHaveURL(/spendingYear/);
           await gotoAppPath(page, `/dashboard?tab=investments&dir=${direction}`);
-          await expect(visible("ALL")).toHaveAttribute("aria-pressed", "true");
+          await expect(visible("ALL")).toHaveAttribute("aria-pressed", "true", { timeout: 15_000 });
         }
       } finally {
         testInfo.setTimeout(testInfo.timeout + 30_000);

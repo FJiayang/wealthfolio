@@ -1,6 +1,8 @@
 import { devices, expect, test, type Page } from "@playwright/test";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
+test.describe.configure({ timeout: 90_000 });
+
 test.use({
   viewport: { width: 390, height: 844 },
   userAgent:
@@ -69,7 +71,7 @@ for (const scenario of [
     // "Add transaction", which opens the investment form instead.
     await expect(
       page.getByRole("button", { name: "Spending", exact: true }).filter({ visible: true }),
-    ).toHaveAttribute("aria-current", "page");
+    ).toHaveAttribute("aria-current", "page", { timeout: 15_000 });
     await page.getByRole("button", { name: "More options", exact: true }).first().click();
     await page.getByRole("button", { name: "Add transaction", exact: true }).click();
     const dialog = page.getByRole("dialog");

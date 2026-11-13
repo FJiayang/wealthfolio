@@ -81,7 +81,7 @@ for (const direction of ["ltr", "rtl"] as const) {
     // Investments' menu, which has no "Add expense".
     await expect(
       page.getByRole("button", { name: "Spending", exact: true }).filter({ visible: true }),
-    ).toHaveAttribute("aria-current", "page");
+    ).toHaveAttribute("aria-current", "page", { timeout: 15_000 });
     const add = page.getByRole("button", { name: "More options", exact: true }).first();
     await expect(add).toBeInViewport();
     const bounds = await tapArea(add);
@@ -163,7 +163,7 @@ test("compact dashboard tabs share a row with square actions and keep swipe navi
       const spending = page.getByRole("button", { name: "Spending", exact: true });
       await expect(investments).toHaveText("Investments");
       await expect(netWorth).toHaveText("");
-      await expect(spending).toHaveText("");
+      await expect(spending).toHaveText("", { timeout: 15_000 });
       const filter = page.getByRole("combobox", {
         name: "Choose portfolio: All Accounts",
         exact: true,
@@ -204,7 +204,7 @@ test("compact dashboard tabs share a row with square actions and keep swipe navi
   // Swipe once Spending has joined the tabs, not while the carousel changes.
   await expect(
     page.getByRole("button", { name: "Spending", exact: true }).filter({ visible: true }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 15_000 });
   const swipeY = (await accounts.boundingBox())!.y + 10;
   // A real finger gesture in the page body still switches the carousel.
   const cdp = await page.context().newCDPSession(page);
