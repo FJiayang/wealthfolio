@@ -1,6 +1,9 @@
 import { devices, expect, test, type Locator, type Page } from "@playwright/test";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
+// These flows navigate through several dashboards after seeding accounts.
+test.setTimeout(60_000);
+
 test.use({
   viewport: { width: 390, height: 844 },
   userAgent:

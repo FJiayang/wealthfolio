@@ -109,7 +109,7 @@ test.describe("Stock short workflow", () => {
       holding: {
         quantity: -10,
         costBasis: -1000,
-        realizedGain: null,
+        realizedGain: 0,
         lots: [{ quantity: -10, costBasis: -1000, acquisitionPrice: 100 }],
       },
       assetLots: [

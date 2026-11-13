@@ -282,14 +282,17 @@ export async function selectAccountOption(
   accountSelect: Locator = page.getByTestId("account-select"),
 ) {
   await accountSelect.click();
-  const option = page
+  const popupOption = page
     .locator(OPEN_SELECT)
     .locator(
       `[data-testid="account-option"][data-account-name="${cssAttributeValue(
         accountName,
       )}"][data-account-currency="${cssAttributeValue(currency)}"]`,
-    )
-    .first();
+    );
+  const sheetOption = page
+    .getByRole("listbox", { name: "Suggestions" })
+    .getByRole("option", { name: `${accountName}(${currency})`, exact: true });
+  const option = popupOption.or(sheetOption).filter({ visible: true }).first();
   await expect(option).toBeVisible({ timeout: 5000 });
   await option.click();
 

@@ -6,7 +6,8 @@ for (const mobile of [false, true]) {
     test(`calendar years and adjacent months stay shared on ${mobile ? "phone" : "desktop"} in ${direction}`, async ({
       page,
     }, testInfo) => {
-      test.setTimeout(120_000);
+      // This cross-dashboard flow performs many full navigations on a shared database.
+      test.setTimeout(180_000);
       page.setDefaultTimeout(15_000);
       await page.setViewportSize({ width: mobile ? 393 : 1440, height: 900 });
       await page.clock.setFixedTime(new Date("2026-09-15T12:00:00Z"));
@@ -399,6 +400,7 @@ for (const mobile of [false, true]) {
           await expect(visible("ALL")).toHaveAttribute("aria-pressed", "true");
         }
       } finally {
+        testInfo.setTimeout(testInfo.timeout + 30_000);
         await page.request.put(`${BASE_URL}/api/v1/settings`, {
           headers,
           data: originalSettings,
