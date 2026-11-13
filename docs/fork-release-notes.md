@@ -24,6 +24,10 @@ Git tag alone does not establish Docker image availability.
 - Existing synced devices should all be upgraded before using recurring limits
   or contribution exclusions. Upstream changes the web holdings response and
   error format, and recalculates holdings on first launch.
+- Follow upstream when activities, holdings or assets change: enrich new assets
+  before the queued incremental market sync and recalculation. Price-only
+  changes still recalculate from saved prices. The configurable daily batch
+  remains available as an additional scheduled update.
 
 ## v3.12.0.2 — Unreleased
 

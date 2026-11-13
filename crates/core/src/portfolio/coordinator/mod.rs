@@ -681,36 +681,6 @@ impl PortfolioCoordinator {
         Ok(asset)
     }
 
-    /// Restore initial profile enrichment after creation without quote requests or
-    /// changing the automatic schedule. Both admission paths share the job lock,
-    /// so daily fallback rechecks successful enrichment before requesting again.
-    pub async fn enrich_created_assets(
-        &self,
-        asset_ids: &[String],
-        assets: &dyn crate::assets::AssetServiceTrait,
-        observer: &dyn JobObserver,
-    ) -> Result<()> {
-        if asset_ids.is_empty() {
-            return Ok(());
-        }
-        let _job = self.job.lock().await;
-        let ids: Vec<_> = self
-            .deps
-            .sources
-            .assets
-            .list_by_asset_ids(asset_ids)?
-            .into_iter()
-            .filter(|asset| asset.is_active && asset.quote_mode == crate::assets::QuoteMode::Market)
-            .map(|asset| asset.id)
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
-        if !ids.is_empty() {
-            Self::enrich_profiles(&ids, assets, observer).await;
-        }
-        Ok(())
-    }
-
     /// Called only while holding the existing coordinator job lock. Individual
     /// failures remain isolated and do not prevent the following local rebuild.
     async fn enrich_profiles(

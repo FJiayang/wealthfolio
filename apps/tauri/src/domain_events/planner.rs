@@ -61,33 +61,56 @@ pub fn plan_asset_classification_change(
     })
 }
 
-/// Plans local recalculation for changed accounts. Market requests belong to
-/// the daily batch or explicit user actions. Initial profiles are handled separately.
+/// Plans a portfolio recalculation job from a batch of domain events.
+///
+/// Merges account_ids and asset_ids from:
+/// - ActivitiesChanged
+/// - HoldingsChanged
+/// - AccountsChanged
+/// - AssetsUpdated
+///
+/// Also carries through asset IDs from AssetsCreated when a recalc-triggering
+/// event exists in the same batch.
+///
+/// Returns `None` if no events require portfolio recalculation.
 pub fn plan_portfolio_job(events: &[DomainEvent]) -> Option<PortfolioRequestPayload> {
     let mut account_ids: HashSet<String> = HashSet::new();
+    let mut asset_ids: HashSet<String> = HashSet::new();
     let mut has_recalc_events = false;
     let mut recalculate_all_accounts = false;
-    // Domain changes use saved prices; only scheduled or explicit jobs fetch prices.
+    // Price-only batches use saved quotes. Other events retain their normal sync.
+    let needs_market_sync = events.iter().any(|event| {
+        !matches!(
+            event,
+            DomainEvent::PriceHistoryChanged
+                | DomainEvent::AssetClassificationsChanged { .. }
+                | DomainEvent::AssetsMerged { .. }
+        )
+    });
 
     for event in events {
         match event {
             DomainEvent::ActivitiesChanged {
                 account_ids: acc_ids,
+                asset_ids: a_ids,
                 ..
             } => {
                 has_recalc_events = true;
                 account_ids.extend(acc_ids.iter().cloned());
+                asset_ids.extend(a_ids.iter().cloned());
             }
-            DomainEvent::AssetSplitActivitiesChanged { .. } => {
+            DomainEvent::AssetSplitActivitiesChanged { asset_ids: ids, .. } => {
                 has_recalc_events = true;
                 recalculate_all_accounts = true;
+                asset_ids.extend(ids.iter().filter(|id| !id.is_empty()).cloned());
             }
             DomainEvent::HoldingsChanged {
                 account_ids: acc_ids,
-                ..
+                asset_ids: a_ids,
             } => {
                 has_recalc_events = true;
                 account_ids.extend(acc_ids.iter().cloned());
+                asset_ids.extend(a_ids.iter().cloned());
             }
             DomainEvent::AccountsChanged {
                 account_ids: acc_ids,
@@ -100,12 +123,15 @@ pub fn plan_portfolio_job(events: &[DomainEvent]) -> Option<PortfolioRequestPayl
                 has_recalc_events = true;
                 recalculate_all_accounts = true;
             }
-            DomainEvent::AssetsUpdated { .. } => {
+            DomainEvent::AssetsUpdated { asset_ids: ids } => {
                 has_recalc_events = true;
                 recalculate_all_accounts = true;
+                asset_ids.extend(ids.iter().filter(|id| !id.is_empty()).cloned());
             }
-            // Initial profiles are handled separately, without quote synchronization.
-            DomainEvent::AssetsCreated { .. } => {}
+            // AssetsCreated: include IDs for sync (e.g., FX assets), but don't trigger recalc alone
+            DomainEvent::AssetsCreated { asset_ids: ids } => {
+                asset_ids.extend(ids.iter().filter(|id| !id.is_empty()).cloned());
+            }
             // Saved prices changed: the quote triggers marked their holders
             // for a revalue; the job only has to run.
             DomainEvent::PriceHistoryChanged => {
@@ -136,7 +162,15 @@ pub fn plan_portfolio_job(events: &[DomainEvent]) -> Option<PortfolioRequestPayl
     if !recalculate_all_accounts && !account_ids.is_empty() {
         builder = builder.account_ids(Some(account_ids.into_iter().collect()));
     }
-    let sync_mode = wealthfolio_core::quotes::MarketSyncMode::None;
+    let sync_mode = if !needs_market_sync {
+        wealthfolio_core::quotes::MarketSyncMode::None
+    } else if asset_ids.is_empty() {
+        wealthfolio_core::quotes::MarketSyncMode::Incremental { asset_ids: None }
+    } else {
+        wealthfolio_core::quotes::MarketSyncMode::Incremental {
+            asset_ids: Some(asset_ids.into_iter().collect()),
+        }
+    };
     Some(builder.market_sync_mode(sync_mode).build())
 }
 
@@ -180,6 +214,24 @@ pub fn plan_broker_sync(events: &[DomainEvent]) -> Vec<String> {
     }
 
     account_ids
+}
+
+/// Plans asset enrichment for newly created assets.
+///
+/// Returns asset IDs from AssetsCreated events.
+pub fn plan_asset_enrichment(events: &[DomainEvent]) -> Vec<String> {
+    let mut asset_ids: HashSet<String> = HashSet::new();
+
+    for event in events {
+        if let DomainEvent::AssetsCreated {
+            asset_ids: a_ids, ..
+        } = event
+        {
+            asset_ids.extend(a_ids.iter().cloned());
+        }
+    }
+
+    asset_ids.into_iter().collect()
 }
 
 /// Plans an auto-categorization pass over spending accounts touched by this batch.
@@ -273,7 +325,13 @@ mod tests {
 
         let payload = result.unwrap();
         // FX assets are synced via AssetsCreated events, not constructed from currencies
-        assert!(!payload.market_sync_mode.requires_sync());
+        if let wealthfolio_core::quotes::MarketSyncMode::Incremental { asset_ids } =
+            payload.market_sync_mode
+        {
+            assert!(asset_ids.is_none());
+        } else {
+            panic!("Expected Incremental sync mode");
+        }
     }
 
     #[test]
@@ -303,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    fn test_plan_portfolio_job_assets_created_does_not_enable_market_sync() {
+    fn test_plan_portfolio_job_assets_created_contributes_ids() {
         let events = vec![
             DomainEvent::ActivitiesChanged {
                 account_ids: vec!["acc1".to_string()],
@@ -317,7 +375,15 @@ mod tests {
         ];
 
         let result = plan_portfolio_job(&events).unwrap();
-        assert!(!result.market_sync_mode.requires_sync());
+        if let wealthfolio_core::quotes::MarketSyncMode::Incremental { asset_ids } =
+            result.market_sync_mode
+        {
+            let ids = asset_ids.unwrap();
+            assert!(ids.contains(&"equity-uuid".to_string()));
+            assert!(ids.contains(&"fx-uuid".to_string()));
+        } else {
+            panic!("Expected Incremental sync mode");
+        }
     }
 
     #[test]
@@ -339,7 +405,13 @@ mod tests {
         let result = plan_portfolio_job(&events).unwrap();
         assert!(result.account_ids.is_none());
 
-        assert!(!result.market_sync_mode.requires_sync());
+        if let wealthfolio_core::quotes::MarketSyncMode::Incremental { asset_ids } =
+            result.market_sync_mode
+        {
+            assert_eq!(asset_ids, Some(vec!["asset-1".to_string()]));
+        } else {
+            panic!("Expected Incremental sync mode");
+        }
     }
 
     #[test]
@@ -417,6 +489,39 @@ mod tests {
     }
 
     #[test]
+    fn test_plan_asset_enrichment() {
+        let events = vec![
+            DomainEvent::AssetsCreated {
+                asset_ids: vec!["AAPL".to_string(), "MSFT".to_string()],
+            },
+            DomainEvent::AssetsCreated {
+                asset_ids: vec!["GOOG".to_string()],
+            },
+        ];
+
+        let result = plan_asset_enrichment(&events);
+        assert_eq!(result.len(), 3);
+        assert!(result.contains(&"AAPL".to_string()));
+        assert!(result.contains(&"MSFT".to_string()));
+        assert!(result.contains(&"GOOG".to_string()));
+    }
+
+    #[test]
+    fn test_plan_asset_enrichment_deduplicates() {
+        let events = vec![
+            DomainEvent::AssetsCreated {
+                asset_ids: vec!["AAPL".to_string()],
+            },
+            DomainEvent::AssetsCreated {
+                asset_ids: vec!["AAPL".to_string()], // Duplicate
+            },
+        ];
+
+        let result = plan_asset_enrichment(&events);
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
     fn test_plan_portfolio_job_device_sync_pull_complete() {
         let events = vec![DomainEvent::device_sync_pull_complete()];
 
@@ -435,7 +540,13 @@ mod tests {
         let result = plan_portfolio_job(&events).unwrap();
 
         // Should use incremental sync mode
-        assert!(!result.market_sync_mode.requires_sync());
+        if let wealthfolio_core::quotes::MarketSyncMode::Incremental { asset_ids } =
+            result.market_sync_mode
+        {
+            assert!(asset_ids.is_none());
+        } else {
+            panic!("Expected Incremental sync mode");
+        }
     }
 
     #[test]
@@ -559,6 +670,6 @@ mod tests {
         ];
         let job = plan_portfolio_job(&events).unwrap();
         assert!(job.account_ids.is_none());
-        assert!(!job.market_sync_mode.requires_sync());
+        assert!(job.market_sync_mode.requires_sync());
     }
 }
