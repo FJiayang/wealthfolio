@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Days, Utc};
 use rmcp::{
     model::{
-        CallToolRequestParams, ClientCapabilities, ClientInfo, Implementation, ProtocolVersion,
+        CallToolRequestParams, ClientCapabilities, ClientConfig, Implementation, ProtocolVersion,
     },
     service::{RoleClient, RunningService},
     transport::{
@@ -30,7 +30,7 @@ const BASE: &str = "https://api-mcp.51ifind.com:8643/ds-mcp-servers";
 const TIMEOUT: Duration = Duration::from_secs(65);
 #[cfg(test)]
 const TIMEOUT: Duration = Duration::from_secs(2);
-type Connection = RunningService<RoleClient, ClientInfo>;
+type Connection = RunningService<RoleClient, ClientConfig>;
 
 #[derive(Default)]
 struct State {
@@ -151,7 +151,7 @@ impl IfindProvider {
                 .reinit_on_expired_session(false);
                 let transport =
                     StreamableHttpClientTransport::with_client(self.client.clone(), config);
-                let info = ClientInfo::new(
+                let info = ClientConfig::new(
                     ClientCapabilities::default(),
                     Implementation::new("wealthfolio", env!("CARGO_PKG_VERSION")),
                 )

@@ -12,6 +12,23 @@ See [fork maintenance](fork-maintenance.md) for provenance and publishing rules.
 Historical `v3.10.0.1`–`v3.10.0.7` tags are migrated aliases, not new builds; a
 Git tag alone does not establish Docker image availability.
 
+## v3.13.0.1 — Unreleased
+
+- Merge upstream 3.13.0 and the two subsequent main commits through
+  `52008d76ecb38e70442d7786c662e7188d078f96`. See the
+  [upstream release notes](https://github.com/wealthfolio/wealthfolio/releases/tag/v3.13.0)
+  for new features and upgrade notes.
+- Use the upstream implementations and permissions for overlapping quote-history
+  and exchange-rate MCP tools. Upstream Spending reads are available to the
+  in-app assistant under its data-access settings.
+- Existing synced devices should all be upgraded before using recurring limits
+  or contribution exclusions. Upstream changes the web holdings response and
+  error format, and recalculates holdings on first launch.
+- Follow upstream when activities, holdings or assets change: enrich new assets
+  before the queued incremental market sync and recalculation. Price-only
+  changes still recalculate from saved prices. The configurable daily batch
+  remains available as an additional scheduled update.
+
 ## v3.12.0.2 — Unreleased
 
 - Remove 26 overlapping fork MCP tools, their service extensions and old direct

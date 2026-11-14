@@ -914,10 +914,7 @@ export default function DashboardPage({
                     <div className="text-muted-foreground text-2xs mt-1 flex justify-between">
                       <span className="tabular-nums">
                         {t("goals:dashboard.progress.funded_pct", {
-                          pct: numberFormatting.formatDecimal(progress * 100, {
-                            minimumFractionDigits: 1,
-                            maximumFractionDigits: 1,
-                          }),
+                          pct: numberFormatting.formatPercent(progress, { digits: 1 }),
                         })}
                       </span>
                       {!isTraditionalMode && (
@@ -1266,9 +1263,7 @@ export default function DashboardPage({
                           }}
                           title={t("goals:dashboard.coverage.stream_title", {
                             label: s.label,
-                            pct: numberFormatting.formatDecimal(pct, {
-                              maximumFractionDigits: 0,
-                            }),
+                            pct: numberFormatting.formatPercent(pct / 100, { digits: 0 }),
                           })}
                         />
                       );
@@ -1278,8 +1273,8 @@ export default function DashboardPage({
                         className="bg-success h-full transition-[width] duration-500"
                         style={{ width: `${coveragePortfolioPct}%` }}
                         title={t("goals:dashboard.coverage.portfolio_withdrawal_title", {
-                          pct: numberFormatting.formatDecimal(coveragePortfolioPct, {
-                            maximumFractionDigits: 0,
+                          pct: numberFormatting.formatPercent(coveragePortfolioPct / 100, {
+                            digits: 0,
                           }),
                         })}
                       />
@@ -1289,8 +1284,8 @@ export default function DashboardPage({
                         className="bg-destructive/75 h-full transition-[width] duration-500"
                         style={{ width: `${coverageShortfallPct}%` }}
                         title={t("goals:dashboard.coverage.unfunded_title", {
-                          pct: numberFormatting.formatDecimal(coverageShortfallPct, {
-                            maximumFractionDigits: 0,
+                          pct: numberFormatting.formatPercent(coverageShortfallPct / 100, {
+                            digits: 0,
                           }),
                         })}
                       />
@@ -1304,8 +1299,8 @@ export default function DashboardPage({
                           style={{ background: COVERAGE_COLORS.income }}
                         />
                         {t("goals:dashboard.coverage.income_pct", {
-                          pct: numberFormatting.formatDecimal(coverageIncomePct, {
-                            maximumFractionDigits: 0,
+                          pct: numberFormatting.formatPercent(coverageIncomePct / 100, {
+                            digits: 0,
                           }),
                         })}
                       </span>
@@ -1314,8 +1309,8 @@ export default function DashboardPage({
                       <span className="flex items-center gap-1.5">
                         <span className="bg-success inline-block h-2 w-2 rounded-sm" />
                         {t("goals:dashboard.coverage.portfolio_pct", {
-                          pct: numberFormatting.formatDecimal(coveragePortfolioPct, {
-                            maximumFractionDigits: 0,
+                          pct: numberFormatting.formatPercent(coveragePortfolioPct / 100, {
+                            digits: 0,
                           }),
                         })}
                       </span>
@@ -1324,8 +1319,8 @@ export default function DashboardPage({
                       <span className="flex items-center gap-1.5">
                         <span className="bg-destructive/75 inline-block h-2 w-2 rounded-sm" />
                         {t("goals:dashboard.coverage.unfunded_pct", {
-                          pct: numberFormatting.formatDecimal(coverageShortfallPct, {
-                            maximumFractionDigits: 0,
+                          pct: numberFormatting.formatPercent(coverageShortfallPct / 100, {
+                            digits: 0,
                           }),
                         })}
                       </span>
@@ -1468,12 +1463,9 @@ export default function DashboardPage({
                                   {t("goals:dashboard.coverage.draw_on_portfolio")}{" "}
                                   <span className="text-foreground tabular-nums">
                                     {t("goals:dashboard.coverage.draw_rate_per_yr", {
-                                      pct: numberFormatting.formatDecimal(
-                                        coveragePortfolioDrawRate * 100,
-                                        {
-                                          minimumFractionDigits: 1,
-                                          maximumFractionDigits: 1,
-                                        },
+                                      pct: numberFormatting.formatPercent(
+                                        coveragePortfolioDrawRate,
+                                        { digits: 1 },
                                       ),
                                     })}
                                   </span>

@@ -1,5 +1,26 @@
 # Initial Linux CI baseline review
 
+## Upstream 3.13 and Playwright 1.65 — 2026-11-13
+
+Independent reviewers `/root/baseline_review`, `/root/overlay_review`, and
+`/root/gallery_review` were authorized by the user. The successful
+[candidate run](https://github.com/FJiayang/wealthfolio/actions/runs/43238783694)
+used source `7924d22df0506d59b2acb6156213971d1a6c0039` and image
+`mcr.microsoft.com/playwright:v1.65.0-noble`. Its 216 PNGs and 22 accessibility
+JSON files match the earlier candidate inspected by the reviewers byte for byte.
+
+The reviewers inspected the gallery, themes, dialogs, sheets and overlays in
+both browsers, light and dark modes, and LTR and RTL. They accepted 208 changed
+PNGs; eight Chromium desktop light dialog/sheet images remain at their existing
+bytes because ordinary CI did not report them as failing. All accessibility JSON
+files remain unchanged. Mobile control height and bottom-sheet boundaries follow
+upstream styles. A same-source comparison using the old and new Playwright
+images reproduced the observed font and line-wrap differences; it does not
+identify the specific browser or system-font component responsible.
+
+Architecture impact: expectations only; assertions, tolerances and retries are
+unchanged. Ordinary CI must verify the updated revision with updates disabled.
+
 ## Upstream 3.12 Signature buttons — 2026-11-04
 
 Independent reviewer: `/root/baseline_review`, separately authorized by the

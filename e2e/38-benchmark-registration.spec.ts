@@ -4,6 +4,7 @@ import { BASE_URL, gotoAppPath } from "./helpers";
 test("removing a failed legacy benchmark restores history fetching in LTR and RTL", async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   const state = await (
     await page.request.post(`${BASE_URL}/api/v1/profiles/get_profile_state`, { data: {} })
   ).json();

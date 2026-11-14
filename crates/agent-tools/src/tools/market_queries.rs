@@ -102,23 +102,6 @@ business_tool!(ResolveSymbolQuote, ResolveSymbolQuoteArgs, "resolve_symbol_quote
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct GetQuoteHistoryArgs {
-    pub asset_id: String,
-}
-
-business_tool!(
-    GetQuoteHistory,
-    GetQuoteHistoryArgs,
-    "get_quote_history",
-    "Read locally stored quote history for an asset ID; no provider refresh.",
-    json!({"type":"object","properties":{"assetId":{"type":"string"}},"required":["assetId"]}),
-    [AgentScope::MarketDataRead],
-    Read,
-    |env, args| { output(env.quote_service().get_historical_quotes(&args.asset_id)?) }
-);
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct GetLatestQuotesArgs {
     pub asset_ids: Vec<String>,
 }
@@ -188,24 +171,6 @@ business_tool!(FetchDividends, FetchDividendsArgs, "fetch_dividends",
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct GetExchangeRatesArgs {}
-
-business_tool!(
-    GetExchangeRates,
-    GetExchangeRatesArgs,
-    "get_exchange_rates",
-    "Read locally stored latest exchange rates.",
-    json!({"type":"object","properties":{},"required":[]}),
-    [AgentScope::MarketDataRead],
-    Read,
-    |env, args| {
-        let _ = args;
-        output(env.fx_service().get_latest_exchange_rates()?)
-    }
-);
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct GetExchangeRatesForDatesArgs {
     pub pairs: Vec<wealthfolio_core::fx::ExchangeRateDateQuery>,
 }
@@ -224,7 +189,11 @@ business_tool!(
                 "At most 100 items per call".into(),
             ));
         }
-        output(env.fx_service().get_exchange_rates_for_dates(args.pairs))
+        output(
+            env.fx_service()
+                .ok_or_else(|| AgentToolError::ExecutionFailed("fx_service is unavailable".into()))?
+                .get_exchange_rates_for_dates(args.pairs),
+        )
     }
 );
 
@@ -248,7 +217,12 @@ business_tool!(
                 "Only manual exchange rates can be added".into(),
             ));
         }
-        output(env.fx_service().add_exchange_rate(args.input).await?)
+        output(
+            env.fx_service()
+                .ok_or_else(|| AgentToolError::ExecutionFailed("fx_service is unavailable".into()))?
+                .add_exchange_rate(args.input)
+                .await?,
+        )
     }
 );
 
@@ -271,6 +245,7 @@ business_tool!(
     |env, args| {
         output(
             env.fx_service()
+                .ok_or_else(|| AgentToolError::ExecutionFailed("fx_service is unavailable".into()))?
                 .update_exchange_rate(&args.from_currency, &args.to_currency, args.rate)
                 .await?,
         )
@@ -284,11 +259,9 @@ pub fn tools() -> Vec<Arc<dyn AgentTool>> {
         Arc::new(UpsertAssetLogo),
         Arc::new(SearchSymbol),
         Arc::new(ResolveSymbolQuote),
-        Arc::new(GetQuoteHistory),
         Arc::new(GetLatestQuotes),
         Arc::new(GetExchanges),
         Arc::new(FetchDividends),
-        Arc::new(GetExchangeRates),
         Arc::new(GetExchangeRatesForDates),
         Arc::new(AddExchangeRate),
         Arc::new(UpdateExchangeRate),

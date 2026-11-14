@@ -14,6 +14,7 @@ for (const exitCode of [0, 1]) {
     await mkdir(join(directory, "bin"));
     const runner = join(directory, "run-addon-sandbox-e2e.mjs");
     await copyFile(new URL("run-addon-sandbox-e2e.mjs", import.meta.url), runner);
+    await copyFile(new URL("e2e-server.mjs", import.meta.url), join(directory, "e2e-server.mjs"));
     const command = join(directory, "bin", "pnpm");
     await writeFile(
       command,

@@ -8,7 +8,7 @@ const ASSET_SYMBOL = "SYMVAL_TEST";
 test.describe("Symbol Mapping Validation", () => {
   let page: Page;
 
-  test.use({ timeout: 120000 });
+  test.describe.configure({ timeout: 120000 });
 
   test.beforeAll(async ({ browser }) => {
     page = await browser.newPage();

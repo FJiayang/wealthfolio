@@ -22,13 +22,13 @@ use super::RunningServer;
 /// Fixed default port; falls back to a random port when already in use.
 pub const DEFAULT_PORT: u16 = 8639;
 
-const INSTRUCTIONS: &str = "Scoped access to Wealthfolio investment and spending business data: \
-accounts, portfolios, assets, holdings, valuations, performance, activities, income, goals, health, \
-allocations, rebalancing, spending, \
-planning calculations, market data, classifications and budgets. Available tools depend on \
-the access token's permissions, including organizing spending and managing budgets. Preview activity, quote and holdings imports before committing \
-the reviewed input. Rebalance calculations do not record trades. Provider diagnostics expose local business parameters and HTTP/SDK outcomes for 30 days. System operations, provider \
-refresh/configuration, exports and API Key permission management are not exposed.";
+const INSTRUCTIONS: &str = "Read and write access to the user's Wealthfolio portfolio: accounts, \
+holdings, valuations, performance, activities, income, goals, health, classifications, spending, and \
+budgets. Write capabilities (drafting and committing activities, classification suggestions and commits, \
+organizing spending, and managing budgets) depend on the scopes granted to the access token in use. \
+For wrong or missing prices, get_asset shows an asset's listing, quote currency, provider and stored quotes, \
+prepare_asset_update fixes its listing, currency or provider, and refresh_market_data refetches prices. \
+Creating and updating accounts needs accounts:write; saving holdings snapshots and adding alternative assets and liabilities needs holdings:write.";
 
 async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({

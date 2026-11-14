@@ -70,7 +70,7 @@ test("asset overview retains historical income after a full securities transfer"
       data: { filter: { type: "account", accountId }, includeClosed: true },
     });
     expect(response.ok()).toBeTruthy();
-    return ((await response.json()) as HoldingResponse[]).filter(
+    return ((await response.json()) as { holdings: HoldingResponse[] }).holdings.filter(
       (holding) => holding.instrument?.id === assetId,
     );
   }
@@ -131,10 +131,23 @@ test("asset overview retains historical income after a full securities transfer"
 
   await gotoAppPath(page, `/holdings/${encodeURIComponent(assetId)}`);
   await expect(incomeRow()).toContainText("25.00");
-  const receiverHolding = (await assetHoldings(receiver.id))[0];
-  const senderHolding = (await assetHoldings(sender.id))[0];
-  const totalReturn =
-    Number(receiverHolding.totalReturn?.local) + Number(senderHolding.totalReturn?.local);
+  let totalReturn = 0;
+  await expect
+    .poll(
+      async () => {
+        const [receiverHoldings, senderHoldings] = await Promise.all([
+          assetHoldings(receiver.id),
+          assetHoldings(sender.id),
+        ]);
+        const receiverReturn = receiverHoldings[0]?.totalReturn?.local;
+        const senderReturn = senderHoldings[0]?.totalReturn?.local;
+        if (receiverReturn == null || senderReturn == null) return false;
+        totalReturn = Number(receiverReturn) + Number(senderReturn);
+        return Number.isFinite(totalReturn);
+      },
+      { timeout: 60_000 },
+    )
+    .toBe(true);
   await expect(page.getByText("Total Return", { exact: true }).locator("..")).toContainText(
     Math.abs(totalReturn).toLocaleString("en-US", {
       minimumFractionDigits: 2,

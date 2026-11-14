@@ -7,7 +7,9 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { stopServer, waitForServer } from "./run-e2e.mjs";
+import { stopServer } from "./e2e-server.mjs";
+import { waitForBackend, waitForServer } from "./run-e2e.mjs";
+import { setTimeout } from "node:timers/promises";
 
 async function listen(t, handler) {
   const server = createServer(handler);
@@ -19,16 +21,20 @@ async function listen(t, handler) {
   return `http://127.0.0.1:${server.address().port}`;
 }
 
-for (const testExitCode of [0, 1]) {
+for (const [testExitCode, existing] of [
+  [0, true],
+  [1, true],
+  [0, false],
+]) {
   test(
-    `health readiness launches Playwright and restores the environment after exit ${testExitCode}`,
+    `health readiness restores ${existing ? "existing" : "new"} environment after exit ${testExitCode}`,
     { timeout: 10_000 },
     async (t) => {
       const directory = await mkdtemp(join(tmpdir(), "wealthfolio-e2e-env-"));
       t.after(() => rm(directory, { recursive: true, force: true }));
       await mkdir(join(directory, "scripts"));
       await mkdir(join(directory, "bin"));
-      for (const name of ["run-e2e.mjs", "prep-e2e.mjs", "dev-web.mjs"])
+      for (const name of ["run-e2e.mjs", "prep-e2e.mjs", "dev-web.mjs", "e2e-server.mjs"])
         await copyFile(new URL(name, import.meta.url), join(directory, "scripts", name));
 
       const original = [
@@ -41,7 +47,7 @@ for (const testExitCode of [0, 1]) {
         "",
       ].join("\n");
       const envPath = join(directory, ".env.web");
-      await writeFile(envPath, original);
+      await writeFile(existing ? envPath : `${envPath}.example`, original);
       // Run the real supervisor with owned synthetic cargo/Vite children. No
       // application, browser, or production database is started by this unit test.
       for (const name of ["cargo", "pnpm"]) {
@@ -57,6 +63,8 @@ if (${JSON.stringify(name)} === "pnpm" && process.argv[2] === "exec") {
   fs.writeFileSync(path.join(root, "playwright-args.json"), JSON.stringify(process.argv.slice(2)));
   process.exit(${testExitCode});
 }
+if (${JSON.stringify(name)} === "pnpm")
+  fs.writeFileSync(path.join(root, "vite-api-target"), process.env.VITE_API_TARGET || "");
 process.on("SIGTERM", () => {
   fs.writeFileSync(path.join(root, "${name}-stopped"), "stopped");
   process.exit(0);
@@ -94,11 +102,12 @@ setInterval(() => {}, 1000);
             FIXTURE_ROOT: directory,
             WF_E2E_BASE_URL: frontend,
             WF_E2E_BACKEND_URL: backend,
+            VITE_API_TARGET: "http://127.0.0.1:9999",
           },
           stdio: ["ignore", "ignore", "pipe"],
         },
       );
-      t.after(() => stopServer(runner, { timeout: 100 }));
+      t.after(() => stopServer(runner, "SIGTERM", 100));
       let errors = "";
       runner.stderr.on("data", (chunk) => (errors += chunk));
       const [code] = await once(runner, "exit");
@@ -109,6 +118,7 @@ setInterval(() => {}, 1000);
         ["exec", "playwright", "test", ...flags],
       );
       assert.equal(await readFile(envPath, "utf8"), original);
+      assert.equal(await readFile(join(directory, "vite-api-target"), "utf8"), backend);
       for (const name of ["cargo", "pnpm"])
         assert.equal(await readFile(join(directory, `${name}-stopped`), "utf8"), "stopped");
       if (testExitCode) assert.match(errors, /Playwright exited with code 1/);
@@ -156,9 +166,84 @@ test("shutdown is bounded even when the owned child ignores termination", async 
   ]);
   await once(child.stdout, "data");
   const started = Date.now();
-  await stopServer(child, { timeout: 100 });
+  await stopServer(child, "SIGTERM", 100);
   assert.equal(child.signalCode, "SIGKILL");
   assert.ok(Date.now() - started < 2_000);
   // A signaled process has exitCode=null; do not wait for an already emitted exit.
-  await stopServer(child, { timeout: 100 });
+  await stopServer(child, "SIGTERM", 100);
 });
+
+const BACKEND_URL = "http://127.0.0.1:8188";
+const runningServer = Object.assign(new EventEmitter(), { exitCode: null, signalCode: null });
+
+// A backend without a web build: the API answers, `/` has no index.html.
+const withBackendWithoutWebBuild = async (callback) => {
+  const originalFetch = globalThis.fetch;
+  const requested = [];
+  globalThis.fetch = async (url) => {
+    requested.push(url);
+    return { ok: url === `${BACKEND_URL}/api/v1/healthz` };
+  };
+  try {
+    await callback(requested);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+};
+
+test("the backend counts as ready without a web build", async () => {
+  await withBackendWithoutWebBuild(async (requested) => {
+    for (const url of [BACKEND_URL, `${BACKEND_URL}/`]) {
+      await waitForBackend(url, runningServer, { timeout: 100, interval: 1 });
+    }
+    assert.deepEqual(requested, [`${BACKEND_URL}/api/v1/healthz`, `${BACKEND_URL}/api/v1/healthz`]);
+  });
+});
+
+test("a timeout names the URL that was polled", async () => {
+  await withBackendWithoutWebBuild(async () => {
+    await assert.rejects(
+      waitForServer(BACKEND_URL, runningServer, { timeout: 20, interval: 1 }),
+      /Timed out waiting/,
+    );
+  });
+});
+
+// Like a pnpm that hands off to the pinned version: it waits on its child
+// synchronously and doesn't pass a signal on.
+const HANDOFF = `
+  process.on("SIGINT", () => {});
+  require("node:child_process").spawnSync(process.execPath, [
+    "-e",
+    "console.log(process.pid); setInterval(() => {}, 1000);",
+  ], { stdio: "inherit" });
+`;
+
+test(
+  "stopping a server reaches a child its launcher doesn't signal",
+  { skip: process.platform === "win32", timeout: 10_000 },
+  async (t) => {
+    const server = spawn(process.execPath, ["-e", HANDOFF], {
+      stdio: ["ignore", "pipe", "inherit"],
+    });
+    let childPid;
+    try {
+      const [output] = await once(server.stdout, "data", { signal: t.signal });
+      childPid = Number(String(output).trim());
+      const stopped = await Promise.race([
+        stopServer(server, "SIGINT").then(() => true),
+        setTimeout(5000, false, { ref: false }),
+      ]);
+      assert.equal(stopped, true);
+      assert.throws(() => process.kill(childPid, 0), { code: "ESRCH" });
+    } finally {
+      for (const pid of [childPid, server.pid].filter(Boolean)) {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {
+          // already stopped
+        }
+      }
+    }
+  },
+);

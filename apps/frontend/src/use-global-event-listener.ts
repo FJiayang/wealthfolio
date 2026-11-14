@@ -13,11 +13,12 @@ import {
   listenPortfolioUpdateError,
   listenPortfolioUpdateStart,
   logger,
-  checkMarketDataUpdate,
+  updatePortfolio,
 } from "@/adapters";
 import { usePortfolioSyncOptional } from "@/context/portfolio-sync-context";
 import { useIsMobileViewport } from "@/hooks/use-platform";
 import { assetLogoRegistry } from "@/lib/asset-logo-registry";
+import { QueryKeys } from "@/lib/query-keys";
 import {
   invalidateAfterAssetClassificationsChanged,
   invalidateAfterGoalSummariesUpdated,
@@ -86,6 +87,8 @@ const useGlobalEventListener = () => {
   useEffect(() => {
     let isMounted = true;
     let cleanupFn: (() => void) | undefined;
+    let portfolioUpdateRunning = false;
+    let dayAdvanceRequested = false;
     setAreListenersReady(false);
 
     const handleMarketSyncStart = () => {
@@ -155,6 +158,7 @@ const useGlobalEventListener = () => {
     };
 
     const handlePortfolioUpdateStart = () => {
+      portfolioUpdateRunning = true;
       if (isMobileViewportRef.current && syncContextRef.current) {
         syncContextRef.current.setPortfolioCalculating();
       } else {
@@ -169,6 +173,7 @@ const useGlobalEventListener = () => {
     };
 
     const handlePortfolioUpdateError = (error: unknown) => {
+      portfolioUpdateRunning = false;
       const errorMessage =
         typeof error === "string"
           ? error
@@ -225,6 +230,8 @@ const useGlobalEventListener = () => {
     };
 
     const handlePortfolioUpdateComplete = () => {
+      portfolioUpdateRunning = false;
+      dayAdvanceRequested = false;
       if (isMobileViewportRef.current && syncContextRef.current) {
         syncContextRef.current.setIdle();
       } else {
@@ -437,13 +444,43 @@ const useGlobalEventListener = () => {
         return;
       }
 
-      cleanupFn = cleanup;
+      const unsubscribeQueries = queryClientRef.current.getQueryCache().subscribe((event) => {
+        if (event.type !== "updated" || event.action.type !== "success") return;
+        const key = event.query.queryKey[0];
+        if (key !== QueryKeys.HOLDINGS && key !== QueryKeys.ASSET_HOLDINGS) return;
+        const data = event.query.state.data;
+        if (!data || typeof data !== "object" || !("incompleteAccounts" in data)) return;
+        const accounts = data.incompleteAccounts;
+        if (
+          !Array.isArray(accounts) ||
+          !accounts.some(
+            (account) =>
+              account?.status === "pending" && account.reasonCode === "DAY_ADVANCE_PENDING",
+          )
+        )
+          return;
+        if (portfolioUpdateRunning || dayAdvanceRequested) return;
+        dayAdvanceRequested = true;
+        portfolioUpdateRunning = true;
+        updatePortfolio().catch((error) => {
+          portfolioUpdateRunning = false;
+          logger.error("Failed to request the portfolio update: " + String(error));
+        });
+      });
+      cleanupFn = () => {
+        unsubscribeQueries();
+        cleanup();
+      };
       setAreListenersReady(
         Array.from(POST_LOGIN_REQUIRED_LISTENERS).every((name) => readyListeners.has(name)),
       );
 
-      // Listeners are live: check the daily schedule, then rebuild using saved prices.
-      checkMarketDataUpdate().catch((error) => {
+      // Listeners are live: request the start-up portfolio update (market sync
+      // plus a rebuild of whatever is stale). Its progress arrives through the
+      // events registered above, so nothing is missed.
+      portfolioUpdateRunning = true;
+      updatePortfolio().catch((error) => {
+        portfolioUpdateRunning = false;
         logger.error("Failed to request the portfolio update: " + String(error));
       });
       // Note: Update check is handled by useCheckUpdateOnStartup query in UpdateDialog
@@ -478,7 +515,7 @@ export function usePortfolioResumeCheck() {
       const hiddenFor = hiddenAt === null ? 0 : Date.now() - hiddenAt;
       hiddenAt = null;
       if (hiddenFor >= RESUME_CHECK_AFTER_MS) {
-        checkMarketDataUpdate().catch((error) => {
+        updatePortfolio().catch((error) => {
           logger.error("Failed to request the portfolio update: " + String(error));
         });
       }

@@ -1,7 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { expect } from "@playwright/test";
+import { test } from "./provider-test-fixture";
 import {
   BASE_URL,
   completeOnboardingIfNeeded,
+  getHoldingWhenReady,
   gotoActivities,
   gotoAppPath,
   openAddActivitySheet,
@@ -107,6 +109,7 @@ const securities = [
 
 test("bond UI entry, identifier reuse, provider terms, prices, and holdings use fixtures", async ({
   page,
+  providerCleanup,
 }) => {
   test.setTimeout(180_000);
   await completeOnboardingIfNeeded(page);
@@ -133,6 +136,18 @@ test("bond UI entry, identifier reuse, provider terms, prices, and holdings use 
     trackingMode: "TRANSACTIONS",
   });
   const assetIds: Record<string, string> = {};
+  const existingIds = new Set((await getAssets()).map((asset) => asset.id));
+  for (const label of ["tips", "frn"]) {
+    providerCleanup(async (request) => {
+      const id = assetIds[label];
+      if (id && !existingIds.has(id)) {
+        const response = await request.put(`${api}/assets/pricing-mode/${id}`, {
+          data: { quoteMode: "MANUAL" },
+        });
+        expect(response.ok()).toBeTruthy();
+      }
+    });
+  }
 
   // Treasury and Börse do not offer ticker search. Enter a market-priced bond
   // through the real security dialog, then select the saved asset in the buy form.
@@ -295,13 +310,11 @@ test("bond UI entry, identifier reuse, provider terms, prices, and holdings use 
     await expect
       .poll(
         async () => {
-          const params = new URLSearchParams({
-            accountId: account.id,
-            assetId: assetIds[security.label],
-          });
-          const response = await page.request.get(`${api}/holdings/item?${params}`);
-          expect(response.ok()).toBeTruthy();
-          const holding = (await response.json()) as HoldingResponse | null;
+          const holding = await getHoldingWhenReady<HoldingResponse>(
+            page,
+            account.id,
+            assetIds[security.label],
+          );
           // The jobs the purchases queued may not have written it yet.
           if (!holding) return null;
           return {

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { FileDropzone } from "./file-dropzone";
 
 describe("native import file dropzone", () => {
-  it("accepts replacement files while idle and ignores drops while loading", () => {
+  it("accepts replacement files while idle or loading", () => {
     const onFileChange = vi.fn();
     const file = new File(["synthetic"], "test.csv");
     const { container, rerender } = render(
@@ -16,7 +16,8 @@ describe("native import file dropzone", () => {
     onFileChange.mockClear();
     rerender(<FileDropzone file={null} isLoading onFileChange={onFileChange} />);
     drop();
-    expect(onFileChange).not.toHaveBeenCalled();
+    expect(onFileChange).toHaveBeenCalledExactlyOnceWith(file);
+    onFileChange.mockClear();
     rerender(<FileDropzone file={file} onFileChange={onFileChange} />);
     const replacement = new File(["replacement"], "second.csv");
     drop(replacement);

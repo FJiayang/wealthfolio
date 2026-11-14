@@ -54,7 +54,7 @@ async function createHoldings(page: Page) {
           data: { filter: { type: "account", accountId }, includeClosed: true },
         });
         expect(holdingsResponse.ok()).toBeTruthy();
-        return ((await holdingsResponse.json()) as unknown[]).length;
+        return ((await holdingsResponse.json()) as { holdings: unknown[] }).holdings.length;
       },
       { timeout: 60_000 },
     )
@@ -91,10 +91,7 @@ async function wheelOverRows(page: Page, table: Locator) {
   await header.scrollIntoViewIfNeeded();
   const before = { header: (await header.boundingBox())!, row: (await firstRow.boundingBox())! };
 
-  await page.mouse.move(
-    before.header.x + before.header.width / 2,
-    before.header.y + before.header.height + 60,
-  );
+  await page.mouse.move(before.row.x + before.row.width / 2, before.row.y + before.row.height / 2);
   await page.mouse.wheel(0, 300);
   await expect.poll(async () => (await firstRow.boundingBox())!.y).toBeLessThan(before.row.y - 200);
 

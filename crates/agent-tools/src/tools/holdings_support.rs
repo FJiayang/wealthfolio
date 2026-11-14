@@ -141,7 +141,11 @@ pub async fn holdings_batch(
         .collect();
     let checked = check_holdings_import(
         env.asset_service().as_ref(),
-        env.snapshot_service().as_ref(),
+        env.snapshot_service()
+            .ok_or_else(|| {
+                AgentToolError::ExecutionFailed("snapshot_service is unavailable".into())
+            })?
+            .as_ref(),
         &batch.account_id,
         &account.currency,
         today,
@@ -153,11 +157,13 @@ pub async fn holdings_batch(
         for date in &checked.existing_dates {
             let date = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
                 .expect("existing_snapshot_dates formats validated ISO dates");
-            existing_snapshots.extend(env.snapshot_service().get_holdings_keyframes(
-                &batch.account_id,
-                Some(date),
-                Some(date),
-            )?);
+            existing_snapshots.extend(
+                env.snapshot_service()
+                    .ok_or_else(|| {
+                        AgentToolError::ExecutionFailed("snapshot_service is unavailable".into())
+                    })?
+                    .get_holdings_keyframes(&batch.account_id, Some(date), Some(date))?,
+            );
         }
         let symbols: Vec<_> = checked.symbols.into_iter().map(|s| json!({
             "symbol": s.symbol, "found": s.found, "assetName": s.asset_name, "assetId": s.asset_id,
@@ -172,8 +178,11 @@ pub async fn holdings_batch(
     }
     let service = ManualSnapshotService::new(
         env.asset_service(),
-        env.fx_service(),
-        env.snapshot_service(),
+        env.fx_service()
+            .ok_or_else(|| AgentToolError::ExecutionFailed("fx_service is unavailable".into()))?,
+        env.snapshot_service().ok_or_else(|| {
+            AgentToolError::ExecutionFailed("snapshot_service is unavailable".into())
+        })?,
         env.quote_service(),
     )
     .with_timezone(timezone);

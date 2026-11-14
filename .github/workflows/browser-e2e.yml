@@ -110,7 +110,7 @@ jobs:
     runs-on: ubuntu-24.04
     # Match pnpm-lock.yaml exactly. Baseline generation uses this same image.
     container:
-      image: mcr.microsoft.com/playwright:v1.58.2-noble
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --ipc=host
     timeout-minutes: 60
     strategy:
@@ -129,7 +129,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Verify browser image matches the locked Playwright version
         run:
-          node -e 'if (require("@playwright/test/package.json").version !== "1.58.2")
+          node -e 'if (require("@playwright/test/package.json").version !== "1.65.0")
           process.exit(1)'
       - run: pnpm build:types
       - name: Compare every design test against reviewed baselines

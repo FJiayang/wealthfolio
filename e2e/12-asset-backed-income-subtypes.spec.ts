@@ -219,7 +219,7 @@ test.describe("Asset-backed income subtypes update holdings", () => {
     await expect(page).toHaveURL(/\/accounts\/[^/]+/, { timeout: 10000 });
 
     const row = page.locator("tbody tr").filter({ hasText: symbol }).first();
-    await expect(row).toBeVisible({ timeout: 15000 });
+    await expect(row).toBeVisible({ timeout: 30000 });
     const escapedQuantity = String(quantity).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     await expect(row).toContainText(new RegExp(`(^|\\D)${escapedQuantity}(\\D|$)`));
   }

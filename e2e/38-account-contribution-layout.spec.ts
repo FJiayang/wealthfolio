@@ -41,7 +41,7 @@ test("account contribution details remain readable on phones, tablets and deskto
           data: { filter: { type: "account", accountId: id }, includeClosed: true },
         });
         expect(holdings.ok()).toBe(true);
-        return (await holdings.json()).length;
+        return ((await holdings.json()) as { holdings: unknown[] }).holdings.length;
       },
       { timeout: 60_000 },
     )
@@ -61,7 +61,7 @@ test("account contribution details remain readable on phones, tablets and deskto
             balance.evaluate((element) => {
               const header = element.closest('[data-slot="card-header"]');
               const label = header?.querySelector('[data-slot="card-title"]');
-              if (!header || !label) throw new Error("Balance header missing");
+              if (!header || !label) return false;
               const value = element.getBoundingClientRect();
               const name = label.getBoundingClientRect();
               const box = header.getBoundingClientRect();

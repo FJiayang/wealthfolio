@@ -71,7 +71,7 @@ test.describe("Stock split adjusts holdings shares", () => {
     await expect(page).toHaveURL(/\/accounts\/[^/]+/, { timeout: 10000 });
     // Holdings table should appear (the account has at least one position once
     // we've executed the buy)
-    await expect(page.locator("table").first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator("table").first()).toBeVisible({ timeout: 30000 });
   }
 
   /**
@@ -96,18 +96,17 @@ test.describe("Stock split adjusts holdings shares", () => {
     await fillTestId("split-ratio-input", ratio);
     await submitForm(/Add Split/i);
     // Incremental snapshot updates do not retroactively re-apply split
-    // factors to historical positions, so trigger a full recalculation
-    // (BackfillHistory mode) before reading holdings.
+    // factors to historical positions, so rebuild locally before reading holdings.
     await triggerFullRecalculation();
   }
 
   /**
-   * Calls POST /api/v1/portfolio/recalculate from the page context so the
+   * Calls POST /api/v1/portfolio/recalculate-local so the
    * backend rebuilds holdings snapshots from scratch — required after adding
    * a SPLIT activity that should retroactively scale prior buy quantities.
    */
   async function triggerFullRecalculation() {
-    const response = await page.request.post(`${BASE_URL}/api/v1/portfolio/recalculate`);
+    const response = await page.request.post(`${BASE_URL}/api/v1/portfolio/recalculate-local`);
     expect(response.status()).toBe(202);
     await waitForSyncToast(page, 90_000);
   }

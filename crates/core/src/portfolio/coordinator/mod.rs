@@ -461,7 +461,29 @@ impl PortfolioCoordinator {
             resolved,
             cadence: self.deps.window_cadence,
         };
-        match run::execute(&context, &plan).await {
+        // Fence accounting writes, including unmarked day advances. Price-only
+        // revaluation does not replace positions or the lot book.
+        // Keep the captured versions for a failure just as for successful publication.
+        let fenced = self
+            .deps
+            .projections
+            .ensure_calculation_markers(
+                &plan
+                    .refold
+                    .iter()
+                    .map(|(id, from)| (id.clone(), *from))
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
+        let attempted: Vec<_> = markers
+            .iter()
+            .chain(&fenced)
+            .filter(
+                |marker| matches!(&marker.scope, MarkerScope::Account(id) if accounts.contains(id)),
+            )
+            .cloned()
+            .collect();
+        match run::execute(&context, &plan, fenced).await {
             Ok(completion) => {
                 for (account, issues) in &completion.activity_issues {
                     for issue in issues
@@ -486,24 +508,33 @@ impl PortfolioCoordinator {
                         .invalidate(MarkerScope::Account(account.clone()), GENESIS)
                         .await?;
                 }
-                let consumed = markers
-                    .into_iter()
-                    .filter(|marker| {
-                        !matches!(&marker.scope, MarkerScope::Account(id) if excluded.contains(id))
-                    })
-                    .collect();
-                self.deps
+                let mut consumed = completion.consumed.clone();
+                consumed.extend(markers.into_iter().filter(|marker| {
+                    !matches!(&marker.scope, MarkerScope::Account(id) if excluded.contains(id))
+                }));
+                let committed = self
+                    .deps
                     .projections
                     .complete_run(crate::portfolio::projection::RunCompletion {
                         consumed,
                         ..completion
                     })
-                    .await
-                    .map_err(|error| {
-                        Error::Unexpected(format!("could not commit the portfolio run: {error}"))
-                    })?;
+                    .await;
+                if let Err(error) = committed {
+                    self.deps
+                        .projections
+                        .record_failed_calculations(&attempted)
+                        .await?;
+                    return Err(Error::Unexpected(format!(
+                        "could not commit the portfolio run: {error}"
+                    )));
+                }
             }
             Err(error) => {
+                self.deps
+                    .projections
+                    .record_failed_calculations(&attempted)
+                    .await?;
                 let message = error.to_string();
                 failures.extend(failures_for(&accounts, "PROJECTION_FAILED", &message));
             }
@@ -648,36 +679,6 @@ impl PortfolioCoordinator {
                 .await?;
         }
         Ok(asset)
-    }
-
-    /// Restore initial profile enrichment after creation without quote requests or
-    /// changing the automatic schedule. Both admission paths share the job lock,
-    /// so daily fallback rechecks successful enrichment before requesting again.
-    pub async fn enrich_created_assets(
-        &self,
-        asset_ids: &[String],
-        assets: &dyn crate::assets::AssetServiceTrait,
-        observer: &dyn JobObserver,
-    ) -> Result<()> {
-        if asset_ids.is_empty() {
-            return Ok(());
-        }
-        let _job = self.job.lock().await;
-        let ids: Vec<_> = self
-            .deps
-            .sources
-            .assets
-            .list_by_asset_ids(asset_ids)?
-            .into_iter()
-            .filter(|asset| asset.is_active && asset.quote_mode == crate::assets::QuoteMode::Market)
-            .map(|asset| asset.id)
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
-        if !ids.is_empty() {
-            Self::enrich_profiles(&ids, assets, observer).await;
-        }
-        Ok(())
     }
 
     /// Called only while holding the existing coordinator job lock. Individual

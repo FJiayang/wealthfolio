@@ -359,6 +359,8 @@ export const ALLOWED_API_METHODS = new Set([
   "assets.updateProfile",
   "assets.updateQuoteMode",
   "alternativeAssets.getAll",
+  "allocationTargets.getAll",
+  "allocationTargets.getDrift",
   "quotes.update",
   "quotes.getHistory",
   "performance.calculateHistory",

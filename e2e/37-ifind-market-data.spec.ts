@@ -56,6 +56,8 @@ for (const direction of ["ltr", "rtl"]) {
     await expect(
       page.getByRole("switch", { name: "Tonghuashun iFinD", exact: true }),
     ).toBeChecked();
+    await page.goto(`${BASE_URL}/settings/securities?dir=${direction}`);
+    const expectedQuotes: { id: string; currency: string }[] = [];
     for (const [query, symbol, mic, currency] of [
       ["XSHG:600519", "600519", "XSHG", "CNY"],
       ["FUND:005827", "FUND:005827", null, "CNY"],
@@ -63,7 +65,6 @@ for (const direction of ["ltr", "rtl"]) {
       ["XHKG:00700", "00700", "XHKG", "HKD"],
       ["XNAS:INTU", "INTU", "XNAS", "USD"],
     ] as const) {
-      await page.goto(`${BASE_URL}/settings/securities?dir=${direction}`);
       await page.getByRole("button", { name: "Add security", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "Add security", exact: true });
       await dialog.getByRole("combobox", { name: "Search", exact: true }).click();
@@ -106,13 +107,16 @@ for (const direction of ["ltr", "rtl"]) {
       expect(asset.providerConfig.preferred_provider).toBe("IFIND");
       if (symbol === "000300")
         expect(asset.providerConfig.overrides.IFIND.symbol).toBe("index:000300.SH");
-      expect((await page.request.post(`${api}/market-data/sync/history`)).ok()).toBeTruthy();
+      expectedQuotes.push({ id: asset.id, currency });
+    }
+    expect((await page.request.post(`${api}/market-data/sync/history`)).ok()).toBeTruthy();
+    for (const { id, currency } of expectedQuotes) {
       await expect
         .poll(
           async () => {
             const quotes = await (
               await page.request.get(`${api}/market-data/quotes/history`, {
-                params: { symbol: asset.id },
+                params: { symbol: id },
               })
             ).json();
             return quotes.some(

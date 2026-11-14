@@ -64,6 +64,8 @@ for (const direction of ["ltr", "rtl"]) {
         .toBe(true);
     }
 
+    await page.goto(`${BASE_URL}/settings/securities?dir=${direction}`);
+    const assetIds: string[] = [];
     for (const [symbol, canonical, mic] of [
       ["XSHG:600519", "600519", "XSHG"],
       ["XSHG:510300", "510300", "XSHG"],
@@ -78,7 +80,6 @@ for (const direction of ["ltr", "rtl"]) {
             asset.instrumentSymbol === canonical && (asset.instrumentExchangeMic ?? null) === mic,
         )
       ) {
-        await page.goto(`${BASE_URL}/settings/securities?dir=${direction}`);
         await page.getByRole("button", { name: "Add security", exact: true }).click();
         const dialog = page.getByRole("dialog", { name: "Add security", exact: true });
         await dialog.getByRole("combobox", { name: "Search", exact: true }).click();
@@ -143,14 +144,17 @@ for (const direction of ["ltr", "rtl"]) {
         quoteMode: "MARKET",
       });
       expect(matches[0].providerConfig?.preferred_provider).toBeUndefined();
-      const sync = await page.request.post(`${api}/market-data/sync/history`);
-      expect(sync.ok()).toBeTruthy();
+      assetIds.push(matches[0].id);
+    }
+    const sync = await page.request.post(`${api}/market-data/sync/history`);
+    expect(sync.ok()).toBeTruthy();
+    for (const assetId of assetIds) {
       await expect
         .poll(
           async () => {
             const quotes = await (
               await page.request.get(`${api}/market-data/quotes/history`, {
-                params: { symbol: matches[0].id },
+                params: { symbol: assetId },
               })
             ).json();
             return quotes.some((quote: { dataSource: string }) =>
