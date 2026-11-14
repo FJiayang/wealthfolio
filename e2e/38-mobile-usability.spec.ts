@@ -107,6 +107,8 @@ test("Android navigation retains destination labels in both orientations", async
 });
 
 test("Spending dashboard opens its transaction form directly", async ({ page }) => {
+  // Includes admission, account creation and settings loading before the UI interaction.
+  test.setTimeout(120_000);
   const account = await profileRequest(page, `${BASE_URL}/api/v1/accounts`, {
     data: {
       name: "Mobile entry QA",

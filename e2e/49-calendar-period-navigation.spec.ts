@@ -1,6 +1,9 @@
-import { expect } from "@playwright/test";
+import { expect as baseExpect } from "@playwright/test";
 import { BASE_URL, gotoAppPath } from "./helpers";
 import { test } from "./provider-test-fixture";
+
+// Period controls wait for history reads on the accumulated application fixture.
+const expect = baseExpect.configure({ timeout: 15_000 });
 
 for (const mobile of [false, true]) {
   for (const direction of ["ltr", "rtl"] as const) {
