@@ -12,7 +12,6 @@ use crate::request_recorder::RecordedRequest;
 use std::sync::RwLock;
 use std::time::Duration;
 
-use crate::SymbolResolver;
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use lazy_static::lazy_static;
@@ -99,10 +98,9 @@ impl YahooProvider {
 
     /// Create a new Yahoo Finance provider.
     pub async fn new() -> Result<Self, MarketDataError> {
-        let client = wealthfolio_http::client_builder()
+        let client = crate::provider::http_client_builder()
             .https_only(true)
             .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-            .timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| MarketDataError::ProviderError {
                 provider: "YAHOO".to_string(),
@@ -401,16 +399,6 @@ impl YahooProvider {
     // Quote Fetching
     // ========================================================================
 
-    /// Get the currency: prefer exchange metadata, fall back to asset's quote_ccy.
-    fn get_currency(&self, context: &QuoteContext) -> String {
-        let chain = ResolverChain::new();
-        chain
-            .get_currency(&"YAHOO".into(), context)
-            .or_else(|| context.currency_hint.clone())
-            .map(|c| c.to_string())
-            .unwrap_or_else(|| "USD".to_string())
-    }
-
     /// Convert chrono DateTime<Utc> to time::OffsetDateTime for the Yahoo API.
     fn chrono_to_offset_datetime(dt: DateTime<Utc>) -> OffsetDateTime {
         OffsetDateTime::from_unix_timestamp(dt.timestamp())
@@ -556,7 +544,7 @@ impl YahooProvider {
             .metadata()
             .ok()
             .and_then(|m| m.currency)
-            .unwrap_or_else(|| self.get_currency(context));
+            .unwrap_or_else(|| ResolverChain::new().quote_currency(&"YAHOO".into(), context));
 
         let yahoo_quote = response.last_quote().map_err(|e| {
             warn!("No quotes returned for {}: {}", symbol, e);
@@ -631,7 +619,7 @@ impl YahooProvider {
         let currency = price
             .currency
             .clone()
-            .unwrap_or_else(|| self.get_currency(context));
+            .unwrap_or_else(|| ResolverChain::new().quote_currency(&"YAHOO".into(), context));
 
         let close = price
             .regular_market_price
@@ -1047,7 +1035,7 @@ impl MarketDataProvider for YahooProvider {
             .metadata()
             .ok()
             .and_then(|m| m.currency)
-            .unwrap_or_else(|| self.get_currency(context));
+            .unwrap_or_else(|| ResolverChain::new().quote_currency(&"YAHOO".into(), context));
 
         match response.quotes() {
             Ok(yahoo_quotes) => {
@@ -1474,43 +1462,6 @@ mod tests {
         );
     }
 
-    fn create_test_context() -> QuoteContext {
-        use crate::models::InstrumentId;
-
-        QuoteContext {
-            instrument: InstrumentId::Equity {
-                ticker: Arc::from("AAPL"),
-                mic: None,
-            },
-            identifiers: Default::default(),
-            overrides: None,
-            currency_hint: Some(Cow::Borrowed("USD")),
-            preferred_provider: None,
-            bond_metadata: None,
-            custom_provider_code: None,
-        }
-    }
-
-    fn create_test_fx_context(
-        currency_hint: Option<&'static str>,
-        quote: &'static str,
-    ) -> QuoteContext {
-        use crate::models::InstrumentId;
-
-        QuoteContext {
-            instrument: InstrumentId::Fx {
-                base: Cow::Borrowed("EUR"),
-                quote: Cow::Borrowed(quote),
-            },
-            identifiers: Default::default(),
-            overrides: None,
-            currency_hint: currency_hint.map(Cow::Borrowed),
-            preferred_provider: None,
-            bond_metadata: None,
-            custom_provider_code: None,
-        }
-    }
-
     #[test]
     fn test_extract_symbol_equity() {
         let instrument = ProviderInstrument::EquitySymbol {
@@ -1555,62 +1506,6 @@ mod tests {
             }
             _ => panic!("Expected FxPair"),
         }
-    }
-
-    #[test]
-    fn test_get_currency_with_hint() {
-        let provider = YahooProvider {
-            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
-            client: wealthfolio_http::client(),
-        };
-        let context = create_test_context();
-        assert_eq!(provider.get_currency(&context), "USD");
-    }
-
-    #[test]
-    fn test_get_currency_prefers_resolver_over_hint() {
-        let provider = YahooProvider {
-            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
-            client: wealthfolio_http::client(),
-        };
-        // FX resolver returns the quote currency ("CAD"), which takes priority over hint
-        let context = create_test_fx_context(Some("TWD"), "CAD");
-        assert_eq!(provider.get_currency(&context), "CAD");
-    }
-
-    #[test]
-    fn test_get_currency_falls_back_to_hint_when_resolver_empty() {
-        let provider = YahooProvider {
-            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
-            client: wealthfolio_http::client(),
-        };
-        // No MIC → resolver returns None for equities, so hint wins
-        let context = create_test_context();
-        assert_eq!(provider.get_currency(&context), "USD");
-    }
-
-    #[test]
-    fn test_get_currency_xlon_prefers_exchange_metadata() {
-        use crate::models::InstrumentId;
-        // BATS@XLON: asset has quote_ccy="GBP" but Yahoo prices are in pence.
-        // get_currency() must return "GBp" from exchange metadata, not "GBP" from hint.
-        let provider = YahooProvider {
-            request_recorder: std::sync::Arc::new(crate::NoopRequestRecorder),
-            client: wealthfolio_http::client(),
-        };
-        let context = QuoteContext {
-            instrument: InstrumentId::Equity {
-                ticker: Arc::from("BATS"),
-                mic: Some("XLON".into()),
-            },
-            identifiers: Default::default(),
-            currency_hint: Some(Cow::Borrowed("GBP")),
-            overrides: None,
-            preferred_provider: None,
-            bond_metadata: None,
-            custom_provider_code: None,
-        };
-        assert_eq!(provider.get_currency(&context), "GBp");
     }
 
     #[test]

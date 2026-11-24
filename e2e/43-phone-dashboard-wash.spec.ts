@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page } from "./fixtures";
 import { test } from "./isolated-profile-fixture";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 
@@ -64,8 +64,10 @@ test("phone dashboard tabs paint their wash down to the bottom of the screen", a
   test.setTimeout(120_000);
   await completeOnboardingIfNeeded(page);
   const accountId = await seedCashAccount(page);
-  // Earlier specs leave many accounts in the shared profile, so the short-content
-  // case shows a portfolio holding only this account.
+  // Other specs' accounts share this worker's database, so the short-content case
+  // shows a portfolio holding only this account. Their data can only lengthen the
+  // all-accounts view, which must scroll. Net Worth has no portfolio scope, so its
+  // short case still assumes the worker's accounts fit in 4000px.
   const portfolio = await page.request.post(`${api}/portfolios`, {
     data: { name: `Dashboard wash ${Date.now().toString(36)}`, accountIds: [accountId] },
   });

@@ -1,4 +1,4 @@
-import { expect as baseExpect } from "@playwright/test";
+import { expect as baseExpect } from "./fixtures";
 import { BASE_URL, gotoAppPath } from "./helpers";
 import { test } from "./provider-test-fixture";
 

@@ -1,5 +1,8 @@
 import { crc32 } from "node:zlib";
-import type { ActivityType } from "../../../packages/addon-sdk/src/data-types";
+import type {
+  ActivityType,
+  OpenActivityImportRequest,
+} from "../../../packages/addon-sdk/src/data-types";
 
 // Small, uncompressed ZIPs keep the real installation boundary in the test without
 // another repository, a package builder, or a test dependency. Names are fixed below.
@@ -41,11 +44,16 @@ function zip(files: Record<string, string>): Buffer {
   return Buffer.concat([...local, directory, end]);
 }
 
-export function importAddonFixture(id: string, tab: "investments" | "spending", accountId: string) {
+export function importAddonFixture(
+  id: string,
+  tab: "investments" | "spending",
+  accountId: string,
+  handoff?: OpenActivityImportRequest,
+) {
   const route = "import-drafts";
   const label = `Fixture ${tab} import`;
   const activityType: ActivityType = tab === "investments" ? "DEPOSIT" : "WITHDRAWAL";
-  const request = {
+  const request: OpenActivityImportRequest = handoff ?? {
     sourceLabel: label,
     accountId,
     rows: [
@@ -54,10 +62,13 @@ export function importAddonFixture(id: string, tab: "investments" | "spending", 
         rawRow: ["synthetic host import fixture"],
         excluded: false,
         activity: {
+          accountId,
           activityType,
           date: "2026-01-06T00:00:00Z",
           amount: "1",
           currency: "USD",
+          isValid: true,
+          isDraft: true,
         },
       },
     ],
@@ -71,7 +82,7 @@ export function importAddonFixture(id: string, tab: "investments" | "spending", 
       {
         category: "activities",
         functions: [{ name: "openImport", isDeclared: true, isDetected: false }],
-        purpose: "Open the host wizard with one synthetic draft; never write activities",
+        purpose: "Open the host wizard with synthetic drafts",
       },
     ],
     contributes: {

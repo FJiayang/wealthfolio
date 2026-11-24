@@ -8,6 +8,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ImportAlert } from "../components/import-alert";
 import { ImportReviewGrid } from "../components/import-review-grid";
+import { NumericFormatAlert } from "../components/numeric-format-alert";
 import {
   bulkForceImportDrafts,
   bulkSetCurrency,
@@ -20,6 +21,7 @@ import {
 import { buildImportAssetCandidateFromDraft } from "../utils/asset-review-utils";
 import { reconcileExpenseReversalBoundary, validateDraft } from "../utils/draft-utils";
 import { getActivityImportProfileForResolvedAccountIds } from "../utils/activity-import-profile";
+import { analyzeMappedNumericColumns } from "../utils/numeric-format";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Filter Helpers
@@ -94,8 +96,19 @@ export function ReviewStep() {
   const { state, dispatch, validateDrafts } = useImportContext();
   const { t } = useTranslation();
   const compareNames = useNameComparator();
-  const { parsedRows, draftActivities } = state;
+  const { parsedRows, mapping, draftActivities } = state;
   const isValidating = state.isValidating;
+  const numericColumns = useMemo(
+    () =>
+      analyzeMappedNumericColumns(
+        state.headers,
+        draftActivities.map((draft) => draft.rawRow),
+        mapping?.fieldMappings ?? {},
+        state.parseConfig.decimalSeparator,
+        state.parseConfig.thousandsSeparator,
+      ),
+    [state.headers, draftActivities, mapping?.fieldMappings, state.parseConfig],
+  );
   const { accounts = [] } = useAccounts({ filterActive: true, includeArchived: false });
 
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
@@ -397,6 +410,16 @@ export function ReviewStep() {
     );
   }
 
+  if (parsedRows.length > 0 && (!mapping || Object.keys(mapping.fieldMappings).length === 0)) {
+    return (
+      <ImportAlert
+        variant="warning"
+        title={t("activity:import.review.missingMappingTitle")}
+        description={t("activity:import.review.missingMappingDescription")}
+      />
+    );
+  }
+
   const validCount = filterStats.valid + filterStats.warnings + filterStats.duplicates;
   const hasErrors = filterStats.errors > 0;
   const hasWarnings = filterStats.warnings > 0 || filterStats.duplicates > 0;
@@ -408,6 +431,9 @@ export function ReviewStep() {
 
   return (
     <div className="flex flex-col gap-4">
+      {mapping && (
+        <NumericFormatAlert columns={numericColumns} fieldMappings={mapping.fieldMappings} />
+      )}
       {/* Summary alert */}
       {state.validationError ? (
         <ImportAlert

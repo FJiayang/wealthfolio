@@ -58,3 +58,12 @@ pub fn is_native_provider(id: &str) -> bool {
         DATA_SOURCE_EASTMONEY | DATA_SOURCE_TENCENT | DATA_SOURCE_SINA
     )
 }
+
+/// Built-in provider defaults shared by native and server runtimes. Keep the
+/// generic application client and custom-provider configuration independent.
+pub(crate) fn http_client_builder() -> reqwest::ClientBuilder {
+    let policy = &wealthfolio_http::timeouts::policy().provider;
+    wealthfolio_http::client_builder()
+        .connect_timeout(std::time::Duration::from_millis(policy.connect_ms))
+        .timeout(std::time::Duration::from_millis(policy.request_ms))
+}

@@ -1,4 +1,4 @@
-import { test as base, type APIRequestContext, type Page } from "@playwright/test";
+import { test as base, type APIRequestContext, type Page } from "./fixtures";
 
 // Request error messages can contain credential payloads. Keep operation and
 // source frames (including nested cleanup failures), never raw messages/bodies.

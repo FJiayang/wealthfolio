@@ -1,14 +1,22 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once, EventEmitter } from "node:events";
-import { existsSync } from "node:fs";
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { stopServer } from "./e2e-server.mjs";
-import { waitForBackend, waitForServer } from "./run-e2e.mjs";
+import { splitWorkersArg, waitForBackend, waitForServer } from "./run-e2e.mjs";
 import { setTimeout } from "node:timers/promises";
 
 async function listen(t, handler) {
@@ -21,109 +29,97 @@ async function listen(t, handler) {
   return `http://127.0.0.1:${server.address().port}`;
 }
 
-for (const [testExitCode, existing] of [
-  [0, true],
-  [1, true],
-  [0, false],
-]) {
-  test(
-    `health readiness restores ${existing ? "existing" : "new"} environment after exit ${testExitCode}`,
-    { timeout: 10_000 },
-    async (t) => {
-      const directory = await mkdtemp(join(tmpdir(), "wealthfolio-e2e-env-"));
-      t.after(() => rm(directory, { recursive: true, force: true }));
-      await mkdir(join(directory, "scripts"));
-      await mkdir(join(directory, "bin"));
-      for (const name of ["run-e2e.mjs", "prep-e2e.mjs", "dev-web.mjs", "e2e-server.mjs"])
-        await copyFile(new URL(name, import.meta.url), join(directory, "scripts", name));
+for (const testExitCode of [0, 1]) {
+  test(`the production runner restores the environment after test exit ${testExitCode}`, async (t) => {
+    const directory = await mkdtemp(join(tmpdir(), "wealthfolio-e2e-env-"));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    await mkdir(join(directory, "scripts"));
+    await mkdir(join(directory, "bin"));
+    for (const name of ["run-e2e.mjs", "prep-e2e.mjs", "dev-web.mjs", "e2e-server.mjs"]) {
+      await copyFile(new URL(name, import.meta.url), join(directory, "scripts", name));
+    }
 
-      const original = [
-        "WF_DATA_DIR=/daily-data",
-        "WF_DB_PATH=/daily-data/app.db",
-        "WF_SECRET_FILE=/daily-data/vault.bin",
-        "WF_ADDONS_DIR=/daily-data/addons",
-        "WF_AUTH_REQUIRED=true",
-        "WF_AUTH_PASSWORD_HASH=synthetic-hash",
-        "",
-      ].join("\n");
-      const envPath = join(directory, ".env.web");
-      await writeFile(existing ? envPath : `${envPath}.example`, original);
-      // Run the real supervisor with owned synthetic cargo/Vite children. No
-      // application, browser, or production database is started by this unit test.
-      for (const name of ["cargo", "pnpm"]) {
-        const command = join(directory, "bin", name);
-        await writeFile(
-          command,
-          `#!${process.execPath}
+    const envPath = join(directory, ".env.web");
+    const original = "WF_DATA_DIR=/daily-data\nWF_AUTH_REQUIRED=true\n";
+    await writeFile(envPath, original);
+    // The runner gets deterministic responses without starting a real app server.
+    const origin = "http://127.0.0.1:8188";
+    const mockFetch = join(directory, "mock-fetch.mjs");
+    await writeFile(
+      mockFetch,
+      `globalThis.fetch = async (url) => {
+  const { origin, pathname } = new URL(url);
+  if (origin !== "${origin}") throw new Error("Unexpected server URL");
+  if (pathname === "/api/v1/settings") return Response.json({ onboardingCompleted: true });
+  if (pathname === "/api/v1/healthz" || pathname === "/") return new Response("ready");
+  throw new Error("Unexpected server route");
+};`,
+    );
+    await writeFile(
+      join(directory, "bin", "cargo"),
+      `#!${process.execPath}
 const fs = require("node:fs");
-const path = require("node:path");
-const root = process.env.FIXTURE_ROOT;
-if (${JSON.stringify(name)} === "pnpm" && process.argv[2] === "exec") {
-  if (!fs.existsSync(path.join(root, "health-ready"))) process.exit(99);
-  fs.writeFileSync(path.join(root, "playwright-args.json"), JSON.stringify(process.argv.slice(2)));
-  process.exit(${testExitCode});
-}
-if (${JSON.stringify(name)} === "pnpm")
-  fs.writeFileSync(path.join(root, "vite-api-target"), process.env.VITE_API_TARGET || "");
-process.on("SIGTERM", () => {
-  fs.writeFileSync(path.join(root, "${name}-stopped"), "stopped");
-  process.exit(0);
-});
-fs.writeFileSync(path.join(root, "${name}-ready"), "ready");
+if (process.argv[2] === "build") process.exit(0);
+fs.writeFileSync("worker-env.json", JSON.stringify({
+  data: process.env.WF_DATA_DIR,
+  static: process.env.WF_STATIC_DIR,
+  listen: process.env.WF_LISTEN_ADDR,
+}));
+process.on("SIGTERM", () => process.exit(0));
 setInterval(() => {}, 1000);
 `,
-        );
-        await chmod(command, 0o755);
-      }
-      const frontend = await listen(t, (_request, response) => {
-        response.statusCode =
-          existsSync(join(directory, "cargo-ready")) && existsSync(join(directory, "pnpm-ready"))
-            ? 200
-            : 503;
-        response.end("frontend");
-      });
-      const backendRequests = [];
-      const backend = await listen(t, (request, response) => {
-        backendRequests.push(request.url);
-        response.statusCode = request.url === "/api/v1/healthz" ? 200 : 404;
-        if (response.statusCode === 200) {
-          writeFile(join(directory, "health-ready"), "ready").then(() => response.end("ok"));
-        } else response.end("no production dist in dev mode");
-      });
-      const flags = ["--workers=1", "--retries=0", "--forbid-only"];
-      const runner = spawn(
-        process.execPath,
-        [join(directory, "scripts", "run-e2e.mjs"), ...flags],
-        {
-          cwd: directory,
-          env: {
-            ...process.env,
-            PATH: `${join(directory, "bin")}:${process.env.PATH}`,
-            FIXTURE_ROOT: directory,
-            WF_E2E_BASE_URL: frontend,
-            WF_E2E_BACKEND_URL: backend,
-            VITE_API_TARGET: "http://127.0.0.1:9999",
-          },
-          stdio: ["ignore", "ignore", "pipe"],
+    );
+    await writeFile(
+      join(directory, "bin", "pnpm"),
+      `#!${process.execPath}
+const fs = require("node:fs");
+if (process.argv[2] !== "exec" || process.argv.includes("--list")) process.exit(0);
+(async () => {
+  for (let attempts = 0; attempts < 100 && !fs.existsSync("worker-env.json"); attempts++) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  if (!fs.existsSync("worker-env.json")) process.exit(99);
+  fs.appendFileSync("playwright-runs", process.argv.slice(2).join(" ") + "\\n");
+  process.exit(${testExitCode});
+})();
+`,
+    );
+    for (const name of ["cargo", "pnpm"]) await chmod(join(directory, "bin", name), 0o755);
+    const runner = spawn(
+      process.execPath,
+      [
+        "--import",
+        mockFetch,
+        join(directory, "scripts", "run-e2e.mjs"),
+        "--workers=1",
+        "--retries=0",
+        "--forbid-only",
+      ],
+      {
+        cwd: directory,
+        env: {
+          ...process.env,
+          PATH: `${join(directory, "bin")}:${process.env.PATH}`,
+          WF_E2E_BACKEND_URL: origin,
         },
-      );
-      t.after(() => stopServer(runner, "SIGTERM", 100));
-      let errors = "";
-      runner.stderr.on("data", (chunk) => (errors += chunk));
-      const [code] = await once(runner, "exit");
-      assert.equal(code, testExitCode, errors);
-      assert.deepEqual(backendRequests, ["/api/v1/healthz"]);
-      assert.deepEqual(
-        JSON.parse(await readFile(join(directory, "playwright-args.json"), "utf8")),
-        ["exec", "playwright", "test", ...flags],
-      );
-      assert.equal(await readFile(envPath, "utf8"), original);
-      assert.equal(await readFile(join(directory, "vite-api-target"), "utf8"), backend);
-      for (const name of ["cargo", "pnpm"])
-        assert.equal(await readFile(join(directory, `${name}-stopped`), "utf8"), "stopped");
-      if (testExitCode) assert.match(errors, /Playwright exited with code 1/);
-    },
-  );
+        stdio: ["ignore", "ignore", "pipe"],
+      },
+    );
+    t.after(() => stopServer(runner, "SIGTERM", 100));
+    let errors = "";
+    runner.stderr.on("data", (chunk) => (errors += chunk));
+    const [code] = await once(runner, "exit");
+    assert.equal(code, testExitCode, errors);
+    assert.equal(await readFile(envPath, "utf8"), original);
+    const worker = JSON.parse(await readFile(join(directory, "worker-env.json"), "utf8"));
+    assert.match(worker.data, /app-testing-[^/]+\/worker-0$/);
+    assert.equal(worker.static, join(await realpath(directory), "dist"));
+    assert.equal(worker.listen, `127.0.0.1:${new URL(origin).port}`);
+    const runs = await readFile(join(directory, "playwright-runs"), "utf8");
+    assert.match(runs, /--project onboarding --workers 1 .*--retries=0 --forbid-only/);
+    assert.match(runs, /--project chromium --workers 1 .*--retries=0 --forbid-only/);
+    if (testExitCode) assert.match(errors, /Playwright exited with code 1/);
+  });
 }
 
 test("a stalled HTTP response cannot outlive the readiness deadline", async (t) => {
@@ -219,31 +215,68 @@ const HANDOFF = `
   ], { stdio: "inherit" });
 `;
 
+const stopsTheChild = async (t) => {
+  const server = spawn(process.execPath, ["-e", HANDOFF], {
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  let childPid;
+  try {
+    const [output] = await once(server.stdout, "data", { signal: t.signal });
+    childPid = Number(String(output).trim());
+    const stopped = await Promise.race([
+      stopServer(server, "SIGINT").then(() => true),
+      setTimeout(5000, false, { ref: false }),
+    ]);
+    assert.equal(stopped, true);
+    assert.throws(() => process.kill(childPid, 0), { code: "ESRCH" });
+  } finally {
+    for (const pid of [childPid, server.pid].filter(Boolean)) {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        // already stopped
+      }
+    }
+  }
+};
+
 test(
   "stopping a server reaches a child its launcher doesn't signal",
   { skip: process.platform === "win32", timeout: 10_000 },
+  stopsTheChild,
+);
+
+test(
+  "stopping a server reaches that child on Linux without ps",
+  { skip: process.platform !== "linux", timeout: 10_000 },
   async (t) => {
-    const server = spawn(process.execPath, ["-e", HANDOFF], {
-      stdio: ["ignore", "pipe", "inherit"],
-    });
-    let childPid;
+    const path = process.env.PATH;
+    // An empty PATH leaves `ps` unfound; the server is spawned by absolute path.
+    process.env.PATH = "";
     try {
-      const [output] = await once(server.stdout, "data", { signal: t.signal });
-      childPid = Number(String(output).trim());
-      const stopped = await Promise.race([
-        stopServer(server, "SIGINT").then(() => true),
-        setTimeout(5000, false, { ref: false }),
-      ]);
-      assert.equal(stopped, true);
-      assert.throws(() => process.kill(childPid, 0), { code: "ESRCH" });
+      await stopsTheChild(t);
     } finally {
-      for (const pid of [childPid, server.pid].filter(Boolean)) {
-        try {
-          process.kill(pid, "SIGKILL");
-        } catch {
-          // already stopped
-        }
-      }
+      if (path === undefined) delete process.env.PATH;
+      else process.env.PATH = path;
     }
   },
 );
+
+test("a --workers argument sets the server count and leaves the rest", () => {
+  assert.deepEqual(splitWorkersArg(["--workers", "2", "e2e/a.spec.ts"]), {
+    workers: 2,
+    rest: ["e2e/a.spec.ts"],
+  });
+  assert.deepEqual(splitWorkersArg(["--workers=3", "--headed"]), {
+    workers: 3,
+    rest: ["--headed"],
+  });
+  assert.deepEqual(splitWorkersArg(["-j", "1"]), { workers: 1, rest: [] });
+  assert.deepEqual(splitWorkersArg(["--ui"]), { workers: undefined, rest: ["--ui"] });
+});
+
+test("a worker count that isn't a whole number is rejected", () => {
+  for (const args of [["--workers=50%"], ["--workers", "50%"], ["-j", "2.5"], ["--workers"]]) {
+    assert.throws(() => splitWorkersArg(args), /--workers takes a whole number of workers/);
+  }
+});

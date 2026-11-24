@@ -1,4 +1,4 @@
-import { expect, test as base } from "@playwright/test";
+import { expect, test as base } from "./fixtures";
 import { BASE_URL } from "./helpers";
 
 // Keep data-size and navigation checks independent of earlier serial specs.

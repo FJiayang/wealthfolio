@@ -1,4 +1,4 @@
-import { expect, test as base, type Page } from "@playwright/test";
+import { expect, test as base, type Page } from "./fixtures";
 import { BASE_URL } from "./helpers";
 
 // A fixture gets its own teardown budget, even when the test body times out.

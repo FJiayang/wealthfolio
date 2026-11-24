@@ -87,10 +87,12 @@ pub async fn valuation_map(
     result
         .accounts
         .into_iter()
+        .filter(|account| account.value_status.is_complete())
         .map(|account| {
             account
                 .total_value_base
                 .to_f64()
+                .filter(|value| value.is_finite())
                 .map(|v| (account.account_id, v))
                 .ok_or_else(|| AgentToolError::ExecutionFailed("Invalid account valuation".into()))
         })

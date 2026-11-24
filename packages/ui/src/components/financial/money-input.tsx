@@ -141,6 +141,10 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
         }}
         inputMode="decimal"
         onPaste={(event) => {
+          if (readOnly || disabled) {
+            event.preventDefault();
+            return;
+          }
           // Let NumericFormat preserve decimal strings without a floating-point conversion.
           if (onValueStringChange) return;
           const clipboardValue = event.clipboardData.getData("text");
