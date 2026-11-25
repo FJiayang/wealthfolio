@@ -173,7 +173,6 @@ export const ActivityTable = ({
   const { t } = useTranslation();
   const reviewExplanation = useReviewExplanation();
   const { duplicateActivityMutation } = useActivityMutations();
-  // mutateAsync is stable; the mutation object is not, and `columns` depends on this handler.
   const { mutateAsync: duplicateActivity } = duplicateActivityMutation;
   const { settings } = useSettingsContext();
   const appTimezone = settings?.timezone?.trim() || undefined;
@@ -792,19 +791,6 @@ export const ActivityTable = ({
             </div>
           );
         },
-        cell: ({ row }) => {
-          return (
-            <ActivityOperations
-              row={row}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onDuplicate={handleDuplicate}
-              onLinkTransfer={onLinkTransfer}
-              onUnlinkTransfer={onUnlinkTransfer}
-              hoverReveal
-            />
-          );
-        },
         enableHiding: false,
       },
     ],
@@ -813,11 +799,6 @@ export const ActivityTable = ({
       dateFormatting,
       groupByDay,
       isBalanceHidden,
-      handleEdit,
-      handleDelete,
-      handleDuplicate,
-      onLinkTransfer,
-      onUnlinkTransfer,
       amountFormatting,
       showsCashBalance,
       symbolExchangeCountMap,
@@ -1078,7 +1059,20 @@ export const ActivityTable = ({
                         data-row-click-ignore={cell.column.id === "actions" || undefined}
                       >
                         {cellIndex === 0 && row.original.needsReview && <NeedsReviewStripe />}
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        {/* Keep the menu mounted when refreshed data rebuilds the columns. */}
+                        {cell.column.id === "actions" ? (
+                          <ActivityOperations
+                            row={row}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                            onDuplicate={handleDuplicate}
+                            onLinkTransfer={onLinkTransfer}
+                            onUnlinkTransfer={onUnlinkTransfer}
+                            hoverReveal
+                          />
+                        ) : (
+                          flexRender(cell.column.columnDef.cell, cell.getContext())
+                        )}
                       </TableCell>
                     ))}
                   </TableRow>

@@ -1,4 +1,5 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -7,8 +8,10 @@ import type { ActivityDetails, CashBalanceScope } from "@/lib/types";
 import { ActivityTable } from "./activity-table";
 import { ActivityTableMobile } from "./activity-table-mobile";
 
+const { duplicateActivity } = vi.hoisted(() => ({ duplicateActivity: vi.fn() }));
+
 vi.mock("@/pages/activity/hooks/use-activity-mutations", () => ({
-  useActivityMutations: () => ({ duplicateActivityMutation: { mutateAsync: vi.fn() } }),
+  useActivityMutations: () => ({ duplicateActivityMutation: { mutateAsync: duplicateActivity } }),
 }));
 
 vi.mock("@/hooks/use-balance-privacy", () => ({
@@ -21,10 +24,13 @@ vi.mock("@/lib/settings-provider", () => ({
   }),
 }));
 
-// Avatars and the row menu's sheets load through the platform adapter, which
-// jsdom lacks; neither is under test here.
+// These components use platform adapters that jsdom does not provide.
 vi.mock("@/components/ticker-avatar", () => ({ TickerAvatar: () => null }));
-vi.mock("../activity-operations", () => ({ ActivityOperations: () => null }));
+vi.mock("@/components/action-palette", () => ({ ActionPalette: () => null }));
+vi.mock("../activity-detail-sheet", () => ({ ActivityDetailSheet: () => null }));
+vi.mock("@/pages/asset/alternative-assets/components/activity-loan-payment-sheet", () => ({
+  ActivityLoanPaymentSheet: () => null,
+}));
 
 vi.mock("react-router-dom", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react-router-dom")>()),
@@ -118,6 +124,33 @@ function renderCards(
     { wrapper: MemoryRouter },
   );
 }
+
+it("keeps the row menu open when balances refresh and duplicates the latest activity", async () => {
+  const user = userEvent.setup();
+  const activity = row("deposit", "100.00", "DAY");
+  const refreshed = { ...activity, cashBalance: "125.00" };
+  const props = {
+    isLoading: false,
+    sorting: [{ id: "date", desc: true }],
+    onSortingChange: vi.fn(),
+    groupByDay: true,
+    handleEdit: vi.fn(),
+    handleDelete: vi.fn(),
+  };
+  const { rerender } = render(<ActivityTable {...props} activities={[activity]} />, {
+    wrapper: MemoryRouter,
+  });
+
+  await user.click(screen.getByRole("button", { name: "Open" }));
+  const duplicate = await screen.findByRole("menuitem", { name: "Duplicate" });
+
+  rerender(<ActivityTable {...props} activities={[refreshed]} />);
+
+  expect(screen.getByText("$125.00")).toBeInTheDocument();
+  expect(screen.getByRole("menuitem", { name: "Duplicate" })).toBe(duplicate);
+  await user.click(duplicate);
+  expect(duplicateActivity).toHaveBeenCalledWith(refreshed);
+});
 
 /** A purchase, so that the only "Cash" on screen is the day header's. */
 function trade(id: string, balance: string, date: string): ActivityDetails {
