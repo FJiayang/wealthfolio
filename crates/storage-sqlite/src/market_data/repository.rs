@@ -506,6 +506,7 @@ impl QuoteStore for MarketDataRepository {
                 VALUES (?, ?, 0, 0, ?, ?, ?)
                 ON CONFLICT(asset_id) DO UPDATE SET data_source=excluded.data_source,
                 error_count=0, last_error=NULL, last_synced_at=excluded.last_synced_at,
+                fx_history_start=NULL,
                 updated_at=excluded.updated_at")
                 .bind::<Text, _>(&context.asset.id).bind::<Text, _>(&source)
                 .bind::<Text, _>(&now).bind::<Text, _>(&now).bind::<Text, _>(&now)
@@ -1491,6 +1492,7 @@ mod tests {
     use crate::db::{create_pool, run_migrations, write_actor::spawn_writer, TestDir};
     use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
     use rust_decimal::Decimal;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use wealthfolio_core::quotes::Quote;
 
     #[tokio::test]
@@ -1572,6 +1574,7 @@ mod tests {
     #[derive(Default)]
     struct ShortHistoryProvider {
         gate: Option<(Arc<tokio::sync::Notify>, Arc<tokio::sync::Notify>)>,
+        unavailable: Arc<AtomicBool>,
     }
     #[async_trait]
     impl wealthfolio_market_data::MarketDataProvider for ShortHistoryProvider {
@@ -1608,6 +1611,9 @@ mod tests {
                 started.notify_one();
                 release.notified().await;
             }
+            if self.unavailable.load(Ordering::Relaxed) {
+                return Err(wealthfolio_market_data::errors::MarketDataError::NoDataForRange);
+            }
             Ok((2015..2020)
                 .map(|year| {
                     wealthfolio_market_data::Quote::new(
@@ -1622,6 +1628,26 @@ mod tests {
         }
     }
 
+    fn prepare_fx_history(
+        repo: &MarketDataRepository,
+        asset_id: &str,
+        symbol: &str,
+        first_activity: &str,
+    ) {
+        let mut conn = get_connection(&repo.pool).unwrap();
+        diesel::sql_query("UPDATE market_data_providers SET enabled=0")
+            .execute(&mut conn)
+            .unwrap();
+        diesel::sql_query("INSERT INTO assets (id,kind,quote_mode,quote_ccy,instrument_type,instrument_symbol) VALUES (?,'FX','MARKET','USD','FX',?)")
+            .bind::<Text, _>(asset_id).bind::<Text, _>(symbol)
+            .execute(&mut conn).unwrap();
+        diesel::sql_query("INSERT INTO accounts (id,name,account_type,currency,is_default,is_active,created_at,updated_at) VALUES ('fx-history','History','CASH','USD',0,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)")
+            .execute(&mut conn).unwrap();
+        diesel::sql_query("INSERT INTO activities (id,account_id,activity_type,activity_date,amount,currency,created_at,updated_at) VALUES ('fx-history-deposit','fx-history','DEPOSIT',?,'100','USD',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)")
+            .bind::<Text, _>(first_activity)
+            .execute(&mut conn).unwrap();
+    }
+
     #[tokio::test]
     async fn scheduled_fx_sync_retries_initial_history_after_failure() {
         use wealthfolio_core::quotes::{
@@ -1629,17 +1655,7 @@ mod tests {
             SyncStateStore, MAX_SYNC_ERRORS,
         };
         let (repo, _temp) = create_test_repository().await;
-        let mut conn = get_connection(&repo.pool).unwrap();
-        diesel::sql_query("UPDATE market_data_providers SET enabled=0")
-            .execute(&mut conn)
-            .unwrap();
-        diesel::sql_query("INSERT INTO assets (id,kind,quote_mode,quote_ccy,instrument_type,instrument_symbol) VALUES ('COPUSD','FX','MARKET','USD','FX','COP')")
-            .execute(&mut conn).unwrap();
-        diesel::sql_query("INSERT INTO accounts (id,name,account_type,currency,is_default,is_active,created_at,updated_at) VALUES ('fx-history','History','CASH','USD',0,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)")
-            .execute(&mut conn).unwrap();
-        diesel::sql_query("INSERT INTO activities (id,account_id,activity_type,activity_date,amount,currency,created_at,updated_at) VALUES ('fx-history-deposit','fx-history','DEPOSIT','2010-01-04T12:00:00Z','100','USD',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)")
-            .execute(&mut conn).unwrap();
-        drop(conn);
+        prepare_fx_history(&repo, "COPUSD", "COP", "2010-01-04T12:00:00Z");
         let repo = Arc::new(repo);
         let states = Arc::new(crate::market_data::QuoteSyncStateRepository::new(
             repo.pool.clone(),
@@ -1722,6 +1738,91 @@ mod tests {
         let stopped = sync.sync(SyncMode::Incremental, None).await.unwrap();
         assert_eq!(stopped.quotes_synced, 0);
         assert_eq!(stopped.skipped, 1);
+    }
+
+    #[tokio::test]
+    async fn scheduled_fx_sync_saves_history_after_earlier_activity_import() {
+        use wealthfolio_core::quotes::{
+            MarketDataClient, QuoteSyncService, QuoteSyncServiceTrait, SyncMode,
+        };
+        let (repo, _temp) = create_test_repository().await;
+        // Use a distinct pair so the in-process per-asset lock allows parallel tests.
+        prepare_fx_history(&repo, "PENUSD", "PEN", "2017-01-04T12:00:00Z");
+        let repo = Arc::new(repo);
+        let provider = ShortHistoryProvider::default();
+        let unavailable = provider.unavailable.clone();
+        let client =
+            MarketDataClient::new_with_extra(Arc::new(NoSecrets), vec![], vec![Arc::new(provider)])
+                .await
+                .unwrap();
+        let sync = QuoteSyncService::new(
+            Arc::new(tokio::sync::RwLock::new(client)),
+            repo.clone(),
+            Arc::new(crate::market_data::QuoteSyncStateRepository::new(
+                repo.pool.clone(),
+                repo.writer.clone(),
+            )),
+            Arc::new(crate::assets::AssetRepository::new(
+                repo.pool.clone(),
+                repo.writer.clone(),
+            )),
+            Arc::new(crate::activities::ActivityRepository::new(
+                repo.pool.clone(),
+                repo.writer.clone(),
+            )),
+        );
+        let initial = sync.sync(SyncMode::Incremental, None).await.unwrap();
+        assert_eq!(initial.quotes_synced, 3, "{:?}", initial.failures);
+        let ordinary = sync.get_sync_plan().unwrap();
+        assert_eq!(ordinary.len(), 1);
+        assert!(ordinary[0].start_date > NaiveDate::from_ymd_opt(2018, 1, 1).unwrap());
+
+        diesel::sql_query("INSERT INTO activities (id,account_id,activity_type,activity_date,amount,currency,created_at,updated_at) VALUES ('earlier-deposit','fx-history','DEPOSIT','2014-01-04T12:00:00Z','100','USD',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)")
+            .execute(&mut get_connection(&repo.pool).unwrap()).unwrap();
+        let expanded = sync.get_sync_plan().unwrap();
+        assert_eq!(expanded.len(), 1);
+        assert!(expanded[0].start_date < NaiveDate::from_ymd_opt(2014, 1, 4).unwrap());
+        unavailable.store(true, Ordering::Relaxed);
+        let empty = sync.sync(SyncMode::Incremental, None).await.unwrap();
+        assert_eq!(empty.quotes_synced, 0);
+        assert_eq!(
+            sync.get_sync_plan().unwrap()[0].start_date,
+            expanded[0].start_date
+        );
+        unavailable.store(false, Ordering::Relaxed);
+        let backfill = sync.sync(SyncMode::Incremental, None).await.unwrap();
+        assert_eq!(backfill.failed, 0, "{:?}", backfill.failures);
+        let dates: Vec<_> = raw_rows(&repo, "PENUSD")
+            .into_iter()
+            .map(|quote| quote.day)
+            .collect();
+        assert_eq!(
+            dates,
+            [
+                "2015-01-04",
+                "2016-01-04",
+                "2017-01-04",
+                "2018-01-04",
+                "2019-01-04"
+            ],
+        );
+        // The feed starts in 2015. A successful short response should return
+        // the pair to its ordinary incremental window, even after a recent refetch.
+        let days =
+            (Utc::now().date_naive() - NaiveDate::from_ymd_opt(2019, 1, 1).unwrap()).num_days();
+        let refreshed = sync
+            .sync(
+                SyncMode::RefetchRecent { days },
+                Some(vec!["PENUSD".into()]),
+            )
+            .await
+            .unwrap();
+        assert_eq!(refreshed.quotes_synced, 1, "{:?}", refreshed.failures);
+        let after = sync.get_sync_plan().unwrap();
+        assert_eq!(after.len(), 1);
+        assert_eq!(after[0].start_date, ordinary[0].start_date);
+        let next = sync.sync(SyncMode::Incremental, None).await.unwrap();
+        assert_eq!(next.quotes_synced, 1, "{:?}", next.failures);
     }
 
     #[tokio::test]
@@ -1880,6 +1981,7 @@ mod tests {
             vec![],
             vec![Arc::new(ShortHistoryProvider {
                 gate: Some((started.clone(), release.clone())),
+                ..Default::default()
             })],
         )
         .await

@@ -132,6 +132,8 @@ pub struct QuoteSyncStateDB {
     pub created_at: String,
     #[diesel(sql_type = diesel::sql_types::Text)]
     pub updated_at: String,
+    #[diesel(sql_type = diesel::sql_types::Nullable<diesel::sql_types::Text>)]
+    pub fx_history_start: Option<String>,
 }
 
 /// Update payload for partial updates to quote sync state
@@ -276,6 +278,10 @@ impl From<QuoteSyncStateDB> for QuoteSyncState {
             is_active: position_closed_date.is_none(),
             position_closed_date,
             last_synced_at: db.last_synced_at.as_deref().map(parse_datetime),
+            fx_history_start: db
+                .fx_history_start
+                .as_deref()
+                .and_then(|date| date.parse().ok()),
             data_source: db.data_source,
             sync_priority: db.sync_priority,
             error_count: db.error_count,
@@ -296,6 +302,7 @@ impl From<&QuoteSyncState> for QuoteSyncStateDB {
                 .position_closed_date
                 .map(|d| d.format("%Y-%m-%d").to_string()),
             last_synced_at: state.last_synced_at.map(|dt| dt.to_rfc3339()),
+            fx_history_start: state.fx_history_start.map(|date| date.to_string()),
             data_source: state.data_source.clone(),
             sync_priority: state.sync_priority,
             error_count: state.error_count,

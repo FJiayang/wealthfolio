@@ -260,6 +260,25 @@ fn sync_mode_for_asset(mode: SyncMode, asset: &Asset, state: Option<&QuoteSyncSt
     }
 }
 
+fn fx_incremental_history_start(
+    mode: SyncMode,
+    asset: &Asset,
+    state: Option<&QuoteSyncState>,
+    activity_start: Option<NaiveDate>,
+    quote_min: Option<NaiveDate>,
+    fetch_end: NaiveDate,
+) -> Option<NaiveDate> {
+    if !matches!(mode, SyncMode::Incremental) || asset.kind != AssetKind::Fx {
+        return None;
+    }
+    if let SyncMode::BackfillHistory { days } = sync_mode_for_asset(mode, asset, state) {
+        return Some(activity_start.unwrap_or_else(|| fetch_end - Duration::days(days)));
+    }
+    let requested_start = state.and_then(|state| state.fx_history_start);
+    let known_start = min_optional_date(requested_start, quote_min);
+    activity_start.filter(|start| known_start.is_none_or(|known| *start < known))
+}
+
 fn min_optional_date(left: Option<NaiveDate>, right: Option<NaiveDate>) -> Option<NaiveDate> {
     match (left, right) {
         (Some(left), Some(right)) => Some(left.min(right)),
@@ -795,9 +814,8 @@ where
     /// (BackfillHistory mode), FX assets need quote coverage from the earliest
     /// activity date across ALL accounts to support valuation history calculations.
     ///
-    /// - **BackfillHistory mode + FX asset**: Use global earliest activity date
-    /// - **Incremental mode + FX asset**: Continue from quote_max once the first
-    ///   history request succeeds.
+    /// Incremental FX history is planned separately so an earlier activity can
+    /// extend the range without splitting it into two competing fetches.
     fn calculate_date_range_for_mode(
         &self,
         inputs: &SyncPlanningInputs,
@@ -834,20 +852,9 @@ where
                 // For FX assets in BackfillHistory mode, use global earliest activity date
                 // FX assets have no activities, so activity_min is always NULL
                 if asset.kind == AssetKind::Fx {
-                    let global_earliest = self
-                        .activity_repo
-                        .get_first_activity_date_overall()
-                        .ok()
-                        .map(|dt| dt.date_naive());
-
-                    let start = global_earliest
-                        .map(|d| d - Duration::days(QUOTE_HISTORY_BUFFER_DAYS))
+                    let start = self
+                        .fx_activity_start()
                         .unwrap_or_else(|| fetch_end_date - Duration::days(days));
-
-                    debug!(
-                        "FX asset {} BackfillHistory: global_earliest={:?}, start={}",
-                        asset.id, global_earliest, start
-                    );
                     (start, fetch_end_date)
                 } else {
                     let start = inputs
@@ -971,17 +978,44 @@ where
         }
     }
 
-    async fn record_sync_success(&self, asset: &Asset, mode: SyncMode) -> Result<()> {
-        if asset.kind == AssetKind::Fx && matches!(mode, SyncMode::RefetchRecent { .. }) {
+    fn fx_activity_start(&self) -> Option<NaiveDate> {
+        match self.activity_repo.get_first_activity_date_overall() {
+            Ok(date) => Some(date.date_naive() - Duration::days(QUOTE_HISTORY_BUFFER_DAYS)),
+            Err(Error::Activity(crate::activities::ActivityError::NotFound(_))) => None,
+            Err(error) => {
+                warn!("Failed to read earliest activity for FX history planning: {error}");
+                None
+            }
+        }
+    }
+
+    async fn record_sync_success(
+        &self,
+        asset: &Asset,
+        mode: SyncMode,
+        fetched: Option<(&str, NaiveDate)>,
+    ) -> Result<()> {
+        if asset.kind == AssetKind::Fx {
             if let Some(mut state) = self.sync_state_store.get_by_asset_id(&asset.id)? {
-                if state.last_synced_at.is_none() {
-                    // Recent quotes do not complete the initial history request.
-                    // Clear failures while leaving the existing retry marker unset.
-                    state.error_count = 0;
-                    state.last_error = None;
-                    state.updated_at = Utc::now();
-                    return self.sync_state_store.upsert(&state).await.map(|_| ());
+                let was_synced = state.last_synced_at.is_some();
+                state.mark_synced();
+                if let Some((source, start)) = fetched {
+                    if state.data_source != source {
+                        state.fx_history_start = None;
+                        state.data_source = source.to_owned();
+                    }
+                    if !matches!(mode, SyncMode::RefetchRecent { .. }) {
+                        state.fx_history_start =
+                            min_optional_date(state.fx_history_start, Some(start));
+                    }
                 }
+                // A recent refresh or suppressed empty fetch does not complete initial history.
+                if !was_synced
+                    && (fetched.is_none() || matches!(mode, SyncMode::RefetchRecent { .. }))
+                {
+                    state.last_synced_at = None;
+                }
+                return self.sync_state_store.upsert(&state).await.map(|_| ());
             }
         }
         self.sync_state_store.update_after_sync(&asset.id).await
@@ -1071,12 +1105,17 @@ where
                             //     .await;
 
                             // Update sync state after a successful sync attempt.
-                            if let Err(e) = self.record_sync_success(asset, mode).await {
+                            let fetched = actual_source
+                                .as_deref()
+                                .map(|source| (source, plan.start_date));
+                            if let Err(e) = self.record_sync_success(asset, mode, fetched).await {
                                 warn!("Failed to update sync state for {}: {:?}", asset.id, e);
                             }
 
                             // Persist the actual provider used so future planning reads correct quote bounds.
-                            if let Some(actual_source) = actual_source {
+                            if let Some(actual_source) =
+                                actual_source.filter(|_| asset.kind != AssetKind::Fx)
+                            {
                                 match self.sync_state_store.get_by_asset_id(&asset.id) {
                                     Ok(Some(mut state)) if state.data_source != actual_source => {
                                         state.data_source = actual_source;
@@ -1161,7 +1200,7 @@ where
                     &error,
                     plan.suppress_closed_fetch_errors,
                 ) {
-                    if let Err(state_err) = self.record_sync_success(asset, mode).await {
+                    if let Err(state_err) = self.record_sync_success(asset, mode, None).await {
                         warn!(
                             "Failed to update sync state for {}: {:?}",
                             asset.id, state_err
@@ -1354,6 +1393,15 @@ where
             }
         }
 
+        let fx_activity_start = if states.iter().any(|state| {
+            assets_by_id
+                .get(&state.asset_id)
+                .is_some_and(|asset| asset.kind == AssetKind::Fx)
+        }) {
+            self.fx_activity_start()
+        } else {
+            None
+        };
         let mut plans = Vec::new();
 
         for state in states {
@@ -1402,8 +1450,15 @@ where
                 continue;
             }
 
-            let mode = sync_mode_for_asset(SyncMode::Incremental, asset, Some(&state));
-            if matches!(mode, SyncMode::Incremental)
+            let fx_history_start = fx_incremental_history_start(
+                SyncMode::Incremental,
+                asset,
+                Some(&state),
+                fx_activity_start,
+                quote_min,
+                fetch_end_date,
+            );
+            if fx_history_start.is_none()
                 && matches!(category, SyncCategory::NeedsBackfill)
                 && inputs.is_active
             {
@@ -1455,15 +1510,8 @@ where
                 continue;
             }
 
-            // Use the new calculate_sync_window function
-            let window = if matches!(mode, SyncMode::BackfillHistory { .. }) {
-                Some(self.calculate_date_range_for_mode(
-                    &inputs,
-                    mode,
-                    effective_today,
-                    fetch_end_date,
-                    asset,
-                ))
+            let window = if let Some(start) = fx_history_start {
+                Some((start, fetch_end_date))
             } else {
                 calculate_sync_window(&category, &inputs, effective_today)
             };
@@ -1642,6 +1690,14 @@ where
             }
         }
 
+        let fx_activity_start = if matches!(mode, SyncMode::Incremental)
+            && syncable.iter().any(|asset| asset.kind == AssetKind::Fx)
+        {
+            self.fx_activity_start()
+        } else {
+            None
+        };
+
         // Build plans using the mode-specific date range calculation
         let mut plans: Vec<SymbolSyncPlan> = Vec::new();
         for asset in &syncable {
@@ -1670,8 +1726,6 @@ where
                 }
             }
 
-            let planning_mode = sync_mode_for_asset(mode, asset, state.as_ref());
-
             // Build SyncPlanningInputs from computed bounds
             let (activity_min, activity_max) = merge_bounds(
                 activity_bounds.get(&asset.id).copied(),
@@ -1682,6 +1736,15 @@ where
                 .get(&asset.id)
                 .map(|(min, max)| (Some(*min), Some(*max)))
                 .unwrap_or((None, None));
+
+            let fx_history_start = fx_incremental_history_start(
+                mode,
+                asset,
+                state.as_ref(),
+                fx_activity_start,
+                quote_min,
+                fetch_end_date,
+            );
 
             let mut inputs = SyncPlanningInputs {
                 is_active: state
@@ -1736,7 +1799,8 @@ where
                 }
             }
 
-            if matches!(planning_mode, SyncMode::Incremental)
+            if fx_history_start.is_none()
+                && matches!(mode, SyncMode::Incremental)
                 && matches!(category, SyncCategory::NeedsBackfill)
                 && planning_inputs.is_active
             {
@@ -1783,7 +1847,9 @@ where
                 continue;
             }
 
-            let (start_date, end_date) = if targeted_closed_incremental {
+            let (start_date, end_date) = if let Some(start) = fx_history_start {
+                (start, fetch_end_date)
+            } else if targeted_closed_incremental {
                 let Some(window) =
                     calculate_targeted_closed_incremental_window(&planning_inputs, fetch_end_date)
                 else {
@@ -1794,7 +1860,7 @@ where
             } else {
                 self.calculate_date_range_for_mode(
                     &planning_inputs,
-                    planning_mode,
+                    mode,
                     effective_today,
                     fetch_end_date,
                     asset,
@@ -2814,13 +2880,35 @@ mod tests {
         }
 
         #[test]
-        fn test_fx_incremental_does_not_backfill() {
-            // In Incremental mode, FX assets should continue from last_quote_date
-            // and should NOT trigger a backfill to global earliest activity
-            //
-            // This is important for performance - we don't want every incremental
-            // sync to fetch years of FX history
-            // FX incremental behavior documented
+        fn incremental_fx_uses_existing_quotes_for_legacy_sync_state() {
+            let asset = Asset {
+                kind: AssetKind::Fx,
+                ..Default::default()
+            };
+            let mut state = QuoteSyncState::new("COPUSD".into(), DATA_SOURCE_YAHOO.into());
+            state.mark_synced();
+            let today = Utc::now().date_naive();
+            let oldest_quote = today - Duration::days(365);
+
+            for (required_start, expected) in [
+                (oldest_quote, None),
+                (
+                    oldest_quote - Duration::days(30),
+                    Some(oldest_quote - Duration::days(30)),
+                ),
+            ] {
+                assert_eq!(
+                    fx_incremental_history_start(
+                        SyncMode::Incremental,
+                        &asset,
+                        Some(&state),
+                        Some(required_start),
+                        Some(oldest_quote),
+                        today,
+                    ),
+                    expected,
+                );
+            }
         }
     }
 
@@ -2973,6 +3061,7 @@ mod tests {
                 is_active: true,
                 position_closed_date: None,
                 last_synced_at: None,
+                fx_history_start: None,
                 data_source: data_source.to_string(),
                 sync_priority: 0,
                 error_count: 0,

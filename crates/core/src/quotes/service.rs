@@ -2466,6 +2466,7 @@ where
             // Empty string (not absent) is the contract: `effective_provider`
             // filters empty `data_source` and falls back to `preferred_provider`.
             state.data_source.clear();
+            state.fx_history_start = None;
             state.updated_at = Utc::now();
             self.sync_state_store.upsert(&state).await?;
         }
@@ -4647,6 +4648,7 @@ mod tests {
                 is_active: true,
                 position_closed_date: None,
                 last_synced_at: Some(now),
+                fx_history_start: None,
                 data_source: "YAHOO".to_string(),
                 sync_priority: 100,
                 error_count: 1,
@@ -4714,6 +4716,7 @@ mod tests {
             is_active: true,
             position_closed_date: None,
             last_synced_at: Some(now),
+            fx_history_start: None,
             data_source: "YAHOO".to_string(),
             sync_priority: 100,
             error_count: 10,
@@ -4917,6 +4920,7 @@ mod tests {
             is_active: false,
             position_closed_date: Some(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap()),
             last_synced_at: Some(now),
+            fx_history_start: None,
             data_source: "YAHOO".to_string(),
             sync_priority: 50,
             error_count: 0,
@@ -4981,6 +4985,7 @@ mod tests {
             is_active: true,
             position_closed_date: None,
             last_synced_at: Some(now),
+            fx_history_start: None,
             data_source: "YAHOO".to_string(),
             sync_priority: SyncCategory::Active.default_priority(),
             error_count: 0,
@@ -5283,6 +5288,7 @@ mod tests {
             is_active: true,
             position_closed_date: None,
             last_synced_at: Some(now),
+            fx_history_start: None,
             data_source: "YAHOO".to_string(),
             sync_priority: 100,
             error_count: MAX_SYNC_ERRORS,
@@ -5434,6 +5440,7 @@ mod tests {
             is_active: true,
             position_closed_date: None,
             last_synced_at: Some(now),
+            fx_history_start: None,
             data_source: "YAHOO".to_string(),
             sync_priority: 100,
             error_count: 1,
@@ -5474,6 +5481,7 @@ mod tests {
             is_active: true,
             position_closed_date: None,
             last_synced_at: None,
+            fx_history_start: None,
             data_source: "YAHOO".to_string(),
             sync_priority: 100,
             error_count: 0,
