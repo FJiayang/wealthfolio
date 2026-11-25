@@ -138,6 +138,7 @@ test.describe("Asset-backed income subtypes update holdings", () => {
   }
 
   async function expectActivityRow(type: string, subtype: string, symbol: string) {
+    await gotoAppPath(page, `/accounts/${accountId}?tab=activities`);
     await expect(
       page
         .locator("tr")

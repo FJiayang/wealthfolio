@@ -97,7 +97,10 @@ export function DataGrid<TData>({
         // Rows are `group/row` and the grid `group/list`, with `data-selecting` while
         // any row is selected, so a row control can stay hidden until it is needed.
         data-selecting={table.getIsSomeRowsSelected() || table.getIsAllRowsSelected() || undefined}
-        className={cn("group/list relative grid select-none overflow-auto focus:outline-none", className)}
+        className={cn(
+          "group/list relative grid select-none overflow-x-auto overflow-y-auto focus:outline-none",
+          className,
+        )}
         style={{
           ...columnSizeVars,
           ...(height !== undefined && {

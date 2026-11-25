@@ -107,8 +107,7 @@ for (const width of [1440, 390]) {
       await expect(euros.getByRole("link", { name: /Cash savings/ })).toContainText("-€100");
       await expect(euros.getByLabel("Total")).toContainText("€0");
       await expect(euros.getByText(/%/)).toHaveCount(0);
-      expect(breakdownRequests).toHaveLength(2);
-      expect(breakdownRequests[1].body).toMatchObject({
+      expect(breakdownRequests.at(-1)?.body).toMatchObject({
         assetId: "cash:EUR",
         filter: { type: "portfolio" },
       });

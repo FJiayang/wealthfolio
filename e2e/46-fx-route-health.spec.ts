@@ -1,4 +1,5 @@
-import { expect, test } from "./fixtures";
+import { expect } from "./fixtures";
+import { test } from "./isolated-profile-fixture";
 import { api, createAccount, deposit, uniqueName } from "./api";
 import { completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 import type { HealthIssue } from "../apps/frontend/src/lib/types";

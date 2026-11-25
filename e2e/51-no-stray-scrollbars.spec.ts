@@ -1,5 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
+import { expect, test, type Page } from "./fixtures";
+import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath, trackApiRequests } from "./helpers";
 
 // Up to 1024px, globals.css clips every .flex and .grid box sideways. With
 // overflow-x: hidden that also made each box scroll vertically, so a button's tap
@@ -75,9 +75,10 @@ test.describe("no stray scrollbars on narrow screens", () => {
     test(`flex and grid boxes do not scroll a few pixels at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 812 });
       await completeOnboardingIfNeeded(page);
+      const settled = trackApiRequests(page);
       for (const route of ROUTES) {
         await gotoAppPath(page, route);
-        await page.waitForLoadState("networkidle");
+        await settled();
         await expect
           .poll(() => strayScrollers(page, STRAY_OVERFLOW_PX), { message: route })
           .toEqual([]);

@@ -9,6 +9,41 @@ export const BASE_URL =
   "http://localhost:1420";
 export const TEST_PASSWORD = "password001";
 
+export const EVENT_STREAM = "/api/v1/events/stream";
+const QUIET_MS = 750;
+
+/**
+ * Resolves once the page has made at least one API request and none has been in
+ * flight for `QUIET_MS`: the page has loaded its data, including what the load's
+ * portfolio update refetches. Call before navigating.
+ */
+export function trackApiRequests(page: Page) {
+  let inFlight = 0;
+  let started = 0;
+  let lastChange = Date.now();
+  const isApi = (url: string) => url.includes("/api/v1/") && !url.includes(EVENT_STREAM);
+  const done = () => {
+    inFlight -= 1;
+    lastChange = Date.now();
+  };
+  page.on("request", (request) => {
+    if (!isApi(request.url())) return;
+    inFlight += 1;
+    started += 1;
+    lastChange = Date.now();
+  });
+  page.on("requestfinished", (request) => isApi(request.url()) && done());
+  page.on("requestfailed", (request) => isApi(request.url()) && done());
+  return () =>
+    expect
+      .poll(() => started > 0 && inFlight === 0 && Date.now() - lastChange >= QUIET_MS, {
+        message: "the page's API requests settle",
+        timeout: 60_000,
+        intervals: [100],
+      })
+      .toBe(true);
+}
+
 export async function getHoldingWhenReady<T>(
   page: Page,
   accountId: string,
