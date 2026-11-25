@@ -1,7 +1,48 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
-export const BASE_URL = process.env.WF_E2E_BASE_URL || "http://localhost:1420";
+// `pnpm test:e2e` starts one server per Playwright worker and lists them in
+// WF_E2E_WORKER_URLS; a worker uses the one at its parallel index.
+const workerUrls = process.env.WF_E2E_WORKER_URLS?.split(",").filter(Boolean) ?? [];
+export const BASE_URL =
+  process.env.WF_E2E_BASE_URL ||
+  workerUrls[Number(process.env.TEST_PARALLEL_INDEX ?? 0)] ||
+  "http://localhost:1420";
 export const TEST_PASSWORD = "password001";
+
+export const EVENT_STREAM = "/api/v1/events/stream";
+const QUIET_MS = 750;
+
+/**
+ * Resolves once the page has made at least one API request and none has been in
+ * flight for `QUIET_MS`: the page has loaded its data, including what the load's
+ * portfolio update refetches. Call before navigating.
+ */
+export function trackApiRequests(page: Page) {
+  let inFlight = 0;
+  let started = 0;
+  let lastChange = Date.now();
+  const isApi = (url: string) => url.includes("/api/v1/") && !url.includes(EVENT_STREAM);
+  const done = () => {
+    inFlight -= 1;
+    lastChange = Date.now();
+  };
+  page.on("request", (request) => {
+    if (!isApi(request.url())) return;
+    inFlight += 1;
+    started += 1;
+    lastChange = Date.now();
+  });
+  page.on("requestfinished", (request) => isApi(request.url()) && done());
+  page.on("requestfailed", (request) => isApi(request.url()) && done());
+  return () =>
+    expect
+      .poll(() => started > 0 && inFlight === 0 && Date.now() - lastChange >= QUIET_MS, {
+        message: "the page's API requests settle",
+        timeout: 60_000,
+        intervals: [100],
+      })
+      .toBe(true);
+}
 
 export async function getHoldingWhenReady<T>(
   page: Page,
@@ -9,24 +50,10 @@ export async function getHoldingWhenReady<T>(
   assetId: string,
 ): Promise<T | null> {
   const params = new URLSearchParams({ accountId, assetId });
-  let response = await page.request.get(`${BASE_URL}/api/v1/holdings/item?${params}`);
-  if (response.status() === 400) {
-    const scope = await page.request.post(`${BASE_URL}/api/v1/holdings/list/query`, {
-      data: { filter: { type: "account", accountId } },
-    });
-    expect(scope.ok()).toBeTruthy();
-    const result = await scope.json();
-    if (
-      result.incompleteAccounts?.some(
-        (account: { accountId: string; status: string; reasonCode: string }) =>
-          account.accountId === accountId &&
-          account.status === "pending" &&
-          account.reasonCode === "PROJECTION_PENDING",
-      )
-    )
-      return null;
-    // The projection may have completed between the item and scope reads.
-    response = await page.request.get(`${BASE_URL}/api/v1/holdings/item?${params}`);
+  const response = await page.request.get(`${BASE_URL}/api/v1/holdings/item?${params}`);
+  if (response.status() === 503) {
+    expect((await response.json()).errorCode).toBe("HOLDINGS_PENDING");
+    return null;
   }
   expect(response.ok(), `GET /holdings/item failed with ${response.status()}`).toBeTruthy();
   return response.json() as Promise<T | null>;
@@ -185,6 +212,36 @@ async function waitForLoginOnboardingOrApp(page: Page, timeout: number) {
       { timeout },
     )
     .not.toBe("loading");
+}
+
+// Every app load asks for a portfolio update; when it finishes, the app
+// refetches what is on screen. A spec that measures layout or clicks while that
+// lands can flake, so it can count the updates the page has seen finish
+// (`trackPortfolioUpdates` before loading) and wait for the next one.
+export async function trackPortfolioUpdates(page: Page) {
+  await page.addInitScript(() => {
+    const NativeEventSource = window.EventSource;
+    const state = window as unknown as { __wfPortfolioUpdates: number };
+    state.__wfPortfolioUpdates = 0;
+    window.EventSource = class extends NativeEventSource {
+      constructor(url: string | URL, init?: EventSourceInit) {
+        super(url, init);
+        this.addEventListener("portfolio:update-complete", () => {
+          state.__wfPortfolioUpdates += 1;
+        });
+      }
+    };
+  });
+}
+
+export async function waitForPortfolioUpdates(page: Page, count = 1, timeout = 60_000) {
+  await page.waitForFunction(
+    (expected) =>
+      ((window as unknown as { __wfPortfolioUpdates?: number }).__wfPortfolioUpdates ?? 0) >=
+      expected,
+    count,
+    { timeout },
+  );
 }
 
 export async function gotoAppPath(page: Page, path: string) {

@@ -16,6 +16,7 @@ import {
 import { DataGrid, useDataGrid } from "@wealthfolio/ui/components/data-grid";
 import { INSTRUCTION_SIDES, type InstructionSide, type TradeInstruction } from "@/adapters";
 import { useBalancePrivacy } from "@/hooks/use-balance-privacy";
+import { useIsMobileViewport } from "@/hooks/use-platform";
 import { InstructionTypeBadge } from "./instruction-display";
 import { instructionAssetLabel } from "./instruction-label";
 import { InstructionActions } from "./instruction-actions";
@@ -39,6 +40,7 @@ export function InstructionGrid({
   const { formatAmount } = useAmountFormatting();
   const { isBalanceHidden } = useBalancePrivacy();
   const { locale, timezone } = useLocalizationSettings();
+  const isMobile = useIsMobileViewport();
   // Mask the table values too, so copying cells respects balance privacy.
   const data = useMemo(
     () =>
@@ -266,7 +268,8 @@ export function InstructionGrid({
     enableRowSelection: false,
     enablePinning: false,
     onSortingChange,
-    initialState: { sorting, columnPinning: { right: ["actions"] } },
+    initialState: { sorting },
+    state: { columnPinning: { right: isMobile ? [] : ["actions"] } },
   });
   return (
     <div className="space-y-3">

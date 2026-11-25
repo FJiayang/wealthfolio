@@ -1,5 +1,7 @@
-import { expect, test } from "@playwright/test";
+import { expect } from "./fixtures";
+import { test } from "./isolated-profile-fixture";
 import { BASE_URL, gotoAppPath } from "./helpers";
+import { createAccount, deposit, uniqueName } from "./api";
 
 const plan = {
   version: "v3",
@@ -25,20 +27,7 @@ test("retirement respects Spain's formats and keeps chart labels visible in both
 }) => {
   test.setTimeout(120000);
   const api = `${BASE_URL}/api/v1`;
-  const stateResponse = await page.request.post(`${api}/profiles/get_profile_state`, { data: {} });
-  expect(stateResponse.ok()).toBeTruthy();
-  const state = await stateResponse.json();
-  const session =
-    state.session ??
-    (await (
-      await page.request.post(`${api}/profiles/unlock_profile`, {
-        data: { profileId: state.profiles[0].id },
-      })
-    ).json());
-  const headers = { "x-wf-profile-scope": session.scopeId };
-  const previousSettings = await (await page.request.get(`${api}/settings`, { headers })).json();
   const settings = await page.request.put(`${api}/settings`, {
-    headers,
     data: {
       baseCurrency: "USD",
       onboardingCompleted: true,
@@ -51,15 +40,18 @@ test("retirement respects Spain's formats and keeps chart labels visible in both
     },
   });
   expect(settings.ok()).toBeTruthy();
+  const account = await createAccount(page, {
+    name: uniqueName("Retirement funding"),
+    accountType: "CASH",
+  });
+  await deposit(page, account.id, 100_000, "USD");
   const created = await page.request.post(`${api}/goals`, {
-    headers,
     data: { goalType: "retirement", title: "Spain formatting regression" },
   });
   expect(created.ok(), await created.text()).toBeTruthy();
   const goal = await created.json();
   try {
     const savedPlan = await page.request.post(`${api}/goals/plan`, {
-      headers,
       data: {
         goalId: goal.id,
         planKind: "retirement",
@@ -86,7 +78,6 @@ test("retirement respects Spain's formats and keeps chart labels visible in both
         )
         .toBe(true);
       await expect(ticks.last()).toContainText("US$");
-      // How funded the plan is depends on the accounts earlier specs left behind.
       await expect(page.getByText(/\d,\d\s%.*funded/)).toBeVisible();
       await page.getByRole("button", { name: "Edit Projection Assumptions" }).click();
       const rateInput = page.getByRole("textbox", { name: "Return before retirement" });
@@ -105,16 +96,13 @@ test("retirement respects Spain's formats and keeps chart labels visible in both
       await page.getByRole("button", { name: "Save", exact: true }).first().click();
       const saved = await saving;
       expect(saved.ok()).toBeTruthy();
-      const persisted = await (
-        await page.request.get(`${api}/goals/${goal.id}/plan`, { headers })
-      ).json();
+      const persisted = await (await page.request.get(`${api}/goals/${goal.id}/plan`)).json();
       expect(JSON.parse(persisted.settingsJson).investment.preRetirementAnnualReturn).toBeCloseTo(
         dir === "ltr" ? 0.059 : 0.057,
       );
       await chart.screenshot({ path: test.info().outputPath(`retirement-${dir}.png`) });
     }
   } finally {
-    await page.request.delete(`${api}/goals/${goal.id}`, { headers });
-    await page.request.put(`${api}/settings`, { headers, data: previousSettings });
+    await page.request.delete(`${api}/goals/${goal.id}`);
   }
 });

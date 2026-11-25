@@ -1,4 +1,4 @@
-import { expect } from "@playwright/test";
+import { expect } from "./fixtures";
 import { test } from "./provider-test-fixture";
 import {
   BASE_URL,

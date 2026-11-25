@@ -1053,6 +1053,13 @@ where
         })
     }
 
+    /// Whether symbol search offers this existing asset. Search finds what an
+    /// account can hold or a chart can compare: not FX pairs, and not
+    /// alternative assets, which count toward net worth on their own.
+    fn searchable(asset: &Asset) -> bool {
+        asset.kind != AssetKind::Fx && !asset.is_alternative()
+    }
+
     /// Convert an existing Asset to a SymbolSearchResult for search results.
     ///
     /// Marks the result as existing and includes the asset ID.
@@ -1746,7 +1753,7 @@ where
         // 3. Convert existing assets to SymbolSearchResult with is_existing flag
         let mut existing_summaries: Vec<SymbolSearchResult> = existing_assets
             .iter()
-            .filter(|a| a.kind != AssetKind::Fx)
+            .filter(|a| Self::searchable(a))
             .map(|asset| Self::asset_to_quote_summary(asset))
             .collect();
         let mut existing_asset_ids: HashSet<String> = existing_summaries
@@ -1759,7 +1766,7 @@ where
             let existing_asset = instrument_key_from_search_result(&result)
                 .and_then(|key| self.asset_repo.find_by_instrument_key(&key).ok().flatten());
 
-            if let Some(asset) = existing_asset.filter(|a| a.kind != AssetKind::Fx) {
+            if let Some(asset) = existing_asset.filter(Self::searchable) {
                 if search_result_matches_query(&result, query) {
                     exact_asset_ids.insert(asset.id.clone());
                 }
@@ -2459,6 +2466,7 @@ where
             // Empty string (not absent) is the contract: `effective_provider`
             // filters empty `data_source` and falls back to `preferred_provider`.
             state.data_source.clear();
+            state.fx_history_start = None;
             state.updated_at = Utc::now();
             self.sync_state_store.upsert(&state).await?;
         }
@@ -4640,6 +4648,7 @@ mod tests {
                 is_active: true,
                 position_closed_date: None,
                 last_synced_at: Some(now),
+                fx_history_start: None,
                 data_source: "YAHOO".to_string(),
                 sync_priority: 100,
                 error_count: 1,
@@ -4707,6 +4716,7 @@ mod tests {
             is_active: true,
             position_closed_date: None,
             last_synced_at: Some(now),
+            fx_history_start: None,
             data_source: "YAHOO".to_string(),
             sync_priority: 100,
             error_count: 10,
@@ -4910,6 +4920,7 @@ mod tests {
             is_active: false,
             position_closed_date: Some(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap()),
             last_synced_at: Some(now),
+            fx_history_start: None,
             data_source: "YAHOO".to_string(),
             sync_priority: 50,
             error_count: 0,
@@ -4974,6 +4985,7 @@ mod tests {
             is_active: true,
             position_closed_date: None,
             last_synced_at: Some(now),
+            fx_history_start: None,
             data_source: "YAHOO".to_string(),
             sync_priority: SyncCategory::Active.default_priority(),
             error_count: 0,
@@ -5276,6 +5288,7 @@ mod tests {
             is_active: true,
             position_closed_date: None,
             last_synced_at: Some(now),
+            fx_history_start: None,
             data_source: "YAHOO".to_string(),
             sync_priority: 100,
             error_count: MAX_SYNC_ERRORS,
@@ -5427,6 +5440,7 @@ mod tests {
             is_active: true,
             position_closed_date: None,
             last_synced_at: Some(now),
+            fx_history_start: None,
             data_source: "YAHOO".to_string(),
             sync_priority: 100,
             error_count: 1,
@@ -5467,6 +5481,7 @@ mod tests {
             is_active: true,
             position_closed_date: None,
             last_synced_at: None,
+            fx_history_start: None,
             data_source: "YAHOO".to_string(),
             sync_priority: 100,
             error_count: 0,

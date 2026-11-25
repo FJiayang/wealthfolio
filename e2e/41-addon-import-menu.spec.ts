@@ -1,4 +1,4 @@
-import { devices, expect, test } from "@playwright/test";
+import { devices, expect, test } from "./fixtures";
 import { randomUUID } from "node:crypto";
 import { importAddonFixture } from "./fixtures/import-addons/fixture";
 import { BASE_URL, completeOnboardingIfNeeded } from "./helpers";
@@ -84,15 +84,9 @@ function defineImportMenuTests(mobile: boolean) {
             : page.getByTestId("add-activities-button").filter({ visible: true });
           await expect(trigger).toBeVisible();
           await expect(page.locator(`nav a[href="/addons/${addon.id}"]`)).toHaveCount(0);
-          await expect
-            .poll(() =>
-              page.evaluate(async (id) => {
-                const modulePath = "/src/addons/iframe/addon-iframe-manager.ts";
-                const { addonIframeManager } = await import(modulePath);
-                return addonIframeManager.hasRuntime(id);
-              }, addon.id),
-            )
-            .toBe(false);
+          await expect(page.locator(`iframe[title="${addon.label} add-on sandbox"]`)).toHaveCount(
+            0,
+          );
           await trigger.click();
           const entry = page.getByTestId(`addon-import-${addon.id}:${addon.route}`);
           await expect(entry).toBeVisible();

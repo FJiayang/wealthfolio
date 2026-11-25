@@ -463,6 +463,7 @@ diesel::table! {
         profile_enriched_at -> Nullable<Text>,
         created_at -> Text,
         updated_at -> Text,
+        fx_history_start -> Nullable<Text>,
     }
 }
 

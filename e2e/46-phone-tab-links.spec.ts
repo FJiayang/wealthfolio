@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Page } from "./fixtures";
 import { test } from "./isolated-profile-fixture";
 import { BASE_URL, completeOnboardingIfNeeded, gotoAppPath } from "./helpers";
 

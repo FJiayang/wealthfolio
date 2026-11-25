@@ -1,10 +1,11 @@
-import { expect, test } from "@playwright/test";
-import { BASE_URL, loginIfNeeded } from "./helpers";
+import { expect } from "./fixtures";
+import { importAddonFixture } from "./fixtures/import-addons/fixture";
+import { BASE_URL, gotoAppPath } from "./helpers";
+import { test } from "./isolated-profile-fixture";
+import type { OpenActivityImportRequest } from "../packages/addon-sdk/src/data-types";
 
 test("parsed drafts enter the host asset, review, confirm and result flow", async ({ page }) => {
   test.setTimeout(180_000);
-  await loginIfNeeded(page);
-  await page.goto(BASE_URL + "/activities", { waitUntil: "domcontentloaded" });
   const requestedId = "addon-handoff-account";
   const response = await page.request.post(BASE_URL + "/api/v1/accounts", {
     data: {
@@ -21,7 +22,7 @@ test("parsed drafts enter the host asset, review, confirm and result flow", asyn
   expect(response.ok()).toBe(true);
   const { id: accountId } = await response.json();
 
-  const input = {
+  const input: OpenActivityImportRequest = {
     sourceLabel: "synthetic statement",
     accountId,
     rows: [
@@ -61,14 +62,19 @@ test("parsed drafts enter the host asset, review, confirm and result flow", asyn
     ],
   };
 
+  const addon = importAddonFixture("synthetic-handoff", "investments", accountId, input);
+  const install = await page.request.post(BASE_URL + "/api/v1/addons/install-zip", {
+    data: { zipDataB64: addon.zip.toString("base64"), enableAfterInstall: true },
+  });
+  expect(install.ok(), await install.text()).toBe(true);
+  const addonPath = `/addons/${addon.id}`;
+  await gotoAppPath(page, addonPath);
+  const openWizard = page.frameLocator("iframe").getByRole("button", {
+    name: "Open host import wizard",
+  });
+
   async function open() {
-    await page.evaluate(async (request) => {
-      const modulePath = "/src/addons/import-handoff.ts";
-      const { prepareImportHandoff } = await import(modulePath);
-      prepareImportHandoff("synthetic-addon", request, "/activities");
-      history.pushState(null, "", "/import?addonImport=1");
-      dispatchEvent(new PopStateEvent("popstate"));
-    }, input);
+    await openWizard.click();
     await expect(page.getByRole("button", { name: /Review Activities/i })).toBeEnabled({
       timeout: 30_000,
     });
@@ -80,7 +86,7 @@ test("parsed drafts enter the host asset, review, confirm and result flow", asyn
   await expect(page.getByRole("button", { name: /Review Activities/i })).toBeEnabled();
   await page.getByRole("button", { name: "Return to original transactions" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Cancel Import" }).click();
-  await expect(page).toHaveURL(/\/activities$/);
+  await expect(page).toHaveURL(BASE_URL + addonPath);
 
   await open();
   await page.getByRole("button", { name: /Review Activities/i }).click();

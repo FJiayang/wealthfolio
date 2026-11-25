@@ -385,6 +385,10 @@ pub struct QuoteSyncState {
     pub position_closed_date: Option<NaiveDate>,
     /// When the last sync was attempted
     pub last_synced_at: Option<DateTime<Utc>>,
+    /// Earliest successfully requested FX history date for the recorded data source.
+    /// A provider can return a shorter history than requested.
+    #[serde(skip)]
+    pub fx_history_start: Option<NaiveDate>,
     /// Which provider to use for this asset
     pub data_source: String,
     /// Priority for sync ordering
@@ -409,6 +413,7 @@ impl QuoteSyncState {
             is_active: true,
             position_closed_date: None,
             last_synced_at: None,
+            fx_history_start: None,
             data_source,
             sync_priority: SyncCategory::New.default_priority(),
             error_count: 0,
