@@ -1,5 +1,22 @@
 # Initial Linux CI baseline review
 
+## Upstream 3.13.1 narrow-screen shadows — 2026-11-25
+
+Independent reviewer `/root/baseline_review` approved 30 Linux CI screenshots.
+The comparisons ran at `6c1744428c538e6524df18040338b427e7a32298`, with the same
+tree as PR head `a9bea09522cc0f8d4f78cfff5f504fc8af72f01e`, in
+`mcr.microsoft.com/playwright:v1.65.0-noble` (digest
+`sha256:9beb546099e11f52d62e505537914870e01a67e0e6b00ae41da4775324e73dbe`).
+[Chromium comparison](https://github.com/FJiayang/wealthfolio/actions/runs/45528713155/artifacts/14983942827),
+[WebKit comparison](https://github.com/FJiayang/wealthfolio/actions/runs/45528713155/artifacts/14983249497).
+
+Upstream's narrow-screen overflow change (`191228f3097`) restores vertical
+shadows below controls. The reviewer inspected actual, expected and diff images,
+then reproduced the changes by toggling that CSS rule in the pinned browsers.
+The 30 PNGs use the reviewed CI bytes. The other snapshots and all accessibility
+JSON files retain their original bytes.
+[Separate candidate run](https://github.com/FJiayang/wealthfolio/actions/runs/45540461970).
+
 ## Upstream 3.13 and Playwright 1.65 — 2026-11-13
 
 Independent reviewers `/root/baseline_review`, `/root/overlay_review`, and
